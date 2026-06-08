@@ -35,6 +35,47 @@ import { softColor, pickTextColor, fontStack, loadFont } from "../lib/brand.js";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 
+// Loading state for the guest event page — a shimmering skeleton of the real
+// layout (full-bleed hero → title/meta → body → sticky CTA) instead of a bare
+// "Loading event…". Dark, to match the guest page.
+function EventPageSkeleton() {
+  const block = (style) => (
+    <div style={{ borderRadius: 8, background: "rgba(255,255,255,0.05)", backgroundImage: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0) 100%)", backgroundSize: "240px 100%", backgroundRepeat: "no-repeat", animation: "pp-shimmer 1.4s ease-in-out infinite", ...style }} />
+  );
+  return (
+    <div style={{ minHeight: "100dvh", background: "#0b0a12", display: "flex", justifyContent: "center" }}>
+      <style>{`@keyframes pp-shimmer { 0% { background-position: -240px 0; } 100% { background-position: calc(100% + 240px) 0; } }`}</style>
+      <div style={{ width: "100%", maxWidth: 460, minHeight: "100dvh", position: "relative", display: "flex", flexDirection: "column" }}>
+        {/* Hero */}
+        <div style={{ position: "relative", height: "56vh", minHeight: 320, background: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
+          {block({ position: "absolute", inset: 0, borderRadius: 0 })}
+          {/* Title sitting low on the hero, like the real page. */}
+          <div style={{ position: "absolute", left: 22, right: 22, bottom: 26, display: "flex", flexDirection: "column", gap: 10 }}>
+            {block({ height: 30, width: "82%", background: "rgba(255,255,255,0.10)" })}
+            {block({ height: 16, width: "55%", background: "rgba(255,255,255,0.08)" })}
+          </div>
+        </div>
+        {/* Body */}
+        <div style={{ padding: "24px 22px", display: "flex", flexDirection: "column", gap: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+            {block({ height: 14, width: "40%" })}
+            {block({ height: 14, width: "62%" })}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {block({ height: 12, width: "100%" })}
+            {block({ height: 12, width: "92%" })}
+            {block({ height: 12, width: "78%" })}
+          </div>
+        </div>
+        {/* Sticky CTA */}
+        <div style={{ marginTop: "auto", padding: "16px 22px calc(20px + env(safe-area-inset-bottom))" }}>
+          {block({ height: 54, width: "100%", borderRadius: 999, background: "rgba(236,23,143,0.18)" })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EventPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -468,31 +509,7 @@ export function EventPage() {
   }, [event?.id, slug, vipToken]);
 
   if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          position: "relative",
-          background:
-            `${colors.gradientGlow}, ${colors.background}`,
-          padding: "40px 16px",
-        }}
-      >
-        <div className="responsive-container responsive-container-wide">
-          <div
-            className="responsive-card"
-            style={{
-              background: "rgba(12, 10, 18, 0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: "18px", opacity: 0.8 }}>Loading event…</div>
-          </div>
-        </div>
-      </div>
-    );
+    return <EventPageSkeleton />;
   }
 
   if (notFound || !event) {

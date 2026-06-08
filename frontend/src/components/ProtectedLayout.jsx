@@ -27,8 +27,23 @@ function ProtectedLayoutInner() {
   const [profilePic, setProfilePic] = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false); // create gate → onboarding door
+  // Draft autosave state from the create editor (it lives in CreateEventPage but
+  // its Publish button is here), surfaced via pullup:draft-status.
+  const [draftStatus, setDraftStatus] = useState({ saveStatus: "idle", slug: null, hasDraft: false });
   const { showToast } = useToast();
   const drawerRef = useRef(null);
+
+  useEffect(() => {
+    const onStatus = (e) => setDraftStatus(e.detail || { saveStatus: "idle", slug: null, hasDraft: false });
+    window.addEventListener("pullup:draft-status", onStatus);
+    return () => window.removeEventListener("pullup:draft-status", onStatus);
+  }, []);
+  // Reset when we leave the editor (create OR an event edit page) so a stale
+  // "saved" never lingers elsewhere.
+  useEffect(() => {
+    const inEditor = location.pathname === "/create" || /\/events\/[^/]+\/edit$/.test(location.pathname);
+    if (!inEditor) setDraftStatus({ saveStatus: "idle", slug: null, hasDraft: false });
+  }, [location.pathname]);
 
   // Detect event routes. Matches the canonical room `/events/:id/room` AND the
   // host management surfaces under `/app/events/:id/...`.
@@ -155,6 +170,13 @@ function ProtectedLayoutInner() {
   }
 
   const isCreatingEvent = location.pathname === "/create";
+  // Editing a DRAFT is the SAME experience as creating one — same editor, same
+  // header (logo + Draft-saved · Preview · Publish), no bespoke event chrome /
+  // tabs / floating save. So a draft editor route reads as a "creator route".
+  // (Editing a PUBLISHED event keeps the event chrome — tabs to Guests/Analytics.)
+  const isDraftEditor = eventTab === "edit" && eventNav?.status === "DRAFT";
+  const editorRoute = isCreatingEvent || isDraftEditor;       // create-style header + Publish
+  const eventChrome = isEventRoute && !isDraftEditor;          // bespoke event header
   const isAdminPage = location.pathname.startsWith("/admin");
   // The email section is the one admin surface that's strictly admin-only — it
   // sends mail outside PullUp. Other /admin pages stay accessible since they
@@ -189,6 +211,7 @@ function ProtectedLayoutInner() {
   // Admin-only nav items
   const adminNavItems = [
     { label: "CRM", path: "/admin/crm" },
+    { label: "Matching", path: "/admin/matches" },
     { label: "Analytics", path: "/admin/analytics" },
   ];
 
@@ -303,7 +326,7 @@ function ProtectedLayoutInner() {
         }}
       >
         {/* Left side */}
-        {isEventRoute ? (
+        {eventChrome ? (
           <button
             onClick={() => handleNav("/room")}
             style={{
@@ -357,7 +380,7 @@ function ProtectedLayoutInner() {
         )}
 
         {/* Center nav */}
-        {!isMobile && isEventRoute ? (
+        {!isMobile && eventChrome ? (
           /* Event-specific navigation */
           <nav
             style={{
@@ -530,7 +553,7 @@ function ProtectedLayoutInner() {
         {/* Right side */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {/* Event route: Live link */}
-          {isEventRoute && eventNav?.slug && (
+          {eventChrome && eventNav?.slug && (
             <a
               href={`/e/${eventNav.slug}`}
               target="_blank"
@@ -574,11 +597,11 @@ function ProtectedLayoutInner() {
 
           {/* Notifications bell (ambient facts). Desktop always; mobile shows it
               as a badge on the default app (event routes keep the tab menu). */}
-          {(!isMobile || !isEventRoute) && <NotificationsBell />}
+          {(!isMobile || !eventChrome) && <NotificationsBell />}
 
           {/* Settings badge. Same surfacing rule as the bell — a direct icon on
               mobile so we don't need a drawer just to reach Settings. */}
-          {(!isMobile || !isEventRoute) && (
+          {(!isMobile || !eventChrome) && (
             <button
               onClick={() => handleNav("/settings")}
               aria-label="Settings"
@@ -604,7 +627,7 @@ function ProtectedLayoutInner() {
 
           {/* Mobile admin badge → a compact popover with the gold admin surfaces
               (CRM / Email / Analytics), instead of burying them in a drawer. */}
-          {isMobile && !isEventRoute && isAdmin && (
+          {isMobile && !eventChrome && isAdmin && (
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => setAdminMenuOpen((o) => !o)}
@@ -685,7 +708,7 @@ function ProtectedLayoutInner() {
           {/* Mobile: Hamburger — only on event routes, where it carries the
               event tabs (Guests / Insights / Edit). The default app uses the
               direct badges above, no drawer. */}
-          {isMobile && isEventRoute && (
+          {isMobile && eventChrome && (
             <button
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"
@@ -710,12 +733,40 @@ function ProtectedLayoutInner() {
             </button>
           )}
 
-          {/* Create event button (hide on event routes to save space) */}
-          {!isEventRoute && (
+          {/* Create event button (hide on event chrome to save space) */}
+          {!eventChrome && (
+          <>
+            {/* Autosave-as-draft indicator + Preview, next to Publish on /create. */}
+            {editorRoute && !isMobile && (
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginRight: "2px" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 600, color: colors.textSubtle, whiteSpace: "nowrap" }}>
+                  <span style={{
+                    width: "7px", height: "7px", borderRadius: "50%",
+                    background: draftStatus.saveStatus === "saving" ? colors.textFaded : draftStatus.hasDraft ? "#10b981" : colors.border,
+                    transition: "background 0.2s ease",
+                  }} />
+                  {draftStatus.saveStatus === "saving" ? "Saving…" : draftStatus.hasDraft ? "Draft saved" : "Autosaves as draft"}
+                </span>
+                {draftStatus.slug && (
+                  <a
+                    href={`/e/${draftStatus.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "12.5px", fontWeight: 600, color: colors.text, textDecoration: "none", padding: "7px 13px", borderRadius: "999px", border: `1px solid ${colors.border}`, whiteSpace: "nowrap", transition: "background 0.15s ease" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    Preview
+                  </a>
+                )}
+              </div>
+            )}
             <button
               onClick={() => {
-                if (isCreatingEvent) {
-                  handleNav("/room");
+                if (editorRoute) {
+                  // In the editor (create OR editing a draft) the primary action
+                  // is Publish — fire the editor's form submit. (Back = the logo.)
+                  window.dispatchEvent(new CustomEvent("pullup:request-publish"));
                 } else if (!profileComplete) {
                   // Not host-ready → the one door: onboarding (complete your
                   // profile) ending in the auth step (verify via any method),
@@ -751,8 +802,9 @@ function ProtectedLayoutInner() {
                 e.target.style.boxShadow = colors.accentShadow;
               }}
             >
-              {isCreatingEvent ? "Back" : "+ create"}
+              {editorRoute ? "Publish" : "+ create"}
             </button>
+          </>
           )}
         </div>
       </header>
@@ -912,7 +964,7 @@ function ProtectedLayoutInner() {
 
             {/* Nav items */}
             <nav style={{ padding: "12px 8px", flex: 1 }}>
-              {isEventRoute ? (
+              {eventChrome ? (
                 <>
                   {/* Event title in drawer */}
                   {eventNav?.title && (

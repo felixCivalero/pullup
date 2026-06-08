@@ -53,10 +53,12 @@ import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
 import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
+import { CreateWizard } from "../components/CreateWizard.jsx";
 import { BrandThemeEditor } from "../components/BrandThemeEditor.jsx";
 import { pickTextColor, fontStack, softColor, FONTS } from "../lib/brand.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { AI_CREATE_ENABLED } from "../lib/featureFlags.js";
 import { colors } from "../theme/colors.js";
 import {
   formatRelativeTime,
@@ -443,17 +445,19 @@ const RAIL_GROUPS = [
     group: "The page",
     items: [
       { id: "cover", label: "Cover", icon: ImageIcon, step: 1 },
+      { id: "theme", label: "Look & theme", icon: Palette, step: 2, anchor: "part-theme" },
       // Title, date, place, links, text all live as reorderable blocks in the
       // sections builder — so this one editor IS the page body.
       { id: "content", label: "Content", icon: Type, step: 2, anchor: "part-sections" },
-      { id: "theme", label: "Look & theme", icon: Palette, step: 2, anchor: "part-theme" },
     ],
   },
   {
     group: "Sign-up",
     items: [
-      { id: "collect", label: "Sign-up form", icon: ClipboardList, step: 3 },
-      { id: "tickets", label: "Capacity & tickets", icon: Ticket, step: 5 },
+      // Capacity + access live here now (tickets are paused, and the essentials
+      // are captured up front in the new-event wizard). Kept reachable so
+      // existing events can still tweak the form, capacity and options.
+      { id: "collect", label: "Sign-up & access", icon: ClipboardList, step: 3 },
     ],
   },
 ];
@@ -572,13 +576,20 @@ export function CreateEventPage() {
   const dinnerStartTimeInputRef = useRef(null);
   const dinnerEndTimeInputRef = useRef(null);
 
-  // Restore draft from localStorage (create mode only, expires after 24h)
+  // "Create event" ALWAYS starts a brand-new event. The only reason to restore
+  // a saved localStorage draft is the OAuth publish round-trip — Google sign-in
+  // redirects back to /create with `pendingPublish` set, and we need the form
+  // state back to finish publishing. Any other saved draft is from a previous
+  // session and is already a real DRAFT in the Room (we persist on naming), so
+  // resuming it belongs to the Room's "Finish & publish" card (edit mode), not
+  // here. Discard it so every create is genuinely fresh.
   const draft = !isEditMode ? (() => {
     try {
       const raw = localStorage.getItem("pullup_event_draft");
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (parsed._savedAt && Date.now() - parsed._savedAt > 24 * 60 * 60 * 1000) {
+      const stale = parsed._savedAt && Date.now() - parsed._savedAt > 24 * 60 * 60 * 1000;
+      if (!parsed.pendingPublish || stale) {
         localStorage.removeItem("pullup_event_draft");
         return null;
       }
@@ -663,6 +674,10 @@ export function CreateEventPage() {
   // no "leaving page loses your media", and the preview shows real content).
   // Publish = flip this draft DRAFT→PUBLISHED. Edit mode ignores all this.
   const [draftEventId, setDraftEventId] = useState(draft?.draftEventId || null);
+  // Draft slug (for the header's "Preview" link) + server-sync status (for the
+  // "saved/saving" indicator). Surfaced to the header via pullup:draft-status.
+  const [draftSlug, setDraftSlug] = useState(draft?.draftSlug || null);
+  const [draftSaveStatus, setDraftSaveStatus] = useState("idle"); // idle | saving | saved
   const draftEventIdRef = useRef(null);   // sync mirror for async upload paths
   const draftCreationRef = useRef(null);  // in-flight creation promise (dedupe)
   // Bumped when the canvas chat builds something server-side, so the live
@@ -794,8 +809,24 @@ export function CreateEventPage() {
   });
   const [mobileView, setMobileView] = useState("edit"); // "edit" or "preview"
   const [desktopPreviewMode, setDesktopPreviewMode] = useState("phone"); // "desktop" or "phone"
+  // The flyout panel is a floating OVERLAY on desktop (so opening it never
+  // reflows the preview — no left/right jump). On mobile the editor stays
+  // in-flow (always-open), matching responsive.css. 969px = the create-layout
+  // breakpoint.
+  const [isDesktopEditor, setIsDesktopEditor] = useState(() => window.innerWidth >= 969);
+  useEffect(() => {
+    const onResize = () => setIsDesktopEditor(window.innerWidth >= 969);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [currentStep, setCurrentStep] = useState(draft?.currentStep || 1);
   const [stepDirection, setStepDirection] = useState("forward");
+  // The guided first-run wizard fronts a brand-new event (name/when/where/who)
+  // before the editor. Only for fresh creates — edit + duplicate skip it. Once
+  // dismissed (done or "set up later") it's marked done in the draft so a
+  // refresh mid-create doesn't re-trap the host.
+  const [wizardDone, setWizardDone] = useState(!!draft?.wizardDone);
+  const [wizardActive, setWizardActive] = useState(!isEditMode && !draft?.wizardDone);
   const [hasAttemptedPublish, setHasAttemptedPublish] = useState(false);
   const [goldFlash, setGoldFlash] = useState({}); // { title: true, startsAt: true, media: true }
   const sidebarRef = useRef(null);
@@ -1033,6 +1064,7 @@ export function CreateEventPage() {
           collectPhone,
           collectInstagram,
           currentStep,
+          wizardDone,
           _savedAt: Date.now(),
         };
         localStorage.setItem("pullup_event_draft", JSON.stringify(draftData));
@@ -1050,7 +1082,7 @@ export function CreateEventPage() {
     dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
     formFields, contactChannel,
-    currentStep, detailsColor, detailsGradient, detailsGradientEnabled,
+    currentStep, wizardDone, detailsColor, detailsGradient, detailsGradientEnabled,
     // These are saved in the payload but were missing here, so changes to them
     // (esp. `brand`, which holds the AI scene) never re-fired the save → reload
     // restored a stale draft and the hero fell back to uploaded media.
@@ -1087,6 +1119,28 @@ export function CreateEventPage() {
   const [activePartId, setActivePartId] = useState(firstPartForStep(draft?.currentStep || 1));
   const [aiOfferDismissed, setAiOfferDismissed] = useState(false);
   const editorScrollRef = useRef(null);
+  const formRef = useRef(null);
+
+  // The header's "Publish" button lives outside this component (ProtectedLayout),
+  // so it asks us to submit via an event rather than a shared callback.
+  useEffect(() => {
+    const onReq = () => formRef.current?.requestSubmit();
+    window.addEventListener("pullup:request-publish", onReq);
+    return () => window.removeEventListener("pullup:request-publish", onReq);
+  }, []);
+
+  // Flyout panel model (desktop): the editor for a part is HIDDEN by default —
+  // you just see the thin icon rail. Hovering a rail icon (or a region in the
+  // live preview) PEEKS its panel open; moving away collapses it. Clicking PINS
+  // it open; clicking outside closes it. The visible part is hover || pinned.
+  const [pinnedPartId, setPinnedPartId] = useState(null);
+  const [hoverPartId, setHoverPartId] = useState(null);
+  const railNavRef = useRef(null);
+  const panelRef = useRef(null);
+  const publishPillRef = useRef(null);
+  const peekCloseTimer = useRef(null);
+  // Preview region kind → rail part id.
+  const PART_FROM_KIND = { cover: "cover", section: "content", rsvp: "collect" };
 
   // The two-track offer: hand the creative track to AI while the host does the
   // logistics. Opens the canvas dock with a ready-to-send "build the look"
@@ -1121,6 +1175,50 @@ export function CreateEventPage() {
     else setTimeout(doScroll, 60); // let the new step paint first
   }
 
+  // The part whose panel is currently shown (transient hover wins over the pin),
+  // and whether any panel is open at all.
+  const openPartId = hoverPartId || pinnedPartId;
+  const panelOpen = !!openPartId;
+
+  function cancelPeekClose() {
+    if (peekCloseTimer.current) { clearTimeout(peekCloseTimer.current); peekCloseTimer.current = null; }
+  }
+  // Small grace delay so moving the cursor from the rail across the gap into the
+  // panel (or vice-versa) doesn't flicker it shut.
+  function schedulePeekClose() {
+    cancelPeekClose();
+    peekCloseTimer.current = setTimeout(() => setHoverPartId(null), 160);
+  }
+  function peekPart(id) { cancelPeekClose(); setHoverPartId(id); }
+  function togglePin(id) { setPinnedPartId((cur) => (cur === id ? null : id)); }
+  function closePanel() { setPinnedPartId(null); setHoverPartId(null); }
+
+  // When the open part changes (hover or pin), render its editor — switch the
+  // step + active id. Kept light (no scroll) so hover-peeking stays smooth; the
+  // click paths (goToPart / handleEditPart) still do the nice scroll-to-part.
+  useEffect(() => {
+    if (!openPartId) return;
+    const it = RAIL_ITEMS.find((i) => i.id === openPartId);
+    if (!it) return;
+    setActivePartId(it.id);
+    setCurrentStep((s) => (s === it.step ? s : it.step));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPartId]);
+
+  // Click anywhere outside the rail / panel / publish → unpin (close).
+  useEffect(() => {
+    if (!pinnedPartId) return;
+    function onDown(e) {
+      const t = e.target;
+      if (railNavRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      if (publishPillRef.current?.contains(t)) return;
+      setPinnedPartId(null);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pinnedPartId]);
+
   // Point-at-the-preview → open that part's editor. The mirror of hoveredSection
   // (editor→preview): now preview→editor. Cover opens media, the RSVP box opens
   // "what you collect," and a section opens the sections builder scrolled to —
@@ -1132,6 +1230,9 @@ export function CreateEventPage() {
     setTimeout(() => { el.style.boxShadow = "none"; }, 1100);
   }
   function handleEditPart(part) {
+    // Clicking a preview region pins its panel open (stays until click-outside).
+    const pinId = PART_FROM_KIND[part.kind];
+    if (pinId) setPinnedPartId(pinId);
     if (part.kind === "cover") { goToPart(RAIL_ITEMS.find((i) => i.id === "cover")); return; }
     if (part.kind === "rsvp") { goToPart(RAIL_ITEMS.find((i) => i.id === "collect")); return; }
     if (part.kind === "section") {
@@ -1144,6 +1245,13 @@ export function CreateEventPage() {
         if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); flashEditor(el); }
       }, wasStep2 ? 0 : 70);
     }
+  }
+  // Preview region hover → peek that part's panel (the hover mirror of the click
+  // above). null on mouse-out schedules the collapse.
+  function handleHoverPart(part) {
+    if (!part) { schedulePeekClose(); return; }
+    const id = PART_FROM_KIND[part.kind];
+    if (id) peekPart(id);
   }
 
   function validateStep() {
@@ -1586,6 +1694,71 @@ export function CreateEventPage() {
     return () => window.removeEventListener("pullup:canvas-flush-request", onFlushRequest);
   }, [isEditMode]);
 
+  // Keep the SERVER draft in step with what's been entered, so a DRAFT genuinely
+  // holds the wizard's name/when/where/who and any later edits — not just
+  // localStorage. Runs for BOTH create-mode drafts and editing an existing draft
+  // (so editing a draft autosaves, exactly like create — no manual "Save"). A
+  // PUBLISHED event is NEVER autosaved (its host saves explicitly). Debounced;
+  // mirrors the canvas flush's PUT (no status → keeps it a draft).
+  const autosaveTargetId = !isEditMode ? draftEventId : (eventStatus === "DRAFT" ? editEventId : null);
+  useEffect(() => {
+    if (!autosaveTargetId) return;
+    const t = setTimeout(async () => {
+      try {
+        setDraftSaveStatus("saving");
+        const payload = buildPayloadRef.current();
+        if (!payload.startsAt) delete payload.startsAt; // keep the draft's own default
+        const res = await authenticatedFetch(`/host/events/${autosaveTargetId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        try { const d = await res.clone().json(); if (d?.slug) setDraftSlug(d.slug); } catch { /* no body */ }
+        setDraftSaveStatus("saved");
+      } catch (e) {
+        console.warn("[draft] sync failed:", e?.message);
+        setDraftSaveStatus("idle");
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    autosaveTargetId,
+    title, description, sections,
+    startsAt, endsAt, timezone, hideDate, dateRevealHint,
+    location, locationLat, locationLng, locationPlaceId, hideLocation, revealHint,
+    collectPhone, requirePhone, collectInstagram, requireInstagram, formFields, contactChannel,
+    maxAttendees, waitlistEnabled, instantWaitlist, allowPlusOnes, maxPlusOnesPerGuest,
+    dinnerEnabled, dinnerSlotsConfig, brand, instagram, spotify, tiktok, soundcloud,
+  ]);
+
+  // Make sure we have the draft's slug for the header "Preview" link, even if
+  // the create/sync responses didn't carry it.
+  useEffect(() => {
+    if (isEditMode || !draftEventId || draftSlug) return;
+    let alive = true;
+    authenticatedFetch(`/host/events/${draftEventId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ev) => { if (alive && ev?.slug) setDraftSlug(ev.slug); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isEditMode, draftEventId, draftSlug]);
+
+  // Surface draft autosave state + slug to the header (the Publish button lives
+  // there). Only meaningful once a draft row exists.
+  useEffect(() => {
+    // Broadcast for create AND editing a draft (both autosave + Publish in the
+    // header). A published-event edit never autosaves, so no draft status.
+    const draftEditing = isEditMode && eventStatus === "DRAFT";
+    if (isEditMode && !draftEditing) return;
+    window.dispatchEvent(new CustomEvent("pullup:draft-status", {
+      detail: {
+        saveStatus: autosaveTargetId ? draftSaveStatus : "idle",
+        slug: isEditMode ? eventSlug : draftSlug,
+        hasDraft: !!autosaveTargetId,
+      },
+    }));
+  }, [isEditMode, eventStatus, autosaveTargetId, draftSaveStatus, draftSlug, eventSlug]);
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -1698,10 +1871,13 @@ export function CreateEventPage() {
       } catch {
         draftStartsAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
       }
+      // Never persist the editor's placeholder ("Event Name") as a real draft —
+      // that's how junk drafts ended up in the Room. Use a clean fallback.
+      const cleanTitle = (title || "").trim();
       const res = await authenticatedFetch("/events", {
         method: "POST",
         body: JSON.stringify({
-          title: title || "Untitled event",
+          title: cleanTitle && cleanTitle !== "Event Name" ? cleanTitle : "Untitled event",
           startsAt: draftStartsAt.toISOString(),
           timezone,
           createdVia: "create",
@@ -1715,6 +1891,7 @@ export function CreateEventPage() {
       const created = await res.json();
       draftEventIdRef.current = created.id;
       setDraftEventId(created.id);
+      if (created.slug) setDraftSlug(created.slug);
       return created.id;
     })();
 
@@ -1725,6 +1902,22 @@ export function CreateEventPage() {
       throw err;
     }
   }
+
+  // Persist a real DRAFT the moment the event has a name — so the wizard flow
+  // genuinely IS "a new event in draft": it shows up in the Room and survives a
+  // closed tab, not just localStorage. Idempotent (ensureDraftEvent creates once)
+  // and debounced so we don't POST on every keystroke.
+  useEffect(() => {
+    if (isEditMode) return;
+    const named = (title || "").trim();
+    if (!named || named === "Event Name") return;
+    if (draftEventIdRef.current || draftCreationRef.current) return;
+    const t = setTimeout(() => {
+      ensureDraftEvent().catch((e) => console.warn("[draft] auto-create failed:", e?.message));
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, isEditMode]);
 
   async function handleMediaAdd(files) {
     const fileList = Array.isArray(files) ? files : [files];
@@ -2193,10 +2386,14 @@ export function CreateEventPage() {
       const requestBody = buildEventPayload();
 
       if (isEditMode) {
-        // --- EDIT MODE: PUT to update ---
+        // --- EDIT MODE ---
+        // Editing a DRAFT behaves like the create flow: the primary action
+        // PUBLISHES it (flip DRAFT → PUBLISHED). Editing a PUBLISHED event just
+        // saves the changes, keeping it live.
+        const publishing = eventStatus === "DRAFT";
         const res = await authenticatedFetch(`/host/events/${editEventId}`, {
           method: "PUT",
-          body: JSON.stringify(requestBody),
+          body: JSON.stringify(publishing ? { ...requestBody, status: "PUBLISHED" } : requestBody),
         });
 
         if (!res.ok) {
@@ -2255,8 +2452,13 @@ export function CreateEventPage() {
         }
 
         setUploadStatus(null);
-        showToast("Event updated successfully!", "success");
-        navigate(`/app/events/${editEventId}/guests`);
+        if (publishing) {
+          showToast("Published — your event is live!", "success");
+          navigate(`/events/${editEventId}/room`);
+        } else {
+          showToast("Event updated successfully!", "success");
+          navigate(`/app/events/${editEventId}/guests`);
+        }
       } else if (draftEventIdRef.current) {
         // --- CREATE MODE (draft exists): publish the draft ---
         // Media already uploaded straight to this draft as it was added; here
@@ -2436,6 +2638,47 @@ export function CreateEventPage() {
 
   return (
     <>
+    {/* Guided first-run for a brand-new event. Sits over the editor (which stays
+        mounted underneath, so the live preview is already populated the moment
+        the wizard steps aside). */}
+    {wizardActive && (
+      <CreateWizard
+        title={title} setTitle={setTitle}
+        startsAt={startsAt} setStartsAt={setStartsAt}
+        endsAt={endsAt} setEndsAt={setEndsAt}
+        hideDate={hideDate} setHideDate={setHideDate}
+        dateRevealHint={dateRevealHint} setDateRevealHint={setDateRevealHint}
+        location={location} setLocation={setLocation}
+        locationLat={locationLat} locationLng={locationLng}
+        setLocationLat={setLocationLat} setLocationLng={setLocationLng} setLocationPlaceId={setLocationPlaceId}
+        setTimezone={setTimezone}
+        hideLocation={hideLocation} setHideLocation={setHideLocation}
+        revealHint={revealHint} setRevealHint={setRevealHint}
+        collectPhone={collectPhone} setCollectPhone={setCollectPhone}
+        requirePhone={requirePhone} setRequirePhone={setRequirePhone}
+        collectInstagram={collectInstagram} setCollectInstagram={setCollectInstagram}
+        requireInstagram={requireInstagram} setRequireInstagram={setRequireInstagram}
+        maxAttendees={maxAttendees} setMaxAttendees={setMaxAttendees}
+        waitlistEnabled={waitlistEnabled} setWaitlistEnabled={setWaitlistEnabled}
+        instantWaitlist={instantWaitlist} setInstantWaitlist={setInstantWaitlist}
+        allowPlusOnes={allowPlusOnes} setAllowPlusOnes={setAllowPlusOnes}
+        maxPlusOnesPerGuest={maxPlusOnesPerGuest} setMaxPlusOnesPerGuest={setMaxPlusOnesPerGuest}
+        dinnerEnabled={dinnerEnabled} setDinnerEnabled={setDinnerEnabled}
+        onDone={() => {
+          setWizardDone(true);
+          setStepDirection("forward");
+          setCurrentStep(1);
+          setActivePartId("cover");
+          setWizardActive(false);
+          // If they named it, make the draft real right away so it's waiting in
+          // the Room even if they bounce before publishing.
+          const named = (title || "").trim();
+          if (named && named !== "Event Name") {
+            ensureDraftEvent().catch((e) => console.warn("[draft] create-on-finish failed:", e?.message));
+          }
+        }}
+      />
+    )}
     {/* Expand-from-landing-page animation */}
     {expandAnim && (() => {
       const vw = window.innerWidth;
@@ -2519,7 +2762,38 @@ export function CreateEventPage() {
           height: "calc(100dvh - 56px)",
         }}
       >
-        <form onSubmit={handleCreate} style={{ height: "100%" }}>
+        <form ref={formRef} onSubmit={handleCreate} style={{ height: "100%" }}>
+          {/* PUBLISHED-event edit keeps an explicit "Save changes" pill (it never
+              autosaves). Create AND draft-editing put Publish + autosave + Preview
+              in the top nav instead (ProtectedLayout), so no pill there. */}
+          {isEditMode && eventStatus === "PUBLISHED" && (
+          <div ref={publishPillRef} style={{ position: "absolute", top: "14px", right: "20px", zIndex: 40, display: "flex", alignItems: "center", gap: "12px" }}>
+            {hasAttemptedPublish && missingCount > 0 && (
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff", background: "rgba(239,68,68,0.92)", padding: "5px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>
+                {missingCount} missing
+              </span>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: "10px 24px", borderRadius: "999px", border: "none",
+                background: loading ? colors.borderStrong : colors.accent, color: "#fff",
+                fontWeight: 700, fontSize: "14px", letterSpacing: "0.01em",
+                cursor: loading ? "not-allowed" : "pointer",
+                boxShadow: loading ? "none" : colors.accentShadow,
+                transition: "background 0.15s ease, transform 0.15s ease", whiteSpace: "nowrap",
+                opacity: loading ? 0.75 : 1,
+              }}
+              onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.background = colors.accentHover; } }}
+              onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.background = colors.accent; } }}
+            >
+              {loading
+                ? (uploadStatus ? `Uploading ${uploadStatus.done}/${uploadStatus.total}…` : "Saving…")
+                : "Save changes"}
+            </button>
+          </div>
+          )}
           <div
             className="create-event-grid"
             style={{
@@ -2532,77 +2806,93 @@ export function CreateEventPage() {
             ref={sidebarRef}
             className="create-event-sidebar"
             style={{
-              width: "548px",
-              minWidth: "548px",
+              // Desktop: just the 58px rail in the flex flow — the editor panel
+              // floats over the preview as an absolute overlay (positioned
+              // against this relative box), so opening it never reflows the
+              // preview. Mobile CSS forces 100% (always-open, in-flow).
+              position: "relative",
+              width: "58px",
+              minWidth: "58px",
               height: "100%",
-              overflow: "hidden",
+              overflow: "visible",
               padding: "0",
               boxSizing: "border-box",
-              borderRight: `1px solid ${colors.border}`,
               background: colors.background,
               display: mobileView === "preview" ? "none" : "flex",
               flexDirection: "row",
             }}
           >
-            {/* PARTS RAIL — table-of-contents of the page. Point here (or, soon,
-                at the preview) and the matching editor opens to the right. */}
+            {/* PARTS RAIL — a slim icon tool-strip (Illustrator-style): each
+                page-part is an icon-only tool; the active one's name shows in the
+                top action bar. Tooltip carries the label on hover. */}
             <nav
+              ref={railNavRef}
               className="create-event-parts-rail"
               style={{
-                width: "158px",
-                minWidth: "158px",
+                width: "58px",
+                minWidth: "58px",
                 flexShrink: 0,
                 height: "100%",
                 overflowY: "auto",
                 overflowX: "hidden",
                 borderRight: `1px solid ${colors.border}`,
                 background: colors.backgroundOverlay,
-                padding: "20px 10px",
+                padding: "14px 0",
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
-                gap: "20px",
+                alignItems: "center",
+                gap: "10px",
               }}
             >
-              {RAIL_GROUPS.map((grp) => (
-                <div key={grp.group} style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                  <div style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: colors.textFaded, padding: "0 8px 6px" }}>
-                    {grp.group}
-                  </div>
+              {RAIL_GROUPS.map((grp, gi) => (
+                <div key={grp.group} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", width: "100%" }}>
+                  {/* Hairline divider between tool groups (skip before the first). */}
+                  {gi > 0 && <div style={{ width: "28px", height: "1px", background: colors.border, margin: "2px 0 4px" }} />}
                   {grp.items.map((it) => {
-                    const active = activePartId === it.id;
+                    const active = openPartId === it.id;
+                    const pinned = pinnedPartId === it.id;
                     const missing = hasAttemptedPublish && tabHasMissing[it.step];
                     const Icon = it.icon;
                     return (
                       <button
                         key={it.id}
                         type="button"
-                        onClick={() => goToPart(it)}
+                        onClick={() => {
+                          if (loading) return;
+                          if (pinnedPartId === it.id) { closePanel(); return; }
+                          setPinnedPartId(it.id);
+                          goToPart(it);
+                        }}
+                        onMouseEnter={() => { if (!loading) peekPart(it.id); }}
+                        onMouseLeave={() => schedulePeekClose()}
                         disabled={loading}
+                        title={it.label}
+                        aria-label={it.label}
                         style={{
+                          position: "relative",
                           display: "flex",
                           alignItems: "center",
-                          gap: "10px",
-                          textAlign: "left",
-                          padding: "9px 11px",
-                          borderRadius: "9px",
-                          border: "none",
+                          justifyContent: "center",
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "11px",
+                          border: `1px solid ${active ? colors.accentBorder : "transparent"}`,
                           cursor: loading ? "not-allowed" : "pointer",
                           WebkitTapHighlightColor: "transparent",
                           background: active ? colors.accentSoft : "transparent",
                           color: active ? colors.accent : colors.textMuted,
-                          fontSize: "13px",
-                          fontWeight: active ? 700 : 500,
-                          fontFamily: "inherit",
-                          lineHeight: 1.25,
-                          transition: "background 0.15s ease, color 0.15s ease",
+                          transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
                           ...(detailsTabPulse && it.step === 2 ? { animation: "detailsTabGlow 1s ease forwards" } : {}),
                         }}
                       >
-                        {Icon && <Icon size={16} style={{ flexShrink: 0, opacity: active ? 1 : 0.7 }} />}
-                        <span style={{ flex: 1 }}>{it.label}</span>
+                        {Icon && <Icon size={20} style={{ flexShrink: 0, opacity: active ? 1 : 0.8 }} />}
+                        {/* Pinned dot — a subtle cue this panel is locked open. */}
+                        {pinned && (
+                          <span style={{ position: "absolute", bottom: "4px", left: "50%", transform: "translateX(-50%)", width: "4px", height: "4px", borderRadius: "50%", background: colors.accent }} />
+                        )}
                         {missing && (
-                          <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ef4444", flexShrink: 0 }} />
+                          <span style={{ position: "absolute", top: "5px", right: "5px", width: "6px", height: "6px", borderRadius: "50%", background: "#ef4444", border: `1.5px solid ${colors.backgroundOverlay}` }} />
                         )}
                       </button>
                     );
@@ -2611,11 +2901,47 @@ export function CreateEventPage() {
               ))}
             </nav>
 
-            {/* Editor column — the active part's editor over a pinned publish
-                bar. This is a COLUMN inside the row sidebar; without it the
-                sticky publish bar becomes a third column and crushes the
-                editor. */}
-            <div style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+            {/* Editor column — the flyout panel for the open part. Hovering it
+                keeps it open (cancels the peek-close); leaving schedules the
+                collapse. Publish lives in a persistent floating pill, not here. */}
+            <div
+              ref={panelRef}
+              onMouseEnter={cancelPeekClose}
+              onMouseLeave={schedulePeekClose}
+              style={isDesktopEditor ? {
+                // Floating overlay — slides in over the preview with a composited
+                // transform (no width change → no preview reflow → no jump).
+                position: "absolute", left: "58px", top: 0, bottom: 0, width: "418px", zIndex: 35,
+                background: colors.background, borderRight: `1px solid ${colors.border}`,
+                display: "flex", flexDirection: "column",
+                transform: panelOpen ? "translateX(0)" : "translateX(-14px)",
+                opacity: panelOpen ? 1 : 0,
+                pointerEvents: panelOpen ? "auto" : "none",
+                boxShadow: panelOpen ? "10px 0 34px rgba(10,10,10,0.12)" : "none",
+                transition: "transform 0.22s cubic-bezier(0.22,1,0.36,1), opacity 0.16s ease, box-shadow 0.22s ease",
+              } : {
+                // Mobile: in-flow, always visible (matches responsive.css).
+                flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column",
+              }}
+            >
+            {/* Panel header — the part you're editing on the left, a close on the
+                right (un-pins). */}
+            <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 12px 10px 20px", borderBottom: `1px solid ${colors.border}`, background: colors.background }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: colors.text, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {RAIL_ITEMS.find((i) => i.id === openPartId)?.label || "Edit"}
+              </div>
+              <button
+                type="button"
+                onClick={closePanel}
+                title="Close"
+                aria-label="Close panel"
+                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, border: "none", background: "transparent", color: colors.textSubtle, cursor: "pointer" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = colors.surface; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <X size={17} />
+              </button>
+            </div>
             {/* Step content — the editor for the active part. */}
             <div ref={editorScrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "24px" }}>
             <div
@@ -2633,7 +2959,7 @@ export function CreateEventPage() {
             >
             {/* Two-track AI offer — hand the look to AI, keep the logistics.
                 Lives at the top of the creative step; dismissible. */}
-            {!aiOfferDismissed && (
+            {AI_CREATE_ENABLED && !aiOfferDismissed && (
               <div style={{
                 position: "relative",
                 marginBottom: "20px",
@@ -5088,99 +5414,43 @@ export function CreateEventPage() {
             {/* end step content wrapper */}
             </div>
 
-            {/* Fixed Publish bar at bottom of sidebar */}
-            <div
-              style={{
-                position: "sticky",
-                bottom: 0,
-                zIndex: 10,
-                padding: "12px 24px",
-                paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-                background: "linear-gradient(to top, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 80%, transparent 100%)",
-                backdropFilter: "blur(8px)",
-                borderTop: `1px solid ${colors.border}`,
-                flexShrink: 0,
-              }}
-            >
-              <button
-                type="submit"
-                disabled={loading}
+            {/* Primary action (Publish / Save) now lives in the top action bar.
+                Only the destructive Delete keeps a quiet home at the foot, in
+                edit mode. */}
+            {isEditMode && (
+              <div
                 style={{
-                  width: "100%",
-                  padding: "14px 24px",
-                  borderRadius: "999px",
-                  border: "none",
-                  background: loading ? colors.borderStrong : colors.accent,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  boxShadow: loading ? "none" : colors.accentShadow,
-                  transition: "all 0.2s ease",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  opacity: loading ? 0.7 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "translateY(-1px)";
-                    e.target.style.background = colors.accentHover;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.background = colors.accent;
-                  }
+                  flexShrink: 0,
+                  padding: "10px 20px",
+                  paddingBottom: "max(10px, env(safe-area-inset-bottom))",
+                  borderTop: `1px solid ${colors.border}`,
+                  background: colors.background,
                 }}
               >
-                {loading
-                  ? (uploadStatus
-                      ? `UPLOADING ${uploadStatus.done}/${uploadStatus.total}…`
-                      : isEditMode ? "Saving…" : "Creating…")
-                  : (isEditMode ? "SAVE CHANGES" : "PUBLISH")}
-              </button>
-              {hasAttemptedPublish && missingCount > 0 && (
-                <div style={{
-                  textAlign: "center",
-                  marginTop: "8px",
-                  fontSize: "12px",
-                  color: "rgba(239, 68, 68, 0.8)",
-                  fontWeight: 500,
-                }}>
-                  {missingCount} {missingCount === 1 ? "field" : "fields"} missing
-                </div>
-              )}
-
-              {/* Delete event — edit mode only */}
-              {isEditMode && (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
                   style={{
-                    width: "100%",
-                    marginTop: "24px",
-                    padding: "14px",
-                    borderRadius: "14px",
-                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    padding: "7px 12px",
+                    borderRadius: "9px",
+                    border: "none",
                     background: "transparent",
-                    color: "rgba(239, 68, 68, 0.6)",
-                    fontSize: "14px",
+                    color: "rgba(239, 68, 68, 0.7)",
+                    fontSize: "13px",
                     fontWeight: 600,
                     cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    transition: "all 0.15s ease",
+                    fontFamily: "inherit",
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={15} />
                   Delete event
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             </div>{/* end editor column */}
           </div>
 
@@ -5409,6 +5679,7 @@ export function CreateEventPage() {
                   design: brand?.design || null,
                   hoveredSection,
                   onEditPart: handleEditPart,
+                  onHoverPart: handleHoverPart,
                   hideLocation,
                   hideDate,
                   revealHint: revealHint || null,

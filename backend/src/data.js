@@ -1852,8 +1852,40 @@ export async function findPersonByAuthUserId(userId) {
     .eq("auth_user_id", userId)
     .limit(1)
     .maybeSingle();
-  if (error || !data) return null;
-  return mapPersonFromDb(data);
+  if (!error && data) return mapPersonFromDb(data);
+  // Account linking (mig 067): the column is the PRIMARY login; this auth user
+  // may instead be a linked SECONDARY login of some canonical person. Pure
+  // fallback — only reached when the column misses, so primary logins resolve
+  // exactly as before and nothing existing changes.
+  const linkedId = await personIdByAuthAccount(userId);
+  if (linkedId) {
+    const { data: p } = await supabase.from("people").select("*").eq("id", linkedId).maybeSingle();
+    if (p) return mapPersonFromDb(p);
+  }
+  return null;
+}
+
+// Resolve a person_id from a (possibly secondary) login via person_auth_accounts.
+// Returns null when the auth account isn't linked to anyone.
+export async function personIdByAuthAccount(userId) {
+  if (!userId) return null;
+  const { data } = await supabase
+    .from("person_auth_accounts")
+    .select("person_id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  return data?.person_id || null;
+}
+
+// Keep person_auth_accounts the complete source of truth: when a login is first
+// linked to a person via the column, mirror it here as the primary. Best-effort.
+async function recordPrimaryAuthAccount(personId, userId, email) {
+  try {
+    await supabase.from("person_auth_accounts").upsert(
+      { person_id: personId, auth_user_id: userId, method: "primary", email: email || null, is_primary: true },
+      { onConflict: "auth_user_id", ignoreDuplicates: true },
+    );
+  } catch { /* non-fatal — column remains the primary resolver */ }
 }
 
 // THE identity resolver the room/access layer should use: durable account link
@@ -1920,11 +1952,16 @@ export async function ensurePersonLinked({ userId, email, name = null }) {
   const { data: byAuth } = await supabase
     .from("people").select("id").eq("auth_user_id", userId).limit(1).maybeSingle();
   if (byAuth) return byAuth.id;
+  // Account linking: a linked SECONDARY login resolves to its canonical person —
+  // never spawn a duplicate for an auth account an admin already linked.
+  const linkedId = await personIdByAuthAccount(userId);
+  if (linkedId) return linkedId;
   const { data: byEmail } = await supabase
     .from("people").select("id, auth_user_id").eq("email", e).limit(1).maybeSingle();
   if (byEmail) {
     if (!byEmail.auth_user_id) {
       await supabase.from("people").update({ auth_user_id: userId }).eq("id", byEmail.id);
+      await recordPrimaryAuthAccount(byEmail.id, userId, e);
     }
     return byEmail.id;
   }
@@ -1932,6 +1969,7 @@ export async function ensurePersonLinked({ userId, email, name = null }) {
     .from("people")
     .insert({ email: e, name, auth_user_id: userId, import_source: "account_signup" })
     .select("id").maybeSingle();
+  if (created?.id) await recordPrimaryAuthAccount(created.id, userId, e);
   return created?.id || null;
 }
 

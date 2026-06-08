@@ -81,6 +81,13 @@ router.get("/t/o/:trackingId", async (req, res) => {
     const outbox = await resolveOutbox(trackingId);
     if (!outbox) return;
 
+    // An open IS the email read-receipt: move any Room bubble sent on this email
+    // to the "read" tick (sent → delivered → read), live over Realtime. This is
+    // what gives email WhatsApp-grade receipts — even on Resend, since the pixel
+    // is our own. Monotonic + idempotent, so it's safe to run on every open.
+    const { bumpMessageStatus } = await import("../../services/messageStatus.js");
+    await bumpMessageStatus({ key: "tracking_id", value: trackingId, status: "read" });
+
     // Deduplicate: only record one open per tracking_id (per recipient)
     const { data: existing } = await supabase
       .from("email_opens")
@@ -159,6 +166,12 @@ router.get("/t/c/:trackingId", async (req, res) => {
             });
           }
         })
+        .catch(() => {});
+
+      // A click is the strongest read-receipt of all — move the Room bubble to
+      // "read" (a clicked email was definitely seen). Monotonic, fire-and-forget.
+      import("../../services/messageStatus.js")
+        .then(({ bumpMessageStatus }) => bumpMessageStatus({ key: "tracking_id", value: trackingId, status: "read" }))
         .catch(() => {});
 
       // Try to extract event slug from PullUp event links

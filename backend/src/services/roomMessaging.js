@@ -166,22 +166,31 @@ async function getEventForEmail(eventId) {
 
 const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHtml(event);
 
-function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null, providerMid = null, status = null }) {
+// Append the outbound bubble to the spine and return its id + timestamp so the
+// caller can hand the real row back to an optimistic client (clientId → id) and
+// so later status webhooks (provider_mid / tracking_id) can find it to upgrade
+// the tick. Awaited (was fire-and-forget) — the id is part of the send contract
+// now — but still swallows its own errors: a logging hiccup never fails a send.
+async function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null, providerMid = null, trackingId = null, status = null, clientId = null }) {
   const atts = Array.isArray(attachments) ? attachments : [];
-  logPersonEvent({
+  const at = new Date().toISOString();
+  const res = await logPersonEvent({
     personId,
     hostId,
     type: "message_out",
     channel,
     direction: "out",
+    occurredAt: at,
     body: body || (atts.length || event || location ? "" : "(message)"),
     // Persist the real attachments + (when attached) the event so they render
     // as durable images / an event card in the thread, not a count or a note.
     metadata: {
       source: "room",
       attachments: atts,
-      ...(status ? { status, sent_at: new Date().toISOString() } : {}),
+      ...(status ? { status, sent_at: at } : {}),
+      ...(clientId ? { client_id: clientId } : {}),
       ...(providerMid ? { provider_mid: providerMid } : {}),
+      ...(trackingId ? { tracking_id: trackingId } : {}),
       ...(event
         ? {
             event: {
@@ -196,7 +205,8 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
         : {}),
       ...(location ? { location: { label: location.label || null, url: location.url || null } } : {}),
     },
-  }).catch(() => {});
+  }).catch(() => ({ ok: false }));
+  return { id: res?.id || null, at };
 }
 
 /**
@@ -204,7 +214,7 @@ function logRoomEvent({ personId, hostId, channel, body, attachments = [], event
  * specific event (eventId): an inline card on email, a link on WhatsApp/IG.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null, clientId = null }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
   const loc = location && location.url ? { label: (location.label || "Location").trim() || "Location", url: location.url } : null;
@@ -275,10 +285,16 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
     // reason (e.g. ig window expired / not connected) instead of a vague 400.
     return { ok: false, error: "undeliverable", reasons: r.reasons };
   }
-  // status starts at "sent"; IG read receipts flip it to "read" (foundation for
-  // WhatsApp-style sent → delivered → read ticks, later pushable over a socket).
-  logRoomEvent({ ...logArgs, channel: r.channel, providerMid: r.mid || null, status: "sent" });
-  return { ok: true, channel: r.channel };
+  // Provider keys so the channel webhooks can find this exact bubble later and
+  // bump its tick: WhatsApp carries the Meta message id on r.row, IG returns it
+  // as r.mid, email carries a tracking_id on its outbox row (also the open-pixel
+  // token). status starts at "sent"; delivered/read stream in over Realtime.
+  const providerMid = r.mid || r.row?.provider_message_id || null;
+  const trackingId = r.channel === "email" ? (r.row?.tracking_id || null) : null;
+  const logged = await logRoomEvent({
+    ...logArgs, channel: r.channel, providerMid, trackingId, status: "sent", clientId,
+  });
+  return { ok: true, channel: r.channel, messageId: logged.id, at: logged.at, status: "sent", clientId };
 }
 
 /**

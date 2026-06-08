@@ -106,6 +106,7 @@ import { processSesEvent } from "./email/events/processSesEvent.js";
 import { handleProviderEvent, enqueueOutbox, sendEmail as infraSendEmail } from "./email/index.js";
 import { handleSesInboundEvent } from "./email/webhooks/sesInboundWebhook.js";
 import { handleResendInboundEvent } from "./email/webhooks/resendInboundWebhook.js";
+import { handleResendEventEvent } from "./email/webhooks/resendEventsWebhook.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { emitIntent, sourceFromRequest } from "./services/intentLog.js";
 import {
@@ -1152,6 +1153,24 @@ app.post("/webhooks/resend-inbound", async (req, res) => {
     console.error("[Webhook][Resend-inbound] Error", error);
     const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
     res.status(status).json({ error: error?.message || "Failed to process inbound email" });
+  }
+});
+
+// Resend DELIVERY events (delivered / bounced / opened / clicked) → Room ticks.
+// Gives email the same sent → delivered → read language as WhatsApp on the prod
+// provider. Same Svix secret as inbound.
+app.post("/webhooks/resend-events", async (req, res) => {
+  try {
+    const result = await handleResendEventEvent({
+      rawBody: req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(req.body || {}),
+      body: req.body,
+      headers: req.headers,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error("[Webhook][Resend-events] Error", error);
+    const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+    res.status(status).json({ error: error?.message || "Failed to process resend event" });
   }
 });
 
@@ -5698,8 +5717,8 @@ app.get("/host/room", requireAuth, async (req, res) => {
 app.post("/host/room/message", requireAuth, async (req, res) => {
   try {
     const { sendRoomMessage } = await import("./services/roomMessaging.js");
-    const { personId, channel, text, subject, attachments, eventId, location } = req.body || {};
-    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId, location });
+    const { personId, channel, text, subject, attachments, eventId, location, clientId } = req.body || {};
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId, location, clientId });
     if (!r.ok) {
       return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
     }

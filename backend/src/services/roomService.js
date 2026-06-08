@@ -767,24 +767,29 @@ function buildThread(evs, eventTitleById, igReadAtMs = null) {
     const atts = attsOf(e);
     const event = eventOf(e);
     const location = locOf(e);
-    // Delivery status for OUR outbound bubbles (the WhatsApp-style tick). For IG
-    // it's derived from the read watermark; other channels report "sent" for now.
-    // 'in' messages carry no status. Built to extend to delivered / per-channel.
+    // Delivery status for OUR outbound bubbles (the WhatsApp-style tick):
+    // sent → delivered → read, pushed live by the channel webhooks (mig 071).
+    // IG read also derives from the per-thread watermark as a fallback (older
+    // bubbles sent before the watermark read as read). 'in' messages carry none.
     let status;
     if (e.direction === "out") {
-      const isRead = e.channel === "instagram" && igReadAtMs &&
+      status = e.metadata?.status || "sent";
+      const igRead = e.channel === "instagram" && igReadAtMs &&
         e.occurred_at && new Date(e.occurred_at).getTime() <= igReadAtMs;
-      status = isRead ? "read" : (e.metadata?.status || "sent");
+      if (igRead && status !== "read") status = "read";
     }
     return {
+      id: e.id, // person_events id — the key Realtime + optimistic reconcile on
+      clientId: e.metadata?.client_id || undefined, // echo of the sender's optimistic id
       from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
       text: e.body || (atts || event || location ? "" : lineFor(e, eventTitleById)),
       atts, // matches the dock's render (m.atts) + the optimistic-send shape
       event, // attached event → rendered as a card linking to /e/:slug
       location, // attached location → clickable address link
       time: relTime(e.occurred_at),
+      at: e.occurred_at || e.created_at || null, // ISO — for stable ordering/merge
       channel: e.channel || undefined,
-      status, // 'sent' | 'read' (undefined for inbound)
+      status, // 'sent' | 'delivered' | 'read' | 'failed' (undefined for inbound)
     };
   });
 }

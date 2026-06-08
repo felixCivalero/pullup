@@ -7,10 +7,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
+import { useRoomRealtime } from "../lib/useRoomRealtime.js";
+import MessageStatusTicks from "./room/MessageStatusTicks.jsx";
+
+const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
 // Light PullUp palette — white canvas, near-black ink, the one pink accent.
 const D = {
@@ -69,12 +73,59 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [uploading, setUploading] = useState(false);
   const scroller = useRef(null);
   const fileRef = useRef(null);
+  // Keys (clientId + server id) of bubbles WE created this session, so a realtime
+  // echo of our own send doesn't double-render alongside its optimistic copy.
+  const sentKeysRef = useRef(new Set());
 
   async function load() {
     try { const r = await authenticatedFetch("/host/room"); const d = r.ok ? await r.json() : null; setPeople(d?.people || []); setRoomEvents(d?.events || []); }
     catch { setPeople([]); }
   }
   useEffect(() => { load(); }, []);
+  // Safety net: realtime is the live path, but if the tab was backgrounded and
+  // the socket dropped, refetch on focus so nothing is missed.
+  useEffect(() => {
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  // ── Live: inbound replies + delivery-status ticks stream straight in. ──
+  useRoomRealtime({
+    onMessage: ({ eventType, row }) => {
+      const mine = row.from === "you";
+      if (eventType === "UPDATE") {
+        // A tick moved (sent → delivered → read / failed). Patch wherever it lives.
+        setSent((s) => s.map((m) => (m.id === row.id ? { ...m, status: row.status } : m)));
+        setPeople((ps) => ps && ps.map((p) => p.id !== row.personId ? p : { ...p, thread: (p.thread || []).map((m) => (m.id === row.id ? { ...m, status: row.status } : m)) }));
+        return;
+      }
+      // INSERT
+      if (mine) {
+        // Our own send echoing back: reconcile the optimistic bubble's id, don't
+        // duplicate it. An outbound from ANOTHER device (unknown key) is appended.
+        if (row.clientId && sentKeysRef.current.has(row.clientId)) {
+          setSent((s) => s.map((m) => (m.clientId === row.clientId ? { ...m, id: row.id, status: row.status || m.status } : m)));
+          sentKeysRef.current.add(row.id);
+          return;
+        }
+        if (sentKeysRef.current.has(row.id)) return;
+      }
+      // New person we don't have yet → pull the room fresh; otherwise append the
+      // reply (or another-device send) to their thread + float them up the list.
+      if (!(people || []).some((p) => p.id === row.personId)) { load(); return; }
+      setPeople((ps) => ps && ps.map((p) => {
+        if (p.id !== row.personId) return p;
+        if ((p.thread || []).some((m) => m.id === row.id)) return p;
+        return {
+          ...p,
+          thread: [...(p.thread || []), { ...row, time: "now" }],
+          lastMessage: { from: row.from, text: row.text || "", time: "now" },
+          needsYou: !mine ? true : p.needsYou,
+        };
+      }));
+    },
+  });
 
   const open = useMemo(() => (people || []).find((p) => p.id === openId) || null, [people, openId]);
   // A notification (via IdeaWidget) can target a specific person's thread. Set
@@ -91,7 +142,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     return ps.sort((a, b) => (a.needsYou === b.needsYou ? (b.warmth || 0) - (a.warmth || 0) : a.needsYou ? -1 : 1));
   }, [people, filter, channel, eventFilter, q]);
 
-  const thread = useMemo(() => open ? [...(open.thread || []), ...sent.filter((m) => m.personId === open.id)] : [], [open, sent]);
+  const thread = useMemo(() => {
+    if (!open) return [];
+    const base = open.thread || [];
+    // A send that's since been refetched into the server thread shouldn't also
+    // show as its local optimistic copy — dedupe by id, server wins.
+    const seen = new Set(base.map((m) => m.id).filter(Boolean));
+    const mine = sent.filter((m) => m.personId === open.id && !(m.id && seen.has(m.id)));
+    return [...base, ...mine];
+  }, [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
   useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); }, [openId]);
 
@@ -106,29 +165,51 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     } finally { setUploading(false); }
   }
 
+  // The actual POST + reconcile, shared by first-send and retry. The optimistic
+  // bubble already exists in `sent` (keyed by clientId); this flips its status
+  // sending → sent (then delivered/read arrive live) or → failed.
+  async function doSend({ clientId, personId, ch, text, atts, ev, loc }) {
+    setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, status: "sending" } : m)));
+    try {
+      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId, channel: ch, text, attachments: atts, eventId: ev?.id || undefined, location: loc || undefined, clientId }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, status: "failed" } : m)));
+        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — tap to retry", "error");
+        return;
+      }
+      // Reflect the channel the server actually used (WhatsApp/IG can fall to email).
+      const used = data.channel || ch;
+      if (data.messageId) sentKeysRef.current.add(data.messageId);
+      setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, id: data.messageId || m.id, status: data.status || "sent", channel: used } : m)));
+      if (ch !== "email" && used === "email") showToast(`Sent as email — couldn't reach them on ${CH[ch]?.label || ch} right now`, "success");
+    } catch {
+      setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, status: "failed" } : m)));
+      showToast("Couldn't send — tap to retry", "error");
+    }
+  }
+
   async function send(e) {
     e.preventDefault();
     const text = draft.trim();
     if ((!text && attachments.length === 0 && !attachedEventId && !attachedLocation) || !open || sending) return;
     const ch = open.channel || "email"; const atts = attachments;
+    const ev = attachedEvent ? { id: attachedEvent.id, title: attachedEvent.title, slug: attachedEvent.slug, coverImageUrl: attachedEvent.coverImageUrl || attachedEvent.image || null, whenLabel: fmtWhen(attachedEvent), location: attachedEvent.location } : undefined;
+    const loc = attachedLocation || undefined;
+    const clientId = newClientId();
+    sentKeysRef.current.add(clientId);
+    // Show the bubble INSTANTLY, then clear the composer — the send happens behind it.
+    setSent((s) => [...s, { clientId, personId: open.id, from: "you", text, atts, event: ev, location: loc, time: "now", channel: ch, status: "sending", _send: { personId: open.id, ch, text, atts, ev, loc } }]);
+    setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
     setSending(true);
-    try {
-      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: open.id, channel: ch, text, attachments: atts, eventId: attachedEventId || undefined, location: attachedLocation || undefined }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) {
-        // Don't pretend it sent — surface the real reason and keep the draft.
-        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — try again", "error");
-        return;
-      }
-      // Reflect the channel the server actually used (WhatsApp/IG can fall to email).
-      const used = data.channel || ch;
-      const ev = attachedEvent ? { id: attachedEvent.id, title: attachedEvent.title, slug: attachedEvent.slug, coverImageUrl: attachedEvent.coverImageUrl || attachedEvent.image || null, whenLabel: fmtWhen(attachedEvent), location: attachedEvent.location } : undefined;
-      setSent((s) => [...s, { personId: open.id, from: "you", text, atts, event: ev, location: attachedLocation || undefined, time: "now", channel: used }]);
-      setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null);
-      showToast(ch !== "email" && used === "email" ? `Sent as email — couldn't reach them on ${CH[ch]?.label || ch} right now` : "Sent", "success");
-    } catch {
-      showToast("Couldn't send — try again", "error");
-    } finally { setSending(false); }
+    try { await doSend({ clientId, personId: open.id, ch, text, atts, ev, loc }); }
+    finally { setSending(false); }
+  }
+
+  // Tap a failed bubble to re-send it.
+  function retry(m) {
+    if (!m?._send) return;
+    doSend({ clientId: m.clientId, ...m._send });
   }
 
   // ── Smart insert: pull event name / time / place / maps into the draft ──
@@ -304,10 +385,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           {open.read && <div style={{ fontSize: 12, color: D.faint, lineHeight: 1.5, textAlign: "center", padding: "0 10px 4px" }}>{open.read}</div>}
           {thread.map((m, i) => {
             const mine = m.from === "you" || m.from === "system";
+            const failed = m.status === "failed";
             return (
-              <div key={i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>
+              <div key={m.id || m.clientId || i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>
                 {!mine && <Avatar name={open.name} src={open.avatarUrl} size={22} />}
-                <div style={{ maxWidth: "74%" }}>
+                <div style={{ maxWidth: "74%", opacity: m.status === "sending" ? 0.72 : 1, transition: "opacity 0.2s" }} onClick={failed ? () => retry(m) : undefined} title={failed ? "Tap to retry" : undefined}>
                   {(m.atts || []).map((a, j) => a.isImage ? (
                     <img key={j} src={a.url} alt="" style={{ display: "block", maxWidth: "100%", borderRadius: 16, marginBottom: 4 }} />
                   ) : (
@@ -329,16 +411,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                       📍 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.location.label}</span>
                     </a>
                   )}
-                  {m.time && (
-                    <div style={{ fontSize: 10, color: D.faint, marginTop: 3, display: "flex", gap: 3, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
-                      <span>{m.time === "now" ? "Sent · now" : m.time}</span>
-                      {/* WhatsApp-style ticks on our own messages: double pink = read, single faint = sent. */}
-                      {mine && m.status === "read" && (
-                        <span title="Read" style={{ display: "inline-flex", alignItems: "center", color: D.pink }}><Check size={11} /><Check size={11} style={{ marginLeft: -6 }} /></span>
-                      )}
-                      {mine && m.status && m.status !== "read" && (
-                        <Check size={11} title="Sent" style={{ color: D.faint }} />
-                      )}
+                  {(m.time || mine) && (
+                    <div style={{ fontSize: 10, color: failed ? "#dc2626" : D.faint, marginTop: 3, display: "flex", gap: 4, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                      {/* The label tracks the live delivery state of OUR messages. */}
+                      <span>{failed ? "Not delivered · tap to retry" : m.status === "sending" ? "Sending…" : m.time === "now" ? "now" : m.time}</span>
+                      {/* One tick language across WhatsApp / Instagram / email. */}
+                      {mine && <MessageStatusTicks status={m.status} pink={D.pink} faint={D.faint} />}
+                      {failed && <RotateCw size={10} style={{ color: "#dc2626" }} />}
                     </div>
                   )}
                 </div>

@@ -9,6 +9,7 @@ import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
+import { normalizePhoneMode, modeCrops, useMediaAspect } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -73,12 +74,36 @@ export function EventPreview({
     return () => ro.disconnect();
   }, []);
 
-  // Phone-scoped fit (used to gate the drag overlay and the fallback img)
-  const phoneFit = (mediaSettings?.phone?.fit) || mediaSettings?.fit || "cover";
+  // Phone-scoped cover format. "width" takes the media's own aspect (whole, no
+  // crop); "height" fills the screen; "card" is a fixed 4:5 — both crop and
+  // support drag-to-reposition.
+  const phoneMode = normalizePhoneMode(mediaSettings?.phone, mediaSettings);
+  const phoneCrops = modeCrops(phoneMode);
+  const mediaAspect = useMediaAspect(media, imagePreview);
+  // The hero frame: full-bleed when filling height; "width" sizes to the media's
+  // own aspect; "card" floats as a rounded 4:5 with space around it.
+  const heroFrameStyle =
+    phoneMode === "height"
+      ? { height: "100%", minHeight: "100%" }
+      : phoneMode === "card"
+        ? {
+            // "Card" — the media's OWN ratio, floated with space around every
+            // edge so the whole clip is visible inside the viewport, never
+            // cropped, regardless of shape.
+            width: "calc(100% - 36px)",
+            margin: "18px auto",
+            maxHeight: "calc(100% - 36px)",
+            aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5",
+            borderRadius: "18px",
+            overflow: "hidden",
+          }
+        : // "Fit width" — full width, L/R edges flush to the sides; height
+          // follows the media's ratio. Whole media, no crop, no margin.
+          { width: "100%", aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5" };
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroRef,
-    enabled: !!onFocusDrag && phoneFit === "cover",
+    enabled: !!onFocusDrag && phoneCrops,
   });
 
   const mediaCount = media?.length || 0;
@@ -189,22 +214,21 @@ export function EventPreview({
           <div
             ref={heroRef}
             data-hero
-            {...(canSwipe && !(onFocusDrag && phoneFit === "cover") ? swipeHandlers : {})}
+            {...(canSwipe && !(onFocusDrag && phoneCrops) ? swipeHandlers : {})}
             onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "cover" }) : undefined}
             onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
             style={{
               position: "relative",
               width: "100%",
-              height: "100%",
-              minHeight: "100%",
+              ...heroFrameStyle,
               flexShrink: 0,
               cursor: focusDrag.dragging
                 ? "grabbing"
-                : (onFocusDrag && phoneFit === "cover")
+                : (onFocusDrag && phoneCrops)
                   ? "grab"
                   : (canSwipe ? "grab" : undefined),
               userSelect: "none",
-              touchAction: onFocusDrag && phoneFit === "cover" ? "none" : "pan-y",
+              touchAction: onFocusDrag && phoneCrops ? "none" : "pan-y",
             }}
           >
             {/* Editor-only: point at the cover to open the media editor. Sits
@@ -242,10 +266,11 @@ export function EventPreview({
                   />
                 );
               }
-              // Phone view uses mediaSettings.phone.fit/focusX/focusY (with
-              // legacy fallback to top-level fit/focus on old events).
+              // Fit modes: "width" shows the whole media at its own ratio,
+              // "card" shows it fully-visible + padded (page bg around it), and
+              // only "height" crops/pans via focusX/focusY (mediaSettings.phone
+              // .focusX/Y, legacy fallback to top-level focus).
               const phoneFormat = mediaSettings?.phone || {};
-              const fit = phoneFormat.fit || mediaSettings?.fit || "cover";
               const legacyY = mediaSettings?.focus === "top"
                 ? 0
                 : mediaSettings?.focus === "bottom"
@@ -253,21 +278,22 @@ export function EventPreview({
                   : 50;
               const focusX = typeof phoneFormat.focusX === "number" ? phoneFormat.focusX : 50;
               const focusY = typeof phoneFormat.focusY === "number" ? phoneFormat.focusY : legacyY;
+              // "Fit width" fills its full-width frame so the L/R edges always
+              // reach the sides (the frame already takes the media's ratio, so
+              // there's no real crop); "Fit height" fills + pans. Only "Card"
+              // uses contain — it shows the whole media with space around it.
+              const fitMode = phoneMode === "card" ? "contain" : "cover";
               const phoneMediaSettings = {
                 ...(mediaSettings || {}),
-                fit,
+                fit: fitMode,
                 focusX,
                 focusY,
               };
-              const objectFit = fit === "contain" ? "contain" : "cover";
+              const objectFit = fitMode;
               const objectPosition = `${focusX}% ${focusY}%`;
-              // Real (contain) mode on phone: inset the media so it floats with
-              // visible black framing on all sides — makes the native aspect feel
-              // intentional, and wide media reads as "small inside the frame".
-              const mediaInset = fit === "contain" ? "32px" : 0;
               if (media && media.length > 0) {
                 return (
-                  <div style={{ position: "absolute", inset: mediaInset, zIndex: 0 }}>
+                  <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
                     <MediaCarousel
                       media={media}
                       mediaSettings={phoneMediaSettings}
@@ -281,7 +307,7 @@ export function EventPreview({
               }
               if (imagePreview) {
                 return (
-                  <div style={{ position: "absolute", inset: mediaInset, zIndex: 0 }}>
+                  <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
                     <img
                       src={transformedImageUrl(imagePreview, { width: heroWidth })}
                       alt="Event preview"
@@ -308,8 +334,8 @@ export function EventPreview({
               );
             })()}
 
-            {/* Drag-to-reposition overlay (editor only, when Fit is on) */}
-            {onFocusDrag && phoneFit === "cover" && (
+            {/* Drag-to-reposition overlay (editor only, crop modes only) */}
+            {onFocusDrag && phoneCrops && (
               <div
                 {...focusDrag.bind}
                 style={{

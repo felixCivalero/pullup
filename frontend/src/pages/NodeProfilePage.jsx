@@ -18,6 +18,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
+import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { AppHeader } from "../components/AppHeader.jsx";
 import { OwnerConsole } from "./RoomPage.jsx";
 import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
@@ -54,11 +55,11 @@ function Masthead({ node, onCount }) {
       <div style={{ minWidth: 0 }}>
         <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px", textTransform: "uppercase", color: colors.text }}>{node.name}</h1>
         <div style={{ display: "flex", gap: 6, fontSize: 13.5, color: colors.textMuted, flexWrap: "wrap" }}>
-          <CountChip n={c.people ?? 0} label="people" onClick={() => onCount?.("people")} />
+          <CountChip n={c.people ?? 0} label="people" onClick={onCount ? () => onCount("people") : undefined} />
           <span style={{ color: colors.textFaded }}>·</span>
-          <CountChip n={c.hosted ?? 0} label="events" onClick={() => onCount?.("hosted")} />
+          <CountChip n={c.hosted ?? 0} label="events" onClick={onCount ? () => onCount("hosted") : undefined} />
           <span style={{ color: colors.textFaded }}>·</span>
-          <CountChip n={c.pulledUp ?? 0} label="pull-ups" onClick={() => onCount?.("pulledUp")} />
+          <CountChip n={c.pulledUp ?? 0} label="pull-ups" onClick={onCount ? () => onCount("pulledUp") : undefined} />
         </div>
         <Socials socials={node.socials} />
         {node.bio && <div style={{ fontSize: 13.5, color: colors.textSubtle, marginTop: 8, lineHeight: 1.5 }}>{node.bio}</div>}
@@ -96,12 +97,17 @@ export default function NodeProfilePage() {
 
   const node = data?.node;
   const hosted = useMemo(() => data?.hosted || [], [data]);
-  const pulledUp = useMemo(() => data?.pulledUp || [], [data]);
   const people = useMemo(() => data?.people || [], [data]);
   const isOwner = !!data?.viewer?.isOwner;
+  // The host's events that have GATHERED pull-ups, busiest first — the dropdown
+  // behind the "pull-ups" count (owner-only).
+  const pullupEvents = useMemo(
+    () => (data?.hosted || []).filter((e) => e.pullups > 0).sort((a, b) => (b.pullups || 0) - (a.pullups || 0)),
+    [data]
+  );
 
   if (err) return <Shell><div style={{ color: colors.textMuted, textAlign: "center", marginTop: 40 }}>This room isn't available.</div></Shell>;
-  if (!node) return <Shell><div style={{ color: colors.textFaded, textAlign: "center", marginTop: 40 }}>Loading…</div></Shell>;
+  if (!node) return <LoadingScreen />;
 
   // Gated — IG-style. The public header (above) is visible to anyone; the
   // CONTENT (their events) needs a PullUp session. Show who they are + a login
@@ -158,9 +164,9 @@ export default function NodeProfilePage() {
         </Popup>
       )}
       {popup === "pulledUp" && (
-        <Popup title="Pulled up to" onClose={() => setPopup(null)}>
-          {pulledUp.length === 0 && <Empty>Hasn't pulled up to anything yet.</Empty>}
-          {pulledUp.map((e) => <EventRow key={e.id} e={e} onClick={() => (setPopup(null), enter(e))} />)}
+        <Popup title="Pull-ups gathered" onClose={() => setPopup(null)}>
+          {pullupEvents.length === 0 && <Empty>No pull-ups gathered yet.</Empty>}
+          {pullupEvents.map((e) => <EventRow key={e.id} e={e} count={e.pullups} onClick={() => (setPopup(null), enter(e))} />)}
         </Popup>
       )}
     </>
@@ -185,7 +191,9 @@ export default function NodeProfilePage() {
   // PUBLIC / VISITOR (or owner previewing as a visitor): clean standalone face.
   return (
     <Shell>
-      <Masthead node={node} onCount={setPopup} />
+      {/* Only the host (owner) can tap the counts to open the people/events/
+          pull-ups lists — visitors see the numbers, never the underlying lists. */}
+      <Masthead node={node} onCount={isOwner ? setPopup : undefined} />
 
       {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
 
@@ -219,6 +227,15 @@ export default function NodeProfilePage() {
 }
 
 function CountChip({ n, label, onClick }) {
+  // No handler (a visitor) → a plain, non-interactive number. Only the host gets
+  // the tappable chip that opens the underlying list.
+  if (!onClick) {
+    return (
+      <span style={{ fontFamily: SF, fontSize: 13.5, color: colors.textMuted }}>
+        <b style={{ color: colors.text }}>{n}</b> {label}
+      </span>
+    );
+  }
   return (
     <button onClick={onClick} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: SF, fontSize: 13.5, color: colors.textMuted }}>
       <b style={{ color: colors.text }}>{n}</b> {label}
@@ -270,7 +287,7 @@ function EventCard({ e, onClick }) {
   );
 }
 
-function EventRow({ e, onClick }) {
+function EventRow({ e, onClick, count }) {
   const locked = e.viewer === "none";
   const tag = tagFor(e);
   const dead = locked && e.ended; // missed — not clickable
@@ -283,7 +300,9 @@ function EventRow({ e, onClick }) {
         <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</div>
         <div style={{ fontSize: 11.5, color: colors.textFaded }}>{whenLabel(e.startsAt)}</div>
       </div>
-      {tag && <span style={{ fontSize: 10, fontWeight: 800, color: tag.c }}>{tag.t}</span>}
+      {count != null ? (
+        <span style={{ fontSize: 12, fontWeight: 800, color: colors.accent, whiteSpace: "nowrap" }}>{count} <span style={{ color: colors.textFaded, fontWeight: 600 }}>pulled up</span></span>
+      ) : tag && <span style={{ fontSize: 10, fontWeight: 800, color: tag.c }}>{tag.t}</span>}
     </button>
   );
 }

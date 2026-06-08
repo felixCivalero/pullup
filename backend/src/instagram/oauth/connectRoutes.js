@@ -69,7 +69,29 @@ function verifyState(state) {
   return payload;
 }
 
-const SETTINGS_URL = "https://pullup.se/home?tab=settings";
+const APP_ORIGIN = "https://pullup.se";
+const SETTINGS_PATH = "/home?tab=settings";
+
+// Where to land the host after the round-trip. A host can start the connect
+// from Settings OR from an event's Auto-DM panel — we thread the originating
+// path through the signed state so they come back exactly where they were,
+// not dumped on Settings. Only same-origin relative paths are honoured
+// (must start with a single "/"), so a tampered/foreign return can't be used
+// as an open redirect. Falls back to Settings.
+function safeReturnPath(returnTo) {
+  if (!returnTo || typeof returnTo !== "string") return null;
+  if (!returnTo.startsWith("/") || returnTo.startsWith("//")) return null;
+  if (returnTo.length > 512) return null;
+  return returnTo;
+}
+
+// Build the final redirect URL, appending ?ig=<status> (or &ig=) so the
+// landing page can react (toast / refresh connection state).
+function landingUrl(returnPath, status) {
+  const path = safeReturnPath(returnPath) || SETTINGS_PATH;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${APP_ORIGIN}${path}${sep}ig=${status}`;
+}
 
 /** GET /instagram/connection — authed; status for the Settings + Room UI.
  *  Returns ALL connected accounts (multi-account) plus, for back-compat,
@@ -144,9 +166,15 @@ export async function disconnectInstagramAccount(req, res) {
 // Shared by the redirect route and the JSON `connect-url` route so the signing
 // logic lives in one place. In sandbox we return the callback URL directly with
 // a fake code so the whole flow is testable end-to-end.
-function buildInstagramAuthorizeUrl(hostProfileId, req) {
+function buildInstagramAuthorizeUrl(hostProfileId, req, returnTo) {
   if (!IG_APP_ID || !IG_OAUTH_REDIRECT_URI) return null;
-  const state = signState({ hostProfileId, nonce: crypto.randomUUID(), ts: Date.now() });
+  const returnPath = safeReturnPath(returnTo);
+  const state = signState({
+    hostProfileId,
+    returnTo: returnPath || undefined,
+    nonce: crypto.randomUUID(),
+    ts: Date.now(),
+  });
   if (IG_SANDBOX_MODE) {
     const cbBase = IG_OAUTH_REDIRECT_URI || `${req?.protocol}://${req?.get("host")}/oauth/instagram/callback`;
     return `${cbBase}?code=sbx-code&state=${encodeURIComponent(state)}`;
@@ -171,7 +199,7 @@ export function startInstagramConnect(req, res) {
     res.status(401).json({ error: "auth required" });
     return;
   }
-  const url = buildInstagramAuthorizeUrl(hostProfileId, req);
+  const url = buildInstagramAuthorizeUrl(hostProfileId, req, req.query?.return_to);
   if (!url) {
     res.status(503).json({ error: "instagram not configured" });
     return;
@@ -190,7 +218,7 @@ export function getInstagramConnectUrl(req, res) {
     res.status(401).json({ error: "auth required" });
     return;
   }
-  const url = buildInstagramAuthorizeUrl(hostProfileId, req);
+  const url = buildInstagramAuthorizeUrl(hostProfileId, req, req.query?.return_to);
   if (!url) {
     res.status(503).json({ error: "instagram_not_configured" });
     return;
@@ -201,20 +229,23 @@ export function getInstagramConnectUrl(req, res) {
 /** GET /oauth/instagram/callback — public; trusts the signed state. */
 export async function instagramConnectCallback(req, res) {
   const { code, state, error: oauthError } = req.query;
+  // verifyState early so we can route every outcome — success OR failure —
+  // back to wherever the host started (Settings or an event's Auto-DM panel).
+  const payload = verifyState(state);
+  const returnTo = payload?.returnTo;
 
   if (oauthError) {
     logger?.warn?.("[instagram/oauth] user denied or error", { oauthError });
-    res.redirect(`${SETTINGS_URL}&ig=denied`);
+    res.redirect(landingUrl(returnTo, "denied"));
     return;
   }
 
-  const payload = verifyState(state);
   if (!payload) {
-    res.redirect(`${SETTINGS_URL}&ig=bad_state`);
+    res.redirect(landingUrl(null, "bad_state"));
     return;
   }
   if (!code) {
-    res.redirect(`${SETTINGS_URL}&ig=no_code`);
+    res.redirect(landingUrl(returnTo, "no_code"));
     return;
   }
 
@@ -235,9 +266,9 @@ export async function instagramConnectCallback(req, res) {
       hostProfileId: payload.hostProfileId,
       igUsername: account.username,
     });
-    res.redirect(`${SETTINGS_URL}&ig=connected`);
+    res.redirect(landingUrl(returnTo, "connected"));
   } catch (err) {
     logger?.error?.("[instagram/oauth] callback failed", { err: err.message });
-    res.redirect(`${SETTINGS_URL}&ig=error`);
+    res.redirect(landingUrl(returnTo, "error"));
   }
 }

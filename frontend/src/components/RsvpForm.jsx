@@ -541,7 +541,7 @@ export function RsvpForm({
                     type="text"
                     value={instagram}
                     onChange={(e) => setInstagram(e.target.value.replace(/^@+/, ""))}
-                    placeholder={requireInstagram ? "yourhandle" : "yourhandle (optional)"}
+                    placeholder={requireInstagram ? "your handle" : "your handle (optional)"}
                     required={requireInstagram}
                     disabled={loading}
                     autoComplete="off"

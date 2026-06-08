@@ -126,7 +126,9 @@ export function AutoDmPage() {
       const data = await res.json();
       setIgConnected(!!data.igConnected);
       setAccount(data.account || null);
-      setTriggers(data.triggers || []);
+      // This page manages comment→DM keyword triggers only; RSVP→DM triggers
+      // (no keyword) are managed in the event editor's Instagram panel.
+      setTriggers((data.triggers || []).filter((t) => (t.triggerType || "comment") === "comment"));
       setEvents(data.events || []);
       if (!eventId && data.events?.length) setEventId(data.events[0].id);
     } catch {

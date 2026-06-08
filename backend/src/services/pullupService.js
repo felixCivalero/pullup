@@ -357,34 +357,88 @@ export async function createChannel({ eventId, name, createdBy = null }) {
   return { ok: true, channel: { id: data.id, name: data.name, isMain: false } };
 }
 
-export async function listSpaceMessages(eventId, { channelId = null, limit = 200 } = {}) {
-  // Default to the Main channel when none is specified.
+// One SUBJECT's flowing feed: the room can hold several subjects (channels);
+// "Room chat" is the always-on default (the Main channel). We return every
+// message in the requested subject (default Main), each carrying its reply
+// parent, attached media, and pinned flag — the frontend nests replies and
+// lifts pinned posts into the top strip.
+export async function listSpaceMessages(eventId, { channelId = null, limit = 500 } = {}) {
   let chId = channelId;
   if (!chId) { const main = await getOrCreateMainChannel(eventId); chId = main?.id || null; }
   let q = supabase
     .from("event_space_messages")
-    .select("id, body, author_name, is_host, author_person_id, channel_id, created_at")
+    .select("id, body, author_name, is_host, author_person_id, parent_id, media, pinned, channel_id, created_at")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true })
     .limit(limit);
-  q = chId ? q.eq("channel_id", chId) : q.is("channel_id", null);
+  if (chId) q = q.eq("channel_id", chId);
   const { data, error } = await q;
   if (error || !data) return [];
-  return data.map((m) => ({ id: m.id, body: m.body, authorName: m.author_name || "Someone", isHost: !!m.is_host, personId: m.author_person_id || null, channelId: m.channel_id || null, at: m.created_at }));
+  return data.map((m) => ({
+    id: m.id,
+    body: m.body || "",
+    authorName: m.author_name || "Someone",
+    isHost: !!m.is_host,
+    personId: m.author_person_id || null,
+    parentId: m.parent_id || null,
+    media: Array.isArray(m.media) ? m.media : [],
+    pinned: !!m.pinned,
+    channelId: m.channel_id || null,
+    at: m.created_at,
+  }));
 }
 
-export async function postSpaceMessage({ eventId, channelId = null, personId = null, profileId = null, isHost = false, authorName = null, body }) {
+// A post is text, media, or both — and may reply to another post (parentId) and
+// be born pinned. A media-only post is fine (an upload IS a post now); a post
+// with neither text nor media is rejected.
+export async function postSpaceMessage({ eventId, channelId = null, personId = null, profileId = null, isHost = false, authorName = null, body, parentId = null, media = [], pinned = false }) {
   const text = (body || "").toString().trim();
-  if (!eventId || !text) return { ok: false, reason: "empty" };
+  const mediaArr = Array.isArray(media) ? media.filter((m) => m && typeof m.url === "string") : [];
+  if (!eventId || (!text && mediaArr.length === 0)) return { ok: false, reason: "empty" };
   let chId = channelId;
   if (!chId) { const main = await getOrCreateMainChannel(eventId); chId = main?.id || null; }
   const { data, error } = await supabase
     .from("event_space_messages")
-    .insert({ event_id: eventId, channel_id: chId, author_person_id: personId, author_profile_id: profileId, is_host: isHost, author_name: authorName, body: text.slice(0, 4000) })
+    .insert({
+      event_id: eventId,
+      channel_id: chId,
+      author_person_id: personId,
+      author_profile_id: profileId,
+      is_host: isHost,
+      author_name: authorName,
+      body: text.slice(0, 4000),
+      parent_id: parentId || null,
+      media: mediaArr.slice(0, 10).map((m) => ({ url: String(m.url), type: m.type === "video" ? "video" : "image" })),
+      pinned: !!pinned,
+    })
     .select("id")
     .single();
   if (error) return { ok: false, reason: error.message };
   return { ok: true, id: data.id, channelId: chId };
+}
+
+// "Attach to the top" / take it back down. Caller has already authorised that
+// this person may pin this post (host = any post, guest = their own).
+export async function setMessagePinned({ eventId, messageId, pinned }) {
+  if (!eventId || !messageId) return { ok: false, reason: "empty" };
+  const { error } = await supabase
+    .from("event_space_messages")
+    .update({ pinned: !!pinned })
+    .eq("id", messageId)
+    .eq("event_id", eventId);
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true };
+}
+
+// Read one message's owner/event/subject — used to authorise a pin/unpin
+// request and to return the right subject's feed afterwards.
+export async function getSpaceMessage(messageId) {
+  const { data } = await supabase
+    .from("event_space_messages")
+    .select("id, event_id, author_person_id, is_host, channel_id")
+    .eq("id", messageId)
+    .maybeSingle();
+  return data || null;
 }
 
 export async function getCoPresentAtEvent(personId, eventId) {

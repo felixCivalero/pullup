@@ -37,23 +37,24 @@ export function HostPartnerLinks({ event }) {
             target="_blank"
             rel="noreferrer"
             style={{
-              display: "flex", alignItems: "center", gap: 11, padding: "8px 12px",
-              borderRadius: 11, border: `1px solid ${colors.border}`, background: "#fff",
+              display: "flex", alignItems: "center", gap: 11, padding: "10px 12px",
+              borderRadius: 12, border: `1px solid ${p.tint}33`,
+              background: `linear-gradient(135deg, ${p.tint}16 0%, ${p.tint}08 100%)`,
               textDecoration: "none", fontFamily: "inherit",
             }}
           >
             <div style={{
               width: 28, height: 28, borderRadius: 8, flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: `${p.tint}14`, color: p.tint,
+              background: "#fff", border: `1px solid ${p.tint}40`, color: p.tint,
             }}>
               <Icon size={15} />
             </div>
             <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 650, color: colors.text }}>{p.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: p.tint }}>{p.label}</span>
               <span style={{ fontSize: 12, color: colors.textMuted }}>{p.sub}</span>
             </div>
-            <ChevronRight size={16} style={{ color: colors.textFaded, flexShrink: 0 }} />
+            <ChevronRight size={16} style={{ color: `${p.tint}99`, flexShrink: 0 }} />
           </a>
         );
       })}

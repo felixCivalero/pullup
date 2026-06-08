@@ -8,25 +8,9 @@ import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
+import { normalizeDesktopMode, heroFrameStyle, modeCrops, useMediaAspect } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
-
-// Desktop has two preset modes:
-//   "fit"  → portrait 4:5 frame
-//   "real" → wide 16:9 frame
-// Both are cropped (object-fit: cover) and support drag-to-reposition.
-function aspectRatioFromMode(mode) {
-  return mode === "real" ? "16 / 9" : "4 / 5";
-}
-
-// Legacy: derive a mode from old "aspect" + "fit" fields so events saved with
-// the previous schema still render predictably.
-function legacyToMode(format, top) {
-  if (format?.mode) return format.mode;
-  const aspect = format?.aspect ?? top?.aspect;
-  if (aspect === "landscape") return "real";
-  return "fit";
-}
 
 export function DesktopEventLayout({
   title,
@@ -74,12 +58,18 @@ export function DesktopEventLayout({
     return () => ro.disconnect();
   }, []);
 
-  // Both desktop modes are cover-cropped, so drag-to-reposition is always
-  // available when the parent provides a drag handler.
+  // Resolve the cover format up front — the drag hook depends on it.
+  const desktopFormat = mediaSettings?.desktop || {};
+  const desktopMode = normalizeDesktopMode(desktopFormat, mediaSettings);
+  const desktopCrops = modeCrops(desktopMode);
+  const mediaAspect = useMediaAspect(media, imagePreview);
+
+  // Drag-to-reposition only applies to the cover-cropped modes (height/card).
+  // "width" shows the whole media, so there's nothing to pan.
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroFrameRef,
-    enabled: !!onFocusDrag,
+    enabled: !!onFocusDrag && desktopCrops,
   });
 
   // Editor: scroll the right column to the hovered section
@@ -161,11 +151,10 @@ export function DesktopEventLayout({
       ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
       : "Free entry";
 
-  // Per-screen format settings — desktop view reads from .desktop, with
-  // graceful fallback to top-level fields (legacy events).
-  const desktopFormat = mediaSettings?.desktop || {};
-  const desktopMode = legacyToMode(desktopFormat, mediaSettings);
-  const heroAspect = aspectRatioFromMode(desktopMode);
+  // Per-screen focus (drag-to-reposition) — desktop view reads from .desktop,
+  // with graceful fallback to top-level fields (legacy events). The frame
+  // geometry comes from `desktopMode`/`mediaAspect`, resolved at the top.
+  const heroFrame = heroFrameStyle(desktopMode, mediaAspect);
   // Support both numeric focusX/focusY and legacy "top"/"center"/"bottom"
   const legacyFocusY = mediaSettings?.focus === "top"
     ? 0
@@ -176,15 +165,18 @@ export function DesktopEventLayout({
   const desktopFocusY = typeof desktopFormat.focusY === "number" ? desktopFormat.focusY : legacyFocusY;
   const fallbackObjectPosition = `${desktopFocusX}% ${desktopFocusY}%`;
   // Scope the mediaSettings passed to MediaCarousel so it picks up desktop
-  // crop + focus rather than phone's. Both desktop modes are cover-cropped.
+  // crop + focus rather than phone's. "width" and "card" hold ratio with no crop
+  // (contain) — card additionally pads so the page bg shows around it; only
+  // "height" fills and pans via focus.
+  const desktopFit = desktopMode === "card" ? "contain" : "cover";
   const desktopMediaSettings = useMemo(
     () => ({
       ...(mediaSettings || {}),
-      fit: "cover",
+      fit: desktopFit,
       focusX: desktopFocusX,
       focusY: desktopFocusY,
     }),
-    [mediaSettings, desktopFocusX, desktopFocusY],
+    [mediaSettings, desktopFit, desktopFocusX, desktopFocusY],
   );
 
   return (
@@ -228,15 +220,16 @@ export function DesktopEventLayout({
             justifyContent: "center",
             minWidth: 0,
             minHeight: 0,
+            // "card" floats with breathing room around it; the other modes use
+            // the full cell.
+            padding: desktopMode === "card" ? "28px" : 0,
+            boxSizing: "border-box",
           }}
         >
           <div
             ref={heroFrameRef}
             style={{
-              aspectRatio: heroAspect,
-              maxHeight: "100%",
-              maxWidth: "100%",
-              width: "100%",
+              ...heroFrame,
               borderRadius: "16px",
               overflow: "hidden",
               position: "relative",
@@ -274,15 +267,15 @@ export function DesktopEventLayout({
                   inset: 0,
                   width: "100%",
                   height: "100%",
-                  objectFit: "cover",
+                  objectFit: desktopFit,
                   objectPosition: fallbackObjectPosition,
                   pointerEvents: "none",
                 }}
               />
             ) : null}
 
-            {/* Drag-to-reposition overlay (editor only) */}
-            {onFocusDrag && (
+            {/* Drag-to-reposition overlay (editor only; crop modes only) */}
+            {onFocusDrag && desktopCrops && (
               <div
                 {...focusDrag.bind}
                 style={{

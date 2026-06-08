@@ -10,11 +10,12 @@
 // dot), never a status badge or a column the host has to sort.
 //
 // Rendered against REAL data: access resolves via useEventAccess
-// (GET /events/:id/access), and the room itself reads live endpoints —
-// RoomConversation (topics/space), Darkroom (peer-shared photos), and the
-// roster. No fixtures. (The old seeded mock components were removed.)
+// (GET /events/:id/access), and the room itself is ONE flowing feed —
+// RoomConversation (the /space stream: text + photos + replies + pinned), plus
+// the roster. No fixtures, no channels, no side galleries. (The old BYO-storage
+// grammar and the separate darkroom grid were folded into the feed.)
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,11 +25,13 @@ import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
 import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
+import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { authenticatedFetch } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Folder, FolderPlus } from "lucide-react";
+import { MessageSquare, Plus, X, DoorOpen } from "lucide-react";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -71,255 +74,171 @@ function firstNames(list, max = 3) {
   return `${ns.slice(0, 2).join(", ")} & ${ns.length - 2} more`;
 }
 
-// ─── Storage: the room renders from YOUR cloud, never ours ───────────
-//
-// The federated stance made literal: content lives in the connected cloud
-// (Drive / iCloud / Dropbox), PullUp holds only the ledger and renders. The
-// real OAuth rail is the backend brick still to come — this wires the FRONT
-// of it: the connect moment + the per-folder sharing verb. State is local
-// (no backend yet), but the grammar is real.
-
-// Where the bytes can live. "floor" is PullUp's thin temporary holding —
-// the thing we actively want to empty as people connect their own cloud.
-const STORAGE_PROVIDERS = [
-  { key: "gdrive", label: "Google Drive", hint: "an app-folder, only we touch it" },
-  { key: "icloud", label: "iCloud Photos", hint: "your Apple library" },
-  { key: "dropbox", label: "Dropbox", hint: "your own folder" },
-  { key: "floor", label: "PullUp floor", hint: "temporary — move it home later" },
-];
-
-// The verb a folder grants by default. A bead inherits its folder's verb
-// unless someone changes it. See = look only · Ask = request to keep ·
-// Take = yours forever (the irrevocable gift) · Pay = a copy, coming soon.
-const SHARE_VERBS = {
-  see:  { label: "See",        note: "look, don't keep",  color: colors.textSubtle, bg: colors.surfaceMuted,  border: colors.border },
-  ask:  { label: "Ask",        note: "request to keep",   color: colors.secondary,  bg: colors.secondarySoft, border: colors.secondaryBorder },
-  take: { label: "Take",       note: "yours to keep",     color: colors.accent,     bg: colors.accentSoft,    border: colors.accentBorder },
-  pay:  { label: "Pay · soon", note: "buy a copy",        color: colors.textFaded,  bg: "transparent",        border: colors.border, soon: true },
-};
-const VERB_CYCLE = ["see", "ask", "take", "pay"];
-
-function VerbChip({ verb, onCycle }) {
-  const v = SHARE_VERBS[verb];
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onCycle(); }}
-      title={`${v.label} — ${v.note} (tap to change)`}
-      style={{
-        alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: "4px",
-        fontSize: "10.5px", fontWeight: 700, color: v.color, background: v.bg,
-        border: `1px solid ${v.border}`, borderRadius: "999px", padding: "2px 8px",
-        cursor: "pointer", lineHeight: 1.4, fontFamily: SF,
-        opacity: v.soon ? 0.7 : 1,
-      }}
-    >
-      {v.label}
-    </button>
-  );
+// ONE room body for everyone — a single flowing feed. Host and guest see the
+// same stream; the host just reaches it through the owner endpoints (and can
+// pin anyone's post). A guest reaches the same feed through the room endpoints,
+// session-resolved (no email box). Posting text needs `post`; attaching photos/
+// video needs `upload`; both land as posts you can reply to.
+// A subject's display name — the always-on default channel reads "Room chat".
+function subjectName(c) {
+  return c?.isMain ? "Room chat" : (c?.name || "Subject");
 }
 
-function StorageFolders() {
-  const [provider, setProvider] = useState(null);   // null = not connected yet
-  const [picking, setPicking] = useState(false);
-  const [verbs, setVerbs] = useState({ all: "see", group: "take", after: "see" });
-
-  const connected = STORAGE_PROVIDERS.find((p) => p.key === provider);
-  const folders = [
-    { key: "all", label: "All photos", hint: "everything dropped here" },
-    { key: "group", label: "Group shot", hint: "the one with everyone" },
-    { key: "after", label: "Afters", hint: "what happened later" },
-    { key: "add", label: "+ New folder", hint: "", add: true },
-  ];
-
-  const cycleVerb = (key) => setVerbs((prev) => {
-    const cur = prev[key] || "see";
-    const next = VERB_CYCLE[(VERB_CYCLE.indexOf(cur) + 1) % VERB_CYCLE.length];
-    return { ...prev, [key]: next };
-  });
-
-  // A slim files bar — folders as chips, like a Slack/Discord channel's files.
-  // Not a big grid just because it's photos; it rides inside the room card.
-  const chip = (add, dim) => ({
-    display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px",
-    borderRadius: 999, fontFamily: SF, fontSize: 12.5, fontWeight: 650, cursor: "pointer",
-    border: `1px ${add ? "dashed" : "solid"} ${colors.border}`,
-    background: add ? "transparent" : colors.surface,
-    color: add ? colors.textMuted : colors.text, opacity: dim ? 0.55 : 1, whiteSpace: "nowrap",
-  });
-
-  return (
-    <div style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${colors.borderFaint}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 2 }}>Files</span>
-
-        {folders.map((f) =>
-          f.add ? (
-            <button key={f.key} type="button" style={chip(true, false)} title="New folder">
-              <FolderPlus size={13} /> New folder
-            </button>
-          ) : (
-            <span key={f.key} style={chip(false, !connected)}>
-              <Folder size={13} style={{ color: colors.textFaded, flexShrink: 0 }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{f.label}</span>
-              {connected && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); cycleVerb(f.key); }}
-                  title="Who can do what with this folder"
-                  style={{ border: "none", background: "transparent", padding: 0, marginLeft: 2, fontSize: 11, fontWeight: 700, color: colors.accent, cursor: "pointer", fontFamily: SF }}
-                >
-                  {verbs[f.key] || "see"}
-                </button>
-              )}
-            </span>
-          )
-        )}
-
-        {/* Connect state — small, on the right */}
-        <button
-          type="button"
-          onClick={() => setPicking((p) => !p)}
-          style={{
-            marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: SF,
-            fontSize: 11.5, fontWeight: 650, cursor: "pointer", borderRadius: 999, padding: "4px 10px",
-            border: `1px solid ${connected ? colors.secondaryBorder : colors.accentBorder}`,
-            background: connected ? colors.secondarySoft : colors.accentSoft,
-            color: connected ? colors.secondary : colors.accent,
-          }}
-        >
-          {connected ? (
-            <><span style={{ width: 5, height: 5, borderRadius: "50%", background: colors.secondary }} /> {connected.label}</>
-          ) : "Connect storage"}
-        </button>
-      </div>
-
-      {/* Provider picker — small inline row, only while choosing */}
-      {picking && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-          {STORAGE_PROVIDERS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => { setProvider(p.key); setPicking(false); }}
-              style={{
-                padding: "6px 11px", borderRadius: 10, cursor: "pointer", fontFamily: SF, fontSize: 12.5, fontWeight: 650,
-                border: `1px solid ${p.key === provider ? colors.accentBorder : colors.border}`,
-                background: p.key === provider ? colors.accentSoft : "transparent", color: colors.text,
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* The thesis, once, small — only while unconnected and not choosing */}
-      {!connected && !picking && (
-        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 8, lineHeight: 1.5 }}>
-          Your photos live in <b style={{ color: colors.textMuted }}>your</b> cloud — PullUp just renders the room from them.
-        </div>
-      )}
-    </div>
-  );
+// A cover can be an image OR a video — render the right element so a video
+// cover shows its frames as the banner thumbnail instead of a broken <img>.
+function isVideoUrl(u) {
+  return /\.(mp4|mov|m4v|webm|ogg)(\?|#|$)/i.test(String(u || ""));
 }
 
-// The host's view of the event's COLLECTIVE conversation, organised into TOPICS
-// (host holds the pen — can open new topics). Real data, above the mockup below.
-// The host's window into the darkroom — what guests shared at the event. Hidden
-// until there's something to show (it fills as people drop photos in the room).
-// The darkroom — peer-shared photos. Same block for host and guest; the host
-// reads via the owner endpoint, a guest reads (and, if their tier allows it,
-// uploads) via the room endpoints — all session-resolved, no email box.
-function Darkroom({ eventId, isHost, canUpload }) {
-  const [photos, setPhotos] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef(null);
-  const load = useCallback(() => {
-    const req = isHost
-      ? authenticatedFetch(`/host/events/${eventId}/darkroom`).then((r) => (r.ok ? r.json().then((d) => d.photos || []) : []))
-      : authenticatedFetch(`/p/${eventId}/interior`).then((r) => (r.ok ? r.json().then((d) => d.photos || []) : []));
-    req.then(setPhotos).catch(() => setPhotos([]));
-  }, [eventId, isHost]);
-  useEffect(() => { load(); }, [load]);
-
-  async function add(file) {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
-      const r = await authenticatedFetch(`/p/${eventId}/upload`, { method: "POST", body: JSON.stringify({ dataUrl }) });
-      if (r.ok) load();
-    } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
-  }
-
-  const has = photos && photos.length > 0;
-  if (!canUpload && !has) return null; // read-only + empty → nothing to show
-  return (
-    <div style={{ marginTop: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: colors.textFaded, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          The darkroom{has ? ` · ${photos.length}` : ""}
-        </span>
-        {canUpload && (
-          <>
-            <input ref={fileRef} type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => add(e.target.files?.[0])} />
-            <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ fontSize: 12, fontWeight: 700, color: colors.accent, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: 999, padding: "5px 12px", cursor: uploading ? "wait" : "pointer" }}>
-              {uploading ? "Adding…" : "+ Add photo"}
-            </button>
-          </>
-        )}
-      </div>
-      {has ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
-          {photos.slice(0, 12).map((p) => (
-            <a key={p.id} href={p.url} target="_blank" rel="noreferrer" title={p.by || ""} style={{ aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: colors.surfaceMuted, display: "block" }}>
-              {p.url && <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            </a>
-          ))}
-        </div>
-      ) : (
-        <div style={{ fontSize: 13, color: colors.textMuted }}>No photos yet — drop the first one.</div>
-      )}
-    </div>
-  );
-}
-
-// ONE room body for everyone. Host and guest see the same room — the host just
-// reaches it through the owner endpoints (and holds the pen: create topics,
-// connect storage, the roster faces). A guest reaches the same conversation +
-// darkroom through the room endpoints, session-resolved (no email box).
 function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
-  const api = useMemo(() => (isHost ? {
-    loadChannels: () => authenticatedFetch(`/host/events/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
-    loadMessages: (cid) => authenticatedFetch(`/host/events/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
-    post: (cid, body) => authenticatedFetch(`/host/events/${eventId}/space`, { method: "POST", body: JSON.stringify({ body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
-    createTopic: (name) => authenticatedFetch(`/host/events/${eventId}/channels`, { method: "POST", body: JSON.stringify({ name }) }).then((r) => (r.ok ? r.json().then((d) => d.channels || null) : null)),
-  } : {
-    loadChannels: () => authenticatedFetch(`/p/${eventId}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
-    loadMessages: (cid) => authenticatedFetch(`/p/${eventId}/space?channelId=${cid}`).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
-    post: (cid, body) => authenticatedFetch(`/p/${eventId}/space`, { method: "POST", body: JSON.stringify({ body, channelId: cid }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || []) : [])),
-    createTopic: null, // host holds the pen
-  }), [eventId, isHost]);
+  const api = useMemo(() => {
+    const base = isHost ? `/host/events/${eventId}` : `/p/${eventId}`;
+    const msgs = (r) => (r.ok ? r.json().then((d) => d.messages || []) : []);
+    const qs = (cid) => (cid ? `?channelId=${cid}` : "");
+    return {
+      loadChannels: () => authenticatedFetch(`${base}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
+      // Host holds the pen on subjects (the guest endpoint is read-only).
+      createChannel: (name) => authenticatedFetch(`/host/events/${eventId}/channels`, { method: "POST", body: JSON.stringify({ name }) }).then((r) => (r.ok ? r.json().then((d) => d.channels || null) : null)),
+      loadMessages: (channelId) => authenticatedFetch(`${base}/space${qs(channelId)}`).then(msgs),
+      post: ({ body, parentId, media, pinned, channelId }) =>
+        authenticatedFetch(`${base}/space`, { method: "POST", body: JSON.stringify({ body, parentId, media, pinned, channelId }) }).then(msgs),
+      pin: (messageId, pinned) =>
+        authenticatedFetch(`${base}/space/${messageId}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || null) : null)),
+      // Any file, any size (up to the bucket cap): mint a signed URL and upload
+      // the bytes straight to storage from the browser — never through the API.
+      uploadMedia: async (file) => {
+        const r = await authenticatedFetch(`${base}/media/sign`, { method: "POST", body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.ok) throw new Error(d.reason || "sign_failed");
+        const { error } = await supabase.storage.from("event-images").uploadToSignedUrl(d.path, d.token, file);
+        if (error) throw error;
+        return { url: d.url, type: d.type };
+      },
+      searchGifs: (q) => authenticatedFetch(`${base}/gifs${q ? `?q=${encodeURIComponent(q)}` : ""}`).then((r) => (r.ok ? r.json() : { disabled: false, gifs: [] })).catch(() => ({ disabled: false, gifs: [] })),
+    };
+  }, [eventId, isHost]);
 
   const here = roster?.pulledUp || [];
-  const canPost = isHost || permissions?.post !== false;
+  // Each capability follows the host's Room access grid for the viewer's state
+  // (the host themselves always has all of them). Pulled-up read is inviolable.
+  const canRead = isHost || permissions?.read !== false;
+  const canPost = isHost || permissions?.post === true;
+  const canUpload = isHost || permissions?.upload === true;
+  const canDownload = isHost || permissions?.download === true;
+
+  // Subjects (channels). "Room chat" (Main) is always there; the host can open
+  // more with the + and everyone can switch between them.
+  const [channels, setChannels] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [coPresent, setCoPresent] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    api.loadChannels().then((chs) => {
+      if (!alive) return;
+      setChannels(chs);
+      setActiveId((cur) => cur || (chs.find((c) => c.isMain) || chs[0])?.id || null);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [api]);
+
+  // "See who's here" for GUESTS — gated on the host's seeWho rule. The server
+  // also enforces it (returns [] when off, and co-presence is keyed to the
+  // viewer's own pull-up). The host has its own roster faces below.
+  useEffect(() => {
+    if (isHost || permissions?.seeWho !== true) { setCoPresent([]); return; }
+    let alive = true;
+    authenticatedFetch(`/p/${eventId}/interior`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setCoPresent(d.coPresent || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [eventId, isHost, permissions?.seeWho]);
+
+  async function addSubject() {
+    const name = newName.trim();
+    if (!name) { setAdding(false); setNewName(""); return; }
+    const fresh = await api.createChannel(name).catch(() => null);
+    if (Array.isArray(fresh)) {
+      setChannels(fresh);
+      const made = fresh.find((c) => !c.isMain && c.name === name);
+      if (made) setActiveId(made.id);
+    }
+    setNewName(""); setAdding(false);
+  }
+
+  const several = channels.length > 1;
+  const pill = (active) => ({
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 999,
+    fontSize: 13, fontWeight: active ? 750 : 600, cursor: "pointer", whiteSpace: "nowrap",
+    border: `1px solid ${active ? colors.accent : colors.border}`,
+    background: active ? colors.accent : colors.surface,
+    color: active ? "#fff" : colors.text, fontFamily: SF,
+  });
 
   return (
     <div style={{ marginBottom: "24px", border: `1px solid ${colors.borderStrong}`, borderRadius: "18px", padding: "18px 20px", background: colors.background, boxShadow: "0 1px 2px rgba(10,10,10,0.03), 0 12px 32px rgba(10,10,10,0.06)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: here.length ? "13px" : "14px" }}>
+      {/* Subject bar — "Room chat" is the default; the + opens more (host only).
+          When there are several, each is its own clearly-marked tab. */}
+      <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: 6, flexWrap: "wrap" }}>
         <div style={{ width: 28, height: 28, borderRadius: "9px", background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <MessageSquare size={15} color={colors.accent} strokeWidth={2.4} />
         </div>
-        <div style={{ fontSize: "15px", fontWeight: 750, color: colors.text, letterSpacing: "-0.01em" }}>
-          The Room
-          <span style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, letterSpacing: 0 }}> · a closed circle — only people who pulled up</span>
-        </div>
+
+        {channels.map((c) => {
+          const active = c.id === activeId;
+          // With a single subject it reads as a plain title; once there are
+          // several, every one is a switchable tab so it's obvious there's more.
+          if (!several) {
+            return (
+              <div key={c.id} style={{ fontSize: "15px", fontWeight: 750, color: colors.text, letterSpacing: "-0.01em" }}>
+                {subjectName(c)}
+                <span style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, letterSpacing: 0 }}> · a closed circle — only people who pulled up</span>
+              </div>
+            );
+          }
+          return (
+            <button key={c.id} onClick={() => setActiveId(c.id)} style={pill(active)} title={subjectName(c)}>
+              {subjectName(c)}
+            </button>
+          );
+        })}
+
+        {/* + new subject — host only */}
+        {isHost && !adding && (
+          <button onClick={() => setAdding(true)} title="New subject" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, border: `1px dashed ${colors.border}`, background: "transparent", color: colors.textMuted, cursor: "pointer", flexShrink: 0 }}>
+            <Plus size={15} />
+          </button>
+        )}
+        {isHost && adding && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input
+              autoFocus value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubject(); } if (e.key === "Escape") { setAdding(false); setNewName(""); } }}
+              onBlur={() => { if (!newName.trim()) { setAdding(false); setNewName(""); } }}
+              placeholder="Subject name…"
+              style={{ width: 150, padding: "5px 11px", borderRadius: 999, border: `1px solid ${colors.accent}`, background: colors.surface, color: colors.text, fontSize: 13, outline: "none", fontFamily: SF }}
+            />
+            <button onMouseDown={(e) => { e.preventDefault(); addSubject(); }} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, border: "none", background: colors.accent, color: "#fff", cursor: "pointer" }}><Plus size={15} /></button>
+            <button onMouseDown={(e) => { e.preventDefault(); setAdding(false); setNewName(""); }} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, border: `1px solid ${colors.border}`, background: "transparent", color: colors.textMuted, cursor: "pointer" }}><X size={14} /></button>
+          </div>
+        )}
       </div>
+
+      {/* Subtitle when there are several subjects (the single-subject case keeps
+          it inline above). */}
+      {several && (
+        <div style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, marginBottom: 14, marginLeft: 37 }}>
+          a closed circle — only people who pulled up
+        </div>
+      )}
 
       {/* The people in the circle — faces (host's roster view). */}
       {isHost && here.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "14px", paddingBottom: "14px", borderBottom: `1px solid ${colors.borderFaint}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px", marginTop: several ? 0 : 12, marginBottom: "14px", paddingBottom: "14px", borderBottom: `1px solid ${colors.borderFaint}` }}>
           <div style={{ display: "flex" }}>
             {here.slice(0, 6).map((p, i) => (
               <div key={p.id} style={{ marginLeft: i === 0 ? 0 : "-8px", borderRadius: "50%", boxShadow: `0 0 0 2px ${colors.surface}` }}>
@@ -334,12 +253,25 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
         </div>
       )}
 
-      {/* Connect-storage / folders are the host's pen. */}
-      {isHost && <StorageFolders />}
+      {/* "Who's here" for guests — only when the host allows it (seeWho) and
+          there are co-present people the viewer can see. */}
+      {!isHost && coPresent.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "11px", marginTop: several ? 0 : 12, marginBottom: "14px", paddingBottom: "14px", borderBottom: `1px solid ${colors.borderFaint}` }}>
+          <div style={{ display: "flex" }}>
+            {coPresent.slice(0, 6).map((p, i) => (
+              <div key={p.id} style={{ marginLeft: i === 0 ? 0 : "-8px", borderRadius: "50%", boxShadow: `0 0 0 2px ${colors.surface}` }}>
+                <FaceAvatar name={p.name} size={30} />
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: "13px", color: colors.textMuted, lineHeight: 1.4 }}>
+            <b style={{ color: colors.text }}>{firstNames(coPresent)}</b> {coPresent.length === 1 ? "is" : "are"} here
+            <span style={{ color: colors.textFaded }}> · and you</span>
+          </div>
+        </div>
+      )}
 
-      <RoomConversation canCreateTopic={isHost} canPost={canPost} sidebar api={api} meName={meName} meIsHost={isHost} />
-
-      <Darkroom eventId={eventId} isHost={isHost} canUpload={!isHost && permissions?.upload === true} />
+      <RoomConversation key={activeId || "main"} channelId={activeId} canRead={canRead} canPost={canPost} canUpload={canUpload} canDownload={canDownload} canPinAny={isHost} api={api} meName={meName} meIsHost={isHost} />
     </div>
   );
 }
@@ -396,17 +328,35 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, reason, permissions, event } = useEventAccess(id);
+  const { loading, level, role, realHost, reason, permissions, event } = useEventAccess(id);
   const [roster, setRoster] = useState(null);
   const isHost = level === "host";
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
+  // One-time intro banner explaining what the Room is, in the Room's own accent
+  // so the identity is unmistakable. Dismissible; stays gone once seen.
+  const [showRoomIntro, setShowRoomIntro] = useState(() => {
+    try { return localStorage.getItem("pullup_room_intro_seen") !== "1"; } catch { return true; }
+  });
+  const dismissRoomIntro = () => {
+    try { localStorage.setItem("pullup_room_intro_seen", "1"); } catch { /* ignore */ }
+    setShowRoomIntro(false);
+  };
 
   // The host view needs the roster data; load it once the gate confirms we own
-  // the event. For everyone else (and analytics-only, who get sent to Insights),
-  // drop any host event-nav so the shell shows no Guests/Insights/Edit tabs.
+  // the event. A GUEST gets no management nav (no myRole → no Guests/Insights/
+  // Edit tabs), but the shell still needs to know where to send them on the way
+  // out: the HOST's person room, not their own home. So we hand the shell a
+  // guest-flavoured nav carrying just the host's room pointer. Analytics-only
+  // gets bounced to Insights, so it clears entirely.
   useEffect(() => {
     if (level == null) return; // still resolving
-    if (!isHost || role === "analytics") { clearEventNav(); return; }
+    if (role === "analytics") { clearEventNav(); return; }
+    if (!isHost) {
+      const h = event?.host;
+      if (h?.roomId) setEventNav({ guest: true, hostRoomId: h.roomId, hostName: h.name || null });
+      else clearEventNav();
+      return;
+    }
     let alive = true;
     authenticatedFetch(`/host/events/${id}/roster`)
       .then((r) => (r.ok ? r.json() : null))
@@ -434,11 +384,7 @@ export default function EventRoomPage() {
   }, [id, user]);
 
   if (loading) {
-    return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", color: colors.textMuted, fontFamily: SF }}>
-        Opening the room…
-      </div>
-    );
+    return <LoadingScreen label="opening the room" />;
   }
 
   // Analytics-only collaborators don't run the room — send them to Insights.
@@ -485,14 +431,48 @@ export default function EventRoomPage() {
             />
           </div>
 
-          {isHost && <HostPartnerLinks event={event} />}
+          {/* What-is-this-room banner — host-only, dismissible, in the Room's
+              own pink so it visually says "this is the Room." Points at the
+              Room access control that rides in the toolbar just above. */}
+          {isHost && showRoomIntro && (
+            <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 12px 13px 15px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: "#fff", border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <DoorOpen size={16} color={colors.accent} strokeWidth={2.3} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.accentText, lineHeight: 1.3 }}>
+                  This is where your guests land after they RSVP.
+                </div>
+                <div style={{ fontSize: "12.5px", color: colors.textMuted, marginTop: 2, lineHeight: 1.4 }}>
+                  Manage what they can see in <span style={{ fontWeight: 600, color: colors.accent }}>Room access</span>.
+                </div>
+              </div>
+              <button
+                onClick={dismissRoomIntro}
+                aria-label="Dismiss"
+                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, border: "none", background: "transparent", color: colors.accent, cursor: "pointer" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = colors.accentSoftStrong; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+
+          {/* Owner-commercial partner CTAs ("buy for YOUR event") — show ONLY to
+              the real host AND only at host level. So they're hidden both on an
+              event you don't own while forcing "Host" (realHost=false), AND when
+              you preview your OWN event at a lower status like RSVP/lobby
+              (isHost=false under that lens). Never below host. */}
+          {realHost && isHost && <HostPartnerLinks event={event} />}
           {/* Event identity — ONE unified banner: cover backdrop + scrim,
               title/meta overlaid, an attached presence bar for the roster. A
               missing cover falls back to the soft gradient with ink text. */}
           <div style={{ marginBottom: "22px", borderRadius: "18px", overflow: "hidden", border: `1px solid ${colors.border}`, boxShadow: "0 1px 2px rgba(10,10,10,0.03), 0 10px 30px rgba(10,10,10,0.05)" }}>
             <div style={{ position: "relative", height: hasCover ? 196 : 132, background: hasCover ? "#1a1016" : "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
-              {hasCover && (
-                <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              {hasCover && (isVideoUrl(event.cover)
+                ? <video src={event.cover} muted autoPlay loop playsInline preload="metadata" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               )}
               {hasCover && (
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.34) 64%, rgba(0,0,0,0.66) 100%)" }} />

@@ -202,6 +202,31 @@ async function attemptWhatsApp({ recipient, hostProfile, text, attachments = [],
 }
 
 /**
+ * Send an Instagram DM IFF the messaging window allows it — and NOTHING else.
+ * Unlike dispatch(), this never falls through to WhatsApp or the email floor,
+ * so it's safe to fire alongside a confirmation that already went out on another
+ * rail (e.g. the RSVP→DM trigger): a closed window is a silent no-op, never a
+ * duplicate email.
+ *
+ * Returns { channel: 'instagram', mid } on a real send, or
+ * { sent: false, reasons } when the window's closed / not connected / no IGSID.
+ *
+ * @param {object} args
+ * @param {object} args.recipient  { id, ig_user_id }
+ * @param {string} args.text
+ * @param {Array}  [args.attachments]
+ * @param {boolean} [args.humanComposed]  false for automated sends (limits to the 24h window)
+ * @param {string} args.personId
+ * @param {string} args.hostProfileId
+ */
+export async function sendInstagramDM({ recipient, text, attachments = [], humanComposed = false, personId, hostProfileId }) {
+  const reasons = [];
+  const r = await attemptInstagram({ recipient, text, attachments, humanComposed, personId, hostProfileId, reasons });
+  if (r?.channel) return { ...r, sent: true };
+  return { sent: false, reasons };
+}
+
+/**
  * The single send router for every 1:1 message. The caller renders ONCE and
  * supplies whatever the chosen rail might need; the router picks the channel,
  * enforces every per-channel constraint (WA 24h window/template approval/opt-in,

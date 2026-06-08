@@ -1211,6 +1211,31 @@ app.post("/instagram/connections/:id/default", requireAuth, setDefaultInstagramA
 app.patch("/instagram/connections/:id", requireAuth, updateInstagramAccount);
 app.delete("/instagram/connections/:id", requireAuth, disconnectInstagramAccount);
 
+// GET /instagram/media — the connected account's posts for the comment-trigger
+// post picker. Cursor-paginated: pass ?after=<cursor> to page back through the
+// whole catalog. `sandbox` lets the UI say "these are placeholders, real posts
+// show on the live site". Empty list if not connected.
+app.get("/instagram/media", requireAuth, async (req, res) => {
+  try {
+    const { IG_SANDBOX_MODE } = await import("./instagram/config.js");
+    const { getConnectionForHost, getCredentialsByIgUserId } = await import(
+      "./instagram/repos/instagramConnectionsRepo.js"
+    );
+    const conn = await getConnectionForHost(req.user.id);
+    const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
+    if (!creds?.accessToken) {
+      return res.json({ ok: true, connected: false, sandbox: IG_SANDBOX_MODE, media: [], nextCursor: null });
+    }
+    const { fetchRecentMedia } = await import("./instagram/providers/igGraphClient.js");
+    const after = typeof req.query.after === "string" ? req.query.after : null;
+    const { media, nextCursor } = await fetchRecentMedia({ accessToken: creds.accessToken, after });
+    res.json({ ok: true, connected: true, sandbox: IG_SANDBOX_MODE, media, nextCursor });
+  } catch (e) {
+    console.error("[instagram/media]", e.message);
+    res.status(500).json({ ok: false, error: "media_failed", media: [], nextCursor: null });
+  }
+});
+
 // ---------------------------
 // PHONE VERIFICATION: magic-link via WhatsApp
 // ---------------------------
@@ -3619,7 +3644,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         if (result.rsvp.personId) {
           const { data: p } = await supabase
             .from("people")
-            .select("id, email, phone_e164, phone_verified_at, do_not_contact")
+            .select("id, email, phone_e164, phone_verified_at, do_not_contact, ig_user_id")
             .eq("id", result.rsvp.personId)
             .maybeSingle();
           recipientPerson = p;
@@ -3757,6 +3782,51 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             hostProfileId: result.event.hostId || null,
           },
         });
+
+        // ── RSVP → Instagram DM trigger (additive; IG-only, never email) ──
+        // If the host wired a "When someone RSVPs → DM" trigger on this event,
+        // AND this guest came in through Instagram (we hold their IGSID, bound
+        // at RSVP) AND their 24h IG window is open, drop the DM right in the
+        // thread they started in. Closed window / no IGSID → silent no-op:
+        // sendInstagramDM() never falls through to email, so it can't double
+        // the confirmation that already went out above. Confirmed RSVPs only.
+        if (!isWaitlistEmail && recipient.ig_user_id && result.rsvp.personId) {
+          try {
+            const ectRepo = await import("./instagram/repos/eventCommentTriggersRepo.js");
+            const rsvpTrigger = await ectRepo.getRsvpTriggerForEvent(result.event.id);
+            if (rsvpTrigger?.isLive && rsvpTrigger.replyText) {
+              const slug = result.event.slug || "";
+              const eventLink = slug ? `${(getFrontendUrl() || "https://pullup.se").replace(/\/$/, "")}/e/${slug}` : "";
+              const dmText = eventLink ? `${rsvpTrigger.replyText}\n${eventLink}` : rsvpTrigger.replyText;
+              const { sendInstagramDM } = await import("./messaging/dispatch.js");
+              const r = await sendInstagramDM({
+                recipient,
+                text: dmText,
+                humanComposed: false, // automated → limited to the 24h standard window
+                personId: result.rsvp.personId,
+                hostProfileId: result.event.hostId || null,
+              });
+              if (r?.sent) {
+                const { logPersonEvent } = await import("./services/personTimeline.js");
+                await logPersonEvent({
+                  personId: result.rsvp.personId,
+                  hostId: result.event.hostId || null,
+                  type: "message_out",
+                  channel: "instagram",
+                  direction: "out",
+                  body: dmText,
+                  dedupeKey: `rsvp_dm:${result.rsvp.id}`,
+                  metadata: { source: "rsvp_dm_trigger", triggerId: rsvpTrigger.id, eventId: result.event.id },
+                }).catch(() => {});
+                logger?.info?.("[rsvp] Instagram RSVP-DM sent", { rsvpId: result.rsvp.id, personId: result.rsvp.personId });
+              } else {
+                logger?.info?.("[rsvp] Instagram RSVP-DM skipped", { rsvpId: result.rsvp.id, reasons: r?.reasons });
+              }
+            }
+          } catch (igErr) {
+            logger?.warn?.("[rsvp] Instagram RSVP-DM trigger failed (non-blocking)", { error: igErr?.message, rsvpId: result.rsvp.id });
+          }
+        }
       } catch (emailErr) {
         logger?.error?.("Failed to send signup confirmation email", {
           error: emailErr?.message,
@@ -5929,9 +5999,17 @@ app.get("/host/comment-triggers", requireAuth, async (req, res) => {
 
 app.post("/host/comment-triggers", requireAuth, async (req, res) => {
   try {
-    const { eventId, keyword, match, replyText, mediaId } = req.body || {};
+    const { eventId, keyword, match, replyText, mediaId, triggerType } = req.body || {};
+    const TYPES = new Set(["comment", "rsvp_success", "dm_keyword"]);
+    const type = TYPES.has(triggerType) ? triggerType : "comment";
+    const isRsvp = type === "rsvp_success";
+    const isKeyword = type === "comment" || type === "dm_keyword";
     const kw = String(keyword || "").trim();
-    if (!eventId || !kw) {
+    if (!eventId) {
+      return res.status(400).json({ ok: false, error: "event_required" });
+    }
+    // Keyword triggers (comment / dm_keyword) need a keyword; RSVP fires on the RSVP itself.
+    if (isKeyword && !kw) {
       return res.status(400).json({ ok: false, error: "event_and_keyword_required" });
     }
     const { supabase } = await import("./supabase.js");
@@ -5944,18 +6022,31 @@ app.post("/host/comment-triggers", requireAuth, async (req, res) => {
       return res.status(404).json({ ok: false, error: "event_not_found" });
     }
     const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
-    const conflict = await repo.findLiveKeywordConflict(req.user.id, kw, null);
-    if (conflict) {
-      return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
+    if (isKeyword) {
+      // Uniqueness is per-surface: a comment keyword and a DM keyword may share text.
+      const conflict = await repo.findLiveKeywordConflict(req.user.id, kw, null, { type });
+      if (conflict) {
+        return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
+      }
     }
-    const trigger = await repo.createTrigger({
-      eventId,
-      hostProfileId: req.user.id,
-      keyword: kw,
-      match,
-      replyText,
-      mediaId,
-    });
+    let trigger;
+    try {
+      trigger = await repo.createTrigger({
+        eventId,
+        hostProfileId: req.user.id,
+        triggerType: type,
+        keyword: kw,
+        match,
+        replyText,
+        mediaId,
+      });
+    } catch (insErr) {
+      // The partial unique index (one rsvp_success per event) surfaces here.
+      if (isRsvp && insErr?.code === "23505") {
+        return res.status(409).json({ ok: false, error: "rsvp_trigger_exists" });
+      }
+      throw insErr;
+    }
     res.json({ ok: true, trigger });
   } catch (e) {
     console.error("[comment-triggers:post]", e.message);
@@ -5970,11 +6061,14 @@ app.patch("/host/comment-triggers/:id", requireAuth, async (req, res) => {
     const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
     const existing = await repo.getTriggerById(id, req.user.id);
     if (!existing) return res.status(404).json({ ok: false, error: "not_found" });
-    // Re-check live uniqueness when the trigger will be enabled (keyword may change).
+    // Re-check live uniqueness when the trigger will be enabled (keyword may
+    // change). Scope to this trigger's own surface — RSVP triggers have no
+    // keyword, so they skip the check entirely.
     const nextKeyword = keyword !== undefined ? String(keyword).trim() : existing.keyword;
     const willEnable = enabled !== undefined ? enabled !== false : existing.enabled;
-    if (willEnable) {
-      const conflict = await repo.findLiveKeywordConflict(req.user.id, nextKeyword, id);
+    const isKeyword = existing.triggerType === "comment" || existing.triggerType === "dm_keyword";
+    if (willEnable && isKeyword && nextKeyword) {
+      const conflict = await repo.findLiveKeywordConflict(req.user.id, nextKeyword, id, { type: existing.triggerType });
       if (conflict) return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
     }
     const trigger = await repo.updateTrigger(id, req.user.id, {
@@ -6110,7 +6204,7 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
     }
     const { data: ev } = await supabase
       .from("events")
-      .select("title, slug, starts_at, ends_at, status, location, cover_image_url, image_url")
+      .select("title, slug, starts_at, ends_at, status, location, cover_image_url, image_url, host_id")
       .eq("id", eventId)
       .maybeSingle();
     let cover = ev?.cover_image_url || ev?.image_url || null;
@@ -6119,15 +6213,35 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
       const { data: pub } = supabase.storage.from("event-images").getPublicUrl(m ? m[1] : cover);
       if (pub?.publicUrl) cover = pub.publicUrl;
     }
+    // The host's person room — where a guest exits TO (the host's world), not
+    // their own home. roomId is the host's account id, which /r/:id resolves.
+    let host = null;
+    if (ev?.host_id) {
+      const { data: hp } = await supabase.from("profiles").select("name").eq("id", ev.host_id).maybeSingle();
+      host = { roomId: ev.host_id, name: hp?.name || null };
+    }
+
+    // The viewer's REAL ownership of THIS event — computed from the actual DB
+    // host relationship (host_id / event_hosts), independent of any admin
+    // View-as lens. Owner-commercial UI (the "buy for YOUR event" partner CTAs)
+    // keys off THIS, never the forced level — so previewing "as host" on an
+    // event you don't run never shows them.
+    let realHost = false;
+    if (req.user?.id) {
+      const r = await isUserEventHost(req.user.id, eventId).catch(() => ({ isHost: false }));
+      realHost = !!r.isHost;
+    }
+
     res.json({
       eventId,
       level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | no_access
       role: access.role || null, // host sub-role: owner | co_host | editor | reception | analytics
+      realHost, // TRUE only if the logged-in user genuinely hosts this event (never forced)
       reason: access.reason || null,
       phase: access.phase || null,
       permissions: access.permissions || null,
       event: ev
-        ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location, cover }
+        ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location, cover, host }
         : null,
       // Admin View-as context (so the UI banner can show it). Null for everyone else.
       viewingAs: viewer.impersonating ? { id: viewer.person?.id, name: viewer.person?.name || null } : null,
@@ -6317,9 +6431,85 @@ async function hostGateForReq(req, eventId) {
   return real;
 }
 
+// Room media is uploaded DIRECT to storage from the browser (a signed upload
+// URL), so any file type and any reasonable size works without squeezing bytes
+// through the API. This mints the URL and pre-records an event_media row (folder
+// tag stays the legacy value so the public event page keeps excluding room-
+// shared media; that tag is never shown). Returns { path, token, url, type }.
+const ROOM_MEDIA_MAX = 200 * 1024 * 1024; // 200MB — the size limit, not a type limit
+function roomMediaType(contentType) {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.startsWith("image/")) return ct.includes("gif") ? "gif" : "image";
+  if (ct.startsWith("video/")) return "video";
+  if (ct.startsWith("audio/")) return "audio";
+  return "file";
+}
+async function signRoomUpload(eventId, personId, { filename, contentType, size }) {
+  if (size && Number(size) > ROOM_MEDIA_MAX) return { ok: false, reason: "too_large" };
+  const { supabase } = await import("./supabase.js");
+  const ct = (contentType || "application/octet-stream").toLowerCase();
+  const type = roomMediaType(ct);
+  const fromName = filename && filename.includes(".") ? filename.split(".").pop() : "";
+  const ext = (fromName || ct.split("/")[1] || "bin").replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
+  const path = `${eventId}/room_${personId || "host"}_${Date.now()}_${Math.floor(Math.random() * 1e6)}.${ext}`;
+  const { data, error } = await supabase.storage.from("event-images").createSignedUploadUrl(path);
+  if (error || !data?.token) { console.error("[room-media] sign:", error?.message); return { ok: false, reason: "sign_failed" }; }
+  await supabase.from("event_media").insert({
+    event_id: eventId, media_type: type, storage_path: path, folder: "darkroom",
+    is_cover: false, mime_type: ct, uploaded_by: personId, position: 9999,
+  });
+  const { data: pub } = supabase.storage.from("event-images").getPublicUrl(path);
+  return { ok: true, path, token: data.token, url: pub?.publicUrl || null, type };
+}
+
+// Validate the media a post claims to carry: it must point at OUR storage
+// bucket (uploaded via the signed URL above) or be a Giphy gif — never an
+// arbitrary remote URL. Normalises the type and caps the count.
+function sanitizeRoomMedia(media) {
+  if (!Array.isArray(media)) return [];
+  const out = [];
+  for (const it of media.slice(0, 12)) {
+    const url = typeof it === "string" ? it : it?.url;
+    if (!url || typeof url !== "string") continue;
+    const okBucket = url.includes("/storage/v1/object/public/event-images/");
+    let okGif = false;
+    try { const h = new URL(url).hostname.toLowerCase(); okGif = h === "giphy.com" || h.endsWith(".giphy.com"); } catch { /* not a URL */ }
+    if (!okBucket && !okGif) continue;
+    const t = it && it.type;
+    const type = ["image", "video", "audio", "gif", "file"].includes(t) ? t : (okGif ? "gif" : "image");
+    out.push({ url, type });
+  }
+  return out;
+}
+
+// Giphy proxy — keeps the key server-side. No key set → { disabled:true } so the
+// frontend just hides the GIF button instead of showing a broken panel.
+async function giphySearch(q) {
+  const key = process.env.GIPHY_API_KEY;
+  if (!key) return { disabled: true, gifs: [] };
+  const query = (q || "").toString().trim();
+  const url = query
+    ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13&bundle=messaging_non_clips`
+    : `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=24&rating=pg-13&bundle=messaging_non_clips`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return { disabled: false, gifs: [] };
+    const j = await r.json();
+    const gifs = (j.data || []).map((g) => ({
+      id: g.id,
+      preview: g.images?.fixed_width_small?.url || g.images?.fixed_width?.url || g.images?.downsized?.url,
+      url: g.images?.downsized?.url || g.images?.fixed_width?.url || g.images?.original?.url,
+    })).filter((g) => g.url && g.preview);
+    return { disabled: false, gifs };
+  } catch (e) {
+    console.error("[giphy] error:", e.message);
+    return { disabled: false, gifs: [] };
+  }
+}
+
 // The interior — only for nodes that pulled up to THIS event. The room they
-// earned: who else is here (co-presence, same-event only) + the darkroom. This
-// is the teaser's promise actually opened — gated, never public.
+// earned: who else is here (co-presence, same-event only) + the shared photos.
+// This is the teaser's promise actually opened — gated, never public.
 app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
@@ -6493,12 +6683,12 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // the host's events, ANY status. This is what an "RSVP is an RSVP" means.
     let rsvpRows = [], pullupRows = [];
     if (allHostedIds.length) {
-      const [rs, ps] = await Promise.all([
-        supabase.from("rsvps").select("person_id, event_id").in("event_id", allHostedIds).neq("status", "cancelled"),
-        supabase.from("pullups").select("person_id, event_id").in("event_id", allHostedIds),
-      ]);
-      rsvpRows = rs.data || [];
-      pullupRows = ps.data || [];
+      const { data: rs } = await supabase
+        .from("rsvps").select("person_id, event_id, pulled_up").in("event_id", allHostedIds).neq("status", "cancelled");
+      rsvpRows = rs || [];
+      // A pull-up = an RSVP that actually showed (rsvps.pulled_up). The standalone
+      // `pullups` table is legacy and empty — the real signal lives on the RSVP.
+      pullupRows = rsvpRows.filter((r) => r.pulled_up === true);
     }
     // The host CAN draft an event to hide it from the public list (their choice);
     // visitors see published only, owner sees all. But the STATS below persist
@@ -6522,7 +6712,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     // (a pull-up is a real relationship, never hidden by the event's flag).
     let pulledUpRows = [];
     if (nodePersonId) {
-      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", nodePersonId);
+      const { data: myUps } = await supabase.from("rsvps").select("event_id").eq("person_id", nodePersonId).eq("pulled_up", true);
       const upIds = [...new Set((myUps || []).map((r) => r.event_id))];
       if (upIds.length) {
         const { data: evs } = await supabase.from("events").select(hostSelect).in("id", upIds).order("starts_at", { ascending: false });
@@ -6541,10 +6731,16 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
         .sort((a, b) => a.name.localeCompare(b.name));
     }
 
+    // Per-event pull-up tally across the host's events. The "pull-ups" count is
+    // the total the host has GATHERED through their events (not the events this
+    // node attended as a guest) — the engagement they've earned.
+    const pullupCountByEvent = {};
+    for (const r of pullupRows) pullupCountByEvent[r.event_id] = (pullupCountByEvent[r.event_id] || 0) + 1;
+
     const counts = {
       people: worldPersonIds.length,
       hosted: hosted.length,
-      pulledUp: pulledUpRows.length,
+      pulledUp: pullupRows.length,
     };
 
     // Viewer-relative state across every event we might render (hosted + pulled-up).
@@ -6556,10 +6752,9 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
     const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
     let myPullups = new Set(), myRsvps = new Set();
     if (viewer && allIds.length) {
-      const { data: ups } = await supabase.from("pullups").select("event_id").eq("person_id", viewer.id).in("event_id", allIds);
-      myPullups = new Set((ups || []).map((r) => r.event_id));
-      const { data: rs } = await supabase.from("rsvps").select("event_id").eq("person_id", viewer.id).in("event_id", allIds);
+      const { data: rs } = await supabase.from("rsvps").select("event_id, pulled_up").eq("person_id", viewer.id).in("event_id", allIds);
       myRsvps = new Set((rs || []).map((r) => r.event_id));
+      myPullups = new Set((rs || []).filter((r) => r.pulled_up === true).map((r) => r.event_id));
     }
     const inOrbit = myPullups.size > 0 || myRsvps.size > 0;
 
@@ -6594,6 +6789,7 @@ app.get("/r/:hostId", optionalAuth, async (req, res) => {
         ended: end != null && now > end,
         draft: e.status !== "PUBLISHED",
         viewer: viewerState,
+        pullups: pullupCountByEvent[e.id] || 0,
       };
     };
 
@@ -6681,8 +6877,12 @@ app.get("/p/:eventId/space", optionalAuth, async (req, res) => {
 app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { body, channelId } = req.body || {};
-    const { getRoomAccess, postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    // A post is text, attached media (already uploaded via the signed URL, or a
+    // Giphy gif), or both — in a SUBJECT (channelId, default Room chat) — and may
+    // reply to another post (parentId) or be born pinned ("attach to the top").
+    const { body, parentId, media, pinned, channelId } = req.body || {};
+    const cleanMedia = sanitizeRoomMedia(media);
+    const { postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
     // Posting into the room is identity = the verified session only; a
     // body-supplied email is no longer accepted (would let anyone post as someone else).
     const norm = (req.user?.email || "").toString().trim().toLowerCase();
@@ -6693,16 +6893,89 @@ app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
     if (access.access === "locked") {
       return res.status(403).json({ ok: false, error: "locked", reason: access.reason });
     }
-    // Host-configurable: can this state post? (lobby may be read-only.)
-    if (!access.permissions?.post) {
+    // Host-configurable: text needs `post`, attaching media needs `upload`.
+    const hasText = !!(body && body.toString().trim());
+    if (hasText && !access.permissions?.post) {
       return res.status(403).json({ ok: false, error: "locked", reason: "posting_off" });
     }
-    const r = await postSpaceMessage({ eventId, channelId: channelId || null, personId: person.id, authorName: person.name || "Someone", body });
+    if (cleanMedia.length && !access.permissions?.upload) {
+      return res.status(403).json({ ok: false, error: "locked", reason: "upload_off" });
+    }
+    const r = await postSpaceMessage({ eventId, channelId: channelId || null, personId: person.id, authorName: person.name || "Someone", body, parentId: parentId || null, media: cleanMedia, pinned: !!pinned });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
     res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: r.channelId }) });
   } catch (err) {
     console.error("[space:post] error:", err.message);
     res.status(500).json({ ok: false, reason: "post_failed" });
+  }
+});
+
+// Mint a signed direct-to-storage upload URL for room media (guest path). Gated
+// by the room's `upload` capability for the viewer's state.
+app.post("/p/:eventId/media/sign", optionalAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
+    const viewer = await resolveViewer(req, { email: norm || null });
+    const person = viewer.person;
+    if (!person) return res.status(403).json({ ok: false, reason: "no_identity" });
+    const access = await getRoomAccessForReq(req, person.id, eventId);
+    if (access.access === "locked") return res.status(403).json({ ok: false, reason: access.reason });
+    if (!access.permissions?.upload) return res.status(403).json({ ok: false, reason: "upload_off" });
+    const out = await signRoomUpload(eventId, person.id, req.body || {});
+    return res.status(out.ok ? 200 : 400).json(out);
+  } catch (err) {
+    console.error("[media:sign] error:", err.message);
+    res.status(500).json({ ok: false, reason: "sign_failed" });
+  }
+});
+
+// GIF search (guest path) — pull-up gated like the rest of the room.
+app.get("/p/:eventId/gifs", optionalAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
+    const viewer = await resolveViewer(req, { email: norm || null });
+    const person = viewer.person;
+    if (!person) return res.status(403).json({ error: "locked", reason: "no_identity" });
+    const access = await getRoomAccessForReq(req, person.id, eventId);
+    if (access.access === "locked" || !access.permissions?.read) return res.status(403).json({ error: "locked" });
+    res.json(await giphySearch(req.query.q));
+  } catch (err) {
+    console.error("[gifs:get] error:", err.message);
+    res.status(500).json({ disabled: false, gifs: [] });
+  }
+});
+
+// Attach a post to the top of the room (or take it back down). A guest may pin
+// their OWN post; the host may pin anyone's. Returns the fresh feed.
+app.post("/p/:eventId/space/:messageId/pin", optionalAuth, async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const pinned = !!(req.body?.pinned);
+    const { getSpaceMessage, setMessagePinned, listSpaceMessages } = await import("./services/pullupService.js");
+    const msg = await getSpaceMessage(messageId);
+    if (!msg || msg.event_id !== eventId) return res.status(404).json({ ok: false, reason: "not_found" });
+
+    // Host of the event may pin anything; otherwise you must own the post.
+    let allowed = false;
+    if (req.user?.id) {
+      const { isHost } = await isUserEventHost(req.user.id, eventId).catch(() => ({ isHost: false }));
+      if (isHost) allowed = true;
+    }
+    if (!allowed) {
+      const norm = (req.user?.email || "").toString().trim().toLowerCase();
+      const viewer = await resolveViewer(req, { email: norm || null });
+      if (viewer.person && msg.author_person_id === viewer.person.id) allowed = true;
+    }
+    if (!allowed) return res.status(403).json({ ok: false, reason: "not_yours" });
+
+    const r = await setMessagePinned({ eventId, messageId, pinned });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg.channel_id || null }) });
+  } catch (err) {
+    console.error("[space:pin] error:", err.message);
+    res.status(500).json({ ok: false, reason: "pin_failed" });
   }
 });
 
@@ -6747,23 +7020,79 @@ app.get("/host/events/:id/space", requireAuth, async (req, res) => {
 
 app.post("/host/events/:id/space", requireAuth, async (req, res) => {
   try {
-    const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+    const eventId = req.params.id;
+    const { isHost } = await isUserEventHost(req.user.id, eventId);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { body, parentId, media, pinned, channelId } = req.body || {};
+    const cleanMedia = sanitizeRoomMedia(media);
     const { postSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
     const profile = await getUserProfile(req.user.id).catch(() => null);
     const r = await postSpaceMessage({
-      eventId: req.params.id,
-      channelId: req.body?.channelId || null,
+      eventId,
+      channelId: channelId || null,
       profileId: req.user.id,
       isHost: true,
       authorName: profile?.name || "Host",
-      body: req.body?.body,
+      body,
+      parentId: parentId || null,
+      media: cleanMedia,
+      pinned: !!pinned,
     });
     if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
-    res.json({ ok: true, messages: await listSpaceMessages(req.params.id, { channelId: r.channelId }) });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: r.channelId }) });
   } catch (err) {
     console.error("[host-space:post] error:", err.message);
     res.status(500).json({ ok: false, reason: "post_failed" });
+  }
+});
+
+// Signed direct-to-storage upload URL for room media (host path).
+app.post("/host/events/:id/media/sign", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+    const { isHost } = await isUserEventHost(req.user.id, eventId);
+    if (!isHost) return res.status(403).json({ ok: false, reason: "Forbidden" });
+    // Attribute the upload to the host's person row if they have one.
+    let hostPersonId = null;
+    try {
+      const { supabase } = await import("./supabase.js");
+      const { data: hp } = await supabase.from("people").select("id").eq("auth_user_id", req.user.id).maybeSingle();
+      hostPersonId = hp?.id || null;
+    } catch { /* unattributed is fine */ }
+    const out = await signRoomUpload(eventId, hostPersonId, req.body || {});
+    return res.status(out.ok ? 200 : 400).json(out);
+  } catch (err) {
+    console.error("[host-media:sign] error:", err.message);
+    res.status(500).json({ ok: false, reason: "sign_failed" });
+  }
+});
+
+// GIF search (host path).
+app.get("/host/events/:id/gifs", requireAuth, async (req, res) => {
+  try {
+    const { isHost } = await hostGateForReq(req, req.params.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    res.json(await giphySearch(req.query.q));
+  } catch (err) {
+    console.error("[host-gifs:get] error:", err.message);
+    res.status(500).json({ disabled: false, gifs: [] });
+  }
+});
+
+// Host pin/unpin any post in their room.
+app.post("/host/events/:id/space/:messageId/pin", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+    const { isHost } = await isUserEventHost(req.user.id, eventId);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { getSpaceMessage, setMessagePinned, listSpaceMessages } = await import("./services/pullupService.js");
+    const r = await setMessagePinned({ eventId, messageId: req.params.messageId, pinned: !!(req.body?.pinned) });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    const msg = await getSpaceMessage(req.params.messageId);
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg?.channel_id || null }) });
+  } catch (err) {
+    console.error("[host-space:pin] error:", err.message);
+    res.status(500).json({ ok: false, reason: "pin_failed" });
   }
 });
 

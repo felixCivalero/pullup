@@ -25,7 +25,7 @@ import {
   IG_APP_SECRET,
   IG_SANDBOX_MODE,
 } from "../config.js";
-import { handleCommentEvent } from "../commentTriggers.js";
+import { handleCommentEvent, handleDmKeywordEvent } from "../commentTriggers.js";
 import { logger } from "../../logger.js";
 import { dedupeKey } from "../../lib/idempotency.js";
 import { captureError } from "../../observability.js";
@@ -285,6 +285,47 @@ async function handleMessaging(messagingEvent, igAccountId) {
       });
       captureError(err, { where: "instagram_webhook.logPersonEvent", mid: msg.mid || null });
     });
+
+    // 6. Keyword auto-DM (the OTHER surface). A DM — including a STORY REPLY,
+    //    which Meta delivers as a message — that matches a live dm_keyword
+    //    trigger gets an auto-reply with the event link, in the window this
+    //    inbound just opened. Idempotent on mid; a no-match is a silent skip.
+    if (text && msg.mid) {
+      try {
+        const result = await handleDmKeywordEvent({
+          hostProfileId: creds.hostProfileId,
+          igUserId: creds.igUserId || igAccountId,
+          accessToken: creds.accessToken,
+          senderId: String(senderId),
+          senderUsername: igProfile?.username || null,
+          text,
+          mid: msg.mid,
+          personId,
+        });
+        if (result?.status === "sent") {
+          // Mirror the comment path: record the auto-DM on the timeline, deduped
+          // on the inbound mid so a webhook redelivery doesn't double-log.
+          await logPersonEvent({
+            personId,
+            hostId: creds.hostProfileId,
+            type: "auto_dm_sent",
+            channel: "instagram",
+            direction: "out",
+            body: result.signupLink || "[auto-DM]",
+            dedupeKey: dedupeKey("ig:dmkw", msg.mid),
+            metadata: { source: "dm_keyword_trigger", mid: msg.mid },
+          }).catch(() => {});
+          // The auto-reply is itself an outbound message → bump the thread head.
+          await upsertThreadFromMessage({
+            personId, hostProfileId: creds.hostProfileId, igUserId: String(senderId),
+            direction: "outbound", preview: result.signupLink || "[auto-DM]",
+          }).catch(() => {});
+        }
+      } catch (e) {
+        logger?.error?.("[instagram/webhook] dm_keyword handling failed", { mid: msg.mid, err: e?.message });
+        captureError(e, { where: "instagram_webhook.handleDmKeywordEvent", mid: msg.mid });
+      }
+    }
   } catch (err) {
     logger?.error?.("[instagram/webhook] inbound DM handling error", { err: err.message });
     captureError(err, { where: "instagram_webhook.handleMessaging", igAccountId });

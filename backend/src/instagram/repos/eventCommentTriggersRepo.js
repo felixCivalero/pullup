@@ -18,7 +18,7 @@ const EVENT_COLS = "id, title, slug, starts_at, ends_at, status";
 
 /** event_comment_triggers + its embedded event, in one round-trip. */
 const SELECT_WITH_EVENT =
-  `id, event_id, host_profile_id, keyword, match_type, reply_text, enabled, media_id, created_at, updated_at, event:event_id ( ${EVENT_COLS} )`;
+  `id, event_id, host_profile_id, trigger_type, keyword, match_type, reply_text, enabled, media_id, created_at, updated_at, event:event_id ( ${EVENT_COLS} )`;
 
 /** ends_at if set, else starts_at. ISO string or null. */
 function effectiveEnd(ev) {
@@ -58,6 +58,7 @@ function toView(row, nowMs) {
   return {
     id: row.id,
     eventId: row.event_id,
+    triggerType: row.trigger_type || "comment",
     eventTitle: row.event?.title || "(untitled event)",
     eventSlug: row.event?.slug || null,
     eventStatus: row.event?.status || null,
@@ -97,15 +98,21 @@ export async function listTriggersForHost(hostProfileId, nowMs = Date.now()) {
 }
 
 /**
- * A host's LIVE triggers, shaped for the comment engine and sorted by soonest
- * effective end — so when the engine takes the first keyword match, ties break
- * deterministically toward the most imminent event.
+ * A host's LIVE keyword triggers for ONE surface, shaped for the matching
+ * engine and sorted by soonest effective end — so when the engine takes the
+ * first keyword match, ties break deterministically toward the most imminent
+ * event. `type` is 'comment' (post comments) or 'dm_keyword' (DMs / story
+ * replies) — each surface has its own keyword namespace.
  */
-export async function getLiveTriggersForHost(hostProfileId, nowMs = Date.now()) {
+export async function getLiveTriggersForHost(hostProfileId, typeOrOpts = "comment", maybeNow) {
+  // Back-compat: old callers passed (hostId, nowMs). Detect a number 2nd arg.
+  const type = typeof typeOrOpts === "string" ? typeOrOpts : "comment";
+  const nowMs = typeof typeOrOpts === "number" ? typeOrOpts : (maybeNow ?? Date.now());
   const { data, error } = await supabase
     .from("event_comment_triggers")
     .select(SELECT_WITH_EVENT)
     .eq("host_profile_id", hostProfileId)
+    .eq("trigger_type", type)
     .eq("enabled", true);
   if (error) throw error;
   return (data || [])
@@ -125,16 +132,20 @@ export async function getLiveTriggersForHost(hostProfileId, nowMs = Date.now()) 
 
 /**
  * Return an existing LIVE trigger that already owns this keyword (case-
- * insensitive) for the host, excluding `excludeId`. Used to enforce
- * one-live-keyword-at-a-time at create/enable time. Returns the view or null.
+ * insensitive) for the host on the SAME surface, excluding `excludeId`. Used to
+ * enforce one-live-keyword-at-a-time at create/enable time. A comment keyword
+ * and a DM keyword can share text (different surfaces) — so we scope by type.
  */
-export async function findLiveKeywordConflict(hostProfileId, keyword, excludeId = null, nowMs = Date.now()) {
+export async function findLiveKeywordConflict(hostProfileId, keyword, excludeId = null, opts = {}) {
+  const type = opts.type || "comment";
+  const nowMs = opts.nowMs ?? Date.now();
   const kw = String(keyword || "").trim().toLowerCase();
   if (!kw) return null;
   const { data, error } = await supabase
     .from("event_comment_triggers")
     .select(SELECT_WITH_EVENT)
     .eq("host_profile_id", hostProfileId)
+    .eq("trigger_type", type)
     .eq("enabled", true);
   if (error) throw error;
   const hit = (data || []).find(
@@ -157,22 +168,48 @@ export async function getTriggerById(id, hostProfileId, nowMs = Date.now()) {
   return data ? toView(data, nowMs) : null;
 }
 
-export async function createTrigger({ eventId, hostProfileId, keyword, match, replyText, mediaId = null, enabled = true }) {
+const KEYWORD_TYPES = new Set(["comment", "dm_keyword"]);
+
+export async function createTrigger({ eventId, hostProfileId, triggerType = "comment", keyword, match, replyText, mediaId = null, enabled = true }) {
+  const type = KEYWORD_TYPES.has(triggerType) || triggerType === "rsvp_success" ? triggerType : "comment";
+  const isKeyword = KEYWORD_TYPES.has(type);
+  // media scope is meaningful for post comments only — a DM/story-reply isn't
+  // tied to a post, and an RSVP trigger has no keyword at all.
+  const allowsMedia = type === "comment";
   const { data, error } = await supabase
     .from("event_comment_triggers")
     .insert({
       event_id: eventId,
       host_profile_id: hostProfileId,
-      keyword: String(keyword).trim().slice(0, 80),
-      match_type: match === "exact" ? "exact" : "contains",
+      trigger_type: type,
+      keyword: isKeyword ? String(keyword).trim().slice(0, 80) : null,
+      match_type: isKeyword && match === "exact" ? "exact" : "contains",
       reply_text: replyText ? String(replyText).slice(0, 900) : null,
-      media_id: mediaId ? String(mediaId).slice(0, 64) : null,
+      media_id: allowsMedia && mediaId ? String(mediaId).slice(0, 64) : null,
       enabled: enabled !== false,
     })
     .select(SELECT_WITH_EVENT)
     .single();
   if (error) throw error;
   return toView(data, Date.now());
+}
+
+/**
+ * The event's RSVP→DM trigger (at most one per event), or null. Used at RSVP
+ * fire-time: returns the row regardless of state so the caller can decide — but
+ * `isLive` here mirrors the comment engine (enabled + PUBLISHED + not ended).
+ */
+export async function getRsvpTriggerForEvent(eventId, nowMs = Date.now()) {
+  const { data, error } = await supabase
+    .from("event_comment_triggers")
+    .select(SELECT_WITH_EVENT)
+    .eq("event_id", eventId)
+    .eq("trigger_type", "rsvp_success")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const view = toView(data, nowMs);
+  return { ...view, isLive: isLive(data, nowMs) };
 }
 
 export async function updateTrigger(id, hostProfileId, patch) {

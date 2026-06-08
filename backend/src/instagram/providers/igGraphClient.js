@@ -143,6 +143,62 @@ export async function fetchUserProfile({ igsid, accessToken }) {
 }
 
 /**
+ * List the connected account's media — for the comment-trigger post picker
+ * ("any post" vs scope to one). Cursor-paginated, NEWEST FIRST: pass the
+ * returned `nextCursor` as `after` to page back through the whole catalog
+ * (the host isn't stuck with just the latest posts).
+ *
+ * What the IG (Instagram-Login) API gives us per item:
+ *   • media_type: IMAGE | VIDEO | CAROUSEL_ALBUM  (the only types here)
+ *   • thumbnail_url: VIDEO only → for IMAGE/CAROUSEL_ALBUM we fall back to
+ *     media_url (the cover). These CDN URLs are short-lived — fine to render
+ *     in the picker, but we persist only the stable `id` (media_id).
+ *   • NOTE: media_product_type (FEED/REELS/STORY) is NOT exposed on the
+ *     Instagram-Login token (Facebook-Login only), so we label by media_type
+ *     and don't claim "Reel" we can't verify. Stories aren't here at all —
+ *     they're ephemeral (24h) and can't carry comments, so they can't anchor
+ *     a comment trigger; a story automation would be a reply-keyword (DM)
+ *     trigger, not this.
+ *
+ * Returns { media: [...], nextCursor: string|null }.
+ */
+export async function fetchRecentMedia({ accessToken, limit = 24, after = null }) {
+  if (IG_SANDBOX_MODE) {
+    return {
+      media: Array.from({ length: 6 }, (_, i) => ({
+        id: `sbx-media-${i + 1}`,
+        caption: i % 2 ? "Sandbox post caption " + (i + 1) : "",
+        mediaType: i % 3 === 0 ? "VIDEO" : i % 3 === 1 ? "CAROUSEL_ALBUM" : "IMAGE",
+        thumbnailUrl: null,
+        permalink: `https://instagram.com/p/sbx${i + 1}`,
+        timestamp: null,
+      })),
+      nextCursor: null,
+    };
+  }
+  const fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp";
+  let url =
+    `${IG_GRAPH_HOST}/${META_GRAPH_VERSION}/me/media` +
+    `?fields=${fields}&limit=${Math.max(1, Math.min(50, limit))}` +
+    `&access_token=${encodeURIComponent(accessToken)}`;
+  if (after) url += `&after=${encodeURIComponent(after)}`;
+  const json = await getJson(url);
+  const data = Array.isArray(json?.data) ? json.data : [];
+  return {
+    media: data.map((m) => ({
+      id: String(m.id),
+      caption: m.caption || "",
+      mediaType: m.media_type || null,
+      // VIDEO exposes thumbnail_url; IMAGE/CAROUSEL_ALBUM use media_url (cover).
+      thumbnailUrl: m.thumbnail_url || m.media_url || null,
+      permalink: m.permalink || null,
+      timestamp: m.timestamp || null,
+    })),
+    nextCursor: json?.paging?.cursors?.after || null,
+  };
+}
+
+/**
  * Send a DM from the connected IG account to a recipient (by IGSID).
  * Used both for direct DMs and as the delivery for a private reply.
  * `igUserId` is the sender (the host's connected account).

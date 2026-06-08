@@ -47,6 +47,7 @@ import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
 import { EventPreview } from "../components/EventPreview";
 import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { VideoPlayer } from "../components/MediaCarousel";
+import { normalizePhoneMode, normalizeDesktopMode } from "../components/mediaFormat";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
@@ -421,6 +422,103 @@ function SegmentedChoice({ value, onChange, options }) {
   );
 }
 
+// Visual format picker — same job as SegmentedChoice, but each option renders
+// the host's actual cover still inside a little window shaped/cropped exactly
+// like that mode renders it on the real page. The picture IS the explanation:
+// crop-vs-letterbox (phone) and tall-vs-wide window (desktop) are obvious at a
+// glance, so "Fit / Real" stops being a guessing game. `thumb` is any still
+// (image cover or video thumbnail); options carry their own frame geometry.
+function FormatChoice({ value, onChange, options, thumb }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: `repeat(${options.length}, 1fr)`,
+      gap: "8px",
+    }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              padding: "8px",
+              textAlign: "left",
+              borderRadius: "12px",
+              cursor: "pointer",
+              background: active ? colors.accentSoft : colors.surface,
+              border: `1.5px solid ${active ? colors.accent : colors.border}`,
+              boxShadow: active ? colors.accentShadow : "none",
+              transition: "background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
+            }}
+          >
+            {/* Stage: neutral backdrop so the window's shape reads clearly */}
+            <div style={{
+              height: "84px",
+              borderRadius: "8px",
+              background: colors.surfaceMuted,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              boxShadow: active
+                ? `inset 0 0 0 1.5px ${colors.accentBorder}`
+                : "inset 0 0 0 1px rgba(10,10,10,0.05)",
+              transition: "box-shadow 0.18s ease",
+            }}>
+              {/* The window — shaped (4:5 / 16:9 / phone) per option */}
+              <div style={{
+                ...opt.frameStyle,
+                borderRadius: "5px",
+                overflow: "hidden",
+                background: "#0a0913",
+                boxShadow: "0 2px 6px rgba(10,10,10,0.18)",
+                flexShrink: 0,
+              }}>
+                {thumb ? (
+                  <img
+                    src={thumb}
+                    alt=""
+                    draggable={false}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: opt.objectFit,
+                      display: "block",
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: "100%",
+                    height: "100%",
+                    background: "radial-gradient(circle at 35% 30%, rgba(236,23,143,0.22), transparent 70%), #14111c",
+                  }} />
+                )}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <span style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: active ? colors.accent : colors.text,
+              }}>
+                {opt.label}
+              </span>
+              <span style={{ fontSize: "10.5px", lineHeight: 1.3, color: colors.textSubtle }}>
+                {opt.caption}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // focus key → editor step number. Used by the floating PullUp widget: when
 // the host clicks "Add interactive widgets like Spotify" from inside the
 // editor, the widget rewrites the URL to ?focus=details, this map sends the
@@ -525,6 +623,43 @@ export function CreateEventPage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isEditMode]);
+
+  // Returning from the Instagram connect round-trip (Settings or this editor's
+  // Auto-DM panel both come back here): ?panel=<railId> re-opens that rail panel
+  // so the host lands exactly where they left off, and ?ig=<status> surfaces the
+  // connect outcome. Both params are cleared afterwards so a refresh won't refire.
+  useEffect(() => {
+    const panel = searchParams.get("panel");
+    const ig = searchParams.get("ig");
+    if (!panel && !ig) return;
+
+    if (panel && RAIL_ITEMS.some((it) => it.id === panel)) {
+      // Pinning syncs currentStep + activePartId via the openPartId effect below.
+      setPinnedPartId(panel);
+    }
+
+    if (ig) {
+      const outcome = {
+        connected: ["Instagram connected", "success"],
+        denied: ["Instagram connection cancelled", "error"],
+        error: ["Couldn't finish connecting Instagram — try again", "error"],
+        bad_state: ["That connection link expired — try again", "error"],
+        no_code: ["Couldn't finish connecting Instagram — try again", "error"],
+      }[ig];
+      if (outcome) showToast(outcome[0], outcome[1]);
+    }
+
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("panel");
+        next.delete("ig");
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // (Coach-widget resource registration lives lower, after draftEventId is
   // declared, so create-mode drafts can register too — see below.)
@@ -716,16 +851,16 @@ export function CreateEventPage() {
   // Aggregate status shown on the Publish button while uploads run.
   const [uploadStatus, setUploadStatus] = useState(null); // null | { done: number, total: number }
   // Crop/format settings — independent per screen, nested under mediaSettings.
-  // "fit"="cover" → fill (cropped). "fit"="contain" → real size (letterbox).
-  // Focus is stored as percentages (0–100). 50/50 = center; user drags the
-  // preview to adjust. Only matters when fit="cover".
-  const [phoneFit, setPhoneFit] = useState("cover");
+  // mode is one of width | height | card (see components/mediaFormat.js):
+  //   width  → frame takes the media's own aspect (whole, no crop, no bars)
+  //   height → fill the available height, crop the sides (drag to reposition)
+  //   card   → fixed 4:5 card, crop to fill (drag to reposition)
+  // Focus is stored as percentages (0–100). 50/50 = center; only meaningful in
+  // the crop modes (height/card).
+  const [phoneMode, setPhoneMode] = useState("height"); // width | height | card
   const [phoneFocusX, setPhoneFocusX] = useState(50);
   const [phoneFocusY, setPhoneFocusY] = useState(50);
-  // Desktop: two presets only. "fit" = portrait crop + drag, "real" = wide
-  // (16:9) crop + drag. Single source of truth — aspect & object-fit are
-  // derived from this in DesktopEventLayout.
-  const [desktopMode, setDesktopMode] = useState("fit"); // "fit" | "real"
+  const [desktopMode, setDesktopMode] = useState("card"); // width | height | card
   const [desktopFocusX, setDesktopFocusX] = useState(50);
   const [desktopFocusY, setDesktopFocusY] = useState(50);
 
@@ -738,7 +873,7 @@ export function CreateEventPage() {
         : {};
     return {
       ...playback,
-      phone: { fit: phoneFit, focusX: phoneFocusX, focusY: phoneFocusY },
+      phone: { mode: phoneMode, focusX: phoneFocusX, focusY: phoneFocusY },
       desktop: { mode: desktopMode, focusX: desktopFocusX, focusY: desktopFocusY },
     };
   }
@@ -918,17 +1053,31 @@ export function CreateEventPage() {
     isEditMode && baselineSnapshot.current !== null && formSnapshot !== baselineSnapshot.current;
 
   // Feed event identity + stage into the navbar so the header "Live" button can
-  // reflect it. Keeps title/slug from load; only status & dirty flag move.
+  // reflect it AND so the draft carries its own Room/Guests/Insights menu while
+  // you build it. Fires for both edit mode and /create — on /create the id only
+  // exists once the draft has autosaved, which is exactly when the menu should
+  // light up. myRole is owner here: you're editing your own event in the editor.
   useEffect(() => {
-    if (!isEditMode || !eventSlug) return;
+    const navId = isEditMode ? editEventId : draftEventId;
+    if (!navId) return;
     setEventNav({
+      id: navId,
       title: eventTitle,
       slug: eventSlug,
-      status: eventStatus,
+      status: isEditMode ? eventStatus : "DRAFT",
+      myRole: "owner",
       dirty: hasUnsavedEdits,
       guestsCount: null,
+      // Published-event Edit puts its "Save changes" control in the top nav (same
+      // as the draft's Publish), so feed the validation gap + save state up to the
+      // header where the button now lives.
+      missing: hasAttemptedPublish ? missingCount : 0,
+      saving: loading,
+      saveLabel: loading
+        ? (uploadStatus ? `Uploading ${uploadStatus.done}/${uploadStatus.total}…` : "Saving…")
+        : "Save changes",
     });
-  }, [isEditMode, eventSlug, eventStatus, eventTitle, hasUnsavedEdits, setEventNav]);
+  }, [isEditMode, editEventId, draftEventId, eventSlug, eventStatus, eventTitle, hasUnsavedEdits, hasAttemptedPublish, missingCount, loading, uploadStatus, setEventNav]);
 
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -1191,19 +1340,20 @@ export function CreateEventPage() {
 
   // The part whose panel is currently shown (transient hover wins over the pin),
   // and whether any panel is open at all.
-  const openPartId = hoverPartId || pinnedPartId;
+  // CLICK-TO-OPEN ONLY. Hover-peek was annoying, so the panel now shows ONLY
+  // what a click pins — hovering never opens it. Phone has no hover, so it
+  // already behaved this way; desktop now matches.
+  const openPartId = pinnedPartId;
   const panelOpen = !!openPartId;
 
   function cancelPeekClose() {
     if (peekCloseTimer.current) { clearTimeout(peekCloseTimer.current); peekCloseTimer.current = null; }
   }
-  // Small grace delay so moving the cursor from the rail across the gap into the
-  // panel (or vice-versa) doesn't flicker it shut.
-  function schedulePeekClose() {
-    cancelPeekClose();
-    peekCloseTimer.current = setTimeout(() => setHoverPartId(null), 160);
-  }
-  function peekPart(id) { cancelPeekClose(); setHoverPartId(id); }
+  // Hover-to-open is OFF (click only). These stay as harmless no-ops so the
+  // existing onMouseEnter / onMouseLeave handlers don't need touching — they
+  // just don't open the panel anymore.
+  function schedulePeekClose() { cancelPeekClose(); }
+  function peekPart() { /* no-op: click to open, not hover */ }
   function togglePin(id) { setPinnedPartId((cur) => (cur === id ? null : id)); }
   function closePanel() { setPinnedPartId(null); setHoverPartId(null); }
 
@@ -1605,7 +1755,7 @@ export function CreateEventPage() {
         // Legacy "top"|"center"|"bottom" → numeric Y. X stays at 50 since the
         // old schema had no horizontal control.
         const focusStrToY = (s) => (s === "top" ? 0 : s === "bottom" ? 100 : 50);
-        setPhoneFit(phoneMs.fit || ms.fit || "cover");
+        setPhoneMode(normalizePhoneMode(phoneMs, ms));
         setPhoneFocusX(
           typeof phoneMs.focusX === "number" ? phoneMs.focusX : 50,
         );
@@ -1614,11 +1764,9 @@ export function CreateEventPage() {
             ? phoneMs.focusY
             : focusStrToY(phoneMs.focus || ms.focus),
         );
-        // Desktop mode: read new "mode" field; fall back to legacy aspect → mode.
-        // Legacy "landscape" → "real"; everything else (portrait/square) → "fit".
-        const legacyDesktopAspect = desktopMs.aspect || ms.aspect;
-        const inferredMode = legacyDesktopAspect === "landscape" ? "real" : "fit";
-        setDesktopMode(desktopMs.mode || inferredMode);
+        // Desktop mode: read new "mode" field; map legacy fit/real/aspect onto
+        // the width|height|card model.
+        setDesktopMode(normalizeDesktopMode(desktopMs, ms));
         setDesktopFocusX(
           typeof desktopMs.focusX === "number" ? desktopMs.focusX : 50,
         );
@@ -2786,37 +2934,10 @@ export function CreateEventPage() {
         }}
       >
         <form ref={formRef} onSubmit={handleCreate} style={{ height: "100%" }}>
-          {/* PUBLISHED-event edit keeps an explicit "Save changes" pill (it never
-              autosaves). Create AND draft-editing put Publish + autosave + Preview
-              in the top nav instead (ProtectedLayout), so no pill there. */}
-          {isEditMode && eventStatus === "PUBLISHED" && (
-          <div ref={publishPillRef} style={{ position: "absolute", top: "14px", right: "20px", zIndex: 40, display: "flex", alignItems: "center", gap: "12px" }}>
-            {hasAttemptedPublish && missingCount > 0 && (
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff", background: "rgba(239,68,68,0.92)", padding: "5px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>
-                {missingCount} missing
-              </span>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: "10px 24px", borderRadius: "999px", border: "none",
-                background: loading ? colors.borderStrong : colors.accent, color: "#fff",
-                fontWeight: 700, fontSize: "14px", letterSpacing: "0.01em",
-                cursor: loading ? "not-allowed" : "pointer",
-                boxShadow: loading ? "none" : colors.accentShadow,
-                transition: "background 0.15s ease, transform 0.15s ease", whiteSpace: "nowrap",
-                opacity: loading ? 0.75 : 1,
-              }}
-              onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.background = colors.accentHover; } }}
-              onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.background = colors.accent; } }}
-            >
-              {loading
-                ? (uploadStatus ? `Uploading ${uploadStatus.done}/${uploadStatus.total}…` : "Saving…")
-                : "Save changes"}
-            </button>
-          </div>
-          )}
+          {/* PUBLISHED-event edit's "Save changes" lives in the top nav now
+              (ProtectedLayout), right where the draft's Publish sits — one clean
+              control cluster across draft + published, no floating pill over the
+              canvas. The header asks us to submit via the request-publish event. */}
           <div
             className="create-event-grid"
             style={{
@@ -3737,19 +3858,39 @@ export function CreateEventPage() {
                           justifyContent: "space-between",
                         }}>
                           <span>Phone</span>
-                          {phoneFit === "cover" && (
+                          {phoneMode !== "width" && (
                             <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
                           )}
                         </div>
-                        <SegmentedChoice
-                          value={phoneFit}
+                        <FormatChoice
+                          value={phoneMode}
+                          thumb={mediaFiles[0]?.preview || imagePreview || null}
                           onChange={(v) => {
-                            setPhoneFit(v);
+                            setPhoneMode(v);
                             setDesktopPreviewMode("phone");
                           }}
                           options={[
-                            { value: "cover", label: "Fit" },
-                            { value: "contain", label: "Real" },
+                            {
+                              value: "width",
+                              label: "Fit width",
+                              caption: "Whole clip, no crop",
+                              objectFit: "cover",
+                              frameStyle: { height: "100%", aspectRatio: "4 / 5" },
+                            },
+                            {
+                              value: "height",
+                              label: "Fit height",
+                              caption: "Fills screen, crops sides",
+                              objectFit: "cover",
+                              frameStyle: { height: "100%", aspectRatio: "9 / 16" },
+                            },
+                            {
+                              value: "card",
+                              label: "Card",
+                              caption: "Whole media, padded",
+                              objectFit: "contain",
+                              frameStyle: { height: "100%", aspectRatio: "4 / 5", padding: "5px", boxSizing: "border-box" },
+                            },
                           ]}
                         />
                       </div>
@@ -3764,17 +3905,39 @@ export function CreateEventPage() {
                           justifyContent: "space-between",
                         }}>
                           <span>Desktop</span>
-                          <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
+                          {desktopMode !== "width" && (
+                            <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
+                          )}
                         </div>
-                        <SegmentedChoice
+                        <FormatChoice
                           value={desktopMode}
+                          thumb={mediaFiles[0]?.preview || imagePreview || null}
                           onChange={(v) => {
                             setDesktopMode(v);
                             setDesktopPreviewMode("desktop");
                           }}
                           options={[
-                            { value: "fit", label: "Fit" },
-                            { value: "real", label: "Real" },
+                            {
+                              value: "width",
+                              label: "Fit width",
+                              caption: "Whole — frame fits it",
+                              objectFit: "cover",
+                              frameStyle: { width: "92%", aspectRatio: "16 / 9" },
+                            },
+                            {
+                              value: "height",
+                              label: "Fit height",
+                              caption: "Fills height, crops sides",
+                              objectFit: "cover",
+                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
+                            },
+                            {
+                              value: "card",
+                              label: "Card",
+                              caption: "Whole media, padded",
+                              objectFit: "contain",
+                              frameStyle: { height: "100%", aspectRatio: "4 / 5", padding: "5px", boxSizing: "border-box" },
+                            },
                           ]}
                         />
                       </div>

@@ -11,6 +11,7 @@ import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
 import { colors } from "../theme/colors.js";
+import { LoadingScreen } from "./LoadingScreen.jsx";
 
 function ProtectedLayoutInner() {
   const navigate = useNavigate();
@@ -54,12 +55,14 @@ function ProtectedLayoutInner() {
   const eventId = eventRouteMatch?.[1];
   const eventTab = eventRouteMatch?.[2]; // "room" | "guests" | "analytics" | "edit"
 
-  // Clear event nav when leaving event routes
+  // Clear event nav when leaving event routes — but NOT on /create, where the
+  // editor feeds the draft's identity in so its Room/Guests/Insights menu can
+  // light up the moment the draft autosaves (the URL has no :id there).
   useEffect(() => {
-    if (!isEventRoute) {
+    if (!isEventRoute && location.pathname !== "/create") {
       clearEventNav();
     }
-  }, [isEventRoute, clearEventNav]);
+  }, [isEventRoute, location.pathname, clearEventNav]);
 
   // Responsive check
   useEffect(() => {
@@ -177,6 +180,11 @@ function ProtectedLayoutInner() {
   const isDraftEditor = eventTab === "edit" && eventNav?.status === "DRAFT";
   const editorRoute = isCreatingEvent || isDraftEditor;       // create-style header + Publish
   const eventChrome = isEventRoute && !isDraftEditor;          // bespoke event header
+  // Editing a PUBLISHED event keeps the bespoke event chrome (tabs/back), but its
+  // "Save changes" control belongs IN the header next to the menu — same cluster
+  // shape as the draft's Publish — not floating over the canvas. This flag lights
+  // that header control up.
+  const isPublishedEdit = eventChrome && eventTab === "edit" && eventNav?.status && eventNav.status !== "DRAFT";
   const isAdminPage = location.pathname.startsWith("/admin");
   // The email section is the one admin surface that's strictly admin-only — it
   // sends mail outside PullUp. Other /admin pages stay accessible since they
@@ -225,6 +233,23 @@ function ProtectedLayoutInner() {
   const isReception = myRole === "reception";
   const MANAGE_ROLES = ["host", "owner", "admin", "co_host", "editor", "reception", "analytics"];
   const canManageEvent = MANAGE_ROLES.includes(myRole);
+
+  // SUPER STRICT: the event MENU (title + Guests/Insights/Edit tabs + the live
+  // link) is for the REAL host of THIS event only — a resolved manage role
+  // (owner / co_host / editor / reception / analytics). NOT admins-by-default:
+  // a superuser sees it on their own events, or by explicitly using View-as
+  // "Host" (which force-resolves the role) — never passively on an event they
+  // don't run. Everyone else (RSVP'd / pulled-up guest, or an admin just
+  // visiting) gets NO menu, just the "→ [host]'s room" way out.
+  const canSeeEventMenu = canManageEvent;
+
+  // A guest in an event room exits INTO the HOST's person room (the host's
+  // world), not their own home — the relational model. The guest-flavoured nav
+  // carries the pointer; if it's missing we fall back to "The Room" (/room).
+  const guestHostRoomId = (!canSeeEventMenu && eventNav?.guest && eventNav?.hostRoomId) ? eventNav.hostRoomId : null;
+  const guestHostName = eventNav?.hostName || null;
+  const backTarget = guestHostRoomId ? `/r/${guestHostRoomId}` : "/room";
+  const backLabel = guestHostRoomId ? (guestHostName ? `${guestHostName}'s room` : "Their room") : "The Room";
   // The event Room is the home surface of an event — first tab, so the host can
   // always get to it (and back) from Guests/Insights/Edit. Analytics-only gets
   // bounced out of the room, so we don't offer them the tab.
@@ -244,6 +269,25 @@ function ProtectedLayoutInner() {
         // The event keeps Room + the event-scoped management: guest list, analytics, edit.
         : [roomTab, guestsTab, insightsTab, editTab]
     : [];
+
+  // While creating / editing a DRAFT, the event still carries its full menu so
+  // it reads as a real event, not a void: Room / Guests / Insights / Edit. The
+  // id comes from the URL when present (draft edit) or from the editor's context
+  // feed on /create. Publish stays in the header alongside.
+  const menuEventId = eventId || eventNav?.id || null;
+  const editorTabItems = (menuEventId && canManageEvent)
+    ? [
+        { label: "Room", path: `/events/${menuEventId}/room`, tab: "room" },
+        {
+          label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+          path: `/app/events/${menuEventId}/guests`,
+          tab: "guests",
+        },
+        { label: "Insights", path: `/app/events/${menuEventId}/analytics`, tab: "analytics" },
+        { label: "Edit", path: `/app/events/${menuEventId}/edit`, tab: "edit" },
+      ]
+    : [];
+  const showEditorTabs = editorRoute && canSeeEventMenu && editorTabItems.length > 0;
 
   function isActive(path) {
     if (path === "/admin") return location.pathname === "/admin";
@@ -269,18 +313,7 @@ function ProtectedLayoutInner() {
 
   // Show loading state while checking auth
   if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ color: colors.text }}>Loading...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // The shell renders for everyone now. A no-session visitor on a route that
@@ -331,7 +364,7 @@ function ProtectedLayoutInner() {
         {/* Left side */}
         {eventChrome ? (
           <button
-            onClick={() => handleNav("/room")}
+            onClick={() => handleNav(backTarget)}
             style={{
               background: "transparent",
               border: "none",
@@ -346,6 +379,7 @@ function ProtectedLayoutInner() {
               fontSize: "13px",
               fontWeight: 500,
               flexShrink: 0,
+              maxWidth: "200px",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = colors.text;
@@ -356,8 +390,8 @@ function ProtectedLayoutInner() {
               e.currentTarget.style.background = "transparent";
             }}
           >
-            <ChevronLeft size={16} />
-            The Room
+            <ChevronLeft size={16} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{backLabel}</span>
           </button>
         ) : (
           <button
@@ -383,8 +417,8 @@ function ProtectedLayoutInner() {
         )}
 
         {/* Center nav */}
-        {!isMobile && eventChrome ? (
-          /* Event-specific navigation */
+        {!isMobile && eventChrome ? (canSeeEventMenu ? (
+          /* Event-specific navigation — host / superuser only */
           <nav
             style={{
               display: "flex",
@@ -453,6 +487,43 @@ function ProtectedLayoutInner() {
                     e.target.style.background = "transparent";
                   }
                 }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        ) : null) : (!isMobile && showEditorTabs) ? (
+          /* Draft editor — carry the event's own menu so a draft feels like a
+             real event (Room / Guests / Insights), with Publish still in the
+             header. */
+          <nav style={{ display: "flex", alignItems: "center", gap: "2px", overflow: "hidden", minWidth: 0 }}>
+            {eventNav?.title && (
+              <>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "180px", padding: "0 8px" }}>
+                  {eventNav.title}
+                </span>
+                <div style={{ width: "1px", height: "20px", background: colors.border, margin: "0 6px", flexShrink: 0 }} />
+              </>
+            )}
+            {editorTabItems.map(({ label, path, tab }) => (
+              <button
+                key={tab}
+                onClick={() => handleNav(path)}
+                style={{
+                  background: isEventTabActive(tab) ? colors.accentSoft : "transparent",
+                  border: "none",
+                  color: isEventTabActive(tab) ? colors.accent : colors.textSubtle,
+                  fontSize: "13px",
+                  fontWeight: isEventTabActive(tab) ? 600 : 500,
+                  letterSpacing: "0.01em",
+                  cursor: "pointer",
+                  padding: "6px 14px",
+                  borderRadius: "999px",
+                  transition: "all 0.15s ease",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={(e) => { if (!isEventTabActive(tab)) { e.target.style.color = colors.text; e.target.style.background = colors.surfaceMuted; } }}
+                onMouseLeave={(e) => { if (!isEventTabActive(tab)) { e.target.style.color = colors.textSubtle; e.target.style.background = "transparent"; } }}
               >
                 {label}
               </button>
@@ -626,6 +697,54 @@ function ProtectedLayoutInner() {
             >
               <SilverIcon as={Settings} size={isMobile ? 17 : 16} />
             </button>
+          )}
+
+          {/* Published-event Edit: the "Save changes" control lives HERE, in the
+              header next to the menu — the same cluster shape as the draft's
+              Publish — instead of floating over the canvas. CreateEventPage
+              submits the form when it hears request-publish. */}
+          {isPublishedEdit && (
+            <>
+              {!isMobile && eventNav?.missing > 0 && (
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff", background: "rgba(239,68,68,0.92)", padding: "5px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>
+                  {eventNav.missing} missing
+                </span>
+              )}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("pullup:request-publish"))}
+                disabled={!!eventNav?.saving}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "999px",
+                  border: "none",
+                  background: eventNav?.saving ? colors.borderStrong : colors.accent,
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "clamp(11px, 2.5vw, 12px)",
+                  letterSpacing: "0.02em",
+                  cursor: eventNav?.saving ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow: eventNav?.saving ? "none" : colors.accentShadow,
+                  whiteSpace: "nowrap",
+                  opacity: eventNav?.saving ? 0.75 : 1,
+                  touchAction: "manipulation",
+                }}
+                onMouseEnter={(e) => {
+                  if (eventNav?.saving) return;
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.background = colors.accentHover;
+                  e.currentTarget.style.boxShadow = "0 8px 22px rgba(236, 23, 143, 0.34)";
+                }}
+                onMouseLeave={(e) => {
+                  if (eventNav?.saving) return;
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.background = colors.accent;
+                  e.currentTarget.style.boxShadow = colors.accentShadow;
+                }}
+              >
+                {eventNav?.saveLabel || "Save changes"}
+              </button>
+            </>
           )}
 
           {/* Mobile admin badge → a compact popover with the gold admin surfaces
@@ -967,7 +1086,7 @@ function ProtectedLayoutInner() {
 
             {/* Nav items */}
             <nav style={{ padding: "12px 8px", flex: 1 }}>
-              {eventChrome ? (
+              {eventChrome && canSeeEventMenu ? (
                 <>
                   {/* Event title in drawer */}
                   {eventNav?.title && (
@@ -1082,6 +1201,64 @@ function ProtectedLayoutInner() {
                       {eventNav?.status === "DRAFT" ? "Show preview" : "View live"}
                     </a>
                   )}
+                </>
+              ) : eventChrome ? (
+                /* A guest in the room (RSVP'd / pulled up) gets NO event menu —
+                   just one way out, into the HOST's room (their world). */
+                <button
+                  onClick={() => handleNav(backTarget)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    width: "100%",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: "transparent",
+                    color: colors.textMuted,
+                    fontSize: "15px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  {backLabel}
+                </button>
+              ) : showEditorTabs ? (
+                /* Draft editor on mobile — the event's own menu in the drawer. */
+                <>
+                  {eventNav?.title && (
+                    <div style={{ padding: "8px 16px 16px", fontSize: "15px", fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {eventNav.title}
+                    </div>
+                  )}
+                  {editorTabItems.map(({ label, path, tab }) => (
+                    <button
+                      key={tab}
+                      onClick={() => handleNav(path)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        width: "100%",
+                        padding: "14px 16px",
+                        borderRadius: "12px",
+                        border: "none",
+                        background: isEventTabActive(tab) ? colors.accentSoft : "transparent",
+                        color: isEventTabActive(tab) ? colors.accent : colors.textMuted,
+                        fontSize: "15px",
+                        fontWeight: isEventTabActive(tab) ? 600 : 500,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.15s ease",
+                        touchAction: "manipulation",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </>
               ) : (
                 <>
@@ -1210,17 +1387,11 @@ function ProtectedLayoutInner() {
           // No session on a route that needs one → the one door, in place.
           <AuthGate redirectTo={location.pathname + location.search} />
         ) : isEmailSection && (!profileChecked || !isAdmin) ? (
-          <div
-            style={{
-              minHeight: "60vh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: colors.textMuted,
-            }}
-          >
-            {profileChecked ? null : "Loading..."}
-          </div>
+          profileChecked ? (
+            <div style={{ minHeight: "60vh" }} />
+          ) : (
+            <LoadingScreen fullScreen={false} />
+          )
         ) : (
           <Outlet />
         )}

@@ -15,6 +15,7 @@ export function useEventAccess(eventId) {
     loading: true,
     level: null,
     role: null,
+    realHost: false,
     reason: null,
     phase: null,
     event: null,
@@ -29,7 +30,7 @@ export function useEventAccess(eventId) {
     let alive = true;
     const fail = () =>
       alive &&
-      setState({ loading: false, level: "no_access", role: null, reason: "error", phase: null, event: null, permissions: null });
+      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null });
 
     authenticatedFetch(`/events/${eventId}/access`)
       .then((r) => (r.ok ? r.json() : null))
@@ -40,6 +41,7 @@ export function useEventAccess(eventId) {
           loading: false,
           level: d.level,
           role: d.role,
+          realHost: !!d.realHost,
           reason: d.reason,
           phase: d.phase,
           event: d.event,

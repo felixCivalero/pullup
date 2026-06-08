@@ -44,7 +44,7 @@ import { EventGuestsPage } from "./pages/EventGuestsPage";
 import EventRoomPage from "./pages/EventRoomPage";
 import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
-// import { ViewAsBar } from "./components/admin/ViewAsBar.jsx"; // admin lens (status + profile search) — disabled for now, may re-enable later
+import { ViewAsBar } from "./components/admin/ViewAsBar.jsx"; // admin lens: flip between superhost (Host) and your real view; admin-gated, hidden for everyone else
 import { SettingsPage } from "./pages/SettingsPage";
 import { AutoDmPage } from "./pages/AutoDmPage";
 import { AdminPage } from "./pages/AdminPage";
@@ -86,7 +86,7 @@ function App() {
       {/* The PullUp AI coach widget — only mounted on the create/edit-event
           builder (it gets in the way of the Room's chat composer elsewhere). */}
       <CoachWidgetGate />
-      {/* <ViewAsBar /> */}
+      <ViewAsBar />
       <Routes>
         {/* Public — landing page renders the slide shell. /login and
             /start point at the same component so the URL still works

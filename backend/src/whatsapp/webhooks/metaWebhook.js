@@ -26,6 +26,7 @@ import { suppress } from "../repos/whatsappSuppressionsRepo.js";
 import { upsertThreadFromMessage } from "../repos/whatsappThreadsRepo.js";
 import { supabase } from "../../supabase.js";
 import { logPersonEvent } from "../../services/personTimeline.js";
+import { bumpMessageStatus } from "../../services/messageStatus.js";
 import { logger } from "../../logger.js";
 import { dedupeKey } from "../../lib/idempotency.js";
 import { captureError } from "../../observability.js";
@@ -146,6 +147,8 @@ async function handleStatusUpdate(status) {
       eventAt,
       extra: { last_error_code: String(errCode || "unknown"), last_error_message: errMsg || null },
     });
+    // Mirror the failure onto the Room bubble so the host sees a red "!" live.
+    await bumpMessageStatus({ key: "provider_mid", value: providerMessageId, status: "failed", at: eventAt });
     // Unreachable / not-on-WhatsApp errors → suppress for future sends.
     if (errCode && [131026, 131047, 131051].includes(Number(errCode))) {
       await suppress({
@@ -160,6 +163,8 @@ async function handleStatusUpdate(status) {
 
   if (["sent", "delivered", "read"].includes(messageStatus)) {
     await markStatus({ id: outboxRow.id, status: messageStatus, eventAt });
+    // Push the tick (sent → delivered → read) onto the Room bubble live.
+    await bumpMessageStatus({ key: "provider_mid", value: providerMessageId, status: messageStatus, at: eventAt });
   }
 }
 

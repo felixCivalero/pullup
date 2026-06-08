@@ -28,8 +28,11 @@ import { VipInviteSection } from "../components/VipInviteSection.jsx";
 import ProfileSetup from "../components/room/ProfileSetup.jsx";
 import LookingBack from "../components/room/LookingBack.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
+import { useRoomRealtime } from "../lib/useRoomRealtime.js";
+import MessageStatusTicks from "../components/room/MessageStatusTicks.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
 // Phone breakpoint. Drives the two big interaction differences: on desktop the
 // event panel opens on HOVER and the chat/bulk surfaces float at the right
@@ -312,6 +315,8 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
   const [rail, setRail] = useState(person.channel);
   const [sending, setSending] = useState(false);
   const [sentMsgs, setSentMsgs] = useState([]); // messages sent this session, shown instantly
+  const [liveMsgs, setLiveMsgs] = useState([]); // realtime arrivals this session (inbound + other-device)
+  const sentKeysRef = useRef(new Set()); // clientId/id of our own sends, to dedupe realtime echoes
   const [attachments, setAttachments] = useState([]); // [{url,name,isImage}]
   const [uploading, setUploading] = useState(false);
   const [eventId, setEventId] = useState(null); // optionally include an event
@@ -330,10 +335,40 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
   const reachable = person.reachable || [person.channel];
   const c = CHANNELS[rail] || CHANNELS.email;
   const crossing = rail !== lastInboundChannel;
-  // What the thread shows: their real history + anything sent this session.
-  const thread = useMemo(() => [...person.thread, ...sentMsgs], [person.thread, sentMsgs]);
+  // What the thread shows: their real history + anything sent this session +
+  // anything that arrived live (inbound replies, sends from another device).
+  const thread = useMemo(() => {
+    const base = person.thread || [];
+    // Dedupe local (optimistic + realtime) copies against the server thread by id.
+    const seen = new Set(base.map((m) => m.id).filter(Boolean));
+    const extra = [...sentMsgs, ...liveMsgs].filter((m) => !(m.id && seen.has(m.id)));
+    return [...base, ...extra];
+  }, [person.thread, sentMsgs, liveMsgs]);
 
-  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setAttachments([]); setEventId(null); }, [person.id, person.channel, defaultIg?.id]);
+  useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setLiveMsgs([]); sentKeysRef.current = new Set(); setAttachments([]); setEventId(null); }, [person.id, person.channel, defaultIg?.id]);
+
+  // ── Live: this person's inbound replies + delivery-status ticks stream in. ──
+  useRoomRealtime({
+    onMessage: ({ eventType, row }) => {
+      if (row.personId !== person.id) return;
+      if (eventType === "UPDATE") {
+        setSentMsgs((s) => s.map((m) => (m.id === row.id ? { ...m, status: row.status } : m)));
+        setLiveMsgs((s) => s.map((m) => (m.id === row.id ? { ...m, status: row.status } : m)));
+        return;
+      }
+      if (row.from === "you") {
+        // Our own send echoing back → reconcile, don't duplicate.
+        if (row.clientId && sentKeysRef.current.has(row.clientId)) {
+          setSentMsgs((s) => s.map((m) => (m.clientId === row.clientId ? { ...m, id: row.id, status: row.status || m.status } : m)));
+          sentKeysRef.current.add(row.id);
+          return;
+        }
+        if (sentKeysRef.current.has(row.id)) return;
+      }
+      // Inbound reply (or another-device outbound) for this person → show it live.
+      setLiveMsgs((s) => (s.some((m) => m.id === row.id) ? s : [...s, { ...row, time: "just now" }]));
+    },
+  });
 
   async function onAttach(e) {
     const files = Array.from(e.target.files || []);
@@ -369,6 +404,31 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
     requestAnimationFrame(() => { try { el.focus(); const p = s + text.length; el.setSelectionRange(p, p); } catch {} });
   }
 
+  // POST + reconcile, shared by first-send and retry. The optimistic bubble
+  // (keyed by clientId) flips sending → sent (then delivered/read live) or failed.
+  async function doSend({ clientId, ch, text, atts, evId }) {
+    setSentMsgs((m) => m.map((x) => (x.clientId === clientId ? { ...x, status: "sending" } : x)));
+    try {
+      const res = await authenticatedFetch("/host/room/message", {
+        method: "POST",
+        body: JSON.stringify({ personId: person.id, channel: ch, text, attachments: atts, eventId: evId || undefined, clientId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setSentMsgs((m) => m.map((x) => (x.clientId === clientId ? { ...x, status: "failed" } : x)));
+        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — tap to retry", "error");
+        return;
+      }
+      const used = data.channel || ch;
+      if (data.messageId) sentKeysRef.current.add(data.messageId);
+      setSentMsgs((m) => m.map((x) => (x.clientId === clientId ? { ...x, id: data.messageId || x.id, status: data.status || "sent", channel: used } : x)));
+      if (ch === "whatsapp" && used === "email") showToast("Sent as email — not reachable on WhatsApp right now", "success");
+    } catch {
+      setSentMsgs((m) => m.map((x) => (x.clientId === clientId ? { ...x, status: "failed" } : x)));
+      showToast("Couldn't send — tap to retry", "error");
+    }
+  }
+
   async function handleSend() {
     const text = draft.trim();
     if ((!text && !attachments.length && !eventId) || sending) return;
@@ -376,31 +436,24 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
       showToast("Instagram sending is coming — switch to Email or WhatsApp to send now", "error");
       return;
     }
+    const ch = rail;
+    const atts = attachments;
+    const evId = eventId;
+    const evTitle = evId ? (events.find((e) => e.id === evId)?.title) : null;
+    const note = [text, atts.length ? `📎 ${atts.length}` : "", evTitle ? `📅 ${evTitle}` : ""].filter(Boolean).join(" ");
+    const clientId = newClientId();
+    sentKeysRef.current.add(clientId);
+    // Bubble appears instantly; composer clears; the send runs behind it.
+    setSentMsgs((m) => [...m, { clientId, from: "you", text: note, time: "just now", channel: ch, status: "sending", _send: { ch, text, atts, evId } }]);
+    setDraft(""); setAttachments([]); setEventId(null);
     setSending(true);
-    try {
-      const res = await authenticatedFetch("/host/room/message", {
-        method: "POST",
-        body: JSON.stringify({ personId: person.id, channel: rail, text, attachments, eventId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) {
-        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — try again", "error");
-      } else {
-        const used = data.channel || rail;
-        const evTitle = eventId ? (events.find((e) => e.id === eventId)?.title) : null;
-        const note = [text, attachments.length ? `📎 ${attachments.length}` : "", evTitle ? `📅 ${evTitle}` : ""].filter(Boolean).join(" ");
-        setSentMsgs((m) => [...m, { from: "you", text: note, time: "just now", channel: used }]);
-        setDraft("");
-        setAttachments([]);
-        setEventId(null);
-        // Honest when WhatsApp wasn't possible and we used the email floor.
-        showToast(rail === "whatsapp" && used === "email" ? "Sent as email — not reachable on WhatsApp right now" : "Sent", "success");
-      }
-    } catch {
-      showToast("Couldn't send — try again", "error");
-    } finally {
-      setSending(false);
-    }
+    try { await doSend({ clientId, ch, text, atts, evId }); }
+    finally { setSending(false); }
+  }
+
+  function retry(m) {
+    if (!m?._send) return;
+    doSend({ clientId: m.clientId, ...m._send });
   }
 
   return (
@@ -446,7 +499,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
 
           if (m.from === "system") {
             return (
-              <div key={i}>
+              <div key={m.id || m.clientId || i}>
                 {divider}
                 <div style={{ textAlign: "center", fontSize: "11.5px", color: colors.textSubtle, padding: "2px 0" }}>
                   {m.text} · <span style={{ color: colors.textFaded }}>{m.time}</span>
@@ -455,15 +508,18 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
             );
           }
           const mine = m.from === "you";
+          const failed = m.status === "failed";
           return (
-            <div key={i}>
+            <div key={m.id || m.clientId || i}>
               {divider}
               <div style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-                <div style={{ maxWidth: "78%", padding: "9px 13px", borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: mine ? colors.accent : colors.surfaceMuted, color: mine ? "#fff" : colors.text, fontSize: "13.5px", lineHeight: 1.45 }}>
+                <div onClick={failed ? () => retry(m) : undefined} title={failed ? "Tap to retry" : undefined} style={{ maxWidth: "78%", padding: "9px 13px", borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: mine ? colors.accent : colors.surfaceMuted, color: mine ? "#fff" : colors.text, fontSize: "13.5px", lineHeight: 1.45, opacity: m.status === "sending" ? 0.72 : 1, cursor: failed ? "pointer" : "default", transition: "opacity 0.2s" }}>
                   {m.text}
                 </div>
-                <span style={{ fontSize: "10.5px", color: colors.textFaded, marginTop: "3px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                  <span style={{ color: ch.color, fontWeight: 600 }}>{ch.glyph}</span>{m.time}
+                <span style={{ fontSize: "10.5px", color: failed ? "#dc2626" : colors.textFaded, marginTop: "3px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                  <span style={{ color: ch.color, fontWeight: 600 }}>{ch.glyph}</span>
+                  {failed ? "Not delivered · tap to retry" : m.status === "sending" ? "Sending…" : m.time}
+                  {mine && <MessageStatusTicks status={m.status} pink={colors.accent} faint={colors.textFaded} />}
                 </span>
               </div>
             </div>

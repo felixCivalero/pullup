@@ -168,6 +168,10 @@ async function handleReadReceipt(messagingEvent, igAccountId) {
     if (!person?.id) return;
     const { markUserRead } = await import("../repos/instagramThreadsRepo.js");
     await markUserRead({ personId: person.id, hostProfileId: creds.hostProfileId });
+    // Push a live "read" tick onto every still-unread outbound IG bubble for
+    // this person (IG read is a per-thread watermark, not per-message).
+    const { bumpMessageStatusForPerson } = await import("../../services/messageStatus.js");
+    await bumpMessageStatusForPerson({ personId: person.id, hostId: creds.hostProfileId, channel: "instagram", status: "read" });
     logger?.info?.("[instagram/webhook] read receipt", { personId: person.id });
   } catch (e) {
     logger?.warn?.("[instagram/webhook] read receipt failed", { err: e.message });

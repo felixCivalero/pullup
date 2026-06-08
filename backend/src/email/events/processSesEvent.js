@@ -9,6 +9,7 @@ import {
   markComplaint,
 } from "../repos/emailOutboxRepo.js";
 import { upsertSuppression } from "../repos/emailSuppressionsRepo.js";
+import { bumpMessageStatus } from "../../services/messageStatus.js";
 
 function canonicalizeEventType(eventType) {
   if (eventType === "Delivery") return "delivery";
@@ -92,6 +93,11 @@ export async function processSesEvent(notification) {
 
   if (eventType === "Delivery") {
     await markDelivered(outboxRow.id);
+    // Mirror onto the Room bubble (if this was a Room message) — the email got
+    // to their inbox, so the tick moves sent → delivered, live.
+    if (outboxRow.tracking_id) {
+      await bumpMessageStatus({ key: "tracking_id", value: outboxRow.tracking_id, status: "delivered" });
+    }
   } else if (eventType === "Bounce") {
     const bounce = notification.bounce || {};
     const bounceType = bounce.bounceType || "";
@@ -101,6 +107,10 @@ export async function processSesEvent(notification) {
       errorCode: bounceType,
       errorMessage: bounce.bounceSubType || null,
     });
+    // It didn't land — surface a red "!" on the Room bubble.
+    if (outboxRow.tracking_id) {
+      await bumpMessageStatus({ key: "tracking_id", value: outboxRow.tracking_id, status: "failed" });
+    }
 
     const recipients = bounce.bouncedRecipients || [];
     const toEmail =

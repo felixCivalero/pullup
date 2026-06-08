@@ -46,6 +46,7 @@ import HostCheckinPage from "./pages/HostCheckinPage";
 import NodeProfilePage from "./pages/NodeProfilePage";
 // import { ViewAsBar } from "./components/admin/ViewAsBar.jsx"; // admin lens (status + profile search) — disabled for now, may re-enable later
 import { SettingsPage } from "./pages/SettingsPage";
+import { AutoDmPage } from "./pages/AutoDmPage";
 import { AdminPage } from "./pages/AdminPage";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -181,6 +182,8 @@ function App() {
               now it lands on the Room like everything else. */}
           <Route path="/home" element={<Navigate to="/room" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {/* Auto-DM — Instagram comment→DM triggers (per-event, migration 068) */}
+          <Route path="/auto-dm" element={<AutoDmPage />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />
           <Route path="/events/:slug/success" element={<EventSuccessPage />} />
           <Route

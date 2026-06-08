@@ -12,6 +12,7 @@
 
 import { supabase } from "../supabase.js";
 import { getRoutingContextByIgUserId } from "./repos/instagramConnectionsRepo.js";
+import { getLiveTriggersForHost } from "./repos/eventCommentTriggersRepo.js";
 import { sendPrivateReply } from "./providers/igGraphClient.js";
 import { APP_BASE_URL } from "../whatsapp/config.js";
 import { logger } from "../logger.js";
@@ -74,7 +75,13 @@ export async function handleCommentEvent({ igAccountId, comment }) {
   }
 
   const mediaId = comment?.media?.id || comment?.media_id || null;
-  const rule = matchRule(ctx.commentRules, { text: comment?.text, mediaId });
+  // Per-event model (migration 068): match against the host's LIVE triggers
+  // (enabled + event not yet ended), pre-sorted by soonest end so a keyword
+  // collision resolves deterministically to the most imminent event. A trigger
+  // for a finished event is simply absent from this list — it goes silent on
+  // its own with no cron.
+  const liveTriggers = await getLiveTriggersForHost(ctx.hostProfileId);
+  const rule = matchRule(liveTriggers, { text: comment?.text, mediaId });
   if (!rule) return { status: "skipped", reason: "no_rule_match" };
 
   const commenterIgId = comment?.from?.id || null;

@@ -198,6 +198,7 @@ export async function mapEventFromDb(dbEvent) {
     formFields: dbEvent.form_fields || [],
     contactChannel: dbEvent.contact_channel || "email",
     requirePhone: dbEvent.require_phone || false,
+    requireEmail: dbEvent.require_email !== false,
     requireInstagram: dbEvent.require_instagram || false,
     collectPhone: dbEvent.collect_phone !== false,
     collectInstagram: dbEvent.collect_instagram !== false,
@@ -748,6 +749,7 @@ function mapEventToDb(eventData) {
   if (eventData.formFields !== undefined) dbData.form_fields = eventData.formFields;
   if (eventData.contactChannel !== undefined) dbData.contact_channel = eventData.contactChannel;
   if (eventData.requirePhone !== undefined) dbData.require_phone = eventData.requirePhone;
+  if (eventData.requireEmail !== undefined) dbData.require_email = eventData.requireEmail;
   if (eventData.requireInstagram !== undefined) dbData.require_instagram = eventData.requireInstagram;
   if (eventData.collectPhone !== undefined) dbData.collect_phone = eventData.collectPhone;
   if (eventData.collectInstagram !== undefined) dbData.collect_instagram = eventData.collectInstagram;

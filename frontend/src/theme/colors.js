@@ -64,6 +64,11 @@ export const colors = {
   instagramSoft: "rgba(214, 36, 159, 0.10)",
   instagramBorder: "rgba(214, 36, 159, 0.30)",
 
+  // ── WhatsApp: brand green ──
+  whatsapp: "#25D366",
+  whatsappSoft: "rgba(37, 211, 102, 0.10)",
+  whatsappBorder: "rgba(37, 211, 102, 0.30)",
+
   // ── Admin: deep amber, legible on white (gold dies on a light canvas) ──
   gold: "#b45309",
   goldRgba: "rgba(180, 83, 9, 0.9)",

@@ -2366,6 +2366,13 @@ app.post("/events", requireAuth, async (req, res) => {
     // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
     contactChannel,
 
+    // Reach-floor + channel collection toggles (Email/WhatsApp/Instagram).
+    requireEmail,
+    collectPhone,
+    requirePhone,
+    collectInstagram,
+    requireInstagram,
+
     // Reveal & waitlist features
     hideLocation,
     hideDate,
@@ -2438,6 +2445,11 @@ app.post("/events", requireAuth, async (req, res) => {
     sections,
     formFields,
     contactChannel,
+    requireEmail,
+    collectPhone,
+    requirePhone,
+    collectInstagram,
+    requireInstagram,
     hideLocation,
     hideDate,
     instantWaitlist,
@@ -3625,20 +3637,63 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             ? `It's me, ${hostProfileFull.name.split(/\s+/)[0]}`
             : "");
 
-        await dispatchMessage({
+        // ── WhatsApp is KING ──────────────────────────────────────────
+        // The confirmation rides the channel the HOST required, not just
+        // whatever happens to be available:
+        //   • WhatsApp required → WhatsApp. The rich rsvp_confirm template
+        //     goes straight to the number they just gave + consented to. We
+        //     don't wait on the async phone-verify (a magic link the guest
+        //     taps later) — that gates account linking, not a transactional
+        //     confirm to a freshly opted-in number.
+        //   • email only        → email.
+        //   • WhatsApp required but the send fails / no number / host has WA
+        //     off → email floor ("…then email").
+        // Waitlist always emails (there's no rsvp_confirm template for it).
+        const { data: evReq } = await supabase
+          .from("events")
+          .select("require_phone")
+          .eq("id", result.event.id)
+          .maybeSingle();
+        const waKing =
+          !isWaitlistEmail &&
+          !!evReq?.require_phone &&
+          !!recipient.phone_e164 &&
+          hostProfileFull?.whatsapp_enabled !== false &&
+          !recipient.do_not_contact;
+
+        let confirmedViaWhatsApp = false;
+        if (waKing) {
+          try {
+            const { sendTemplate } = await import("./whatsapp/index.js");
+            await sendTemplate({
+              to: recipient.phone_e164,
+              templateKey: "rsvp_confirm",
+              variables: {
+                guest_first_name: firstName,
+                event_title: result.event.title || "the event",
+                event_when: friendlyDate,
+                host_signature: hostSig || "PullUp",
+              },
+              personId: result.rsvp.personId || null,
+              hostProfileId: result.event.hostId || null,
+              legalBasis: "consent",
+            });
+            confirmedViaWhatsApp = true;
+          } catch (waErr) {
+            logger?.warn?.(
+              "[rsvp] WhatsApp-king confirm failed — falling back to email",
+              { error: waErr?.message, rsvpId: result.rsvp.id }
+            );
+          }
+        }
+
+        if (!confirmedViaWhatsApp) await dispatchMessage({
           recipient,
           hostProfile: hostProfileFull,
-          whatsapp: isWaitlistEmail
-            ? null
-            : {
-                templateKey: "rsvp_confirm",
-                variables: {
-                  guest_first_name: firstName,
-                  event_title: result.event.title || "the event",
-                  event_when: friendlyDate,
-                  host_signature: hostSig || "PullUp",
-                },
-              },
+          // WhatsApp already had its shot above when it was the required
+          // channel; here we are the email floor (email-only events, or a
+          // king send that failed). Don't double-ride WhatsApp.
+          whatsapp: null,
           email: {
             subject: isWaitlistEmail
               ? "You’re on the waitlist"
@@ -5081,6 +5136,15 @@ app.put(
       // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
       contactChannel,
 
+      // Reach-floor + channel collection toggles. Email/WhatsApp are the reach
+      // floor (≥1 required); Instagram is enrichment. (Previously dropped here —
+      // the editor sent them but the route never read them, so they never saved.)
+      requireEmail,
+      collectPhone,
+      requirePhone,
+      collectInstagram,
+      requireInstagram,
+
       // Reveal & waitlist features
       hideLocation,
       hideDate,
@@ -5242,6 +5306,11 @@ app.put(
         sections: processedSections,
         formFields,
         contactChannel,
+        requireEmail,
+        collectPhone,
+        requirePhone,
+        collectInstagram,
+        requireInstagram,
         hideLocation,
         hideDate,
         instantWaitlist,

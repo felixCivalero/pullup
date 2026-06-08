@@ -8,6 +8,7 @@ import { LocationMap } from "./LocationMap.jsx";
 import { PullupEyes } from "./PullupEyes.jsx";
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { colors } from "../theme/colors.js";
+import { ChannelBadge, CHANNEL_BRAND } from "./ChannelBadge.jsx";
 
 // The guided first-run for a BRAND-NEW event. It fronts the skeleton — name,
 // when, where, who-can-join — one focused question at a time, each skippable,
@@ -62,7 +63,7 @@ const STEPS = [
 ];
 
 // --- small local controls (self-contained — no editor coupling) -------------
-function Segmented({ value, onChange, options }) {
+function Segmented({ value, onChange, options, accent = colors.accent }) {
   return (
     <div style={{ display: "inline-flex", gap: 2, padding: 2, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 9 }}>
       {options.map((opt) => {
@@ -76,7 +77,7 @@ function Segmented({ value, onChange, options }) {
             style={{
               padding: "6px 13px", borderRadius: 7, border: "none", cursor: "pointer",
               fontSize: 12.5, fontWeight: active ? 700 : 500, fontFamily: "inherit",
-              background: active ? (isOff ? colors.border : colors.accent) : "transparent",
+              background: active ? (isOff ? colors.border : accent) : "transparent",
               color: active ? (isOff ? colors.text : "#fff") : colors.textMuted,
               transition: "background 120ms ease, color 120ms ease",
             }}
@@ -414,22 +415,26 @@ export function CreateWizard(props) {
               <div style={smallLabelStyle}>What you collect at sign-up</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
                 {[
-                  { label: "Name", fixed: true },
-                  { label: "Email", fixed: true },
-                  { label: "WhatsApp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
-                  { label: "Instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
+                  { label: "Name", channel: "name", fixed: true },
+                  { label: "Email", channel: "email", fixed: true },
+                  { label: "WhatsApp", channel: "whatsapp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
+                  { label: "Instagram", channel: "instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
                 ].map((row) => (
                   <div key={row.label} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "10px 14px", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10,
                   }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>{row.label}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                      <ChannelBadge channel={row.channel} size={28} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>{row.label}</span>
+                    </span>
                     {row.fixed ? (
                       <span style={{ fontSize: 12, color: colors.textMuted }}>Always required</span>
                     ) : (
                       <Segmented
                         value={modeOf(row.collect, row.require)}
                         onChange={(m) => row.set(m !== "off", m === "required")}
+                        accent={CHANNEL_BRAND[row.channel]?.accent || colors.accent}
                         options={[
                           { key: "off", label: "Off" },
                           { key: "optional", label: "Optional" },

@@ -50,6 +50,9 @@ export function EventPreview({
   // Editor-only: point at a part of the preview to open its editor.
   // onEditPart({ kind: "cover" | "section" | "rsvp", index? }).
   onEditPart = null,
+  // Editor-only: hover a part of the preview to peek its editor open.
+  // onHoverPart({ kind }) on enter, onHoverPart(null) on leave.
+  onHoverPart = null,
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -187,6 +190,8 @@ export function EventPreview({
             ref={heroRef}
             data-hero
             {...(canSwipe && !(onFocusDrag && phoneFit === "cover") ? swipeHandlers : {})}
+            onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "cover" }) : undefined}
+            onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
             style={{
               position: "relative",
               width: "100%",
@@ -349,7 +354,10 @@ export function EventPreview({
           </div>
 
           {/* ─── CONTENT SECTION ─── */}
-          <div style={{
+          <div
+            onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "section" }) : undefined}
+            onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
+            style={{
             background: "var(--brand-bg, #05040a)",
             padding: `28px 20px ${rsvpContent ? "8px" : `${CTA_BAR_HEIGHT}px`}`,
             minHeight: hasContent ? "40%" : undefined,
@@ -376,6 +384,8 @@ export function EventPreview({
           {rsvpContent && (
             <div
               ref={rsvpSectionRef}
+              onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "rsvp" }) : undefined}
+              onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
               style={{
                 position: "relative",
                 background: "var(--brand-bg, #05040a)",

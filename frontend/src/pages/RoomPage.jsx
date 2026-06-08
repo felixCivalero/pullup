@@ -1171,7 +1171,12 @@ export function OwnerConsole({ room: roomProp }) {
         events={EVENTS}
         people={PEOPLE}
         lensEventId={lensEventId}
-        onOpenEvent={(id) => navigate(`/events/${id}/room`)}
+        onOpenEvent={(id) => {
+          // A draft is never "managed" in the room — it has no guests yet. Any
+          // open/manage action on a draft goes straight to the editor.
+          const ev = EVENTS.find((e) => e.id === id);
+          navigate(ev?.status === "draft" ? `/app/events/${id}/edit` : `/events/${id}/room`);
+        }}
         onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
         onCreate={() => navigate("/create")}
         onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}
@@ -1428,7 +1433,7 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
             isMobile={isMobile}
             focused={lensEventId === e.id}
             selected={panel?.eventId === e.id}
-            onSelect={() => clickCard(e.id)}
+            onSelect={() => (e.status === "draft" ? onSubpage(e.id, "edit") : clickCard(e.id))}
             onHoverOpen={() => hoverOpen(e.id)}
             innerRef={(el) => { if (el) cardRefs.current[e.id] = el; else delete cardRefs.current[e.id]; }}
           />

@@ -7,6 +7,7 @@ import { useHostResource } from "../contexts/useHostResource.js";
 import { useRecentChatActivity } from "../lib/useRecentChatActivity.js";
 import { addSpotifySection, addInstagramField } from "../lib/coachMutations.js";
 import { useMcpStatus } from "../lib/useMcpStatus.js";
+import { AI_CREATE_ENABLED } from "../lib/featureFlags.js";
 import { colors } from "../theme/colors.js";
 import { CanvasChat } from "./CanvasChat.jsx";
 
@@ -129,6 +130,9 @@ export function IdeaWidget() {
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
   const [canvasEventId, setCanvasEventId] = useState(null);
   useEffect(() => {
+    // AI build canvas paused (out of Anthropic credits) — ignore the create
+    // page's context broadcast so the dock stays on Messages everywhere.
+    if (!AI_CREATE_ENABLED) return;
     const onContext = (e) => setCanvasEventId(e.detail?.eventId ?? null);
     window.addEventListener("pullup:canvas-context", onContext);
     return () => window.removeEventListener("pullup:canvas-context", onContext);
@@ -143,6 +147,7 @@ export function IdeaWidget() {
   // still hits send — we draft, we don't auto-fire).
   const [canvasSeed, setCanvasSeed] = useState(null);
   useEffect(() => {
+    if (!AI_CREATE_ENABLED) return; // canvas paused — see note above
     const onBuildLook = (e) => {
       setOpen(true);
       setDockTab("create");

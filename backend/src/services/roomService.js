@@ -252,6 +252,9 @@ async function getMemberRooms(accountId, email = null) {
     const personIds = new Set();
     const { data: byAuth } = await supabase.from("people").select("id").eq("auth_user_id", accountId);
     for (const p of byAuth || []) personIds.add(p.id);
+    // Linked secondary logins resolve to their canonical person (mig 067).
+    const { data: linkedAcc } = await supabase.from("person_auth_accounts").select("person_id").eq("auth_user_id", accountId);
+    for (const r of linkedAcc || []) if (r.person_id) personIds.add(r.person_id);
     const e = (email || "").toString().trim().toLowerCase();
     if (e) {
       const { data: byEmail } = await supabase.from("people").select("id").ilike("email", e);
@@ -532,7 +535,12 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // via their person record (people.auth_user_id ↔ this account).
   let pullupsCount = 0;
   try {
-    const { data: me } = await supabase.from("people").select("id").eq("auth_user_id", hostId).maybeSingle();
+    let { data: me } = await supabase.from("people").select("id").eq("auth_user_id", hostId).maybeSingle();
+    if (!me) {
+      // Linked secondary login → canonical person (mig 067).
+      const { data: link } = await supabase.from("person_auth_accounts").select("person_id").eq("auth_user_id", hostId).maybeSingle();
+      if (link?.person_id) me = { id: link.person_id };
+    }
     if (me) {
       const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", me.id);
       pullupsCount = new Set((myUps || []).map((r) => r.event_id)).size;

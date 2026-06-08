@@ -52,6 +52,7 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { IdeasPage } from "./pages/IdeasPage";
 import { AdminEventsPage } from "./pages/AdminEventsPage";
 import { AdminCrmPage } from "./pages/AdminCrmPage";
+import { AdminMatchesPage } from "./pages/AdminMatchesPage";
 import { AdminPresentationPage } from "./pages/AdminPresentationPage";
 import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -172,6 +173,7 @@ function App() {
           <Route path="/admin/ideas" element={<IdeasPage />} />
           <Route path="/admin/events" element={<AdminEventsPage />} />
           <Route path="/admin/crm" element={<AdminCrmPage />} />
+          <Route path="/admin/matches" element={<AdminMatchesPage />} />
           {/* Admin platform newsletter / broadcast was removed with campaigns. */}
           <Route path="/admin/email" element={<Navigate to="/admin/crm" replace />} />
           <Route path="/admin/presentation" element={<AdminPresentationPage />} />

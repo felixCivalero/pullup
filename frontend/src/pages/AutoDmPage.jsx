@@ -78,6 +78,7 @@ function fmtDate(iso) {
 function StatusBadge({ status, expiresAt }) {
   const map = {
     active: { label: `Active · retires ${fmtDate(expiresAt)}`, bg: colors.successRgba, fg: colors.success, bd: "rgba(22,163,74,0.3)" },
+    pending: { label: "Pending · goes live when published", bg: colors.instagramSoft, fg: colors.instagram, bd: colors.instagramBorder },
     paused: { label: "Paused", bg: colors.surfaceMuted, fg: colors.textMuted, bd: colors.border },
     expired: { label: "Expired · event ended", bg: colors.dangerRgba, fg: colors.danger, bd: "rgba(220,38,38,0.25)" },
   };
@@ -374,8 +375,8 @@ export function AutoDmPage() {
         {noEvents ? (
           <div style={{ fontSize: 13.5, color: colors.textMuted, display: "flex", alignItems: "center", gap: 8 }}>
             <AlertCircle size={15} color={colors.textSubtle} />
-            You have no upcoming published events yet. Publish an event first, then come back to wire a
-            comment trigger to it.
+            You have no upcoming events yet. Create one first (a draft is fine — the trigger goes live
+            when you publish), then come back to wire a comment trigger to it.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -384,7 +385,7 @@ export function AutoDmPage() {
               <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
                 {events.map((ev) => (
                   <option key={ev.id} value={ev.id}>
-                    {ev.title} · {fmtDate(ev.startsAt)}
+                    {ev.title} · {fmtDate(ev.startsAt)}{ev.isDraft ? " · draft" : ""}
                   </option>
                 ))}
               </select>

@@ -58,7 +58,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("needs");
+  const [filter, setFilter] = useState("all");
   const [channel, setChannel] = useState("all");
   const [eventFilter, setEventFilter] = useState("all");
   const [openId, setOpenId] = useState(null);

@@ -77,7 +77,11 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const ready = isEditMode && !!eventId && eventStatus === "PUBLISHED";
+  // You can prepare a trigger on a saved event whether it's a draft or live —
+  // a draft trigger stays pending and goes live the moment you publish. The
+  // only hard requirement is that the event is SAVED (has an id to attach to).
+  const ready = isEditMode && !!eventId;
+  const isDraft = eventStatus !== "PUBLISHED";
 
   const load = useCallback(async () => {
     if (!ready) {
@@ -173,9 +177,8 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
       <div>
         {heading}
         <Notice>
-          {!isEditMode || !eventId
-            ? "Publish this event first — then you can wire a comment keyword that DMs its link."
-            : "This event is still a draft. Publish it to turn on Auto-DM (the DM needs a public event link)."}
+          Save this event first (it saves as a draft) — then you can wire a comment
+          keyword right here. It'll go live automatically when you publish.
         </Notice>
       </div>
     );
@@ -243,6 +246,23 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
       >
         <Instagram size={13} /> @{account?.username || "account"}
       </div>
+
+      {isDraft && (
+        <div
+          style={{
+            fontSize: 12.5,
+            color: colors.textMuted,
+            background: colors.instagramSoft,
+            border: `1px solid ${colors.instagramBorder}`,
+            borderRadius: 10,
+            padding: "9px 12px",
+            marginBottom: 16,
+            lineHeight: 1.5,
+          }}
+        >
+          This event is a draft — your trigger is saved now and goes live automatically when you publish.
+        </div>
+      )}
 
       {/* Create */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 22 }}>
@@ -352,6 +372,8 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
               <span style={{ fontSize: 11.5, color: colors.textSubtle }}>
                 {t.status === "expired"
                   ? "expired"
+                  : t.status === "pending"
+                  ? "goes live when published"
                   : t.status === "paused"
                   ? "paused"
                   : `retires ${fmtDate(t.expiresAt)}`}

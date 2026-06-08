@@ -25,19 +25,36 @@ function effectiveEnd(ev) {
   return ev?.ends_at || ev?.starts_at || null;
 }
 
-/** A trigger is live when enabled AND its event hasn't passed. */
-function isLive(row, nowMs) {
-  if (!row?.enabled) return false;
+/** The event has passed (or has no usable date). */
+function isExpired(row, nowMs) {
   const end = effectiveEnd(row.event);
-  if (!end) return false;
+  if (!end) return true;
   const t = Date.parse(end);
-  return Number.isFinite(t) && t > nowMs;
+  return !(Number.isFinite(t) && t > nowMs);
+}
+
+/**
+ * FIRES on a real comment: enabled, event PUBLISHED, not ended. A trigger
+ * prepared on a DRAFT is intentionally NOT live yet — it goes live the moment
+ * the host publishes the event (the DM carries the public /e/:slug link).
+ */
+function isLive(row, nowMs) {
+  return !!row?.enabled && row?.event?.status === "PUBLISHED" && !isExpired(row, nowMs);
+}
+
+/**
+ * Counts toward keyword uniqueness: any enabled, non-expired trigger — whether
+ * already live OR still pending on a draft. So a keyword can't be double-booked
+ * even before both events publish.
+ */
+function isActiveOrPending(row, nowMs) {
+  return !!row?.enabled && !isExpired(row, nowMs);
 }
 
 /** Shape a DB row + embedded event into the API/UI view, with computed state. */
 function toView(row, nowMs) {
   const end = effectiveEnd(row.event);
-  const expired = !end || !(Date.parse(end) > nowMs);
+  const expired = isExpired(row, nowMs);
   return {
     id: row.id,
     eventId: row.event_id,
@@ -52,9 +69,18 @@ function toView(row, nowMs) {
     replyText: row.reply_text || "",
     enabled: !!row.enabled,
     mediaId: row.media_id || null,
-    // For the UI: 'active' (firing), 'paused' (toggled off but event still live),
-    // 'expired' (event ended — never fires regardless of toggle).
-    status: expired ? "expired" : row.enabled ? "active" : "paused",
+    // For the UI:
+    //   'expired' — event ended; never fires.
+    //   'paused'  — host toggled it off.
+    //   'pending' — enabled, but the event is still a draft → goes live on publish.
+    //   'active'  — enabled + published + not ended → firing now.
+    status: expired
+      ? "expired"
+      : !row.enabled
+      ? "paused"
+      : row.event?.status !== "PUBLISHED"
+      ? "pending"
+      : "active",
     createdAt: row.created_at,
   };
 }
@@ -115,7 +141,7 @@ export async function findLiveKeywordConflict(hostProfileId, keyword, excludeId 
     (r) =>
       r.id !== excludeId &&
       String(r.keyword || "").trim().toLowerCase() === kw &&
-      isLive(r, nowMs)
+      isActiveOrPending(r, nowMs)
   );
   return hit ? toView(hit, nowMs) : null;
 }
@@ -179,16 +205,17 @@ export async function deleteTrigger(id, hostProfileId) {
 }
 
 /**
- * The host's events eligible to attach a trigger to: published and not yet
- * ended (the /e/:slug link must resolve to something live). Sorted soonest
- * first for the picker.
+ * The host's events eligible to attach a trigger to: published OR draft, and
+ * not yet ended. Drafts are allowed so a host can PREPARE a trigger ahead of
+ * launch — it stays pending and goes live when they publish. Sorted soonest
+ * first for the picker; `isDraft` lets the UI label pending ones.
  */
 export async function getEligibleEventsForHost(hostProfileId, nowMs = Date.now()) {
   const { data, error } = await supabase
     .from("events")
     .select(EVENT_COLS)
     .eq("host_id", hostProfileId)
-    .eq("status", "PUBLISHED")
+    .in("status", ["PUBLISHED", "DRAFT"])
     .order("starts_at", { ascending: true });
   if (error) throw error;
   return (data || [])
@@ -202,5 +229,6 @@ export async function getEligibleEventsForHost(hostProfileId, nowMs = Date.now()
       slug: ev.slug,
       startsAt: ev.starts_at,
       endsAt: ev.ends_at,
+      isDraft: ev.status !== "PUBLISHED",
     }));
 }

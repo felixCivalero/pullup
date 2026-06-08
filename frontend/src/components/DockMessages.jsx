@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -35,6 +35,10 @@ const CH = {
   instagram: { label: "Instagram", color: "#d6249f" },
   email: { label: "Email", color: "#6b7280" },
 };
+// Channel icons (lucide, matching the rest of the app — no WhatsApp brand mark
+// in lucide, so the chat bubble stands in). Inherit currentColor so the pill's
+// active (white) / idle (brand-tinted) colour just works.
+const CH_ICON = { whatsapp: MessageCircle, instagram: Instagram, email: Mail };
 const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
 function hashName(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
@@ -491,9 +495,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           <button onClick={() => setFilter("needs")} style={pill(filter === "needs")}>Needs you{needsCount ? ` · ${needsCount}` : ""}</button>
           <button onClick={() => setFilter("all")} style={pill(filter === "all")}>All</button>
           <span style={{ width: 1, background: D.line, margin: "2px 2px" }} />
-          {["all", "whatsapp", "instagram", "email"].map((c) => (
-            <button key={c} onClick={() => setChannel(c)} style={pill(channel === c, c === "all" ? D.muted : CH[c].color)}>{c === "all" ? "Any" : CH[c].label.slice(0, 2).toUpperCase()}</button>
-          ))}
+          {["all", "whatsapp", "instagram", "email"].map((c) => {
+            const Icon = CH_ICON[c];
+            return (
+              <button key={c} onClick={() => setChannel(c)} title={c === "all" ? "Any channel" : CH[c].label} aria-label={c === "all" ? "Any channel" : CH[c].label}
+                style={{ ...pill(channel === c, c === "all" ? D.muted : CH[c].color), display: "inline-flex", alignItems: "center", justifyContent: "center", padding: c === "all" ? "5px 11px" : "6px 10px" }}>
+                {c === "all" ? "Any" : <Icon size={15} strokeWidth={2.25} />}
+              </button>
+            );
+          })}
         </div>
         {roomEvents.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>

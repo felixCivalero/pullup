@@ -31,3 +31,6 @@ discord-bot/node_modules
 # Git worktrees
 .worktrees/
 node_modules/
+
+# Personal / manual — never tracked (Felix keeps invoices here by hand)
+invoice/

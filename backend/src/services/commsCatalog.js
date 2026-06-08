@@ -19,7 +19,7 @@ import {
   cancellationEmail,
   refundEmail,
 } from "../emails/signupConfirmation.js";
-import { TEMPLATES, renderTemplate } from "../whatsapp/templates/registry.js";
+import { TEMPLATES, renderTemplate, activeKey } from "../whatsapp/templates/registry.js";
 
 // A representative event used purely to render previews.
 const MOCK = {
@@ -138,14 +138,18 @@ export function renderComms({ hostProfile = {}, overrides = {}, frontendUrl = "h
     let email = null;
     try { email = m.email(note); } catch (e) { email = { subject: "(preview failed)", html: `<p>${e.message}</p>` }; }
     let whatsapp = { available: false };
-    if (m.wa && TEMPLATES[m.wa]) {
+    // Preview the template that's actually LIVE for this message — the host-leads
+    // _v2 once flipped, the original until then — so the studio never shows copy
+    // a guest won't receive.
+    const waKey = m.wa ? activeKey(m.wa) : null;
+    if (waKey && TEMPLATES[waKey]) {
       let text = "";
-      try { text = renderTemplate(m.wa, m.waVars); } catch (e) { text = `(template error: ${e.message})`; }
-      const status = TEMPLATES[m.wa].status;
+      try { text = renderTemplate(waKey, m.waVars); } catch (e) { text = `(template error: ${e.message})`; }
+      const status = TEMPLATES[waKey].status;
       // `live` = Meta has approved this template, so it can actually ship on
       // WhatsApp. Until then dispatch() routes this message to email — the UI
       // must say so rather than implying WhatsApp is already going out.
-      whatsapp = { available: true, templateKey: m.wa, status, live: status === "approved", text, locked: true };
+      whatsapp = { available: true, templateKey: waKey, status, live: status === "approved", text, locked: true };
     }
     return {
       key: m.key,

@@ -23,7 +23,7 @@ import { isSuppressed } from "./repos/whatsappSuppressionsRepo.js";
 import { upsertThreadFromMessage, isConversationWindowOpen } from "./repos/whatsappThreadsRepo.js";
 import { estimateCostMicros } from "./cost/pricing.js";
 import { countryFromE164, isValidE164 } from "../utils/phone.js";
-import { renderTemplate, getTemplate } from "./templates/registry.js";
+import { renderTemplate, getTemplate, activeKey } from "./templates/registry.js";
 import { logger } from "../logger.js";
 
 const SANDBOX_PHONE_NUMBER_ID = "sandbox-phone-number-id";
@@ -63,6 +63,11 @@ export async function sendTemplate({
   if (!isValidE164(to)) {
     throw new Error(`[whatsapp] sendTemplate: invalid E.164 phone '${to}'`);
   }
+  // Resolve the logical key (e.g. "rsvp_confirm") to whatever template is live
+  // for it right now (v1, or its host-leads _v2 once flipped). Single chokepoint
+  // for every send path — both dispatch() and the direct WhatsApp-king RSVP
+  // confirm in index.js funnel through here, so callers never carry the version.
+  templateKey = activeKey(templateKey);
   const tmpl = getTemplate(templateKey);
 
   const sup = await isSuppressed(to);

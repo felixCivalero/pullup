@@ -376,7 +376,197 @@ export const TEMPLATES = {
       },
     ],
   },
+
+  // ═══ Host-leads v2 ══════════════════════════════════════════════════
+  //
+  // Same messages, restructured so the HOST is the first thing the guest sees
+  // in the WhatsApp notification preview — the signature LEADS (after a single
+  // 👋), the message follows — instead of a generic "Hi {name}, …". Simpler,
+  // warmer, scales the same across every send. `host_signature` moves to {{1}};
+  // every other variable NAME is unchanged, so the send call-sites need ZERO
+  // edits: the ACTIVE_TEMPLATE alias (below) maps a logical key to its _v2 once
+  // Meta approves it. These start `status: "submitted"`; to put one live, FIRST
+  // let Meta approve it, THEN in the same change flip its status to "approved"
+  // and repoint ACTIVE_TEMPLATE. Don't repoint before approval — dispatch would
+  // route the message to the email floor for the whole review window.
+  //
+  // Meta rule (learned the hard way, subcode 2388299): a body may NOT start OR
+  // end on a variable. The leading "👋 " before {{1}} is what makes the
+  // host-first layout legal — without it Meta rejects the template outright.
+  // (host_broadcast has no v2: its body is mostly the host's free text, so a
+  // leading-signature layout trips the words-ratio limit, subcode 2388293.)
+
+  rsvp_confirm_v2: {
+    name: "rsvp_confirm_v2",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nGreat news {{2}} — your spot for {{3}} is confirmed. It's happening {{4}}. Can't wait to see you there!",
+    variables: ["host_signature", "guest_first_name", "event_title", "event_when"],
+    render: ({ host_signature, guest_first_name, event_title, event_when }) =>
+      `👋 ${host_signature}\n\nGreat news ${guest_first_name} — your spot for ${event_title} is confirmed. It's happening ${event_when}. Can't wait to see you there!`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nGreat news {{2}} — your spot for {{3}} is confirmed. It's happening {{4}}. Can't wait to see you there!",
+        example: {
+          body_text: [["It's me, Maya", "Adam", "Photowalk Stockholm", "Saturday 10:00"]],
+        },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Open event", url: "https://pullup.se/e/{{1}}", example: ["photowalk-stockholm"] },
+        ],
+      },
+    ],
+  },
+
+  event_reminder_24h_v2: {
+    name: "event_reminder_24h_v2",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nQuick reminder — {{2}} is happening tomorrow {{3}}. Hope you can still make it, see you there!",
+    variables: ["host_signature", "event_title", "time_phrase"],
+    render: ({ host_signature, event_title, time_phrase }) =>
+      `👋 ${host_signature}\n\nQuick reminder — ${event_title} is happening tomorrow ${time_phrase}. Hope you can still make it, see you there!`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nQuick reminder — {{2}} is happening tomorrow {{3}}. Hope you can still make it, see you there!",
+        example: { body_text: [["It's me, Maya", "Photowalk Stockholm", "at 10:00"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Directions", url: "https://maps.google.com/?q={{1}}", example: ["Skansenbron+Stockholm"] },
+        ],
+      },
+    ],
+  },
+
+  event_reminder_2h_v2: {
+    name: "event_reminder_2h_v2",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nAlmost time! {{2}} starts in about 2 hours over at {{3}}. Head down whenever you're ready, see you soon!",
+    variables: ["host_signature", "event_title", "venue"],
+    render: ({ host_signature, event_title, venue }) =>
+      `👋 ${host_signature}\n\nAlmost time! ${event_title} starts in about 2 hours over at ${venue}. Head down whenever you're ready, see you soon!`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nAlmost time! {{2}} starts in about 2 hours over at {{3}}. Head down whenever you're ready, see you soon!",
+        example: { body_text: [["It's me, Maya", "Photowalk Stockholm", "Skansenbron"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Open event", url: "https://pullup.se/e/{{1}}", example: ["photowalk-stockholm"] },
+        ],
+      },
+    ],
+  },
+
+  booking_cancelled_v2: {
+    name: "booking_cancelled_v2",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nSorry {{2}} — your booking for {{3}} was cancelled. Reach out if you have any questions.",
+    variables: ["host_signature", "guest_first_name", "event_title"],
+    render: ({ host_signature, guest_first_name, event_title }) =>
+      `👋 ${host_signature}\n\nSorry ${guest_first_name} — your booking for ${event_title} was cancelled. Reach out if you have any questions.`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nSorry {{2}} — your booking for {{3}} was cancelled. Reach out if you have any questions.",
+        example: { body_text: [["It's me, Maya", "Adam", "Rooftop Sessions Vol. 4"]] },
+      },
+    ],
+  },
+
+  event_change_v2: {
+    name: "event_change_v2",
+    category: "utility",
+    meta_category: "UTILITY",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nQuick heads up about {{2}} — the timing changed. It's now {{3}}, instead of {{4}}. Sorry for any shuffle!",
+    variables: ["host_signature", "event_title", "new_when", "old_when"],
+    render: ({ host_signature, event_title, new_when, old_when }) =>
+      `👋 ${host_signature}\n\nQuick heads up about ${event_title} — the timing changed. It's now ${new_when}, instead of ${old_when}. Sorry for any shuffle!`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nQuick heads up about {{2}} — the timing changed. It's now {{3}}, instead of {{4}}. Sorry for any shuffle!",
+        example: {
+          body_text: [["It's me, Maya", "Photowalk Stockholm", "Sun 11:00", "Sat 10:00"]],
+        },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "See update", url: "https://pullup.se/e/{{1}}", example: ["photowalk-stockholm"] },
+        ],
+      },
+    ],
+  },
+
+  post_event_thanks_v2: {
+    name: "post_event_thanks_v2",
+    category: "marketing",
+    meta_category: "MARKETING",
+    locale: "en",
+    status: "submitted",
+    body: "👋 {{1}}\n\nHope you enjoyed {{2}}! The photos and what's coming next are ready for you. Thanks so much for coming 🙏",
+    variables: ["host_signature", "event_title"],
+    render: ({ host_signature, event_title }) =>
+      `👋 ${host_signature}\n\nHope you enjoyed ${event_title}! The photos and what's coming next are ready for you. Thanks so much for coming 🙏`,
+    components: [
+      {
+        type: "BODY",
+        text: "👋 {{1}}\n\nHope you enjoyed {{2}}! The photos and what's coming next are ready for you. Thanks so much for coming 🙏",
+        example: { body_text: [["It's me, Maya", "Photowalk Stockholm"]] },
+      },
+      {
+        type: "BUTTONS",
+        buttons: [
+          { type: "URL", text: "Photos + next event", url: "https://pullup.se/e/{{1}}", example: ["photowalk-stockholm"] },
+        ],
+      },
+    ],
+  },
 };
+
+/**
+ * Logical → physical template key. Send call-sites pass the LOGICAL key
+ * (e.g. "rsvp_confirm"); `sendTemplate` resolves it through here before it
+ * touches Meta, so the swap is invisible to callers. To put a host-leads v2
+ * variant live, flip its value to the `_v2` key — but ONLY in the same change
+ * that sets that v2 template's `status: "approved"`, and ONLY once Meta has
+ * actually approved it. Repointing earlier routes the message to the email
+ * floor for the entire review window. Keys absent here resolve to themselves.
+ */
+export const ACTIVE_TEMPLATE = {
+  rsvp_confirm: "rsvp_confirm", // → "rsvp_confirm_v2" once Meta approves
+  event_reminder_24h: "event_reminder_24h", // → "event_reminder_24h_v2"
+  event_reminder_2h: "event_reminder_2h", // → "event_reminder_2h_v2"
+  booking_cancelled: "booking_cancelled", // → "booking_cancelled_v2"
+  event_change: "event_change", // → "event_change_v2"
+  post_event_thanks: "post_event_thanks", // → "post_event_thanks_v2"
+};
+
+/** Resolve a logical template key to the physical one currently live. */
+export function activeKey(logicalKey) {
+  return ACTIVE_TEMPLATE[logicalKey] || logicalKey;
+}
 
 /** Tier-1 templates we submit + approve first. */
 export const TIER_1_TEMPLATES = [

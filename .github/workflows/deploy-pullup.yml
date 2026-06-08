@@ -13,6 +13,13 @@ on:
 # the new one — so we never have two `npm install` processes clobbering
 # the same node_modules tree on EC2 (which is what produced the tar
 # ENOENT errors on 2026-05-22).
+#
+# This guards CI-vs-CI only. Do NOT manually `ssh` in and run `npm ci` /
+# `npm run build` / `pm2 restart` while a deploy may be in flight — a manual
+# build racing CI's `npm ci` corrupts node_modules mid-resolve ("Failed to
+# resolve entry for package react"), and a manual `pm2 restart` colliding with
+# CI's reload makes the post-deploy health check hit a down API (Connection
+# refused → rollback). Both happened 2026-06-08. Push and let CI own the deploy.
 concurrency:
   group: deploy-pullup-${{ github.ref }}
   cancel-in-progress: true
@@ -143,10 +150,22 @@ jobs:
             pm2 save
 
             # ─── POST-DEPLOY HEALTH CHECK ────────────────────────────────
-            echo "🏥 Backend health check..."
-            sleep 2
-            if ! curl -fsS -o /dev/null http://127.0.0.1:3001/mcp/health; then
-              echo "❌ Backend health check failed after reload. Rolling back frontend..." >&2
+            # Poll, don't single-shot: a `pm2 reload` drops the listener for a
+            # beat, so a curl at +2s can hit "Connection refused" on a perfectly
+            # healthy deploy (that false-negative rolled back a good build on
+            # 2026-06-08). Give the API up to ~30s to bind before we call it.
+            echo "🏥 Backend health check (up to ~30s for the API to bind)..."
+            HEALTH_OK=0
+            for attempt in $(seq 1 15); do
+              if curl -fsS -o /dev/null http://127.0.0.1:3001/mcp/health; then
+                HEALTH_OK=1
+                echo "✅ Healthy after ${attempt} attempt(s)."
+                break
+              fi
+              sleep 2
+            done
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "❌ Backend health check failed after ~30s. Rolling back frontend..." >&2
               if [ -d dist-prev ]; then
                 rm -rf dist-failed
                 mv dist dist-failed

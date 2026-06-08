@@ -12,7 +12,8 @@
 // SettingsProfileSection card + heading conventions exactly.
 
 import { useState, useEffect, useCallback } from "react";
-import { MessageSquare, Instagram, Plus, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { MessageSquare, Instagram, ChevronDown, ChevronRight } from "lucide-react";
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "./Toast";
@@ -336,62 +337,9 @@ export function SettingsCommsSection({ user }) {
   }
 
   // ── 2) Automated DMs (Instagram) ──
-  const [loadingRules, setLoadingRules] = useState(true);
-  const [rulesError, setRulesError] = useState(false);
-  const [account, setAccount] = useState(null);
-  const [rules, setRules] = useState([]);
-  const [savingRules, setSavingRules] = useState(false);
-
-  const loadRules = useCallback(async () => {
-    setLoadingRules(true);
-    setRulesError(false);
-    try {
-      const res = await authenticatedFetch("/host/instagram/comment-rules");
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
-      const accounts = Array.isArray(data.accounts) ? data.accounts : [];
-      const acct = accounts.find((a) => a.isDefault) || accounts[0] || null;
-      setAccount(acct);
-      setRules(acct?.rules ? acct.rules.map((r) => ({ ...r })) : []);
-    } catch {
-      setRulesError(true);
-    } finally {
-      setLoadingRules(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadRules();
-  }, [loadRules]);
-
-  function patchRule(i, updates) {
-    setRules((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...updates } : r)));
-  }
-  function removeRule(i) {
-    setRules((prev) => prev.filter((_, idx) => idx !== i));
-  }
-  function addRule() {
-    setRules((prev) => [
-      ...prev,
-      { keyword: "", match: "contains", media_id: "", event_slug: "", reply_text: "", enabled: true },
-    ]);
-  }
-
-  async function handleSaveRules() {
-    setSavingRules(true);
-    try {
-      const res = await authenticatedFetch("/host/instagram/comment-rules", {
-        method: "PUT",
-        body: JSON.stringify({ rules }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      showToast("Rules saved", "success");
-    } catch {
-      showToast("Couldn't save rules", "error");
-    } finally {
-      setSavingRules(false);
-    }
-  }
+  // The comment→DM editor moved to its own first-class page (/auto-dm), where
+  // triggers are per-event and expire when the event ends. We keep only a
+  // pointer here so hosts who look in Settings still find it.
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
@@ -474,7 +422,7 @@ export function SettingsCommsSection({ user }) {
 
       {/* ════ AUTOMATED DMs (INSTAGRAM) ════ */}
       <div>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 12 }}>
           <h2
             style={{
               fontSize: 18,
@@ -486,184 +434,32 @@ export function SettingsCommsSection({ user }) {
               gap: 10,
             }}
           >
-            <Instagram size={20} color={colors.accent} />
+            <Instagram size={20} color={colors.instagram} />
             Automated DMs
           </h2>
           <p style={{ fontSize: 14, color: colors.textMuted, lineHeight: 1.5 }}>
-            When someone comments a keyword on your Instagram post, PullUp auto-DMs them your event
-            link.
+            Comment→DM triggers now live on their own page — per event, and
+            they retire automatically when the event ends.
           </p>
         </div>
-
-        {loadingRules ? (
-          <div style={{ fontSize: 13.5, color: colors.textSubtle }}>Loading…</div>
-        ) : rulesError ? (
-          <div style={{ fontSize: 13.5, color: colors.textMuted }}>
-            Couldn't load your DM rules.{" "}
-            <button
-              type="button"
-              onClick={loadRules}
-              style={{ background: "none", border: "none", padding: 0, color: colors.accent, fontWeight: 600, cursor: "pointer" }}
-            >
-              Retry
-            </button>
-          </div>
-        ) : !account ? (
-          <div style={{ ...cardStyle, fontSize: 13.5, color: colors.textSubtle }}>
-            Connect your Instagram in Profile to set up auto-DMs.
-          </div>
-        ) : (
-          <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: colors.accentSoft,
-                  color: colors.accent,
-                }}
-              >
-                <Instagram size={18} />
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 650, color: colors.text }}>
-                @{account.username || "account"}
-              </span>
-            </div>
-
-            {rules.length === 0 && (
-              <div style={{ fontSize: 13, color: colors.textSubtle }}>No rules yet — add one below.</div>
-            )}
-
-            {rules.map((r, i) => (
-              <div
-                key={r.id || i}
-                style={{
-                  padding: 14,
-                  background: "#ffffff",
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: 12,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-                  <div style={{ flex: "1 1 160px" }}>
-                    <div style={labelStyle}>Keyword</div>
-                    <input
-                      type="text"
-                      value={r.keyword || ""}
-                      onChange={(e) => patchRule(i, { keyword: e.target.value })}
-                      placeholder="e.g. INFO"
-                      style={inputStyle}
-                      onFocus={focusBorder}
-                      onBlur={blurBorder}
-                    />
-                  </div>
-                  <div style={{ flex: "0 0 130px" }}>
-                    <div style={labelStyle}>Match</div>
-                    <select
-                      value={r.match || "contains"}
-                      onChange={(e) => patchRule(i, { match: e.target.value })}
-                      style={{ ...inputStyle, cursor: "pointer" }}
-                    >
-                      <option value="contains">contains</option>
-                      <option value="exact">exact</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: "1 1 160px" }}>
-                    <div style={labelStyle}>Event slug</div>
-                    <input
-                      type="text"
-                      value={r.event_slug || ""}
-                      onChange={(e) => patchRule(i, { event_slug: e.target.value })}
-                      placeholder="event-slug"
-                      style={inputStyle}
-                      onFocus={focusBorder}
-                      onBlur={blurBorder}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeRule(i)}
-                    title="Remove rule"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: "50%",
-                      border: `1px solid ${colors.border}`,
-                      background: colors.surface,
-                      color: colors.danger,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-
-                <div>
-                  <div style={labelStyle}>Reply text</div>
-                  <textarea
-                    value={r.reply_text || ""}
-                    onChange={(e) => patchRule(i, { reply_text: e.target.value })}
-                    rows={2}
-                    placeholder="You're in — tap to grab your spot 👇"
-                    style={{ ...inputStyle, resize: "none", lineHeight: 1.5, fontFamily: "inherit" }}
-                    onFocus={focusBorder}
-                    onBlur={blurBorder}
-                  />
-                </div>
-
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={r.enabled !== false}
-                    onChange={(e) => patchRule(i, { enabled: e.target.checked })}
-                    style={{ width: 17, height: 17, accentColor: colors.accent, cursor: "pointer" }}
-                  />
-                  <span style={{ fontSize: 13, color: colors.text }}>Active</span>
-                </label>
-              </div>
-            ))}
-
-            <div>
-              <button
-                type="button"
-                onClick={addRule}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  border: `1px dashed ${colors.borderStrong}`,
-                  background: colors.surface,
-                  color: colors.text,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Plus size={14} /> Add rule
-              </button>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button type="button" onClick={handleSaveRules} disabled={savingRules} style={pillButton(savingRules)}>
-                {savingRules ? "Saving…" : "Save rules"}
-              </button>
-            </div>
-          </div>
-        )}
+        <Link
+          to="/auto-dm"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "11px 18px",
+            borderRadius: 999,
+            textDecoration: "none",
+            background: colors.gradientInstagram,
+            color: "#fff",
+            fontSize: 13.5,
+            fontWeight: 700,
+            boxShadow: "0 6px 18px rgba(214,36,159,0.28)",
+          }}
+        >
+          <Instagram size={16} /> Open Auto-DM
+        </Link>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "./Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
-import { ChevronLeft, Settings } from "lucide-react";
+import { ChevronLeft, Settings, Instagram } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
@@ -248,6 +248,101 @@ function ProtectedLayoutInner() {
   function isActive(path) {
     if (path === "/admin") return location.pathname === "/admin";
     return location.pathname.startsWith(path);
+  }
+
+  // The Auto-DM nav item — Instagram-branded so it pops, with a NEW pill. It's
+  // a first-class host destination (not admin-gated): comment→DM automation we
+  // want creators to actually find and use. Rendered bespoke (not via navItems)
+  // so it can carry the IG gradient + badge without complicating the generic
+  // nav map. Two variants: the desktop top-bar pill and the mobile drawer row.
+  function renderAutoDmNav(variant) {
+    const active = isActive("/auto-dm");
+    const newPill = (
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          color: "#fff",
+          background: colors.gradientInstagram,
+          padding: "1px 6px",
+          borderRadius: 999,
+          lineHeight: 1.5,
+          marginLeft: variant === "mobile" ? "auto" : 0,
+        }}
+      >
+        NEW
+      </span>
+    );
+    const gradientLabel = (
+      <span
+        style={{
+          background: colors.gradientInstagram,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          color: "transparent",
+          fontWeight: 700,
+        }}
+      >
+        Auto-DM
+      </span>
+    );
+    if (variant === "mobile") {
+      return (
+        <button
+          key="/auto-dm"
+          onClick={() => handleNav("/auto-dm")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            width: "100%",
+            padding: "14px 16px",
+            borderRadius: "12px",
+            border: `1px solid ${active ? colors.instagramBorder : "transparent"}`,
+            background: colors.instagramSoft,
+            fontSize: "15px",
+            cursor: "pointer",
+            textAlign: "left",
+            touchAction: "manipulation",
+          }}
+        >
+          <Instagram size={17} color={colors.instagram} />
+          {gradientLabel}
+          {newPill}
+        </button>
+      );
+    }
+    return (
+      <button
+        key="/auto-dm"
+        onClick={() => handleNav("/auto-dm")}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: colors.instagramSoft,
+          border: `1px solid ${active ? colors.instagramBorder : "transparent"}`,
+          fontSize: "13px",
+          letterSpacing: "0.01em",
+          cursor: "pointer",
+          padding: "6px 12px",
+          borderRadius: "999px",
+          transition: "all 0.15s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = colors.instagramBorder;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = active ? colors.instagramBorder : "transparent";
+        }}
+      >
+        <Instagram size={14} color={colors.instagram} />
+        {gradientLabel}
+        {newPill}
+      </button>
+    );
   }
 
   function isEventTabActive(tab) {
@@ -495,6 +590,9 @@ function ProtectedLayoutInner() {
                 {label}
               </button>
             ))}
+
+            {/* Auto-DM — Instagram-branded destination, deliberately loud. */}
+            {renderAutoDmNav("desktop")}
 
             {/* Admin section with amber divider */}
             {isAdmin && (
@@ -1110,6 +1208,9 @@ function ProtectedLayoutInner() {
                       {label}
                     </button>
                   ))}
+
+                  {/* Auto-DM — Instagram-branded destination, deliberately loud. */}
+                  {renderAutoDmNav("mobile")}
 
                   {/* Admin section */}
                   {isAdmin && (

@@ -5804,6 +5804,117 @@ app.put("/host/instagram/comment-rules", requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// PER-EVENT Instagram comment→DM triggers (migration 068) — the Auto-DM page.
+// Each trigger is anchored to an event and fires only while that event hasn't
+// ended (expiry computed in the repo). Keyword uniqueness is enforced among
+// LIVE triggers, so a keyword frees itself up once its event passes. Supersedes
+// the global comment-rules model above.
+// ─────────────────────────────────────────────────────────────────────────
+
+app.get("/host/comment-triggers", requireAuth, async (req, res) => {
+  try {
+    const { supabase } = await import("./supabase.js");
+    const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
+    const { data: conns } = await supabase
+      .from("instagram_connections")
+      .select("ig_username, is_default")
+      .eq("host_profile_id", req.user.id)
+      .eq("status", "connected")
+      .order("is_default", { ascending: false });
+    const account = conns?.[0] || null;
+    const [triggers, events] = await Promise.all([
+      repo.listTriggersForHost(req.user.id),
+      repo.getEligibleEventsForHost(req.user.id),
+    ]);
+    res.json({
+      ok: true,
+      igConnected: !!account,
+      account: account ? { username: account.ig_username } : null,
+      triggers,
+      events,
+    });
+  } catch (e) {
+    console.error("[comment-triggers:get]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+app.post("/host/comment-triggers", requireAuth, async (req, res) => {
+  try {
+    const { eventId, keyword, match, replyText, mediaId } = req.body || {};
+    const kw = String(keyword || "").trim();
+    if (!eventId || !kw) {
+      return res.status(400).json({ ok: false, error: "event_and_keyword_required" });
+    }
+    const { supabase } = await import("./supabase.js");
+    const { data: ev } = await supabase
+      .from("events")
+      .select("id, host_id")
+      .eq("id", eventId)
+      .maybeSingle();
+    if (!ev || ev.host_id !== req.user.id) {
+      return res.status(404).json({ ok: false, error: "event_not_found" });
+    }
+    const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
+    const conflict = await repo.findLiveKeywordConflict(req.user.id, kw, null);
+    if (conflict) {
+      return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
+    }
+    const trigger = await repo.createTrigger({
+      eventId,
+      hostProfileId: req.user.id,
+      keyword: kw,
+      match,
+      replyText,
+      mediaId,
+    });
+    res.json({ ok: true, trigger });
+  } catch (e) {
+    console.error("[comment-triggers:post]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+app.patch("/host/comment-triggers/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { keyword, match, replyText, enabled, mediaId } = req.body || {};
+    const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
+    const existing = await repo.getTriggerById(id, req.user.id);
+    if (!existing) return res.status(404).json({ ok: false, error: "not_found" });
+    // Re-check live uniqueness when the trigger will be enabled (keyword may change).
+    const nextKeyword = keyword !== undefined ? String(keyword).trim() : existing.keyword;
+    const willEnable = enabled !== undefined ? enabled !== false : existing.enabled;
+    if (willEnable) {
+      const conflict = await repo.findLiveKeywordConflict(req.user.id, nextKeyword, id);
+      if (conflict) return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
+    }
+    const trigger = await repo.updateTrigger(id, req.user.id, {
+      keyword,
+      match,
+      replyText,
+      enabled,
+      mediaId,
+    });
+    res.json({ ok: true, trigger });
+  } catch (e) {
+    console.error("[comment-triggers:patch]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+app.delete("/host/comment-triggers/:id", requireAuth, async (req, res) => {
+  try {
+    const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
+    await repo.deleteTrigger(req.params.id, req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[comment-triggers:delete]", e.message);
+    res.status(500).json({ ok: false, error: "failed" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE PULL-UP — verified physical presence via the host's live rotating QR.
 // The threshold of the whole relational model: an RSVP is intent, a pull-up
 // is proof. See services/pullupService.js for the integrity mechanism.

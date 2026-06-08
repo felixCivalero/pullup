@@ -57,6 +57,13 @@ export const colors = {
   info: "#0d9488",
   infoRgba: "rgba(13, 148, 136, 0.12)",
 
+  // ── Instagram: the canonical IG brand gradient (Auto-DM feature) ──
+  instagram: "#d6249f",
+  gradientInstagram:
+    "linear-gradient(135deg, #405de6 0%, #5851db 18%, #833ab4 38%, #c13584 58%, #e1306c 76%, #fd1d1d 92%, #f56040 100%)",
+  instagramSoft: "rgba(214, 36, 159, 0.10)",
+  instagramBorder: "rgba(214, 36, 159, 0.30)",
+
   // ── Admin: deep amber, legible on white (gold dies on a light canvas) ──
   gold: "#b45309",
   goldRgba: "rgba(180, 83, 9, 0.9)",

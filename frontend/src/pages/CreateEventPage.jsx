@@ -11,6 +11,7 @@ import {
   Trophy,
   UtensilsCrossed,
   ClipboardList,
+  Instagram,
   Lightbulb,
   Ticket,
   Palette,
@@ -55,6 +56,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { CreateWizard } from "../components/CreateWizard.jsx";
 import { BrandThemeEditor } from "../components/BrandThemeEditor.jsx";
+import { EventAutoDmPanel } from "../components/EventAutoDmPanel.jsx";
 import { pickTextColor, fontStack, softColor, FONTS } from "../lib/brand.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -458,6 +460,14 @@ const RAIL_GROUPS = [
       // are captured up front in the new-event wizard). Kept reachable so
       // existing events can still tweak the form, capacity and options.
       { id: "collect", label: "Sign-up & access", icon: ClipboardList, step: 3 },
+    ],
+  },
+  {
+    group: "Promote",
+    items: [
+      // Auto-DM lives in the same step as sign-up (step 3) but toggles its own
+      // panel via activePartId; tinted Instagram so it reads as the IG feature.
+      { id: "autoDm", label: "Instagram Auto-DM", icon: Instagram, step: 3, tint: colors.instagram },
     ],
   },
 ];
@@ -2877,11 +2887,12 @@ export function CreateEventPage() {
                           width: "40px",
                           height: "40px",
                           borderRadius: "11px",
-                          border: `1px solid ${active ? colors.accentBorder : "transparent"}`,
+                          border: `1px solid ${active ? (it.tint ? colors.instagramBorder : colors.accentBorder) : "transparent"}`,
                           cursor: loading ? "not-allowed" : "pointer",
                           WebkitTapHighlightColor: "transparent",
-                          background: active ? colors.accentSoft : "transparent",
-                          color: active ? colors.accent : colors.textMuted,
+                          background: active ? (it.tint ? colors.instagramSoft : colors.accentSoft) : "transparent",
+                          // Tinted items (Auto-DM) keep their brand color even when idle, so the feature pops in the rail.
+                          color: it.tint || (active ? colors.accent : colors.textMuted),
                           transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
                           ...(detailsTabPulse && it.step === 2 ? { animation: "detailsTabGlow 1s ease forwards" } : {}),
                         }}
@@ -4861,10 +4872,20 @@ export function CreateEventPage() {
               </div>
             </div>
 
+            {/* Auto-DM panel — same step as the form, toggled by the rail's
+                Instagram icon (activePartId === "autoDm"). Scoped to THIS event. */}
+            <div
+              style={{
+                display: currentStep === 3 && activePartId === "autoDm" ? "block" : "none",
+              }}
+            >
+              <EventAutoDmPanel eventId={editEventId} eventStatus={eventStatus} isEditMode={isEditMode} />
+            </div>
+
             {/* === STEP 4 (tab position): FORM === */}
             <div
               style={{
-                display: currentStep === 3 ? "block" : "none",
+                display: currentStep === 3 && activePartId !== "autoDm" ? "block" : "none",
               }}
             >
 

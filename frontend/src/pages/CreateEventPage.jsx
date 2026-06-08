@@ -62,6 +62,7 @@ import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { AI_CREATE_ENABLED } from "../lib/featureFlags.js";
 import { colors } from "../theme/colors.js";
+import { ChannelBadge, CHANNEL_BRAND } from "../components/ChannelBadge.jsx";
 import {
   formatRelativeTime,
   formatReadableDateTime,
@@ -795,8 +796,10 @@ export function CreateEventPage() {
   const [formFields, setFormFields] = useState(
     withLockedFields(draft?.formFields, draft?.contactChannel || "email"),
   );
-  // The RSVP form is fixed to Name + Email (always required) + WhatsApp +
-  // Instagram. These toggles make WhatsApp / Instagram required (else optional).
+  // RSVP form: Name is always required. Email + WhatsApp are the reach floor —
+  // at least one MUST be required so every guest is reachable (enforced at
+  // publish). Email defaults to required; WhatsApp / Instagram default optional.
+  const [requireEmail, setRequireEmail] = useState(draft?.requireEmail !== false);
   const [requirePhone, setRequirePhone] = useState(!!draft?.requirePhone);
   const [requireInstagram, setRequireInstagram] = useState(!!draft?.requireInstagram);
   // Whether WhatsApp / Instagram are collected at all (false = Off, removed from
@@ -902,7 +905,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel, requirePhone, requireInstagram, collectPhone, collectInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1069,6 +1072,7 @@ export function CreateEventPage() {
           instagram, spotify, tiktok, soundcloud,
           formFields,
           contactChannel,
+          requireEmail,
           requirePhone,
           requireInstagram,
           collectPhone,
@@ -1287,6 +1291,13 @@ export function CreateEventPage() {
       } else {
         goToStep(2);
       }
+      return false;
+    }
+    // Reach floor: at least one of Email / WhatsApp must be required, so every
+    // guest leaves a channel you can actually reach them on.
+    if (!requireEmail && !requirePhone) {
+      setHasAttemptedPublish(true);
+      showToast("Require at least one way to reach guests — Email or WhatsApp", "error");
       return false;
     }
     return true;
@@ -1569,6 +1580,7 @@ export function CreateEventPage() {
           ? ev.contactChannel
           : "email";
         setContactChannelRaw(loadedChannel);
+        setRequireEmail(ev.requireEmail !== false);
         setRequirePhone(!!ev.requirePhone);
         setRequireInstagram(!!ev.requireInstagram);
         setCollectPhone(ev.collectPhone !== false);
@@ -1736,7 +1748,7 @@ export function CreateEventPage() {
     title, description, sections,
     startsAt, endsAt, timezone, hideDate, dateRevealHint,
     location, locationLat, locationLng, locationPlaceId, hideLocation, revealHint,
-    collectPhone, requirePhone, collectInstagram, requireInstagram, formFields, contactChannel,
+    collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, formFields, contactChannel,
     maxAttendees, waitlistEnabled, instantWaitlist, allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerSlotsConfig, brand, instagram, spotify, tiktok, soundcloud,
   ]);
@@ -2297,6 +2309,7 @@ export function CreateEventPage() {
       }),
       formFields: (formFields || []).filter(f => f && f.id && (isLockedFieldId(f.id) || (f.label || "").trim())),
       contactChannel,
+      requireEmail,
       requirePhone,
       requireInstagram,
       collectPhone,
@@ -4923,16 +4936,22 @@ export function CreateEventPage() {
                   RSVP form
                 </div>
                 <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
-                  Name and email are always required — that's how you reach and recognise people. Choose whether to collect WhatsApp and Instagram, and whether they're required.
+                  Name is always required. Email and WhatsApp are how you reach people — at least one must be required. Instagram is a bonus.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {[
-                    { label: "Name", fixed: true },
-                    { label: "Email", fixed: true },
-                    { label: "WhatsApp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
-                    { label: "Instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
+                    { label: "Name", channel: "name", fixed: true },
+                    // Email is the reach floor — it can't be turned Off, only
+                    // Required ↔ Optional (so a host can hand the floor to WhatsApp).
+                    { label: "Email", channel: "email", floor: true, collect: true, require: requireEmail, set: (_c, r) => setRequireEmail(r) },
+                    { label: "WhatsApp", channel: "whatsapp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
+                    { label: "Instagram", channel: "instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
                   ].map((row) => {
                     const mode = row.fixed ? "required" : !row.collect ? "off" : row.require ? "required" : "optional";
+                    const brandAccent = CHANNEL_BRAND[row.channel]?.accent || colors.accent;
+                    const toggleOpts = row.floor
+                      ? [{ key: "optional", label: "Optional" }, { key: "required", label: "Required" }]
+                      : [{ key: "off", label: "Off" }, { key: "optional", label: "Optional" }, { key: "required", label: "Required" }];
                     return (
                     <div
                       key={row.label}
@@ -4946,16 +4965,15 @@ export function CreateEventPage() {
                         borderRadius: "8px",
                       }}
                     >
-                      <span style={{ fontSize: "14px", fontWeight: 500, color: colors.text }}>{row.label}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
+                        <ChannelBadge channel={row.channel} size={28} />
+                        <span style={{ fontSize: "14px", fontWeight: 500, color: colors.text }}>{row.label}</span>
+                      </span>
                       {row.fixed ? (
                         <span style={{ fontSize: "12px", color: colors.textMuted }}>Always required</span>
                       ) : (
                         <div style={{ display: "inline-flex", gap: "2px", padding: "2px", background: colors.background, border: `1px solid ${colors.border}`, borderRadius: "8px" }}>
-                          {[
-                            { key: "off", label: "Off" },
-                            { key: "optional", label: "Optional" },
-                            { key: "required", label: "Required" },
-                          ].map((opt) => {
+                          {toggleOpts.map((opt) => {
                             const active = mode === opt.key;
                             return (
                               <button
@@ -4966,7 +4984,7 @@ export function CreateEventPage() {
                                   padding: "5px 10px",
                                   borderRadius: "6px",
                                   border: "none",
-                                  background: active ? (opt.key === "off" ? colors.border : "#ec178f") : "transparent",
+                                  background: active ? (opt.key === "off" ? colors.border : brandAccent) : "transparent",
                                   color: active ? (opt.key === "off" ? colors.text : "#fff") : colors.textMuted,
                                   fontSize: "12px",
                                   fontWeight: active ? 600 : 500,

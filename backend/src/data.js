@@ -765,6 +765,47 @@ function mapEventToDb(eventData) {
   return dbData;
 }
 
+// ── The ONE allowlist of client-settable event fields ──────────────────────
+// Both event-write routes (POST /events, PUT /host/events/:id) pick from
+// req.body using THIS list instead of hand-enumerating fields. That's the whole
+// point: a field the editor sends can never again be silently dropped at a
+// route boundary — the bug that lost enrichmentQuestions (and the reach-floor
+// toggles before it). Draft and live events share this exact path; only `status`
+// differs, and routes set that explicitly.
+//
+// To add a new client-settable event field: add it HERE and add its mapping in
+// mapEventToDb above. Server-controlled fields (host_id, slug, status,
+// createdVia, the stripe ids) are deliberately NOT here — routes set those.
+export const EDITABLE_EVENT_FIELDS = [
+  "title", "description",
+  "location", "locationLat", "locationLng", "locationPlaceId",
+  "startsAt", "endsAt", "timezone",
+  "maxAttendees", "waitlistEnabled", "instantWaitlist",
+  "imageUrl", "theme", "brand", "calendar", "visibility",
+  "ticketType", "ticketPrice", "ticketCurrency", "requireApproval",
+  "maxPlusOnesPerGuest",
+  "dinnerEnabled", "dinnerStartTime", "dinnerEndTime", "dinnerSeatingIntervalHours",
+  "dinnerMaxSeatsPerSlot", "dinnerOverflowAction", "dinnerSlots", "dinnerBookingEmail",
+  "hideDinnerRemaining",
+  "cocktailCapacity", "foodCapacity", "totalCapacity",
+  "mediaSettings", "titleSettings",
+  "instagram", "spotify", "tiktok", "soundcloud",
+  "sections", "formFields", "enrichmentQuestions",
+  "contactChannel",
+  "requireEmail", "collectPhone", "requirePhone", "collectInstagram", "requireInstagram",
+  "hideLocation", "hideDate", "revealHint", "dateRevealHint",
+];
+
+// Pick only the editable fields a client is allowed to set — keeps mass-assign
+// safety (host_id/status/etc. can't sneak in) while staying DRY.
+export function pickEventFields(body = {}) {
+  const out = {};
+  for (const key of EDITABLE_EVENT_FIELDS) {
+    if (body[key] !== undefined) out[key] = body[key];
+  }
+  return out;
+}
+
 // ---------------------------
 // Event CRUD
 // ---------------------------

@@ -11,6 +11,7 @@ import {
   addRsvp,
   findEventById,
   updateEvent,
+  pickEventFields,
   getRsvpsForEvent,
   generateDinnerTimeSlots,
   getDinnerSlotCounts,
@@ -2362,88 +2363,11 @@ app.get("/events/:slug/vip-offer", async (req, res) => {
 // PROTECTED: Create event (requires auth)
 // ---------------------------
 app.post("/events", requireAuth, async (req, res) => {
-  const {
-    title,
-    description,
-    location,
-    locationLat,
-    locationLng,
-    locationPlaceId,
-    startsAt,
-    endsAt,
-    timezone,
-    maxAttendees,
-    waitlistEnabled,
-    imageUrl,
-    theme,
-    brand,
-    calendar,
-    visibility,
-    ticketType,
-    requireApproval,
-
-    // NEW fields
-    maxPlusOnesPerGuest,
-    dinnerEnabled,
-    dinnerStartTime,
-    dinnerEndTime,
-    dinnerSeatingIntervalHours,
-    dinnerMaxSeatsPerSlot,
-    dinnerOverflowAction,
-    dinnerSlots,
-    dinnerBookingEmail,
-    hideDinnerRemaining,
-
-    // Capacity fields
-    cocktailCapacity,
-    foodCapacity,
-    totalCapacity,
-    // Stripe fields (simplified)
-    ticketPrice,
-    ticketCurrency = "USD",
-
-    // Dual personality fields
-    createdVia,
-    status,
-
-    // Media settings
-    mediaSettings,
-
-    // Title settings
-    titleSettings,
-
-    // Social links
-    instagram,
-    spotify,
-    tiktok,
-    soundcloud,
-
-    // Sections (event builder blocks)
-    sections,
-
-    // Custom RSVP form fields
-    formFields,
-
-    // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
-    contactChannel,
-
-    // Reach-floor + channel collection toggles (Email/WhatsApp/Instagram).
-    requireEmail,
-    collectPhone,
-    requirePhone,
-    collectInstagram,
-    requireInstagram,
-
-    // Host-authored enrichment questions (mig 077).
-    enrichmentQuestions,
-
-    // Reveal & waitlist features
-    hideLocation,
-    hideDate,
-    instantWaitlist,
-    revealHint,
-    dateRevealHint,
-  } = req.body;
+  // Only what this route's own logic needs. Every other event field is
+  // forwarded verbatim via pickEventFields (the shared allowlist) — so a new
+  // field never has to be added here. createdVia/status are lifecycle fields
+  // the route sets explicitly.
+  const { title, startsAt, endsAt, hideDate, createdVia, status } = req.body;
 
   if (!title || !startsAt) {
     return res.status(400).json({ error: "title and startsAt are required" });
@@ -2459,67 +2383,17 @@ app.post("/events", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Event end date cannot be in the past" });
   }
 
-  // Create the event first to get its ID (with host_id from authenticated user)
+  // Create the event first to get its ID (with host_id from authenticated user).
+  // All content fields flow through the shared allowlist; the route only pins
+  // host + lifecycle. createEvent applies its own per-field defaults/coercion.
   const _createEventBody = req.body;
   let event;
   try {
     event = await createEvent({
-    hostId: req.user.id, // Set host_id from authenticated user
-    title,
-    description,
-    location,
-    locationLat,
-    locationLng,
-    locationPlaceId,
-    startsAt,
-    endsAt,
-    timezone,
-    maxAttendees,
-    waitlistEnabled,
-    imageUrl,
-    theme,
-    brand,
-    calendar,
-    visibility,
-    ticketType,
-    requireApproval,
-    maxPlusOnesPerGuest,
-    dinnerEnabled,
-    dinnerStartTime,
-    dinnerEndTime,
-    dinnerSeatingIntervalHours,
-    dinnerMaxSeatsPerSlot,
-    dinnerOverflowAction,
-    dinnerSlots,
-    dinnerBookingEmail,
-    hideDinnerRemaining,
-    ticketPrice,
-    ticketCurrency: ticketCurrency || "USD",
-    cocktailCapacity,
-    foodCapacity,
-    totalCapacity,
-    createdVia: createdVia || "legacy",
-    status: status || "PUBLISHED",
-    mediaSettings,
-    titleSettings,
-    instagram,
-    spotify,
-    tiktok,
-    soundcloud,
-    sections,
-    formFields,
-    contactChannel,
-    requireEmail,
-    collectPhone,
-    requirePhone,
-    collectInstagram,
-    requireInstagram,
-    enrichmentQuestions,
-    hideLocation,
-    hideDate,
-    instantWaitlist,
-    revealHint,
-    dateRevealHint,
+      hostId: req.user.id,
+      ...pickEventFields(req.body),
+      createdVia: createdVia || "legacy",
+      status: status || "PUBLISHED",
     });
   } catch (err) {
     console.error("[POST /events] createEvent failed:", err.message);
@@ -5181,92 +5055,21 @@ app.put(
   async (req, res) => {
     const { id } = req.params;
 
-    // Allow updating both old and new fields
+    // Only the fields this route's own logic touches (date validation, the
+    // paid-tickets-paused guard, Stripe price handling, section logo processing,
+    // lifecycle status). EVERY other event field is forwarded verbatim via
+    // pickEventFields below, so a new field is never dropped or maintained here.
     const {
-      title,
-      description,
-      location,
-      locationLat,
-      locationLng,
-      locationPlaceId,
       startsAt,
       endsAt,
-      timezone,
-      maxAttendees,
-      waitlistEnabled,
-      imageUrl,
-      theme,
-      brand,
-      calendar,
-      visibility,
+      hideDate,
       ticketType,
-      requireApproval,
-      maxPlusOnesPerGuest,
-      dinnerEnabled,
-      dinnerStartTime,
-      dinnerEndTime,
-      dinnerSeatingIntervalHours,
-      dinnerMaxSeatsPerSlot,
-      dinnerOverflowAction,
-      dinnerSlots,
-      dinnerBookingEmail,
-      hideDinnerRemaining,
-
-      // Stripe fields
       ticketPrice,
       ticketCurrency,
       stripeProductId,
       stripePriceId,
-
-      // Capacity fields
-      cocktailCapacity,
-      foodCapacity,
-      totalCapacity,
-
-      // Dual personality fields
-      status,
-
-      // Media settings
-      mediaSettings,
-
-      // Title settings
-      titleSettings,
-
-      // Social links
-      instagram,
-      spotify,
-      tiktok,
-      soundcloud,
-
-      // Sections (event builder blocks)
       sections,
-
-      // Custom RSVP form fields
-      formFields,
-
-      // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
-      contactChannel,
-
-      // Reach-floor + channel collection toggles. Email/WhatsApp are the reach
-      // floor (≥1 required); Instagram is enrichment. (Previously dropped here —
-      // the editor sent them but the route never read them, so they never saved.)
-      requireEmail,
-      collectPhone,
-      requirePhone,
-      collectInstagram,
-      requireInstagram,
-
-      // Host-authored enrichment questions (mig 077). Same class of field as the
-      // toggles above — must be read here AND forwarded to updateEvent, or the
-      // editor sends it and the route silently drops it (never persists).
-      enrichmentQuestions,
-
-      // Reveal & waitlist features
-      hideLocation,
-      hideDate,
-      instantWaitlist,
-      revealHint,
-      dateRevealHint,
+      status,
     } = req.body;
 
     // Get current event to check if price/currency changed
@@ -5357,64 +5160,17 @@ app.put(
     let updated;
     try {
       updated = await updateEvent(id, {
-        title,
-        description,
-        location,
-        locationLat,
-        locationLng,
-        locationPlaceId,
-        startsAt,
-        endsAt,
-        timezone,
-        maxAttendees,
-        waitlistEnabled,
-        imageUrl,
-        theme,
-        brand,
-        calendar,
-        visibility,
+        // All content fields forwarded through the shared allowlist…
+        ...pickEventFields(req.body),
+        // …then the route's computed values win (paid-pause guard, processed
+        // sections with hosted-by logos, resolved stripe ids, lifecycle status).
+        // ticketCurrency is left raw — mapEventToDb lowercases it.
         ticketType: effectiveTicketType,
-        requireApproval,
-        maxPlusOnesPerGuest,
-        dinnerEnabled,
-        dinnerStartTime,
-        dinnerEndTime,
-        dinnerSeatingIntervalHours,
-        dinnerMaxSeatsPerSlot,
-        dinnerOverflowAction,
-        dinnerSlots,
-        dinnerBookingEmail,
-        hideDinnerRemaining,
         ticketPrice: effectiveTicketPrice,
-        ticketCurrency: ticketCurrency
-          ? String(ticketCurrency).toLowerCase()
-          : undefined,
+        sections: processedSections,
         stripeProductId: stripeProductId || currentEvent.stripeProductId,
         stripePriceId: newStripePriceId || currentEvent.stripePriceId,
-        cocktailCapacity,
-        foodCapacity,
-        totalCapacity,
         status,
-        mediaSettings,
-        titleSettings,
-        instagram,
-        spotify,
-        tiktok,
-        soundcloud,
-        sections: processedSections,
-        formFields,
-        contactChannel,
-        requireEmail,
-        collectPhone,
-        requirePhone,
-        collectInstagram,
-        requireInstagram,
-        enrichmentQuestions,
-        hideLocation,
-        hideDate,
-        instantWaitlist,
-        revealHint,
-        dateRevealHint,
       });
     } catch (err) {
       console.error(`[PUT /host/events/${id}] Update failed:`, err.message);

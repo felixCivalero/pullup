@@ -358,7 +358,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   const [{ data: people }, { data: idents }, { data: events }] = await Promise.all([
     supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", personIds),
     supabase.from("person_identities").select("person_id, kind").in("person_id", personIds),
-    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location").eq("host_id", hostId),
+    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
   // Linked external-source profiles (IG etc.) → avatar + reach/reciprocity signals.
@@ -493,6 +493,44 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // VipInviteSection reads event.status to decide if it's a paid event; it
   // expects the lowercased status we already set — leave as-is.
 
+  // 4b. Enrichment answers per person — the host's free-text questions they
+  // answered at RSVP, surfaced on the people card. Labels come from each event's
+  // enrichment_questions; values from that RSVP's custom_answers. Scoped to this
+  // host's events (answers to other hosts' events are private to them).
+  const answersByPerson = new Map();
+  try {
+    const enrichByEvent = new Map();
+    for (const e of events || []) {
+      const qs = Array.isArray(e.enrichment_questions) ? e.enrichment_questions : [];
+      if (qs.length) enrichByEvent.set(e.id, new Map(qs.map((q) => [q.id, q.label])));
+    }
+    if (enrichByEvent.size) {
+      const { data: ansRows } = await supabase
+        .from("rsvps")
+        .select("person_id, event_id, custom_answers")
+        .in("person_id", personIds)
+        .in("event_id", [...enrichByEvent.keys()]);
+      for (const r of ansRows || []) {
+        const qmap = enrichByEvent.get(r.event_id);
+        const ca = r.custom_answers;
+        if (!qmap || !ca || typeof ca !== "object") continue;
+        for (const [qid, label] of qmap) {
+          const v = ca[qid];
+          const val = typeof v === "string" ? v.trim() : v;
+          if (!val) continue;
+          if (!answersByPerson.has(r.person_id)) answersByPerson.set(r.person_id, []);
+          answersByPerson.get(r.person_id).push({
+            label,
+            value: String(val),
+            eventTitle: eventTitleById.get(r.event_id) || null,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] enrichment answers read failed", { error: err?.message });
+  }
+
   // 5. Build each person.
   const peopleOut = [];
   for (const pid of personIds) {
@@ -573,6 +611,8 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       thread: buildThread(evs, eventTitleById, igReadByPerson.get(pid) || null),
       // Host-private manual notes (newest first) — rendered on the people card.
       notes: notesByPerson.get(pid) || [],
+      // Enrichment answers across this host's events (label + value + which event).
+      answers: answersByPerson.get(pid) || [],
     });
   }
 

@@ -1262,6 +1262,18 @@ function PeopleContactCard({ person, events }) {
           </div>
         )}
 
+        {/* What they answered — the host's enrichment questions, across events. */}
+        {Array.isArray(person.answers) && person.answers.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {person.answers.map((a, i) => (
+              <div key={i} style={{ padding: "8px 11px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surfaceMuted }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>{a.label}</div>
+                <div style={{ fontSize: 13, color: colors.text, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <button onClick={message} style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 14px", borderRadius: 12, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}>
           <Send size={15} /> Message
         </button>

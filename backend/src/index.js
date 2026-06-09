@@ -2651,6 +2651,19 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         const trimmed = typeof val === "string" ? val.trim() : "";
         if (trimmed) resolvedCustomAnswers[f.id] = trimmed.slice(0, 1000);
       }
+      // Enrichment questions (mig 077) are the host's CURRENT free-text fields —
+      // their ids live in enrichment_questions, NOT form_fields, so the loop above
+      // skipped them and every answer was dropped (custom_answers stayed {}).
+      // Capture them here too, keyed by question id.
+      const enrichQs = Array.isArray(eventForFields?.enrichmentQuestions)
+        ? eventForFields.enrichmentQuestions
+        : [];
+      for (const q of enrichQs) {
+        if (!q || !q.id) continue;
+        const val = incoming[q.id];
+        const trimmed = typeof val === "string" ? val.trim() : "";
+        if (trimmed) resolvedCustomAnswers[q.id] = trimmed.slice(0, 1000);
+      }
       // Enforce host-required anchors server-side. Name + Email are validated
       // elsewhere; WhatsApp + Instagram are required only when the host opted in.
       // A verified IG entry (igUid present) satisfies the Instagram requirement.

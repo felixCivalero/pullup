@@ -1184,55 +1184,34 @@ function MemberRoomsRail({ rooms, onOpen }) {
 
 // ─── Your people — the CRM layer, surfaced ──────────────────────────
 //
-// Felix's note: the system already holds everyone; the body never showed them.
-// This is the "richer version of the people you have" — searchable contact
-// cards over the SAME people the masthead counts (no extra fetch). A card is a
-// contact sheet (email / phone / @handle + where you met) and opens their full
-// cross-event thread on click. Identity-resolved, so each card is one person
-// no matter how many channels or events they touched.
-function ContactRow({ icon: Icon, text }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
-      <Icon size={13} color={colors.textFaded} style={{ flexShrink: 0 }} />
-      <span style={{ fontSize: "12.5px", color: colors.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>
-    </div>
-  );
-}
-
-// Quick-action button on a people card (Message / Add info). Shared style.
-function CardAction({ icon: Icon, label, onClick, tone = "default" }) {
-  const [hov, setHov] = useState(false);
-  const accent = tone === "accent";
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-        padding: "8px 10px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: SF,
-        fontSize: 12.5, fontWeight: 700,
-        background: accent ? (hov ? colors.accent : colors.accentSoft) : (hov ? colors.surfaceMuted : "transparent"),
-        color: accent ? (hov ? "#fff" : colors.accent) : colors.textMuted,
-        transition: "background 0.15s ease, color 0.15s ease",
-      }}
-    >
-      <Icon size={13} /> {label}
-    </button>
-  );
-}
-
-function PeopleContactCard({ person, events, active, onClick }) {
-  const [hover, setHover] = useState(false);
-  const [adding, setAdding] = useState(false);
+// The body never showed the people the system already holds. This is the
+// "richer version of the people you have": searchable full-profile cards over
+// the SAME people the masthead counts (no extra fetch). Each card IS the profile
+// — contact sheet, where-you-met, message, and the dated notes log inline — so
+// there's nothing to click open. Identity-resolved: one card per person no
+// matter how many channels or events they touched.
+// A full profile, inline. No modal, no click-to-open — everything that used to
+// live in the popup (contact sheet, where-you-met, message, the dated notes log
+// + add-info) is the card itself, so a note you add shows on it immediately.
+// Notes arrive on the room payload (person.notes); adds are optimistic.
+function PeopleContactCard({ person, events }) {
+  const [notes, setNotes] = useState(() => (Array.isArray(person.notes) ? person.notes : []));
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const phone = person.phone || person.phone_e164 || null;
   const ig = person.instagram ? String(person.instagram).replace(/^@+/, "") : null;
   const evChips = (person.events || []).map((id) => events.find((e) => e.id === id)).filter(Boolean);
-  const hasContact = person.email || phone || ig;
+
+  // Merge fresh payload notes with any optimistic local-only adds (by id), so a
+  // 5s poll that hasn't caught up yet can't blink a just-added note away.
+  useEffect(() => {
+    const server = Array.isArray(person.notes) ? person.notes : [];
+    setNotes((local) => {
+      const ids = new Set(server.map((n) => n.id));
+      const localOnly = local.filter((n) => !ids.has(n.id));
+      return [...localOnly, ...server];
+    });
+  }, [person.notes]);
 
   function message() {
     window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: person.id } }));
@@ -1245,89 +1224,77 @@ function PeopleContactCard({ person, events, active, onClick }) {
     try {
       const r = await authenticatedFetch(`/host/crm/people/${person.id}/notes`, { method: "POST", body: JSON.stringify({ content }) });
       const d = await r.json();
-      if (d?.id) { setDraft(""); setAdding(false); setSaved(true); setTimeout(() => setSaved(false), 1800); }
+      if (d?.id) { setNotes((cur) => [d, ...cur]); setDraft(""); }
     } catch { /* keep the draft so nothing is lost */ }
     setSaving(false);
   }
 
   return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        borderRadius: "16px",
-        border: `1px solid ${active ? colors.accentBorder : colors.border}`,
-        background: active ? colors.accentSoft : hover ? colors.surfaceMuted : colors.surface,
-        transition: "background 0.15s ease, border-color 0.15s ease", fontFamily: SF,
-        display: "flex", flexDirection: "column",
-      }}
-    >
-      {/* Body — opens the full detail (notes history + message). */}
-      <div onClick={onClick} role="button" tabIndex={0} style={{ cursor: "pointer", padding: "14px", display: "flex", flexDirection: "column", gap: "11px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
-          <Avatar initials={person.initials} color={person.color} />
+    <div style={{ display: "flex", flexDirection: "column", borderRadius: 18, border: `1px solid ${colors.border}`, background: colors.surface, fontFamily: SF, overflow: "hidden" }}>
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Identity */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <Avatar initials={person.initials} color={person.color} size={48} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <HeatDot warmth={person.warmth} />
-              <span style={{ fontSize: "14.5px", fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
             </div>
-            {person.relationship && (
-              <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.relationship}</div>
-            )}
+            {person.relationship && <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 3, lineHeight: 1.4 }}>{person.relationship}</div>}
           </div>
-          <span style={{ flexShrink: 0 }}>
-            <ChannelChip channel={person.channel} windowOpen={person.windowOpen} windowNote={person.windowNote} />
-          </span>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {person.email && <ContactRow icon={Mail} text={person.email} />}
-          {phone && <ContactRow icon={Phone} text={phone} />}
-          {ig && <ContactRow icon={Instagram} text={`@${ig}`} />}
-          {!hasContact && <div style={{ fontSize: "12px", color: colors.textFaded }}>No contact details yet</div>}
-        </div>
-
-        {evChips.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            {evChips.slice(0, 3).map((e) => (
-              <span key={e.id} style={{ fontSize: "10.5px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: "999px", whiteSpace: "nowrap", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
-            ))}
-            {evChips.length > 3 && <span style={{ fontSize: "10.5px", color: colors.textFaded }}>+{evChips.length - 3}</span>}
+        {/* Contact */}
+        {(person.email || phone || ig) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {person.email && <DetailChip icon={Mail} text={person.email} />}
+            {phone && <DetailChip icon={Phone} text={phone} />}
+            {ig && <DetailChip icon={Instagram} text={`@${ig}`} />}
           </div>
         )}
-      </div>
 
-      {/* Quick actions — right on the card so they're never buried. */}
-      <div style={{ display: "flex", gap: "4px", padding: "6px", borderTop: `1px solid ${colors.borderFaint}` }}>
-        <CardAction icon={Send} label="Message" onClick={message} tone="accent" />
-        <CardAction icon={saved ? Check : Plus} label={saved ? "Added" : "Add info"} onClick={() => setAdding((v) => !v)} />
-      </div>
-
-      {adding && (
-        <div style={{ padding: "0 10px 10px" }}>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNote();
-              if (e.key === "Escape") { setAdding(false); setDraft(""); }
-            }}
-            autoFocus
-            placeholder="Add info — allergies, how you met…"
-            rows={2}
-            style={{ width: "100%", resize: "none", padding: "9px 11px", borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13.5, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 6 }}>
-            <button type="button" onClick={() => { setAdding(false); setDraft(""); }} style={{ padding: "6px 12px", borderRadius: 9, border: "none", background: "transparent", color: colors.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: SF }}>Cancel</button>
-            <button type="button" onClick={saveNote} disabled={!draft.trim() || saving} style={{ padding: "6px 13px", borderRadius: 9, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 12.5, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>{saving ? "Adding…" : "Add"}</button>
+        {/* Where you met */}
+        {evChips.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {evChips.map((e) => (
+              <span key={e.id} style={{ fontSize: 10.5, color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap", maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
+            ))}
           </div>
+        )}
+
+        <button onClick={message} style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 14px", borderRadius: 12, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}>
+          <Send size={15} /> Message
+        </button>
+      </div>
+
+      {/* Notes — inline, always there. Newest first; add-info at the foot. */}
+      <div style={{ borderTop: `1px solid ${colors.borderFaint}`, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Notes</div>
+        {notes.map((n) => (
+          <div key={n.id} style={{ padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.background }}>
+            <div style={{ fontSize: 13.5, color: colors.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{n.content}</div>
+            <div style={{ fontSize: 11, color: colors.textFaded, marginTop: 6 }}>{fmtNoteDate(n.noteDate || n.createdAt)}</div>
+          </div>
+        ))}
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNote(); }}
+          placeholder="Add info — allergies, how you met, what they're into…"
+          rows={2}
+          style={{ width: "100%", resize: "none", padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13.5, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={saveNote} disabled={!draft.trim() || saving} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 13, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>
+            <Plus size={14} /> {saving ? "Adding…" : "Add info"}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function PeopleLayer({ people = [], events = [], activeId, onOpen }) {
+function PeopleLayer({ people = [], events = [] }) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const filtered = useMemo(() => {
@@ -1363,9 +1330,9 @@ function PeopleLayer({ people = [], events = [], activeId, onOpen }) {
           {people.length ? "No one matches that." : "Your people show up here as they RSVP and pull up."}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(258px, 1fr))", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px", alignItems: "start" }}>
           {filtered.map((p) => (
-            <PeopleContactCard key={p.id} person={p} events={events} active={p.id === activeId} onClick={() => onOpen(p)} />
+            <PeopleContactCard key={p.id} person={p} events={events} />
           ))}
         </div>
       )}
@@ -1373,12 +1340,7 @@ function PeopleLayer({ people = [], events = [], activeId, onOpen }) {
   );
 }
 
-// ─── Person detail — the enlarged card ──────────────────────────────
-//
-// Clicking a people card opens THIS, not the chat. It's the contact sheet
-// blown up: who they are, where you met, and a dated free-text notes log (the
-// old CRM "add info" — host-private, paired by date, via person_notes). Talking
-// to them is one button that hands off to the real Messages dock.
+// ─── People-card helpers — note dates + contact chips ───────────────
 function fmtNoteDate(d) {
   if (!d) return "";
   try {
@@ -1396,125 +1358,6 @@ function DetailChip({ icon: Icon, text }) {
   );
 }
 
-function PersonDetailModal({ person, events = [], onClose }) {
-  const isMobile = useIsMobile();
-  const [notes, setNotes] = useState(null); // null = loading
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    setNotes(null);
-    authenticatedFetch(`/host/crm/people/${person.id}/notes`)
-      .then((r) => r.json())
-      .then((d) => { if (alive) setNotes(Array.isArray(d?.notes) ? d.notes : []); })
-      .catch(() => { if (alive) setNotes([]); });
-    return () => { alive = false; };
-  }, [person.id]);
-
-  async function addNote() {
-    const content = draft.trim();
-    if (!content || saving) return;
-    setSaving(true);
-    try {
-      const r = await authenticatedFetch(`/host/crm/people/${person.id}/notes`, {
-        method: "POST",
-        body: JSON.stringify({ content }),
-      });
-      const d = await r.json();
-      const note = d?.note || (d?.id ? d : null);
-      if (note?.id) { setNotes((cur) => [note, ...(cur || [])]); setDraft(""); }
-    } catch { /* keep the draft so nothing is lost */ }
-    setSaving(false);
-  }
-
-  function message() {
-    window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: person.id } }));
-    onClose();
-  }
-
-  const phone = person.phone || person.phone_e164 || null;
-  const ig = person.instagram ? String(person.instagram).replace(/^@+/, "") : null;
-  const evChips = (person.events || []).map((id) => events.find((e) => e.id === id)).filter(Boolean);
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,10,10,0.55)", backdropFilter: "blur(4px)", zIndex: 1000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? 0 : 20, fontFamily: SF }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: colors.background, border: isMobile ? "none" : `1px solid ${colors.border}`, borderRadius: isMobile ? 0 : 22, width: "100%", maxWidth: isMobile ? "100%" : 460, maxHeight: isMobile ? "100vh" : "88vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(10,10,10,0.22)" }}>
-        {/* Header — the contact sheet */}
-        <div style={{ padding: "18px 18px 14px", borderBottom: `1px solid ${colors.borderFaint}` }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <Avatar initials={person.initials} color={person.color} size={52} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <HeatDot warmth={person.warmth} />
-                <span style={{ fontSize: 18, fontWeight: 800, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
-              </div>
-              {person.relationship && <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 3, lineHeight: 1.4 }}>{person.relationship}</div>}
-            </div>
-            <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", color: colors.textMuted, padding: 4, flexShrink: 0 }}><X size={20} /></button>
-          </div>
-
-          {(person.email || phone || ig) && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-              {person.email && <DetailChip icon={Mail} text={person.email} />}
-              {phone && <DetailChip icon={Phone} text={phone} />}
-              {ig && <DetailChip icon={Instagram} text={`@${ig}`} />}
-            </div>
-          )}
-
-          {evChips.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-              {evChips.map((e) => (
-                <span key={e.id} style={{ fontSize: 10.5, color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
-              ))}
-            </div>
-          )}
-
-          <button onClick={message} style={{ marginTop: 14, width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 14px", borderRadius: 12, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}>
-            <Send size={15} /> Message
-          </button>
-        </div>
-
-        {/* Notes timeline */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 18px", minHeight: 80 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle, marginBottom: 10 }}>Notes</div>
-          {notes === null ? (
-            <div style={{ fontSize: 13, color: colors.textFaded, padding: "8px 0" }}>Loading…</div>
-          ) : notes.length === 0 ? (
-            <div style={{ fontSize: 13, color: colors.textFaded, padding: "8px 0", lineHeight: 1.5 }}>Nothing yet. Add what you know — it stays paired with the date you added it.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {notes.map((n) => (
-                <div key={n.id} style={{ padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.surface }}>
-                  <div style={{ fontSize: 13.5, color: colors.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{n.content}</div>
-                  <div style={{ fontSize: 11, color: colors.textFaded, marginTop: 6 }}>{fmtNoteDate(n.noteDate || n.createdAt)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Add info */}
-        <div style={{ borderTop: `1px solid ${colors.borderFaint}`, padding: "12px 18px", background: colors.surface }}>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") addNote(); }}
-            placeholder="Add info — allergies, how you met, what they're into…"
-            rows={2}
-            style={{ width: "100%", resize: "none", padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 14, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-            <button onClick={addNote} disabled={!draft.trim() || saving} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 13, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>
-              <Plus size={14} /> {saving ? "Adding…" : "Add info"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // OwnerConsole — the operating layer of YOUR OWN room. Rendered by
 // NodeProfilePage (/r/:me) only when the viewer is the owner; it sits below the
 // shared identity masthead, which the page owns. No fetch of its own: the whole
@@ -1526,7 +1369,6 @@ export function OwnerConsole({ room: roomProp }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState(null);
-  const [detailPerson, setDetailPerson] = useState(null); // people-card → enlarged detail (notes + message)
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
   // Local copy so ProfileSetup patches + event deletion update in place without
@@ -1585,14 +1427,9 @@ export function OwnerConsole({ room: roomProp }) {
       {/* Rooms you're in — events you co-host or attend as a guest. */}
       <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
 
-      {/* Your people — the CRM, surfaced. Searchable contact cards over the same
-          people the masthead counts. A card opens the person's full thread. */}
-      <PeopleLayer
-        people={PEOPLE}
-        events={EVENTS}
-        activeId={detailPerson?.id}
-        onOpen={(p) => setDetailPerson(p)}
-      />
+      {/* Your people — the CRM, surfaced. Each card is the full profile: contact
+          sheet, where-you-met, message, and inline dated notes. No click-open. */}
+      <PeopleLayer people={PEOPLE} events={EVENTS} />
 
       {/* Right slot — DESKTOP: floats fixed to the edge. PHONE: rises as a sheet
           with a tap-to-dismiss scrim. One at a time: a conversation or bulk compose. */}
@@ -1618,12 +1455,6 @@ export function OwnerConsole({ room: roomProp }) {
             )}
           </div>
         </>
-      )}
-
-      {/* People card → enlarged detail: contact sheet + dated notes + a Message
-          button that hands off to the real dock. Not the inline chat. */}
-      {detailPerson && (
-        <PersonDetailModal person={detailPerson} events={EVENTS} onClose={() => setDetailPerson(null)} />
       )}
 
       {/* Host-home install nudge — "your Room on your home screen". Self-gates:

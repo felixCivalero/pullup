@@ -414,6 +414,31 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     logger?.warn?.("[roomService] instagram read/window read failed", { error: err?.message });
   }
 
+  // 3d. Host-private notes per person, attached to each card so the Room's people
+  // layer renders the full profile (notes timeline + "add info") inline — no
+  // per-card fetch. Newest first. Scoped to THIS host (notes are private).
+  const notesByPerson = new Map();
+  try {
+    const { data: noteRows } = await supabase
+      .from("person_notes")
+      .select("id, person_id, content, note_date, created_at")
+      .eq("host_id", hostId)
+      .in("person_id", personIds)
+      .order("note_date", { ascending: false })
+      .order("created_at", { ascending: false });
+    for (const n of noteRows || []) {
+      if (!notesByPerson.has(n.person_id)) notesByPerson.set(n.person_id, []);
+      notesByPerson.get(n.person_id).push({
+        id: n.id,
+        content: n.content,
+        noteDate: n.note_date,
+        createdAt: n.created_at,
+      });
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] person notes read failed", { error: err?.message });
+  }
+
   // 4. Events list (content pieces, for the lens + the banner).
   //   status: draft (not published) | live (published, upcoming/ongoing) |
   //           past (published, already happened). Coming counts from rsvps.
@@ -546,6 +571,8 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       move,
       lastMessage: lastMessageFrom(evs, eventTitleById),
       thread: buildThread(evs, eventTitleById, igReadByPerson.get(pid) || null),
+      // Host-private manual notes (newest first) — rendered on the people card.
+      notes: notesByPerson.get(pid) || [],
     });
   }
 

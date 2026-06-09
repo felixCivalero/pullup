@@ -18,7 +18,10 @@ import { findByProviderMessageId, markDelivered, markBounced, markComplaint } fr
 import { bumpMessageStatus } from "../../services/messageStatus.js";
 import { logger } from "../../logger.js";
 
+// Each Resend webhook endpoint has its OWN signing secret. Prefer the events-
+// specific one; fall back to the legacy single name for older boxes.
 const RESEND_WEBHOOK_SECRET =
+  process.env.RESEND_EVENTS_WEBHOOK_SIGNING_SECRET ||
   process.env.RESEND_WEBHOOK_SIGNING_SECRET ||
   process.env.RESEND_WEBHOOK_SECRET ||
   null;

@@ -69,9 +69,11 @@ async function storeAttachments(emailId, meta) {
   return out;
 }
 
-// Resend's webhook signing secret (whsec_…). Accept either name; the prod/dev
-// .env uses RESEND_WEBHOOK_SIGNING_SECRET.
+// Each Resend webhook endpoint has its OWN signing secret (whsec_…). Prefer the
+// inbound-specific one; fall back to the legacy single name so a box that only
+// set RESEND_WEBHOOK_SIGNING_SECRET keeps verifying inbound.
 const RESEND_WEBHOOK_SECRET =
+  process.env.RESEND_INBOUND_WEBHOOK_SIGNING_SECRET ||
   process.env.RESEND_WEBHOOK_SIGNING_SECRET ||
   process.env.RESEND_WEBHOOK_SECRET ||
   null;

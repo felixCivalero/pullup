@@ -186,6 +186,14 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
       e.statusCode = 403;
       throw e;
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // In prod, no signing secret = we can't prove Resend sent this, yet this
+    // endpoint writes into hosts' Rooms. Refuse rather than accept a spoofable
+    // payload. (Set RESEND_WEBHOOK_SIGNING_SECRET on the box to enable it.)
+    console.error("[resendInbound] RESEND_WEBHOOK_SECRET unset in production — refusing unverified payload");
+    const e = new Error("Resend webhook signing secret not configured");
+    e.statusCode = 503;
+    throw e;
   } else {
     console.warn("[resendInbound] RESEND_WEBHOOK_SECRET unset — accepting unverified (dev only)");
   }

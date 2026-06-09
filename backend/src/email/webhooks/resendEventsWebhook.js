@@ -63,6 +63,13 @@ export async function handleResendEventEvent({ rawBody, body, headers }) {
       e.statusCode = 403;
       throw e;
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // No signing secret in prod = a spoofable endpoint that mutates message
+    // delivery state. Refuse rather than trust it. (Set the secret on the box.)
+    logger?.error?.("[resendEvents] RESEND_WEBHOOK_SECRET unset in production — refusing unverified payload");
+    const e = new Error("Resend webhook signing secret not configured");
+    e.statusCode = 503;
+    throw e;
   } else {
     logger?.warn?.("[resendEvents] RESEND_WEBHOOK_SECRET unset — accepting unverified (dev only)");
   }

@@ -217,14 +217,96 @@ function Stat({ k, v }) {
   );
 }
 
+// ── Merge-with picker ───────────────────────────────────────────────
+// Fuse this person with ANY other — not just a resolver-flagged collision.
+// Search the ledger, pick the other human, confirm. The backend orients the
+// merge by anchor strength (the stronger PullUp profile survives, the other is
+// absorbed + its params flow in), so the admin never has to pick a direction.
+function MergePicker({ excludeId, busy, onPick, onCancel }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [pending, setPending] = useState(null);
+
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return; }
+    let cancel = false;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ q: q.trim(), filter: "all", limit: "8" });
+        const data = await apiGet(`/admin/matches?${params}`);
+        if (!cancel) setResults((data.items || []).filter((it) => it.personId !== excludeId));
+      } catch { if (!cancel) setResults([]); }
+      finally { if (!cancel) setSearching(false); }
+    }, 280);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [q, excludeId]);
+
+  return (
+    <Section title="Merge with another person" icon={GitMerge} tint={colors.gold}>
+      <div style={{ border: `1px solid ${colors.border}`, borderRadius: 12, padding: 12, background: colors.surface }}>
+        {pending ? (
+          <div>
+            <div style={{ fontSize: 13, color: colors.text, marginBottom: 4 }}>
+              Merge <b>{pending.name}</b> with this person?
+            </div>
+            <div style={{ fontSize: 11, color: colors.textMuted, marginBottom: 10 }}>
+              The stronger PullUp profile survives and absorbs the other; empty params (name, handle,
+              IG id, phone, pic) fill in. Reversible — every merge is audited and can be split back.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <ActionBtn primary disabled={busy} onClick={() => onPick(pending.personId)}>
+                <GitMerge size={13} /> Merge them
+              </ActionBtn>
+              <ActionBtn disabled={busy} onClick={() => setPending(null)}><X size={13} /> Back</ActionBtn>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ position: "relative", marginBottom: 8 }}>
+              <Search size={14} color={colors.textFaded} style={{ position: "absolute", left: 9, top: 9 }} />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, @handle, phone…"
+                style={{ width: "100%", padding: "7px 10px 7px 30px", fontSize: 13, border: `1px solid ${colors.border}`, borderRadius: 8, color: colors.text }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {searching && <div style={{ fontSize: 11, color: colors.textFaded, padding: "6px 2px" }}>Searching…</div>}
+              {!searching && q.trim() && !results.length && <div style={{ fontSize: 11, color: colors.textFaded, padding: "6px 2px" }}>No one else matches.</div>}
+              {results.map((it) => (
+                <button key={it.personId} onClick={() => setPending(it)} disabled={busy}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "7px 9px", border: `1px solid ${colors.borderFaint}`, borderRadius: 8, background: "#fff", cursor: busy ? "default" : "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</span>
+                      <Badge band={it.band} small />
+                    </div>
+                    <div style={{ fontSize: 10, color: colors.textFaded, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {[it.email, it.instagram && `@${String(it.instagram).replace(/^@/, "")}`, it.phone].filter(Boolean).join(" · ") || `${it.identityCount} id${it.identityCount === 1 ? "" : "s"}`}
+                    </div>
+                  </div>
+                  <GitMerge size={14} color={colors.gold} />
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <ActionBtn disabled={busy} onClick={onCancel}><X size={13} /> Cancel</ActionBtn>
+            </div>
+          </>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 // ── Detail panel ────────────────────────────────────────────────────
-function DetailPanel({ personId, onChanged, onClose }) {
+function DetailPanel({ personId, onChanged, onMerged, onClose }) {
   const [d, setD] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [err, setErr] = useState(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -260,6 +342,22 @@ function DetailPanel({ personId, onChanged, onClose }) {
     setBusy(true); setErr(null);
     try { await fn(); await load(); onChanged?.(); }
     catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  // Merge another person into this one. The backend orients by anchor strength,
+  // so the survivor may be the OTHER person — if so, hand selection to the page;
+  // if we survived, just reload our own detail.
+  const doMerge = async (otherId) => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await apiSend(`/admin/matches/merge`, "POST", { canonicalId: personId, mergedId: otherId });
+      const survivor = res.canonicalId || personId;
+      setMergeOpen(false);
+      onChanged?.();
+      if (survivor === personId) await load();
+      else onMerged?.(survivor);
+    } catch (e) { setErr(e.message); }
     finally { setBusy(false); }
   };
 
@@ -314,6 +412,7 @@ function DetailPanel({ personId, onChanged, onClose }) {
                 <ShieldCheck size={13} /> Confirm matches
               </ActionBtn>
               <ActionBtn disabled={busy} onClick={() => setEditing(true)}><Pencil size={13} /> Edit params</ActionBtn>
+              <ActionBtn disabled={busy} onClick={() => setMergeOpen((v) => !v)}><GitMerge size={13} /> Merge with…</ActionBtn>
             </>
           )}
         </div>
@@ -321,6 +420,11 @@ function DetailPanel({ personId, onChanged, onClose }) {
       </div>
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
+        {/* Merge with any person (not just a flagged collision) */}
+        {mergeOpen && (
+          <MergePicker excludeId={personId} busy={busy} onPick={doMerge} onCancel={() => setMergeOpen(false)} />
+        )}
+
         {/* Collisions — side-by-side decide */}
         {d.collisions.length > 0 && (
           <Section title="Possible duplicates" icon={AlertTriangle} tint={colors.danger}>
@@ -554,7 +658,7 @@ export function AdminMatchesPage() {
 
         {selected && (
           <div style={{ border: `1px solid ${colors.border}`, borderRadius: 14, overflow: "hidden", position: "sticky", top: 16, maxHeight: "calc(100vh - 32px)", display: "flex" }}>
-            <DetailPanel personId={selected} onChanged={load} onClose={() => setSelected(null)} />
+            <DetailPanel personId={selected} onChanged={load} onMerged={(id) => setSelected(id)} onClose={() => setSelected(null)} />
           </div>
         )}
       </div>

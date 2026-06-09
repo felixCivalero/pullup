@@ -349,33 +349,11 @@ export const TEMPLATES = {
     ],
   },
 
-  // ── auth_confirm_number ─────────────────────────────────────────
-  // Clearer wording for the magic-link verify ("...confirm your number...")
-  // so the guest knows WHAT they're finishing. NEW NAME on purpose: the
-  // submitter skips already-APPROVED templates, so we can't edit auth_magic_link
-  // in place — a fresh name is the only way to get new copy through review.
-  // RISK: Meta auto-rejected the near-identical "verify your number" as
-  // INCORRECT_CATEGORY (it wanted Authentication, which bans URL bodies). If
-  // this bounces too, fall back to auth_magic_link / pullup_continue. Do NOT
-  // switch startVerification's default templateKey to this until Meta APPROVES.
-  auth_confirm_number: {
-    name: "auth_confirm_number",
-    category: "utility",
-    meta_category: "UTILITY",
-    locale: "en",
-    status: "submitted",
-    body: "Tap to confirm your number for PullUp: {{1}}\nLink expires in 15 minutes.",
-    variables: ["link"],
-    render: ({ link }) =>
-      `Tap to confirm your number for PullUp: ${link}\nLink expires in 15 minutes.`,
-    components: [
-      {
-        type: "BODY",
-        text: "Tap to confirm your number for PullUp: {{1}}\nLink expires in 15 minutes.",
-        example: { body_text: [["https://pullup.se/v/abc123xyz9defg"]] },
-      },
-    ],
-  },
+  // NOTE: the magic-link "confirm/verify your number" variants (auth_confirm_number,
+  // pullup_verify_link) were retired — Meta repeatedly rejected them as
+  // INCORRECT_CATEGORY (its classifier insists that wording belongs in
+  // AUTHENTICATION, which bans URL bodies). The live verify path uses the
+  // UTILITY-approved auth_magic_link (+ pullup_continue backup) instead.
 
   // ═══ Host-leads v2 ══════════════════════════════════════════════════
   //
@@ -401,7 +379,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nGreat news {{2}} — your spot for {{3}} is confirmed. It's happening {{4}}. Can't wait to see you there!",
     variables: ["host_signature", "guest_first_name", "event_title", "event_when"],
     render: ({ host_signature, guest_first_name, event_title, event_when }) =>
@@ -428,7 +406,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nQuick reminder — {{2}} is happening tomorrow {{3}}. Hope you can still make it, see you there!",
     variables: ["host_signature", "event_title", "time_phrase"],
     render: ({ host_signature, event_title, time_phrase }) =>
@@ -453,7 +431,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nAlmost time! {{2}} starts in about 2 hours over at {{3}}. Head down whenever you're ready, see you soon!",
     variables: ["host_signature", "event_title", "venue"],
     render: ({ host_signature, event_title, venue }) =>
@@ -478,7 +456,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nSorry {{2}} — your booking for {{3}} was cancelled. Reach out if you have any questions.",
     variables: ["host_signature", "guest_first_name", "event_title"],
     render: ({ host_signature, guest_first_name, event_title }) =>
@@ -497,7 +475,7 @@ export const TEMPLATES = {
     category: "utility",
     meta_category: "UTILITY",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nQuick heads up about {{2}} — the timing changed. It's now {{3}}, instead of {{4}}. Sorry for any shuffle!",
     variables: ["host_signature", "event_title", "new_when", "old_when"],
     render: ({ host_signature, event_title, new_when, old_when }) =>
@@ -524,7 +502,7 @@ export const TEMPLATES = {
     category: "marketing",
     meta_category: "MARKETING",
     locale: "en",
-    status: "submitted",
+    status: "approved",
     body: "👋 {{1}}\n\nHope you enjoyed {{2}}! The photos and what's coming next are ready for you. Thanks so much for coming 🙏",
     variables: ["host_signature", "event_title"],
     render: ({ host_signature, event_title }) =>
@@ -555,12 +533,12 @@ export const TEMPLATES = {
  * floor for the entire review window. Keys absent here resolve to themselves.
  */
 export const ACTIVE_TEMPLATE = {
-  rsvp_confirm: "rsvp_confirm", // → "rsvp_confirm_v2" once Meta approves
-  event_reminder_24h: "event_reminder_24h", // → "event_reminder_24h_v2"
-  event_reminder_2h: "event_reminder_2h", // → "event_reminder_2h_v2"
-  booking_cancelled: "booking_cancelled", // → "booking_cancelled_v2"
-  event_change: "event_change", // → "event_change_v2"
-  post_event_thanks: "post_event_thanks", // → "post_event_thanks_v2"
+  rsvp_confirm: "rsvp_confirm_v2", // host-leads layout; Meta-approved 2026-06-09
+  event_reminder_24h: "event_reminder_24h_v2", // host-leads; approved 2026-06-09
+  event_reminder_2h: "event_reminder_2h_v2", // host-leads; approved 2026-06-09
+  booking_cancelled: "booking_cancelled_v2", // host-leads; approved 2026-06-09
+  event_change: "event_change_v2", // host-leads; approved 2026-06-09
+  post_event_thanks: "post_event_thanks_v2", // host-leads; approved 2026-06-09
 };
 
 /** Resolve a logical template key to the physical one currently live. */
@@ -571,7 +549,6 @@ export function activeKey(logicalKey) {
 /** Tier-1 templates we submit + approve first. */
 export const TIER_1_TEMPLATES = [
   "auth_magic_link",
-  "auth_confirm_number",
   "rsvp_confirm",
   "event_reminder_24h",
   "event_reminder_2h",

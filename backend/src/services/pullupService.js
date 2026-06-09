@@ -127,44 +127,96 @@ export async function verifyCheckinCode(eventId, scannedWindow, scannedSig, nowM
 export async function recordPullUp({ personId, eventId, method = "scan", hostId = null, createdBy = null }) {
   if (!personId || !eventId) return { ok: false, reason: "missing_ids" };
 
-  // Already pulled up? Idempotent short-circuit.
+  // Already pulled up? Idempotent — but still mirror to rsvps below (self-heals
+  // a pull-up recorded before the write-through existed).
   const { data: existing } = await supabase
     .from("pullups")
     .select("id")
     .eq("person_id", personId)
     .eq("event_id", eventId)
     .maybeSingle();
-  if (existing) return { ok: true, alreadyPresent: true, pullupId: existing.id };
 
-  const { data, error } = await supabase
-    .from("pullups")
-    .insert({ person_id: personId, event_id: eventId, method, created_by: createdBy })
-    .select("id")
-    .single();
-
-  // A concurrent scan may have inserted first — treat unique-violation as success.
-  if (error) {
-    if (error.code === "23505") return { ok: true, alreadyPresent: true };
-    return { ok: false, reason: error.message };
+  let pullupId = existing?.id || null;
+  let isNew = false;
+  if (!existing) {
+    const { data, error } = await supabase
+      .from("pullups")
+      .insert({ person_id: personId, event_id: eventId, method, created_by: createdBy })
+      .select("id")
+      .single();
+    if (error) {
+      // A concurrent scan may have inserted first — unique-violation = success.
+      if (error.code !== "23505") return { ok: false, reason: error.message };
+    } else {
+      pullupId = data.id;
+      isNew = true;
+    }
   }
 
-  // Resolve the owning host for the timeline beat if not provided.
-  let resolvedHost = hostId;
-  if (!resolvedHost) {
-    const { data: ev } = await supabase.from("events").select("host_id").eq("id", eventId).single();
-    resolvedHost = ev?.host_id || null;
-  }
-  await logPersonEvent({
-    personId,
-    type: "attended",
-    hostId: resolvedHost,
-    eventId,
-    channel: "web",
-    body: method === "manual" ? "Pulled up (checked in by host)" : "Pulled up",
-    metadata: { method },
-  });
+  // SINGLE SOURCE OF TRUTH: mirror the pull-up onto rsvps.pulled_up. The room's
+  // read path was unified earlier (hasPulledUp / getRoomRoster read pullups ∪
+  // rsvps.pulled_up), but analytics, the /r world graph, and pull-up counts read
+  // ONLY rsvps.pulled_up — so a QR-door pull-up that wrote only the pullups table
+  // was invisible to them. This closes the write side. Best-effort.
+  await mirrorPullUpToRsvp(personId, eventId);
 
-  return { ok: true, alreadyPresent: false, pullupId: data.id };
+  // First pull-up → append the timeline beat (only on a genuinely new record).
+  if (isNew) {
+    let resolvedHost = hostId;
+    if (!resolvedHost) {
+      const { data: ev } = await supabase.from("events").select("host_id").eq("id", eventId).single();
+      resolvedHost = ev?.host_id || null;
+    }
+    await logPersonEvent({
+      personId,
+      type: "attended",
+      hostId: resolvedHost,
+      eventId,
+      channel: "web",
+      body: method === "manual" ? "Pulled up (checked in by host)" : "Pulled up",
+      metadata: { method },
+    });
+  }
+
+  return { ok: true, alreadyPresent: !isNew, pullupId };
+}
+
+// Mirror a pull-up onto rsvps.pulled_up (the canonical signal every analytics /
+// world-graph / count reader keys off). If the person RSVP'd, flip the flag on
+// their row; if they walked in with no RSVP (QR door allows it), create the
+// minimal attending+pulled_up row so they're counted like everyone who showed.
+// No rsvps trigger fires anything but updated_at, so this is side-effect-free.
+async function mirrorPullUpToRsvp(personId, eventId) {
+  try {
+    const { data: rows } = await supabase
+      .from("rsvps")
+      .select("id, pulled_up")
+      .eq("event_id", eventId)
+      .eq("person_id", personId)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const rs = rows?.[0];
+    if (rs) {
+      if (rs.pulled_up !== true) {
+        await supabase.from("rsvps").update({ pulled_up: true }).eq("id", rs.id);
+      }
+      return;
+    }
+    // Walk-in (no RSVP) — mint the minimal confirmed+pulled_up row.
+    const { data: ev } = await supabase.from("events").select("slug").eq("id", eventId).maybeSingle();
+    const { error } = await supabase.from("rsvps").insert({
+      event_id: eventId,
+      person_id: personId,
+      slug: ev?.slug || null,
+      booking_status: "CONFIRMED",
+      party_size: 1,
+      status: "attending",
+      pulled_up: true,
+    });
+    if (error) console.error("[pullup] rsvp mirror insert failed:", error.message);
+  } catch (e) {
+    console.error("[pullup] rsvp mirror failed:", e?.message);
+  }
 }
 
 // ── Derived relations (computed, never stored) ──────────────────────────────

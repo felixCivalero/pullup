@@ -2929,6 +2929,33 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       }
     }
 
+    // ── Identity spine: record THIS RSVP's identifiers in person_identities. ──
+    // The atom must be identity-resolved, not email-siloed: an RSVP carries an
+    // email (the selection key, unchanged) PLUS a phone and/or IG handle. We link
+    // all of them to the RSVP's person so a later WhatsApp/IG touch resolves to
+    // the SAME human instead of forking a duplicate. Person SELECTION is untouched
+    // (still email via addRsvp); a phone/IG already owned by someone else is
+    // FLAGGED as a merge candidate, never auto-merged (typed = a soft claim).
+    // Also captures the rsvp source profile. Best-effort; never blocks the RSVP.
+    if (result?.rsvp?.personId && !result.error) {
+      try {
+        const { linkIdentitiesToPerson } = await import("./services/personResolution.js");
+        const normEmail = email ? String(email).trim().toLowerCase() : null;
+        const pn = phone ? normalisePhone(phone, result.event?.country || null) : null;
+        const e164 = pn?.ok ? pn.e164 : null;
+        const igHandle = instagram ? String(instagram).trim().replace(/^@+/, "").slice(0, 64) : null;
+        const igUserId = igUid ? String(igUid).slice(0, 64) : null;
+        await linkIdentitiesToPerson({
+          personId: result.rsvp.personId,
+          identifiers: { email: normEmail, phone: e164, igUserId, igHandle },
+          profile: { name: name || null, email: normEmail, phone_e164: e164, instagram: igHandle, ig_user_id: igUserId },
+          source: "rsvp",
+        });
+      } catch (e) {
+        console.error("[rsvp] identity link error:", e?.message);
+      }
+    }
+
     // ── Append to the append-only person timeline (the Room reads this). ──
     // THE spine: without this, a live RSVP never shows in the person's Room —
     // only the one-time backfill ever populated it. Best-effort (never blocks

@@ -81,15 +81,47 @@ function isValidSignature(rawBody, signatureHeader) {
  * the contact up by phone, and the host is "whoever owns the receiving
  * WABA number" (single-tenant today).
  */
-async function resolvePerson(phoneE164) {
+async function resolvePerson(phoneE164, hostProfileId = null) {
   if (!phoneE164) return null;
+  // Fast path: someone already carries this phone on people.phone_e164 (legacy +
+  // RSVP-captured numbers live here; person_identities was email-only backfilled,
+  // so an identity-only lookup would MISS them and fork a duplicate). Anchor to
+  // that person and record the phone in the resolution layer so a future
+  // cross-channel touch resolves by identity too — never a merge, just a link.
   const { data } = await supabase
     .from("people")
     .select("id, host_id")
     .eq("phone_e164", phoneE164)
     .order("created_at", { ascending: true })
     .limit(1);
-  return data?.[0] || null;
+  if (data?.[0]) {
+    try {
+      const { linkIdentitiesToPerson } = await import("../../services/personResolution.js");
+      await linkIdentitiesToPerson({
+        personId: data[0].id,
+        identifiers: { phone: phoneE164 },
+        profile: { phone_e164: phoneE164 },
+        source: "whatsapp",
+      });
+    } catch { /* best-effort: the message still threads */ }
+    return data[0];
+  }
+  // Nobody carries this phone — resolve through the identity layer, which links
+  // an existing identity match or CREATES the person (+ phone identity + source
+  // profile) so an inbound from a fresh number threads into a real atom instead
+  // of orphaning. Falls back to null so the webhook never 500s.
+  try {
+    const { resolvePersonByIdentity } = await import("../../services/personResolution.js");
+    const r = await resolvePersonByIdentity({
+      identifiers: { phone: phoneE164 },
+      profile: { phone_e164: phoneE164, ...(hostProfileId ? { host_id: hostProfileId } : {}) },
+      source: "whatsapp",
+    });
+    return r?.personId ? { id: r.personId, host_id: hostProfileId || null } : null;
+  } catch (e) {
+    logger?.warn?.("[whatsapp/webhook] identity resolve failed", { error: e?.message });
+    return null;
+  }
 }
 
 async function resolveHostProfileForPhoneNumberId(/* phoneNumberId */) {
@@ -196,10 +228,10 @@ async function handleInboundMessage(message, contacts) {
     ? new Date(Number(message.timestamp) * 1000)
     : new Date();
 
-  const personRow = await resolvePerson(fromPhone);
   const hostProfileId = await resolveHostProfileForPhoneNumberId(
     /* phoneNumberId from value.metadata */
   );
+  const personRow = await resolvePerson(fromPhone, hostProfileId);
 
   // Record the inbound message in whatsapp_outbox (direction=inbound). The
   // idempotency key makes a Meta redelivery of this same inbound a no-op instead

@@ -229,6 +229,63 @@ export async function resolvePersonByIdentity({ identifiers, profile = {}, sourc
   return { personId: canonicalId, created, linkedIdentities, conflicts };
 }
 
+/**
+ * Link identifiers to a KNOWN person — the caller already decided who this is
+ * (RSVP picked by email, the WhatsApp webhook by phone). Unlike
+ * resolvePersonByIdentity this NEVER changes which person is used and NEVER
+ * creates one: it only records each identifier in person_identities (so a future
+ * cross-channel touch resolves to this same atom) and flags a merge candidate —
+ * never auto-merges — when an identifier already belongs to someone else. Also
+ * captures the source profile. Best-effort + idempotent; safe to call after the
+ * channel has already settled its person, with zero change to person SELECTION.
+ *
+ * @param {object} args
+ * @param {string} args.personId       the already-resolved canonical person
+ * @param {object} args.identifiers    buildIdentities() input bag
+ * @param {object} [args.profile]      source-profile fields (name/email/phone_e164/instagram/ig_user_id)
+ * @param {string} [args.source]       'rsvp' | 'whatsapp' | 'ig' | 'manual' | 'import'
+ * @returns {Promise<{ linked: string[], conflicts: string[] }>}
+ */
+export async function linkIdentitiesToPerson({ personId, identifiers = {}, profile = {}, source = "resolve" } = {}) {
+  if (!personId) return { linked: [], conflicts: [] };
+  const identities = buildIdentities(identifiers);
+  const linked = [];
+  const conflicts = [];
+  for (const idn of identities) {
+    const r = await attachIdentity(personId, idn, source);
+    if (r === "inserted") linked.push(`${idn.kind}:${idn.value_norm}`);
+    if (r === "conflict") {
+      // This identifier already belongs to a DIFFERENT person — flag a merge for
+      // a human to confirm, never fuse automatically.
+      const { data } = await supabase
+        .from("person_identities").select("person_id")
+        .eq("kind", idn.kind).eq("value_norm", idn.value_norm).maybeSingle();
+      const ownerId = data?.person_id;
+      if (ownerId && ownerId !== personId) {
+        await queueMatchCandidate(personId, ownerId, `shared_${idn.kind}`);
+        if (!conflicts.includes(ownerId)) conflicts.push(ownerId);
+      }
+    }
+  }
+  try {
+    const { upsertSourceProfile, canonicalSource } = await import("./personSourceProfiles.js");
+    const src = canonicalSource(source);
+    if (src !== "resolve" && (profile.name || profile.email || profile.phone_e164 || profile.instagram)) {
+      await upsertSourceProfile({
+        personId,
+        source: src,
+        sourceId: identifiers.igUserId || profile.ig_user_id || identifiers.email || profile.email || profile.phone_e164 || null,
+        handle: profile.instagram || identifiers.igHandle || null,
+        displayName: profile.name || null,
+        data: { ...profile, via: source },
+      });
+    }
+  } catch (e) {
+    logger?.warn?.("[personResolution] link source profile failed", { error: e?.message });
+  }
+  return { linked, conflicts };
+}
+
 // ── helpers ─────────────────────────────────────────────────────────
 
 async function oldestPerson(ids) {

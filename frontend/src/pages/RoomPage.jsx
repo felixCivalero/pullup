@@ -1199,57 +1199,131 @@ function ContactRow({ icon: Icon, text }) {
   );
 }
 
+// Quick-action button on a people card (Message / Add info). Shared style.
+function CardAction({ icon: Icon, label, onClick, tone = "default" }) {
+  const [hov, setHov] = useState(false);
+  const accent = tone === "accent";
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+        padding: "8px 10px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: SF,
+        fontSize: 12.5, fontWeight: 700,
+        background: accent ? (hov ? colors.accent : colors.accentSoft) : (hov ? colors.surfaceMuted : "transparent"),
+        color: accent ? (hov ? "#fff" : colors.accent) : colors.textMuted,
+        transition: "background 0.15s ease, color 0.15s ease",
+      }}
+    >
+      <Icon size={13} /> {label}
+    </button>
+  );
+}
+
 function PeopleContactCard({ person, events, active, onClick }) {
   const [hover, setHover] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const phone = person.phone || person.phone_e164 || null;
   const ig = person.instagram ? String(person.instagram).replace(/^@+/, "") : null;
   const evChips = (person.events || []).map((id) => events.find((e) => e.id === id)).filter(Boolean);
   const hasContact = person.email || phone || ig;
+
+  function message() {
+    window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: person.id } }));
+  }
+
+  async function saveNote() {
+    const content = draft.trim();
+    if (!content || saving) return;
+    setSaving(true);
+    try {
+      const r = await authenticatedFetch(`/host/crm/people/${person.id}/notes`, { method: "POST", body: JSON.stringify({ content }) });
+      const d = await r.json();
+      if (d?.id) { setDraft(""); setAdding(false); setSaved(true); setTimeout(() => setSaved(false), 1800); }
+    } catch { /* keep the draft so nothing is lost */ }
+    setSaving(false);
+  }
+
   return (
-    <button
-      onClick={onClick}
+    <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        textAlign: "left", cursor: "pointer", padding: "14px", borderRadius: "16px",
+        borderRadius: "16px",
         border: `1px solid ${active ? colors.accentBorder : colors.border}`,
         background: active ? colors.accentSoft : hover ? colors.surfaceMuted : colors.surface,
         transition: "background 0.15s ease, border-color 0.15s ease", fontFamily: SF,
-        display: "flex", flexDirection: "column", gap: "11px",
+        display: "flex", flexDirection: "column",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
-        <Avatar initials={person.initials} color={person.color} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-            <HeatDot warmth={person.warmth} />
-            <span style={{ fontSize: "14.5px", fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
+      {/* Body — opens the full detail (notes history + message). */}
+      <div onClick={onClick} role="button" tabIndex={0} style={{ cursor: "pointer", padding: "14px", display: "flex", flexDirection: "column", gap: "11px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+          <Avatar initials={person.initials} color={person.color} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+              <HeatDot warmth={person.warmth} />
+              <span style={{ fontSize: "14.5px", fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
+            </div>
+            {person.relationship && (
+              <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.relationship}</div>
+            )}
           </div>
-          {person.relationship && (
-            <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.relationship}</div>
-          )}
+          <span style={{ flexShrink: 0 }}>
+            <ChannelChip channel={person.channel} windowOpen={person.windowOpen} windowNote={person.windowNote} />
+          </span>
         </div>
-        <span style={{ flexShrink: 0 }}>
-          <ChannelChip channel={person.channel} windowOpen={person.windowOpen} windowNote={person.windowNote} />
-        </span>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {person.email && <ContactRow icon={Mail} text={person.email} />}
+          {phone && <ContactRow icon={Phone} text={phone} />}
+          {ig && <ContactRow icon={Instagram} text={`@${ig}`} />}
+          {!hasContact && <div style={{ fontSize: "12px", color: colors.textFaded }}>No contact details yet</div>}
+        </div>
+
+        {evChips.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            {evChips.slice(0, 3).map((e) => (
+              <span key={e.id} style={{ fontSize: "10.5px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: "999px", whiteSpace: "nowrap", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
+            ))}
+            {evChips.length > 3 && <span style={{ fontSize: "10.5px", color: colors.textFaded }}>+{evChips.length - 3}</span>}
+          </div>
+        )}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-        {person.email && <ContactRow icon={Mail} text={person.email} />}
-        {phone && <ContactRow icon={Phone} text={phone} />}
-        {ig && <ContactRow icon={Instagram} text={`@${ig}`} />}
-        {!hasContact && <div style={{ fontSize: "12px", color: colors.textFaded }}>No contact details yet</div>}
+      {/* Quick actions — right on the card so they're never buried. */}
+      <div style={{ display: "flex", gap: "4px", padding: "6px", borderTop: `1px solid ${colors.borderFaint}` }}>
+        <CardAction icon={Send} label="Message" onClick={message} tone="accent" />
+        <CardAction icon={saved ? Check : Plus} label={saved ? "Added" : "Add info"} onClick={() => setAdding((v) => !v)} />
       </div>
 
-      {evChips.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-          {evChips.slice(0, 3).map((e) => (
-            <span key={e.id} style={{ fontSize: "10.5px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: "999px", whiteSpace: "nowrap", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
-          ))}
-          {evChips.length > 3 && <span style={{ fontSize: "10.5px", color: colors.textFaded }}>+{evChips.length - 3}</span>}
+      {adding && (
+        <div style={{ padding: "0 10px 10px" }}>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNote();
+              if (e.key === "Escape") { setAdding(false); setDraft(""); }
+            }}
+            autoFocus
+            placeholder="Add info — allergies, how you met…"
+            rows={2}
+            style={{ width: "100%", resize: "none", padding: "9px 11px", borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13.5, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 6 }}>
+            <button type="button" onClick={() => { setAdding(false); setDraft(""); }} style={{ padding: "6px 12px", borderRadius: 9, border: "none", background: "transparent", color: colors.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: SF }}>Cancel</button>
+            <button type="button" onClick={saveNote} disabled={!draft.trim() || saving} style={{ padding: "6px 13px", borderRadius: 9, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 12.5, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>{saving ? "Adding…" : "Add"}</button>
+          </div>
         </div>
       )}
-    </button>
+    </div>
   );
 }
 

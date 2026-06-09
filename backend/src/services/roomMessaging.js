@@ -214,7 +214,7 @@ async function logRoomEvent({ personId, hostId, channel, body, attachments = [],
  * specific event (eventId): an inline card on email, a link on WhatsApp/IG.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null, clientId = null }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null, clientId = null, strict = false }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
   const loc = location && location.url ? { label: (location.label || "Location").trim() || "Location", url: location.url } : null;
@@ -277,9 +277,16 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
       category: "transactional",
     },
     humanComposed: true,
+    strict,
     context: { personId, hostProfileId: hostId, legalBasis: "consent", idempotencyKey: key() },
   });
 
+  if (r.channel === "blocked") {
+    // Strict send: the host explicitly chose a rail that can't deliver right now.
+    // We did NOT reroute to email — tell the composer so it can say which rail is
+    // closed and let the host pick email on purpose.
+    return { ok: false, error: "channel_closed", blockedChannel: r.blockedChannel || channel, reasons: r.reasons };
+  }
   if (r.channel === "suppressed" || r.dropped) {
     // No rail worked and there's no email floor to catch it — surface the real
     // reason (e.g. ig window expired / not connected) instead of a vague 400.

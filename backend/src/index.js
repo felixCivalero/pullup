@@ -5804,8 +5804,11 @@ app.get("/host/room", requireAuth, async (req, res) => {
 app.post("/host/room/message", requireAuth, async (req, res) => {
   try {
     const { sendRoomMessage } = await import("./services/roomMessaging.js");
-    const { personId, channel, text, subject, attachments, eventId, location, clientId } = req.body || {};
-    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId, location, clientId });
+    const { personId, channel, text, subject, attachments, eventId, location, clientId, strict } = req.body || {};
+    // strict = an explicit 1:1 host send (the thread composer): the chosen rail
+    // must deliver as itself or be reported blocked — never silently emailed.
+    // Broadcasts/automated rails omit it and keep the email floor.
+    const r = await sendRoomMessage({ hostId: req.user.id, personId, channel, text, subject, attachments, eventId, location, clientId, strict: !!strict });
     if (!r.ok) {
       return res.status(r.error === "channel_unavailable" ? 501 : 400).json(r);
     }

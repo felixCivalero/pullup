@@ -22,6 +22,7 @@ import { logger } from "../logger.js";
 import { getUserProfile } from "../data.js";
 import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
 import { getForPersons, resolveDisplay } from "./personSourceProfiles.js";
+import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
 
 // The host's own profile, shaped for the Room masthead — so the page reads as
 // "this is YOUR profile, these are YOUR people" (the social-dashboard framing).
@@ -388,21 +389,29 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     logger?.warn?.("[roomService] whatsapp window read failed", { error: err?.message });
   }
 
-  // 3c. IG read-receipt watermark per person — outbound DMs older than this
-  // render as "read" (derived from the guest's IG `read` events; the timeline
-  // itself is never mutated). Foundation for sent → read ticks.
+  // 3c. IG read-receipt watermark + window state per person. Watermark: outbound
+  // DMs older than last_read_at render as "read". Window: last_inbound_at anchors
+  // the 24h free-text window (standard) and the 24h–7d human-agent window — the
+  // same rule dispatch() enforces, surfaced so the composer can show the truth.
   const igReadByPerson = new Map();
+  const igWindowByPerson = new Map(); // person_id -> "standard" | "human_agent" | "expired"
   try {
     const { data: igThreads } = await supabase
       .from("instagram_threads")
-      .select("person_id, last_read_at")
+      .select("person_id, last_read_at, last_inbound_at")
       .eq("host_profile_id", hostId)
       .in("person_id", personIds);
+    const nowMs = Date.now();
+    const H24 = 24 * 3600 * 1000, D7 = 7 * 24 * 3600 * 1000;
     for (const t of igThreads || []) {
       if (t.last_read_at) igReadByPerson.set(t.person_id, new Date(t.last_read_at).getTime());
+      if (t.last_inbound_at) {
+        const elapsed = nowMs - new Date(t.last_inbound_at).getTime();
+        igWindowByPerson.set(t.person_id, elapsed <= H24 ? "standard" : elapsed <= D7 ? "human_agent" : "expired");
+      }
     }
   } catch (err) {
-    logger?.warn?.("[roomService] instagram read watermark read failed", { error: err?.message });
+    logger?.warn?.("[roomService] instagram read/window read failed", { error: err?.message });
   }
 
   // 4. Events list (content pieces, for the lens + the banner).
@@ -479,6 +488,22 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
         ? "Messaged recently — sends as a normal WhatsApp"
         : "Quiet for 24h+ — sends as a WhatsApp template";
 
+    // Live sendability per reachable channel — "open" means a normal free-text
+    // message goes out ON THAT channel right now; "closed" means its window is
+    // shut. The composer locks the closed ones so a WhatsApp/IG pick can never
+    // silently become an email. Email is always open. IG: standard window, or
+    // the 24h–7d human-agent window only when Meta has approved it (host Room
+    // messages are human-composed, so they qualify once approved).
+    const channelState = {};
+    for (const c of reachable) {
+      if (c === "whatsapp") channelState.whatsapp = windowByPerson.get(pid) ? "open" : "closed";
+      else if (c === "instagram") {
+        const st = igWindowByPerson.get(pid) || "expired";
+        const igOpen = st === "standard" || (st === "human_agent" && IG_HUMAN_AGENT_APPROVED);
+        channelState.instagram = igOpen ? "open" : "closed";
+      } else if (c === "email") channelState.email = "open";
+    }
+
     const attended = evs.filter((e) => e.type === "attended").length;
     const rsvps = evs.filter((e) => e.type === "rsvp").length;
     const waitlisted = evs.some((e) => e.type === "waitlist_join");
@@ -502,6 +527,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       color: colorFor(pid),
       channel,
       reachable,
+      channelState,
       windowOpen: winOpen,
       windowNote,
       warmth,

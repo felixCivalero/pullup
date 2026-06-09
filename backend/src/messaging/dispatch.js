@@ -278,6 +278,7 @@ export async function dispatch({
   whatsapp = null,
   email,
   humanComposed = false,
+  strict = false,
   context = {},
 }) {
   if (!recipient) throw new Error("[messaging/dispatch] recipient required");
@@ -299,6 +300,19 @@ export async function dispatch({
       ? await attemptInstagram({ recipient, text, attachments, humanComposed, personId, hostProfileId, reasons })
       : await attemptWhatsApp({ recipient, hostProfile, text, attachments, whatsapp, personId, hostProfileId, context, reasons });
     if (r?.channel) return { ...r, fallback: false };
+  }
+
+  // ── Strict 1:1 send: the host explicitly chose a live rail and it couldn't
+  //    deliver AS ITSELF (window closed, not connected, opt-out…). NEVER silently
+  //    reroute a DM to email behind the host's back — report it blocked so the UI
+  //    can say "couldn't reach them on X" and let the host consciously pick email.
+  //    (Automated rails — reminders, auto-DMs, broadcasts — leave strict off and
+  //    keep the email floor below.) ──
+  if (strict && preferredChannel && preferredChannel !== "email") {
+    logger?.info?.("[messaging/dispatch] strict send blocked — chosen rail unavailable, not rerouting to email", {
+      person_id: personId, host_profile_id: hostProfileId, preferred_channel: preferredChannel, reasons,
+    });
+    return { channel: "blocked", row: null, fallback: false, dropped: true, blockedChannel: preferredChannel, reasons };
   }
 
   // ── Email floor (default + fallback) ───────────────────────────────

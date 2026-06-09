@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -55,6 +55,31 @@ function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean)
 // The channels one person is reachable on — one human, several linked accounts.
 // Falls back to their preferred channel when the room didn't enumerate reach.
 function reachOf(p) { return p?.reachable?.length ? p.reachable : [p?.channel || "email"]; }
+
+// Can we send a normal free-text message ON this channel RIGHT NOW? Email always.
+// WhatsApp/Instagram only inside their open window — so the composer can lock a
+// closed rail and a DM never silently becomes an email. Uses the server's live
+// channelState; falls back to the legacy windowOpen flag if an older payload
+// hasn't got channelState yet (don't lock on missing data).
+function chanOpen(p, c) {
+  if (c === "email") return true;
+  const st = p?.channelState?.[c];
+  if (st) return st === "open";
+  if (c === "whatsapp") return p?.windowOpen !== false;
+  return true; // instagram / unknown with no state → assume open (back-compat)
+}
+
+// The channel a send will ACTUALLY go out on: the host's pick if it's still
+// open, else their preferred rail if open, else the best open rail. Never lands
+// on a closed rail — that's the whole point.
+function resolveActiveCh(p, picked) {
+  if (!p) return "email";
+  const reach = reachOf(p);
+  if (picked && reach.includes(picked) && chanOpen(p, picked)) return picked;
+  const preferred = p.channel || "email";
+  if (chanOpen(p, preferred)) return preferred;
+  return reach.filter((c) => chanOpen(p, c))[0] || preferred;
+}
 
 function Avatar({ name, size = 44, dot, src }) {
   const c = TINTS[hashName(name) % TINTS.length];
@@ -196,11 +221,18 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   async function doSend({ clientId, personId, ch, text, atts, ev, loc }) {
     setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, status: "sending" } : m)));
     try {
-      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId, channel: ch, text, attachments: atts, eventId: ev?.id || undefined, location: loc || undefined, clientId }) });
+      // strict: a 1:1 thread send must go out on the chosen rail or come back
+      // blocked — the server never silently reroutes a DM to email.
+      const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId, channel: ch, text, attachments: atts, eventId: ev?.id || undefined, location: loc || undefined, clientId, strict: true }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         setSent((s) => s.map((m) => (m.clientId === clientId ? { ...m, status: "failed" } : m)));
-        showToast(data.error === "no_email" ? "No email on file for them yet" : "Couldn't send — tap to retry", "error");
+        const msg = data.error === "no_email"
+          ? "No email on file for them yet"
+          : data.error === "channel_closed"
+            ? `${CH[data.blockedChannel]?.label || "That channel"} is closed — they need to message first. Send on Email to reach them.`
+            : "Couldn't send — tap to retry";
+        showToast(msg, "error");
         return;
       }
       // Reflect the channel the server actually used (WhatsApp/IG can fall to email).
@@ -218,7 +250,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     e.preventDefault();
     const text = draft.trim();
     if ((!text && attachments.length === 0 && !attachedEventId && !attachedLocation) || !open || sending) return;
-    const ch = sendChannel || open.channel || "email"; const atts = attachments;
+    const ch = resolveActiveCh(open, sendChannel); const atts = attachments;
     const ev = attachedEvent ? { id: attachedEvent.id, title: attachedEvent.title, slug: attachedEvent.slug, coverImageUrl: attachedEvent.coverImageUrl || attachedEvent.image || null, whenLabel: fmtWhen(attachedEvent), location: attachedEvent.location } : undefined;
     const loc = attachedLocation || undefined;
     const clientId = newClientId();
@@ -393,10 +425,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // ── Conversation view ───────────────────────────────────────────────────
   const conversationView = (split = false) => {
     const reach = reachOf(open);
-    const activeCh = (sendChannel && reach.includes(sendChannel)) ? sendChannel : (open.channel || "email");
+    const activeCh = resolveActiveCh(open, sendChannel);
     const ch = CH[activeCh] || CH.email;
     const others = reach.filter((c) => c !== activeCh);
-    const windowClosed = activeCh === "whatsapp" && open.windowOpen === false;
+    // The active rail is normally open (resolveActiveCh prefers an open one); it's
+    // only closed when EVERY reachable rail is closed and none can carry a DM now.
+    const activeClosed = !chanOpen(open, activeCh);
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
@@ -406,8 +440,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
               <div style={{ fontSize: 11, color: ch.color, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {ch.label}{windowClosed ? " · window closed" : ""}
-                {others.length > 0 && <span style={{ color: D.faint, fontWeight: 500 }}> · also on {others.map((c) => CH[c]?.label || c).join(", ")}</span>}
+                {ch.label}{activeClosed ? " · window closed" : ""}
+                {others.length > 0 && <span style={{ color: D.faint, fontWeight: 500 }}> · also on {others.map((c) => `${CH[c]?.label || c}${chanOpen(open, c) ? "" : " (closed)"}`).join(", ")}</span>}
               </div>
             </div>
           </button>
@@ -415,7 +449,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           {!split && onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
 
-        {/* One person, several linked accounts — pick which to send on. */}
+        {/* One person, several linked accounts — pick which to send on. A rail
+            whose window is closed is LOCKED (not selectable): you can't fire a DM
+            that would silently go out as email. Email is always open. */}
         {reach.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${D.line}`, flexWrap: "wrap" }}>
             <span style={{ fontSize: 10.5, fontWeight: 700, color: D.faint, textTransform: "uppercase", letterSpacing: "0.06em" }}>Send on</span>
@@ -423,6 +459,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
               const Icon = CH_ICON[c] || MessageCircle;
               const on = activeCh === c;
               const col = CH[c]?.color || D.muted;
+              const isOpen = chanOpen(open, c);
+              if (!isOpen) {
+                return (
+                  <span key={c} title={`${CH[c]?.label || c} window closed — they haven't messaged in a while, so a DM can't go out. Send on Email instead.`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "not-allowed", border: `1px dashed ${D.line}`, background: "transparent", color: D.faint, opacity: 0.75 }}>
+                    <Lock size={11} strokeWidth={2.5} /> {CH[c]?.label || c}
+                  </span>
+                );
+              }
               return (
                 <button key={c} type="button" onClick={() => setSendChannel(c)} title={CH[c]?.label || c}
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? "transparent" : D.line}`, background: on ? col : "transparent", color: on ? "#fff" : col }}>
@@ -430,6 +475,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* Every reachable rail is closed (e.g. WhatsApp-only, quiet 24h+ and no
+            email on file) — say so plainly instead of letting a send fail blind. */}
+        {activeClosed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${D.line}`, fontSize: 11.5, fontWeight: 600, color: "#b45309", background: "rgba(180,83,9,0.06)" }}>
+            <Lock size={12} strokeWidth={2.4} style={{ flexShrink: 0 }} />
+            <span>{CH[activeCh]?.label || "This channel"} is closed — they need to message first before you can DM.</span>
           </div>
         )}
 

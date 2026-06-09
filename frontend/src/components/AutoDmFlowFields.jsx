@@ -34,13 +34,14 @@ const lbl = {
 };
 const hint = { fontSize: 11.5, color: colors.textMuted, marginTop: 6, lineHeight: 1.45 };
 
-// Curated, on-brand starting points — static (no AI). The placeholder teaches
-// the pattern; these get them there in one tap.
+// Curated, on-brand starting points — static (no AI). Every one signals the
+// link is coming, so the guest never wonders why they're being asked. The
+// placeholder + preview reinforce it.
 const EXAMPLE_OPENERS = [
-  "Before I send it — what's pulling you out to this?",
-  "Real quick, who put you onto us?",
-  "Say LETS GO and it's yours 🔥",
-  "What are you hoping to get out of the night?",
+  "Before I send the link — what's pulling you out to this?",
+  "Quick one and the link's yours: who put you onto us?",
+  "Say LETS GO and I'll send it right over 🔥",
+  "Answer this and you're in — what are you hoping for?",
 ];
 
 // ── State helpers (the draft the parent holds) ──────────────────────
@@ -109,6 +110,60 @@ function LinkToggle({ on, onClick }) {
 const focusOn = (e) => (e.target.style.borderColor = colors.instagramBorder);
 const focusOff = (e) => (e.target.style.borderColor = colors.borderStrong);
 
+// An incoming DM bubble (what the guest receives) for the live preview.
+function Bubble({ children, sub }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", maxWidth: "88%" }}>
+      <div
+        style={{
+          background: "#fff",
+          border: `1px solid ${colors.border}`,
+          borderRadius: 14,
+          borderTopLeftRadius: 4,
+          padding: "9px 12px",
+          fontSize: 13,
+          color: colors.text,
+          lineHeight: 1.45,
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {children}
+      </div>
+      {sub}
+    </div>
+  );
+}
+
+function LinkChip() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        marginTop: 6,
+        padding: "5px 9px",
+        borderRadius: 8,
+        background: colors.instagramSoft,
+        border: `1px solid ${colors.instagramBorder}`,
+        color: colors.instagram,
+        fontSize: 11.5,
+        fontWeight: 700,
+      }}
+    >
+      <Link2 size={11} /> pullup.se/i/…
+    </span>
+  );
+}
+
+const splitTag = {
+  fontSize: 10.5,
+  color: colors.textSubtle,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
 /**
  * @param {object} value     the draft (emptyFlowDraft shape)
  * @param {function} onChange (nextDraft) => void
@@ -156,7 +211,7 @@ export function AutoDmFlowFields({ value, onChange }) {
           ))}
         </div>
         <div style={hint}>
-          They have to reply to get in — that opens the DM window (so you can keep talking) and tells you something about them. Their answer lands in their Room.
+          Let them know the link comes <strong>after</strong> they reply — most lead with “Before I send the link…”. That reply opens the DM window (so you can keep talking) and lands in their Room.
         </div>
       </div>
 
@@ -239,6 +294,32 @@ export function AutoDmFlowFields({ value, onChange }) {
           </div>
         </div>
       )}
+
+      {/* GUEST PREVIEW — the host sees exactly what the guest gets, so the
+          "reply first, link after" framing reads unmistakably. */}
+      <div style={{ borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.surface, padding: "12px 13px 14px" }}>
+        <div style={{ ...lbl, marginBottom: 10 }}>What they'll see</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+          <Bubble>{value.opener || "Before I send the link — what's pulling you out to this?"}</Bubble>
+          <div style={{ alignSelf: "flex-end", fontSize: 11, color: colors.textSubtle, fontStyle: "italic" }}>↳ they reply…</div>
+          {!value.splitOn ? (
+            <Bubble sub={value.answerA.includeLink ? <LinkChip /> : null}>
+              {value.answerA.text || (value.answerA.includeLink ? "(just the link)" : "…")}
+            </Bubble>
+          ) : (
+            <>
+              <div style={splitTag}>if “{value.splitKeyword || "…"}”</div>
+              <Bubble sub={value.answerA.includeLink ? <LinkChip /> : null}>
+                {value.answerA.text || (value.answerA.includeLink ? "(just the link)" : "…")}
+              </Bubble>
+              <div style={splitTag}>otherwise</div>
+              <Bubble sub={value.answerB.includeLink ? <LinkChip /> : null}>
+                {value.answerB.text || (value.answerB.includeLink ? "(just the link)" : "…")}
+              </Bubble>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

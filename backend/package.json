@@ -8,7 +8,8 @@
     "start": "node src/index.js",
     "worker": "node src/email/outbox/outboxWorkerRunner.js",
     "worker:once": "node src/email/outbox/outboxWorkerRunner.js --mode=once",
-    "test": "fail=0; for f in tests/*.test.js; do echo \"\\n--- $f ---\"; node \"$f\" || fail=1; done; exit $fail"
+    "test": "fail=0; for f in tests/*.test.js; do echo \"\\n--- $f ---\"; node \"$f\" || fail=1; done; exit $fail",
+    "e2e": "node scripts/e2e-core-flows.mjs"
   },
   "keywords": [],
   "author": "",

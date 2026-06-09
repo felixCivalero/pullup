@@ -56,7 +56,7 @@ const AV_TINTS = [
 // no scroll nudge. The room sits perfectly still until something actually moves.
 function feedSig(list) {
   return (list || [])
-    .map((m) => `${m.id}:${m.pinned ? 1 : 0}:${(m.media || []).length}:${(m.body || "").length}:${m.at || ""}`)
+    .map((m) => `${m.id}:${m.pinned ? 1 : 0}:${(m.media || []).length}:${(m.body || "").length}:${m.at || ""}:${m.editedAt || ""}:${m.deleted ? "x" : ""}`)
     .join("|");
 }
 
@@ -194,6 +194,38 @@ export default function RoomConversation({
     if (Array.isArray(fresh)) { serverSigRef.current = feedSig(fresh); setMessages(fresh); }
   }
 
+  // Managing your OWN content. "Mine" for a host viewer = the host's own posts;
+  // for a guest = their own non-host posts (the server is the real gate — this is
+  // just which affordances to show). Edit is author-only; delete is author OR the
+  // host (moderation). Never on a pending/failed/already-deleted post.
+  const isMine = (m) => (meIsHost ? !!m.isHost : (!m.isHost && m.authorName === meName));
+  const liveOwn = (m) => !m.deleted && !m._pending && !m._failed;
+  const canEditMsg = (m) => liveOwn(m) && !!api.editMessage && isMine(m);
+  const canDeleteMsg = (m) => liveOwn(m) && !!api.deleteMessage && (isMine(m) || meIsHost);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
+  function beginEdit(m) { setEditingId(m.id); setEditDraft(m.body || ""); }
+  function cancelEdit() { setEditingId(null); setEditDraft(""); }
+  async function saveEdit(m) {
+    const text = editDraft.trim();
+    if (!text && (m.media || []).length === 0) return; // can't blank a text-only post
+    if (text === (m.body || "")) { cancelEdit(); return; }
+    setEditingId(null); setEditDraft("");
+    setMessages((list) => (list || []).map((x) => (x.id === m.id ? { ...x, body: text, editedAt: new Date().toISOString() } : x)));
+    const fresh = await api.editMessage(m.id, text).catch(() => null);
+    if (Array.isArray(fresh)) { serverSigRef.current = feedSig(fresh); setMessages(fresh); }
+  }
+  async function removeMessage(m) {
+    if (typeof window !== "undefined" && !window.confirm("Delete this message? This can't be undone.")) return;
+    if (editingId === m.id) cancelEdit();
+    // Optimistically tombstone it: a leaf vanishes on reconcile, a post with
+    // replies stays as a "deleted" placeholder so the thread doesn't jump.
+    setMessages((list) => (list || []).map((x) => (x.id === m.id ? { ...x, deleted: true, pinned: false, body: "", media: [] } : x)));
+    const fresh = await api.deleteMessage(m.id).catch(() => null);
+    if (Array.isArray(fresh)) { serverSigRef.current = feedSig(fresh); setMessages(fresh); }
+  }
+
   const Avatar = ({ name, host, size = 36 }) => {
     let h = 0;
     for (const ch of String(name || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -298,26 +330,39 @@ export default function RoomConversation({
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontSize: 13.5, fontWeight: 750, color: m.isHost ? C.pink : C.ink }}>{m.authorName}{m.isHost ? " · host" : ""}</span>
             {m.at && <span style={{ fontSize: 11, color: C.faint }}>{timeAgo(m.at)}</span>}
+            {m.editedAt && !m.deleted && <span style={{ fontSize: 11, color: C.faint }}>· edited</span>}
             {m.pinned && <Pin size={11} color={C.pink} style={{ marginLeft: -1 }} />}
           </div>
-          {m.body && <div style={{ fontSize: 14.5, color: C.ink, lineHeight: 1.5, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
-          <PostMedia media={m.media} />
+          {editingId === m.id ? (
+            <EditBox value={editDraft} onChange={setEditDraft} onSave={() => saveEdit(m)} onCancel={cancelEdit} C={C} fontSize={14.5} />
+          ) : m.deleted ? (
+            <div style={{ fontSize: 14, color: C.faint, fontStyle: "italic", marginTop: 2 }}>This message was deleted</div>
+          ) : (
+            <>
+              {m.body && <div style={{ fontSize: 14.5, color: C.ink, lineHeight: 1.5, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
+              <PostMedia media={m.media} />
+            </>
+          )}
           {m._pending && <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>Sending…</div>}
           {m._failed && <button onClick={() => retrySend(m)} style={{ ...actionBtn(C), color: C.danger, marginTop: 4 }}>Couldn't send · tap to retry</button>}
 
-          <div className="rc-actions" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6 }}>
-            {canPost && !m._pending && !m._failed && <button onClick={() => openThread(m.id)} style={actionBtn(C)}>Reply</button>}
-            {replies.length > 0 && (
-              <button onClick={() => toggleThread(m.id)} style={{ ...actionBtn(C), color: C.pink }}>
-                {open ? "Hide" : `${replies.length} ${replies.length === 1 ? "reply" : "replies"}`}
-              </button>
-            )}
-            {canPinThis(m) && (
-              <button onClick={() => togglePin(m)} title={m.pinned ? "Unpin" : "Attach to top"} style={{ ...actionBtn(C), display: "inline-flex", alignItems: "center", gap: 4 }}>
-                {m.pinned ? <><PinOff size={12} /> Unpin</> : <><Pin size={12} /> Pin</>}
-              </button>
-            )}
-          </div>
+          {editingId !== m.id && (
+            <div className="rc-actions" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6 }}>
+              {canPost && !m._pending && !m._failed && <button onClick={() => openThread(m.id)} style={actionBtn(C)}>Reply</button>}
+              {replies.length > 0 && (
+                <button onClick={() => toggleThread(m.id)} style={{ ...actionBtn(C), color: C.pink }}>
+                  {open ? "Hide" : `${replies.length} ${replies.length === 1 ? "reply" : "replies"}`}
+                </button>
+              )}
+              {!m.deleted && canPinThis(m) && (
+                <button onClick={() => togglePin(m)} title={m.pinned ? "Unpin" : "Attach to top"} style={{ ...actionBtn(C), display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  {m.pinned ? <><PinOff size={12} /> Unpin</> : <><Pin size={12} /> Pin</>}
+                </button>
+              )}
+              {canEditMsg(m) && <button onClick={() => beginEdit(m)} style={actionBtn(C)}>Edit</button>}
+              {canDeleteMsg(m) && <button onClick={() => removeMessage(m)} style={{ ...actionBtn(C), color: C.danger }}>Delete</button>}
+            </div>
+          )}
 
           {open && (
             <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: `2px solid ${C.thread}`, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -328,18 +373,31 @@ export default function RoomConversation({
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontSize: 12.5, fontWeight: 700, color: r.isHost ? C.pink : C.ink }}>{r.authorName}{r.isHost ? " · host" : ""}</span>
                       {r.at && <span style={{ fontSize: 10.5, color: C.faint }}>{timeAgo(r.at)}</span>}
+                      {r.editedAt && !r.deleted && <span style={{ fontSize: 10.5, color: C.faint }}>· edited</span>}
                     </div>
-                    {r.body && <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.45, marginTop: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.body}</div>}
-                    <PostMedia media={r.media} />
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
-                      {/* Reply ON a reply — content on content. Stays in the same
-                          thread (one flowing feed), seeded with their @name. */}
-                      {canPost && !r._pending && !r._failed && (
-                        <button onClick={() => { openThread(m.id); setReplySeed({ rootId: m.id, name: firstName(r.authorName) }); }} style={actionBtn(C)}>Reply</button>
-                      )}
-                      {r._pending && <span style={{ fontSize: 10.5, color: C.faint }}>Sending…</span>}
-                      {r._failed && <button onClick={() => retrySend(r)} style={{ ...actionBtn(C), color: C.danger }}>Couldn't send · retry</button>}
-                    </div>
+                    {editingId === r.id ? (
+                      <EditBox value={editDraft} onChange={setEditDraft} onSave={() => saveEdit(r)} onCancel={cancelEdit} C={C} fontSize={13.5} />
+                    ) : r.deleted ? (
+                      <div style={{ fontSize: 13, color: C.faint, fontStyle: "italic", marginTop: 1 }}>This message was deleted</div>
+                    ) : (
+                      <>
+                        {r.body && <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.45, marginTop: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.body}</div>}
+                        <PostMedia media={r.media} />
+                      </>
+                    )}
+                    {editingId !== r.id && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
+                        {/* Reply ON a reply — content on content. Stays in the same
+                            thread (one flowing feed), seeded with their @name. */}
+                        {canPost && !r._pending && !r._failed && !r.deleted && (
+                          <button onClick={() => { openThread(m.id); setReplySeed({ rootId: m.id, name: firstName(r.authorName) }); }} style={actionBtn(C)}>Reply</button>
+                        )}
+                        {canEditMsg(r) && <button onClick={() => beginEdit(r)} style={actionBtn(C)}>Edit</button>}
+                        {canDeleteMsg(r) && <button onClick={() => removeMessage(r)} style={{ ...actionBtn(C), color: C.danger }}>Delete</button>}
+                        {r._pending && <span style={{ fontSize: 10.5, color: C.faint }}>Sending…</span>}
+                        {r._failed && <button onClick={() => retrySend(r)} style={{ ...actionBtn(C), color: C.danger }}>Couldn't send · retry</button>}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -530,6 +588,31 @@ function Composer({ C, isMobile, variant, allowPin = false, canUpload, gifEnable
         <button onClick={submit} disabled={!draft.trim() && staged.length === 0} style={sendBtn(C, !!(draft.trim() || staged.length), !main)}>
           {main ? "Share" : "Send"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Inline editor for your own post — a small autogrowing box with Save/Cancel.
+// Enter saves, Esc cancels, Shift+Enter makes a newline.
+function EditBox({ value, onChange, onSave, onCancel, C, fontSize = 14 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) { el.focus(); el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 140)}px`; el.setSelectionRange(el.value.length, el.value.length); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div style={{ marginTop: 4 }}>
+      <textarea
+        ref={ref} value={value} rows={1}
+        onChange={(e) => { onChange(e.target.value); const el = e.target; el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 140)}px`; }}
+        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSave(); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
+        style={{ width: "100%", boxSizing: "border-box", resize: "none", maxHeight: 140, padding: "8px 11px", borderRadius: 11, border: `1px solid ${C.pink}`, background: C.field, color: C.ink, fontSize, lineHeight: 1.4, outline: "none", fontFamily: "inherit" }}
+      />
+      <div style={{ display: "flex", gap: 12, marginTop: 5 }}>
+        <button onClick={onSave} style={{ ...actionBtn(C), color: C.pink }}>Save</button>
+        <button onClick={onCancel} style={actionBtn(C)}>Cancel</button>
       </div>
     </div>
   );

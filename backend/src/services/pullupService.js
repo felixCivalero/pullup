@@ -433,25 +433,76 @@ export async function listSpaceMessages(eventId, { channelId = null, limit = 500
   if (!chId) { const main = await getOrCreateMainChannel(eventId); chId = main?.id || null; }
   let q = supabase
     .from("event_space_messages")
-    .select("id, body, author_name, is_host, author_person_id, parent_id, media, pinned, channel_id, created_at")
+    .select("id, body, author_name, is_host, author_person_id, parent_id, media, pinned, channel_id, created_at, edited_at, deleted_at")
     .eq("event_id", eventId)
     .order("created_at", { ascending: true })
     .limit(limit);
   if (chId) q = q.eq("channel_id", chId);
   const { data, error } = await q;
   if (error || !data) return [];
-  return data.map((m) => ({
-    id: m.id,
-    body: m.body || "",
-    authorName: m.author_name || "Someone",
-    isHost: !!m.is_host,
-    personId: m.author_person_id || null,
-    parentId: m.parent_id || null,
-    media: Array.isArray(m.media) ? m.media : [],
-    pinned: !!m.pinned,
-    channelId: m.channel_id || null,
-    at: m.created_at,
-  }));
+  return data.map((m) => {
+    const deleted = !!m.deleted_at;
+    return {
+      id: m.id,
+      // A soft-deleted post (kept only to hold its reply thread together) carries
+      // no content — the frontend renders a "message deleted" tombstone.
+      body: deleted ? "" : (m.body || ""),
+      authorName: m.author_name || "Someone",
+      isHost: !!m.is_host,
+      personId: m.author_person_id || null,
+      parentId: m.parent_id || null,
+      media: deleted ? [] : (Array.isArray(m.media) ? m.media : []),
+      pinned: !deleted && !!m.pinned,
+      channelId: m.channel_id || null,
+      at: m.created_at,
+      editedAt: m.edited_at || null,
+      deleted,
+    };
+  });
+}
+
+// Edit a post's TEXT. Author-only (the caller authorises). Media is left as-is —
+// this fixes what you said, it doesn't re-attach. Stamps edited_at so the room
+// can show a quiet "· edited". You can't blank a text-only post (that'd be an
+// empty post) or edit one that's already been deleted.
+export async function editSpaceMessage({ eventId, messageId, body }) {
+  if (!eventId || !messageId) return { ok: false, reason: "empty" };
+  const { data: row } = await supabase
+    .from("event_space_messages").select("id, media, deleted_at").eq("id", messageId).eq("event_id", eventId).maybeSingle();
+  if (!row) return { ok: false, reason: "not_found" };
+  if (row.deleted_at) return { ok: false, reason: "deleted" };
+  const text = (body || "").toString().trim();
+  const hasMedia = Array.isArray(row.media) && row.media.length > 0;
+  if (!text && !hasMedia) return { ok: false, reason: "empty" };
+  const { error } = await supabase
+    .from("event_space_messages")
+    .update({ body: text.slice(0, 4000), edited_at: new Date().toISOString() })
+    .eq("id", messageId).eq("event_id", eventId);
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true };
+}
+
+// Remove a post. A leaf is HARD-deleted (clean, no ghost). A post that has
+// replies is SOFT-deleted instead — parent_id is ON DELETE CASCADE, so a hard
+// delete would take everyone's replies with it; soft-delete keeps the row (body/
+// media cleared, unpinned) so the thread underneath survives as a tombstone.
+// Authorisation (author, or host moderating) is the caller's job.
+export async function deleteSpaceMessage({ eventId, messageId }) {
+  if (!eventId || !messageId) return { ok: false, reason: "empty" };
+  const { data: kids } = await supabase
+    .from("event_space_messages").select("id").eq("parent_id", messageId).limit(1);
+  if (Array.isArray(kids) && kids.length > 0) {
+    const { error } = await supabase
+      .from("event_space_messages")
+      .update({ deleted_at: new Date().toISOString(), body: "", media: [], pinned: false })
+      .eq("id", messageId).eq("event_id", eventId);
+    if (error) return { ok: false, reason: error.message };
+    return { ok: true, soft: true };
+  }
+  const { error } = await supabase
+    .from("event_space_messages").delete().eq("id", messageId).eq("event_id", eventId);
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true, soft: false };
 }
 
 // A post is text, media, or both — and may reply to another post (parentId) and

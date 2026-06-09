@@ -111,6 +111,12 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, lobbyOpen }) 
         authenticatedFetch(`${base}/space`, { method: "POST", body: JSON.stringify({ body, parentId, media, pinned, channelId }) }).then(msgs),
       pin: (messageId, pinned) =>
         authenticatedFetch(`${base}/space/${messageId}/pin`, { method: "POST", body: JSON.stringify({ pinned }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || null) : null)),
+      // Edit your own post's text / remove a post. Same base switch (host vs
+      // guest endpoints); both return the fresh feed so the room reconciles.
+      editMessage: (messageId, body) =>
+        authenticatedFetch(`${base}/space/${messageId}`, { method: "PATCH", body: JSON.stringify({ body }) }).then((r) => (r.ok ? r.json().then((d) => d.messages || null) : null)),
+      deleteMessage: (messageId) =>
+        authenticatedFetch(`${base}/space/${messageId}`, { method: "DELETE" }).then((r) => (r.ok ? r.json().then((d) => d.messages || null) : null)),
       // Any file, any size (up to the bucket cap): mint a signed URL and upload
       // the bytes straight to storage from the browser — never through the API.
       uploadMedia: async (file) => {

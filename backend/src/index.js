@@ -7010,6 +7010,49 @@ app.post("/p/:eventId/space/:messageId/pin", optionalAuth, async (req, res) => {
   }
 });
 
+// Edit your OWN post (text only). A guest may edit only their own; the room
+// shows a quiet "· edited" after. Identity is the verified session — never a
+// body-supplied email.
+app.patch("/p/:eventId/space/:messageId", optionalAuth, async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const { body } = req.body || {};
+    const { getSpaceMessage, editSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const msg = await getSpaceMessage(messageId);
+    if (!msg || msg.event_id !== eventId) return res.status(404).json({ ok: false, reason: "not_found" });
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
+    const viewer = await resolveViewer(req, { email: norm || null });
+    if (!viewer.person || msg.author_person_id !== viewer.person.id) return res.status(403).json({ ok: false, reason: "not_yours" });
+    const r = await editSpaceMessage({ eventId, messageId, body });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg.channel_id || null }) });
+  } catch (err) {
+    console.error("[space:edit] error:", err.message);
+    res.status(500).json({ ok: false, reason: "edit_failed" });
+  }
+});
+
+// Delete your OWN post. A guest may delete only their own (the host has a
+// moderation route below that can remove anything). Leaf → gone; has replies →
+// soft-deleted so the thread survives. Session identity only.
+app.delete("/p/:eventId/space/:messageId", optionalAuth, async (req, res) => {
+  try {
+    const { eventId, messageId } = req.params;
+    const { getSpaceMessage, deleteSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const msg = await getSpaceMessage(messageId);
+    if (!msg || msg.event_id !== eventId) return res.status(404).json({ ok: false, reason: "not_found" });
+    const norm = (req.user?.email || "").toString().trim().toLowerCase();
+    const viewer = await resolveViewer(req, { email: norm || null });
+    if (!viewer.person || msg.author_person_id !== viewer.person.id) return res.status(403).json({ ok: false, reason: "not_yours" });
+    const r = await deleteSpaceMessage({ eventId, messageId });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg.channel_id || null }) });
+  } catch (err) {
+    console.error("[space:delete] error:", err.message);
+    res.status(500).json({ ok: false, reason: "delete_failed" });
+  }
+});
+
 // Host side of the same space — the hub, and the pen: the host curates topics.
 app.get("/host/events/:id/channels", requireAuth, async (req, res) => {
   try {
@@ -7124,6 +7167,45 @@ app.post("/host/events/:id/space/:messageId/pin", requireAuth, async (req, res) 
   } catch (err) {
     console.error("[host-space:pin] error:", err.message);
     res.status(500).json({ ok: false, reason: "pin_failed" });
+  }
+});
+
+// Host edits its OWN post (host posts only — never rewrites a guest's words).
+app.patch("/host/events/:id/space/:messageId", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+    const { messageId } = req.params;
+    const { isHost } = await isUserEventHost(req.user.id, eventId);
+    if (!isHost) return res.status(403).json({ ok: false, error: "Forbidden" });
+    const { getSpaceMessage, editSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const msg = await getSpaceMessage(messageId);
+    if (!msg || msg.event_id !== eventId) return res.status(404).json({ ok: false, reason: "not_found" });
+    if (!msg.is_host) return res.status(403).json({ ok: false, reason: "not_yours" });
+    const r = await editSpaceMessage({ eventId, messageId, body: req.body?.body });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg.channel_id || null }) });
+  } catch (err) {
+    console.error("[host-space:edit] error:", err.message);
+    res.status(500).json({ ok: false, reason: "edit_failed" });
+  }
+});
+
+// Host removes ANY post in their room (moderation) — same reach as host pin.
+app.delete("/host/events/:id/space/:messageId", requireAuth, async (req, res) => {
+  try {
+    const eventId = req.params.id;
+    const { messageId } = req.params;
+    const { isHost } = await isUserEventHost(req.user.id, eventId);
+    if (!isHost) return res.status(403).json({ ok: false, error: "Forbidden" });
+    const { getSpaceMessage, deleteSpaceMessage, listSpaceMessages } = await import("./services/pullupService.js");
+    const msg = await getSpaceMessage(messageId);
+    if (!msg || msg.event_id !== eventId) return res.status(404).json({ ok: false, reason: "not_found" });
+    const r = await deleteSpaceMessage({ eventId, messageId });
+    if (!r.ok) return res.status(400).json({ ok: false, reason: r.reason });
+    res.json({ ok: true, messages: await listSpaceMessages(eventId, { channelId: msg.channel_id || null }) });
+  } catch (err) {
+    console.error("[host-space:delete] error:", err.message);
+    res.status(500).json({ ok: false, reason: "delete_failed" });
   }
 });
 

@@ -367,10 +367,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           </span>
         </div>
       )}
-      <form onSubmit={onSubmit} style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 8px" }}>
+      <form onSubmit={onSubmit} autoComplete="off" style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 8px" }}>
         <button type="button" onClick={() => setSmartOpen((v) => !v)} disabled={!smartEvent} title="Insert event details"
           style={{ ...iconBtn, color: smartOpen ? D.pink : (smartEvent ? D.muted : D.faint) }}><CalendarClock size={18} /></button>
+        {/* It's a chat box, not a payment field — stop Chrome's credit-card /
+            password-manager autofill from popping over it. */}
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder}
+          name="pullup-message" autoComplete="off" autoCorrect="off" data-lpignore="true" data-1p-ignore data-form-type="other"
           style={{ flex: 1, background: "none", border: "none", outline: "none", color: D.ink, fontSize: 13.5 }} />
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted }} aria-label="Attach"><Paperclip size={17} /></button>
@@ -546,7 +549,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
       <div style={{ padding: "10px 12px 8px" }}>
         <div style={{ position: "relative", marginBottom: 9 }}>
           <Search size={14} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: D.faint }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" type="search"
+            name="pullup-search" autoComplete="off" data-lpignore="true" data-1p-ignore data-form-type="other"
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>

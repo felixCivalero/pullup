@@ -42,6 +42,9 @@ const CH_ICON = { whatsapp: MessageCircle, instagram: Instagram, email: Mail };
 const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
 function hashName(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
+// The channels one person is reachable on — one human, several linked accounts.
+// Falls back to their preferred channel when the room didn't enumerate reach.
+function reachOf(p) { return p?.reachable?.length ? p.reachable : [p?.channel || "email"]; }
 
 function Avatar({ name, size = 44, dot, src }) {
   const c = TINTS[hashName(name) % TINTS.length];
@@ -70,6 +73,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [channel, setChannel] = useState("all");
   const [eventFilter, setEventFilter] = useState("all");
   const [openId, setOpenId] = useState(null);
+  const [sendChannel, setSendChannel] = useState(null); // chosen send channel for the open thread (null = the person's preferred)
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState([]);
@@ -140,7 +144,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const list = useMemo(() => {
     let ps = [...(people || [])];
     if (filter === "needs") ps = ps.filter((p) => p.needsYou);
-    if (channel !== "all") ps = ps.filter((p) => (p.channel || "email") === channel);
+    if (channel !== "all") ps = ps.filter((p) => reachOf(p).includes(channel));
     if (eventFilter !== "all") ps = ps.filter((p) => (p.events || []).includes(eventFilter));
     if (q.trim()) { const s = q.trim().toLowerCase(); ps = ps.filter((p) => (p.name || "").toLowerCase().includes(s)); }
     return ps.sort((a, b) => (a.needsYou === b.needsYou ? (b.warmth || 0) - (a.warmth || 0) : a.needsYou ? -1 : 1));
@@ -156,7 +160,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     return [...base, ...mine];
   }, [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
-  useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); }, [openId]);
+  useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); setSendChannel(null); }, [openId]);
 
   async function onPickFile(e) {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -197,7 +201,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     e.preventDefault();
     const text = draft.trim();
     if ((!text && attachments.length === 0 && !attachedEventId && !attachedLocation) || !open || sending) return;
-    const ch = open.channel || "email"; const atts = attachments;
+    const ch = sendChannel || open.channel || "email"; const atts = attachments;
     const ev = attachedEvent ? { id: attachedEvent.id, title: attachedEvent.title, slug: attachedEvent.slug, coverImageUrl: attachedEvent.coverImageUrl || attachedEvent.image || null, whenLabel: fmtWhen(attachedEvent), location: attachedEvent.location } : undefined;
     const loc = attachedLocation || undefined;
     const clientId = newClientId();
@@ -368,8 +372,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
   // ── Conversation view ───────────────────────────────────────────────────
   const conversationView = (split = false) => {
-    const ch = CH[open.channel] || CH.email;
-    const windowClosed = open.channel === "whatsapp" && open.windowOpen === false;
+    const reach = reachOf(open);
+    const activeCh = (sendChannel && reach.includes(sendChannel)) ? sendChannel : (open.channel || "email");
+    const ch = CH[activeCh] || CH.email;
+    const others = reach.filter((c) => c !== activeCh);
+    const windowClosed = activeCh === "whatsapp" && open.windowOpen === false;
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
@@ -378,12 +385,33 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             <Avatar name={open.name} src={open.avatarUrl} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
-              <div style={{ fontSize: 11, color: ch.color, fontWeight: 600 }}>{ch.label}{windowClosed ? " · window closed" : ""}</div>
+              <div style={{ fontSize: 11, color: ch.color, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {ch.label}{windowClosed ? " · window closed" : ""}
+                {others.length > 0 && <span style={{ color: D.faint, fontWeight: 500 }}> · also on {others.map((c) => CH[c]?.label || c).join(", ")}</span>}
+              </div>
             </div>
           </button>
           {!split && onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button>}
           {!split && onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
+
+        {/* One person, several linked accounts — pick which to send on. */}
+        {reach.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${D.line}`, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: D.faint, textTransform: "uppercase", letterSpacing: "0.06em" }}>Send on</span>
+            {reach.map((c) => {
+              const Icon = CH_ICON[c] || MessageCircle;
+              const on = activeCh === c;
+              const col = CH[c]?.color || D.muted;
+              return (
+                <button key={c} type="button" onClick={() => setSendChannel(c)} title={CH[c]?.label || c}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? "transparent" : D.line}`, background: on ? col : "transparent", color: on ? "#fff" : col }}>
+                  <Icon size={13} strokeWidth={2.25} /> {CH[c]?.label || c}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
           {open.read && <div style={{ fontSize: 12, color: D.faint, lineHeight: 1.5, textAlign: "center", padding: "0 10px 4px" }}>{open.read}</div>}
@@ -532,7 +560,6 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         {people === null && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>Loading…</div>}
         {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>{filter === "needs" ? "Nobody's waiting on you." : "No one here yet."}</div>}
         {list.map((p) => {
-          const ch = CH[p.channel] || CH.email;
           const line = p.needsYou && p.move ? p.move : (p.relationship || "");
           const sel = selected.includes(p.id);
           const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
@@ -552,7 +579,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                   {sel && <Check size={13} color="#fff" strokeWidth={3} />}
                 </span>
               ) : (
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: ch.color, flexShrink: 0 }}>{ch.label}</span>
+                <span title={reachOf(p).map((c) => CH[c]?.label || c).join(" · ")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  {reachOf(p).slice(0, 3).map((c) => {
+                    const Icon = CH_ICON[c] || MessageCircle;
+                    const on = c === (p.channel || "email");
+                    return <Icon key={c} size={14} strokeWidth={2.25} color={CH[c]?.color || D.faint} style={{ opacity: on ? 1 : 0.45 }} />;
+                  })}
+                </span>
               )}
             </button>
           );

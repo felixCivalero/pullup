@@ -30,6 +30,7 @@ import { Instagram, X, AlertCircle, ArrowUpRight, MessageCircle, UserCheck, Imag
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "./Toast";
+import { AutoDmFlowFields, emptyFlowDraft, toFlowPayload } from "./AutoDmFlowFields.jsx";
 
 const input = {
   width: "100%",
@@ -114,7 +115,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
   // Comment → DM create form
   const [keyword, setKeyword] = useState("");
   const [match, setMatch] = useState("contains");
-  const [replyText, setReplyText] = useState("");
+  const [flowDraft, setFlowDraft] = useState(emptyFlowDraft());
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -272,6 +273,8 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
     setFormError("");
     const kw = keyword.trim();
     if (!kw) return setFormError("Add a keyword people will comment.");
+    const flow = toFlowPayload(flowDraft);
+    if (!flow) return setFormError("Write an opener — the message people reply to before they get the link.");
     setCreating(true);
     try {
       const res = await authenticatedFetch("/host/comment-triggers", {
@@ -280,7 +283,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
           eventId,
           keyword: kw,
           match,
-          replyText: replyText.trim(),
+          flow,
           mediaId: scopeMode === "post" && selectedMedia ? selectedMedia.id : null,
         }),
       });
@@ -296,7 +299,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
       if (!res.ok || !data.ok) throw new Error();
       setTriggers((t) => [data.trigger, ...t]);
       setKeyword("");
-      setReplyText("");
+      setFlowDraft(emptyFlowDraft());
       clearScope();
       showToast("Trigger created", "success");
     } catch {
@@ -511,7 +514,8 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
           <span style={cardTitle}>Comment → DM</span>
         </div>
         <p style={cardSub}>
-          Someone comments a keyword → PullUp DMs this event's link. The link is added automatically.
+          Someone comments your keyword → you ask them something first → they reply to unlock the link.
+          That reply opens the DM window (so you can keep talking) and tells you something about them.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -611,18 +615,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
               </select>
             </div>
           </div>
-          <div>
-            <div style={lbl}>DM message</div>
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              rows={2}
-              placeholder="You're in — tap to grab your spot 👇"
-              style={{ ...input, resize: "none", lineHeight: 1.5, fontFamily: "inherit" }}
-              onFocus={(e) => (e.target.style.borderColor = colors.instagramBorder)}
-              onBlur={(e) => (e.target.style.borderColor = colors.borderStrong)}
-            />
-          </div>
+          <AutoDmFlowFields value={flowDraft} onChange={setFlowDraft} />
           {formError && (
             <div
               style={{
@@ -664,37 +657,47 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
                   border: `1px solid ${colors.border}`,
                   background: "#fff",
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: 10,
                   opacity: t.status === "expired" ? 0.65 : 1,
                 }}
               >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "3px 9px",
-                    borderRadius: 7,
-                    background: colors.instagramSoft,
-                    border: `1px solid ${colors.instagramBorder}`,
-                    color: colors.instagram,
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                  }}
-                >
-                  <MessageCircle size={12} /> {t.keyword}
-                </span>
-                <span style={{ fontSize: 11.5, color: colors.textSubtle }}>
-                  {t.mediaId ? "on 1 post · " : "any post · "}
-                  {t.status === "expired"
-                    ? "expired"
-                    : t.status === "pending"
-                    ? "goes live when published"
-                    : t.status === "paused"
-                    ? "paused"
-                    : `retires ${fmtDate(t.expiresAt)}`}
-                </span>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "3px 9px",
+                        borderRadius: 7,
+                        background: colors.instagramSoft,
+                        border: `1px solid ${colors.instagramBorder}`,
+                        color: colors.instagram,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <MessageCircle size={12} /> {t.keyword}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: colors.textSubtle }}>
+                      {t.mediaId ? "on 1 post · " : "any post · "}
+                      {t.status === "expired"
+                        ? "expired"
+                        : t.status === "pending"
+                        ? "goes live when published"
+                        : t.status === "paused"
+                        ? "paused"
+                        : `retires ${fmtDate(t.expiresAt)}`}
+                    </span>
+                  </div>
+                  {t.flow?.opener && (
+                    <div style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.4 }}>
+                      Asks: “{t.flow.opener.length > 70 ? t.flow.opener.slice(0, 68) + "…" : t.flow.opener}”
+                      {t.flow.split ? " · splits 2 ways" : ""}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => remove(t)}

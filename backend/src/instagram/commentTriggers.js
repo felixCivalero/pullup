@@ -81,6 +81,16 @@ async function shortenSignupLink(fullUrl, { hostProfileId = null } = {}) {
 }
 
 /**
+ * Build a stamped signup link AND shorten it in one call — the shared primitive
+ * for any auto-DM that wants a clean, attribution-carrying link (used by the
+ * conversational-flow answers too). Falls back to the full URL if minting fails.
+ */
+export async function buildSignupShortLink({ eventSlug, src = "ig_comment", ref = null, igId = null, username = null, hostProfileId = null }) {
+  const full = buildSignupLink({ eventSlug, src, ref, igId, username });
+  return shortenSignupLink(full, { hostProfileId });
+}
+
+/**
  * Handle one inbound comment. Safe to call on every comment webhook — it
  * resolves the host, checks rules, dedupes, and only DMs on a match.
  *
@@ -146,6 +156,67 @@ export async function handleCommentEvent({ igAccountId, comment }) {
       err: claim.error.message,
     });
     return { status: "error", reason: "claim_failed" };
+  }
+
+  // ── Conversational flow ────────────────────────────────────────────
+  // The trigger asks a question/CTA first. Send the host's OPENER as the one
+  // private reply the comment grants us, then wait — the link is NOT sent yet.
+  // Their DM reply (handled by the inbound webhook → conversationFlows) opens
+  // the window, branches, and captures their answer.
+  if (rule.flow && rule.flow.opener) {
+    const openerText = String(rule.flow.opener);
+    try {
+      const res = await sendPrivateReply({
+        igUserId: ctx.igUserId, accessToken: ctx.accessToken, commentId, text: openerText,
+      });
+      await supabase
+        .from("ig_comment_triggers")
+        .update({ reply_message_id: res.message_id || null })
+        .eq("id", claim.data.id);
+      // Resolve the commenter, open the awaiting session, log the opener so the
+      // Room thread shows the question we asked. Best-effort (opener already sent).
+      try {
+        const { resolvePersonByIdentity } = await import("../services/personResolution.js");
+        const { personId } = await resolvePersonByIdentity({
+          identifiers: { igUserId: commenterIgId ? String(commenterIgId) : null, igHandle: commenterUsername || null },
+          profile: { acquisition_channel: "ig_comment", name: commenterUsername || null, instagram: commenterUsername || null },
+          source: "ig",
+        });
+        if (personId) {
+          const { createFlowSession } = await import("./repos/flowSessionsRepo.js");
+          const { logPersonEvent } = await import("../services/personTimeline.js");
+          const { upsertThreadFromMessage } = await import("./repos/instagramThreadsRepo.js");
+          const { dedupeKey } = await import("../lib/idempotency.js");
+          await createFlowSession({
+            hostProfileId: ctx.hostProfileId, personId, triggerId: rule.id,
+            eventId: rule.event_id || null, eventSlug: rule.event_slug || null,
+            openerCommentId: commentId, flow: rule.flow,
+          });
+          await logPersonEvent({
+            personId, hostId: ctx.hostProfileId, eventId: rule.event_id || null,
+            type: "auto_dm_sent", channel: "instagram", direction: "out",
+            body: openerText, dedupeKey: dedupeKey("ig:opener", commentId),
+            metadata: { source: "comment_flow_opener", comment_id: commentId, mid: res.message_id || null },
+          });
+          await upsertThreadFromMessage({
+            personId, hostProfileId: ctx.hostProfileId,
+            igUserId: commenterIgId ? String(commenterIgId) : ctx.igUserId,
+            direction: "outbound", preview: openerText,
+          });
+        }
+      } catch (e) {
+        logger?.error?.("[instagram/commentTriggers] flow opener session failed", { commentId, err: e?.message });
+      }
+      logger?.info?.("[instagram/commentTriggers] opener sent", { commentId, keyword: rule.keyword });
+      return { status: "sent", messageId: res.message_id, flow: true };
+    } catch (err) {
+      await supabase
+        .from("ig_comment_triggers")
+        .update({ status: "error", detail: { message: err.message } })
+        .eq("id", claim.data.id);
+      logger?.error?.("[instagram/commentTriggers] opener send failed", { commentId, err: err.message });
+      return { status: "error", reason: "send_failed" };
+    }
   }
 
   const shortLink = await shortenSignupLink(signupLink, { hostProfileId: ctx.hostProfileId });

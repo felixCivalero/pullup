@@ -286,6 +286,29 @@ async function handleMessaging(messagingEvent, igAccountId) {
       captureError(err, { where: "instagram_webhook.logPersonEvent", mid: msg.mid || null });
     });
 
+    // 5b. Mid-conversation? If we asked this person a question (a comment-flow
+    //     opener) and are awaiting their answer, THIS DM is the answer — branch,
+    //     send the response in-window (their reply just opened the window), and
+    //     capture it. Takes precedence over the dm_keyword triggers below: we're
+    //     already talking to them, so don't restart a fresh keyword hunt.
+    try {
+      const { getAwaitingSession } = await import("../repos/flowSessionsRepo.js");
+      const session = await getAwaitingSession({ hostProfileId: creds.hostProfileId, personId });
+      if (session) {
+        const { handleFlowReply } = await import("../conversationFlows.js");
+        await handleFlowReply({
+          session, creds, personId,
+          senderId: String(senderId),
+          senderUsername: igProfile?.username || null,
+          replyText: text, mid: msg.mid,
+        });
+        return; // consumed by the flow — don't also run dm_keyword
+      }
+    } catch (e) {
+      logger?.error?.("[instagram/webhook] flow reply handling failed", { mid: msg.mid, err: e?.message });
+      captureError(e, { where: "instagram_webhook.handleFlowReply", mid: msg.mid });
+    }
+
     // 6. Keyword auto-DM (the OTHER surface). A DM — including a STORY REPLY,
     //    which Meta delivers as a message — that matches a live dm_keyword
     //    trigger gets an auto-reply with the event link, in the window this

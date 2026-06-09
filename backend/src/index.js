@@ -6016,9 +6016,11 @@ app.get("/host/comment-triggers", requireAuth, async (req, res) => {
 
 app.post("/host/comment-triggers", requireAuth, async (req, res) => {
   try {
-    const { eventId, keyword, match, replyText, mediaId, triggerType } = req.body || {};
+    const { eventId, keyword, match, replyText, mediaId, triggerType, flow } = req.body || {};
     const TYPES = new Set(["comment", "rsvp_success", "dm_keyword"]);
     const type = TYPES.has(triggerType) ? triggerType : "comment";
+    const { normalizeFlow } = await import("./instagram/conversationFlows.js");
+    const normalizedFlow = type === "comment" ? normalizeFlow(flow) : null;
     const isRsvp = type === "rsvp_success";
     const isKeyword = type === "comment" || type === "dm_keyword";
     const kw = String(keyword || "").trim();
@@ -6056,6 +6058,7 @@ app.post("/host/comment-triggers", requireAuth, async (req, res) => {
         match,
         replyText,
         mediaId,
+        flow: normalizedFlow,
       });
     } catch (insErr) {
       // The partial unique index (one rsvp_success per event) surfaces here.
@@ -6074,7 +6077,7 @@ app.post("/host/comment-triggers", requireAuth, async (req, res) => {
 app.patch("/host/comment-triggers/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { keyword, match, replyText, enabled, mediaId } = req.body || {};
+    const { keyword, match, replyText, enabled, mediaId, flow } = req.body || {};
     const repo = await import("./instagram/repos/eventCommentTriggersRepo.js");
     const existing = await repo.getTriggerById(id, req.user.id);
     if (!existing) return res.status(404).json({ ok: false, error: "not_found" });
@@ -6088,12 +6091,20 @@ app.patch("/host/comment-triggers/:id", requireAuth, async (req, res) => {
       const conflict = await repo.findLiveKeywordConflict(req.user.id, nextKeyword, id, { type: existing.triggerType });
       if (conflict) return res.status(409).json({ ok: false, error: "keyword_conflict", conflict });
     }
+    // Only a comment trigger carries a flow. `flow: null` explicitly clears it
+    // (revert to immediate-link); omitting it leaves the existing flow untouched.
+    let flowPatch;
+    if (flow !== undefined && existing.triggerType === "comment") {
+      const { normalizeFlow } = await import("./instagram/conversationFlows.js");
+      flowPatch = normalizeFlow(flow);
+    }
     const trigger = await repo.updateTrigger(id, req.user.id, {
       keyword,
       match,
       replyText,
       enabled,
       mediaId,
+      ...(flowPatch !== undefined ? { flow: flowPatch } : {}),
     });
     res.json({ ok: true, trigger });
   } catch (e) {

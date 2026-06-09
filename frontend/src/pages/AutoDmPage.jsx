@@ -21,6 +21,7 @@ import { Instagram, Plus, X, MessageCircle, Calendar, AlertCircle } from "lucide
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
+import { AutoDmFlowFields, emptyFlowDraft, toFlowPayload } from "../components/AutoDmFlowFields.jsx";
 
 const wrap = {
   maxWidth: 760,
@@ -114,7 +115,7 @@ export function AutoDmPage() {
   const [eventId, setEventId] = useState("");
   const [keyword, setKeyword] = useState("");
   const [match, setMatch] = useState("contains");
-  const [replyText, setReplyText] = useState("");
+  const [flowDraft, setFlowDraft] = useState(emptyFlowDraft());
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -159,11 +160,13 @@ export function AutoDmPage() {
     const kw = keyword.trim();
     if (!eventId) return setFormError("Pick an event first.");
     if (!kw) return setFormError("Add a keyword people will comment.");
+    const flow = toFlowPayload(flowDraft);
+    if (!flow) return setFormError("Write an opener — the message people reply to before they get the link.");
     setCreating(true);
     try {
       const res = await authenticatedFetch("/host/comment-triggers", {
         method: "POST",
-        body: JSON.stringify({ eventId, keyword: kw, match, replyText: replyText.trim() }),
+        body: JSON.stringify({ eventId, keyword: kw, match, flow }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 409 && data?.conflict) {
@@ -177,7 +180,7 @@ export function AutoDmPage() {
       if (!res.ok || !data.ok) throw new Error(data?.error || "create failed");
       setTriggers((t) => [data.trigger, ...t]);
       setKeyword("");
-      setReplyText("");
+      setFlowDraft(emptyFlowDraft());
       showToast("Trigger created", "success");
     } catch {
       showToast("Couldn't create the trigger", "error");
@@ -414,21 +417,7 @@ export function AutoDmPage() {
               </div>
             </div>
 
-            <div>
-              <div style={fieldLabel}>DM message</div>
-              <textarea
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                rows={2}
-                placeholder="You're in — tap to grab your spot 👇"
-                style={{ ...inputStyle, resize: "none", lineHeight: 1.5, fontFamily: "inherit" }}
-                onFocus={(e) => (e.target.style.borderColor = colors.instagramBorder)}
-                onBlur={(e) => (e.target.style.borderColor = colors.borderStrong)}
-              />
-              <div style={{ fontSize: 11.5, color: colors.textSubtle, marginTop: 5 }}>
-                The event link is added automatically at the end of the DM.
-              </div>
-            </div>
+            <AutoDmFlowFields value={flowDraft} onChange={setFlowDraft} />
 
             {formError && (
               <div
@@ -543,9 +532,16 @@ export function AutoDmPage() {
                 {t.startsAt && <span style={{ color: colors.textFaded }}>· {fmtDate(t.startsAt)}</span>}
               </div>
 
-              {t.replyText && (
+              {(t.flow?.opener || t.replyText) && (
                 <div style={{ fontSize: 13, color: colors.textSubtle, fontStyle: "italic", lineHeight: 1.5 }}>
-                  “{t.replyText}”
+                  {t.flow?.opener ? (
+                    <>
+                      Asks: “{t.flow.opener}”
+                      {t.flow.split ? " · splits 2 ways" : ""}
+                    </>
+                  ) : (
+                    <>“{t.replyText}”</>
+                  )}
                 </div>
               )}
 

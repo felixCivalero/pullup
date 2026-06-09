@@ -18,7 +18,7 @@ const EVENT_COLS = "id, title, slug, starts_at, ends_at, status";
 
 /** event_comment_triggers + its embedded event, in one round-trip. */
 const SELECT_WITH_EVENT =
-  `id, event_id, host_profile_id, trigger_type, keyword, match_type, reply_text, enabled, media_id, created_at, updated_at, event:event_id ( ${EVENT_COLS} )`;
+  `id, event_id, host_profile_id, trigger_type, keyword, match_type, reply_text, enabled, media_id, flow, created_at, updated_at, event:event_id ( ${EVENT_COLS} )`;
 
 /** ends_at if set, else starts_at. ISO string or null. */
 function effectiveEnd(ev) {
@@ -70,6 +70,7 @@ function toView(row, nowMs) {
     replyText: row.reply_text || "",
     enabled: !!row.enabled,
     mediaId: row.media_id || null,
+    flow: row.flow || null,
     // For the UI:
     //   'expired' — event ended; never fires.
     //   'paused'  — host toggled it off.
@@ -122,8 +123,10 @@ export async function getLiveTriggersForHost(hostProfileId, typeOrOpts = "commen
       keyword: r.keyword,
       match: r.match_type,
       media_id: r.media_id || null,
+      event_id: r.event_id,
       event_slug: r.event?.slug || null,
       reply_text: r.reply_text || "",
+      flow: r.flow || null,
       enabled: true,
       _end: Date.parse(effectiveEnd(r.event)) || Infinity,
     }))
@@ -170,12 +173,14 @@ export async function getTriggerById(id, hostProfileId, nowMs = Date.now()) {
 
 const KEYWORD_TYPES = new Set(["comment", "dm_keyword"]);
 
-export async function createTrigger({ eventId, hostProfileId, triggerType = "comment", keyword, match, replyText, mediaId = null, enabled = true }) {
+export async function createTrigger({ eventId, hostProfileId, triggerType = "comment", keyword, match, replyText, mediaId = null, enabled = true, flow = null }) {
   const type = KEYWORD_TYPES.has(triggerType) || triggerType === "rsvp_success" ? triggerType : "comment";
   const isKeyword = KEYWORD_TYPES.has(type);
   // media scope is meaningful for post comments only — a DM/story-reply isn't
   // tied to a post, and an RSVP trigger has no keyword at all.
   const allowsMedia = type === "comment";
+  // A conversational flow (opener + answers) is a comment-trigger concept only.
+  const allowsFlow = type === "comment";
   const { data, error } = await supabase
     .from("event_comment_triggers")
     .insert({
@@ -186,6 +191,7 @@ export async function createTrigger({ eventId, hostProfileId, triggerType = "com
       match_type: isKeyword && match === "exact" ? "exact" : "contains",
       reply_text: replyText ? String(replyText).slice(0, 900) : null,
       media_id: allowsMedia && mediaId ? String(mediaId).slice(0, 64) : null,
+      flow: allowsFlow && flow ? flow : null,
       enabled: enabled !== false,
     })
     .select(SELECT_WITH_EVENT)
@@ -219,6 +225,8 @@ export async function updateTrigger(id, hostProfileId, patch) {
   if (patch.replyText !== undefined) row.reply_text = patch.replyText ? String(patch.replyText).slice(0, 900) : null;
   if (patch.enabled !== undefined) row.enabled = patch.enabled !== false;
   if (patch.mediaId !== undefined) row.media_id = patch.mediaId ? String(patch.mediaId).slice(0, 64) : null;
+  // flow is pre-normalized by the route (normalizeFlow); null clears it.
+  if (patch.flow !== undefined) row.flow = patch.flow || null;
   row.updated_at = new Date().toISOString();
   const { data, error } = await supabase
     .from("event_comment_triggers")

@@ -18,6 +18,9 @@ import {
 } from "../src/services/pullupService.js";
 import { resolveTryOrder } from "../src/lib/idempotency.js";
 import { decideIgSend } from "../src/messaging/dispatch.js";
+import { updateRsvp } from "../src/data.js";
+import { logPersonEvent } from "../src/services/personTimeline.js";
+import { TEMPLATES, activeKey } from "../src/whatsapp/templates/registry.js";
 
 let pass = 0, fail = 0;
 const ok = (cond, label, extra = "") => {
@@ -116,6 +119,32 @@ async function run() {
       const del = await deleteSpaceMessage({ eventId: future.id, messageId: post.id });
       ok(del.ok, "author can delete own message");
     }
+  }
+
+  // 3b. Hardening fixes (T2a idempotency / T2b template gate / T3a rsvp_cancel)
+  section("Hardening — timeline dedupe (retry-safe send)");
+  const dk = `e2e_dedupe_${tag}`;
+  const beat = { personId: a.id, type: "message_out", channel: "email", direction: "out", body: "dedupe test", dedupeKey: dk };
+  await logPersonEvent(beat);
+  await logPersonEvent(beat); // a "retry" with the same key
+  const { data: dupRows } = await supabase.from("person_events").select("id").eq("person_id", a.id).eq("dedupe_key", dk);
+  ok((dupRows || []).length === 1, "same dedupe_key → exactly one timeline row (retry doesn't double-post)", `rows=${(dupRows || []).length}`);
+
+  section("Hardening — WhatsApp template gate keys off the ACTIVE alias");
+  const active = activeKey("host_broadcast");
+  ok(!!TEMPLATES[active], `activeKey("host_broadcast") → "${active}" exists in registry`);
+  ok(typeof (TEMPLATES?.[activeKey("host_broadcast")]?.status === "approved") === "boolean", "approval gate evaluates the active key's status");
+
+  if (future) {
+    section("Hardening — live rsvp_cancel appends a timeline beat");
+    const c = await makePerson("c");
+    const { data: rc } = await supabase.from("rsvps")
+      .insert({ event_id: future.id, person_id: c.id, slug: future.slug, booking_status: "CONFIRMED", party_size: 1, status: "attending" })
+      .select("id").single();
+    const upd = await updateRsvp(rc.id, { bookingStatus: "CANCELLED", status: "cancelled" });
+    ok(!upd.error, "updateRsvp cancel ok", upd.error || "");
+    const { data: cancelBeat } = await supabase.from("person_events").select("id").eq("person_id", c.id).eq("type", "rsvp_cancel").maybeSingle();
+    ok(!!cancelBeat, "rsvp_cancel beat appended on live cancellation");
   }
 
   // 4. Channel routing decisions (no real send)

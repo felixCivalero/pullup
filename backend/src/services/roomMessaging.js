@@ -181,6 +181,9 @@ async function logRoomEvent({ personId, hostId, channel, body, attachments = [],
     channel,
     direction: "out",
     occurredAt: at,
+    // A retried send reuses the same clientId — dedupe the timeline bubble so a
+    // network retry can't double-post (logPersonEvent upserts on dedupe_key).
+    dedupeKey: clientId ? `room:out:${hostId}:${personId}:${clientId}` : null,
     body: body || (atts.length || event || location ? "" : "(message)"),
     // Persist the real attachments + (when attached) the event so they render
     // as durable images / an event card in the thread, not a count or a note.
@@ -238,7 +241,10 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const locHtml = loc ? `<p style="margin:14px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"><a href="${escapeAttr(loc.url)}" style="color:#ec178f;font-weight:600;text-decoration:none;">📍 ${escapeHtml(loc.label)}</a></p>` : "";
   const bodyForText = loc ? `${body}${body ? "\n\n" : ""}📍 ${loc.label}\n${loc.url}` : body;
   const htmlBody = emailHtmlFor(body, atts, evt) + locHtml;
-  const key = () => `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`;
+  // Action-stable idempotency: a network-retried send reuses the same clientId,
+  // so the key is identical and the send dedupes instead of doubling. No clientId
+  // (legacy/broadcast) → a per-call key, as before.
+  const key = () => (clientId ? `room:${hostId}:${personId}:${clientId}` : `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`);
   const logArgs = { personId, hostId, body, attachments: atts, event: evt, location: loc };
 
   // ── One unified route for every rail. dispatch() owns the channel choice

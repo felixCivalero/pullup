@@ -30,7 +30,7 @@ import { supabase } from "../supabase.js";
 import { sendTemplate, sendText, isPhoneSuppressed } from "../whatsapp/index.js";
 import { hasActiveOptIn } from "../whatsapp/repos/phoneOptInsRepo.js";
 import { enqueueOutbox as enqueueEmailOutbox } from "../email/index.js";
-import { TEMPLATES } from "../whatsapp/templates/registry.js";
+import { TEMPLATES, activeKey } from "../whatsapp/templates/registry.js";
 import { logger } from "../logger.js";
 import { resolveTryOrder } from "../lib/idempotency.js";
 import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
@@ -98,7 +98,10 @@ async function recordDeadLetter({ recipient, personId, hostProfileId, preferredC
  * ships on WhatsApp until Meta says yes, then it lights up automatically.
  */
 function isTemplateApproved(templateKey) {
-  return TEMPLATES?.[templateKey]?.status === "approved";
+  // Gate on the ACTIVE key's status — sendTemplate resolves activeKey() before
+  // sending, so checking the logical key could green-light an unapproved v2 (or
+  // wrongly block a logical key whose active alias is the approved one).
+  return TEMPLATES?.[activeKey(templateKey)]?.status === "approved";
 }
 
 // Is ANY WhatsApp template approved yet? Until at least one is, dispatch()

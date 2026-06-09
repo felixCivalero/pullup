@@ -4467,6 +4467,26 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
   const person = updatedRsvpData.people || null;
   const updatedRsvp = mapRsvpFromDb(updatedRsvpData, person);
 
+  // Append a cancel beat to the append-only timeline on a LIVE cancellation
+  // (previously only the one-time backfill ever wrote rsvp_cancel, so the ledger
+  // silently disagreed with reality). Deduped per person-event; dynamic import
+  // avoids a circular data.js ↔ personTimeline.js dependency. Best-effort — a
+  // logging hiccup must never fail the cancel.
+  if (status === "cancelled" && rsvp.status !== "cancelled") {
+    try {
+      const { logPersonEvent } = await import("./services/personTimeline.js");
+      await logPersonEvent({
+        personId: updatedPersonId,
+        hostId: event.hostId || null,
+        eventId: event.id,
+        type: "rsvp_cancel",
+        channel: "web",
+        body: `Cancelled RSVP for ${event.title || "an event"}`,
+        dedupeKey: `rsvp_cancel:${event.id}:${updatedPersonId}`,
+      });
+    } catch { /* never block the cancel */ }
+  }
+
   return {
     rsvp: updatedRsvp,
   };

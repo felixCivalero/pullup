@@ -17,19 +17,22 @@ const tools = buildTools({ token: "pup_test", user: { id: "u_test", email: "t@e.
 const byName = new Map(tools.map((t) => [t.name, t]));
 
 // Tools that only read state — safe to run without confirmation.
+// (Campaign/email tools — get_email_summary, list_campaigns, get_campaign,
+// suggest_campaign_improvements — were removed when campaigns were cut.)
 const EXPECTED_READ_ONLY = new Set([
   "list_events", "get_event", "list_rsvps", "list_cover_image_gallery",
   "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
-  "get_audience_segments", "get_recent_activity", "get_email_summary",
+  "get_audience_segments", "get_recent_activity",
   "get_event_analytics", "find_person", "get_person", "query_people",
-  "list_campaigns", "get_campaign", "suggest_event_improvements",
-  "suggest_campaign_improvements", "get_crm_signals", "audit_customer_journey",
+  "find_matches", "suggest_event_improvements",
+  "get_crm_signals", "audit_customer_journey",
   "get_recent_actions", "get_host_brief",
 ]);
 
 // Tools whose effect is irreversible / hard to undo — money or real people.
+// (send_campaign was removed with campaigns.)
 const EXPECTED_DESTRUCTIVE = new Set([
-  "delete_event", "refund_payment", "send_campaign",
+  "delete_event", "refund_payment",
 ]);
 
 console.log("🧪 the classified tool names all exist in the registry (guards against renames/typos)");

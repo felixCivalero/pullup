@@ -37,16 +37,16 @@ console.log("🧪 'create' is the builder slice — has create_event, CANNOT ref
   assert(create.has("publish_event"), "create profile must include publish_event");
   assert(create.has("upload_event_media"), "create profile must include upload_event_media");
   assert(!create.has("refund_payment"), "create profile must NOT expose refund_payment");
-  assert(!create.has("send_campaign"), "create profile must NOT expose send_campaign");
+  assert(!create.has("update_person"), "create profile must NOT expose update_person");
   assert(!create.has("delete_event"), "create profile must NOT expose delete_event");
   assert(create.size < full.size, `create slice (${create.size}) should be smaller than full (${full.size})`);
 }
 
-console.log("🧪 'crm' is the relationship slice — has people + campaigns, not the page builder");
+console.log("🧪 'crm' is the relationship slice — has people + matching, not the page builder");
 {
   const crm = names("crm");
   assert(crm.has("query_people"), "crm profile must include query_people");
-  assert(crm.has("send_campaign"), "crm profile must include send_campaign");
+  assert(crm.has("find_matches"), "crm profile must include find_matches");
   assert(!crm.has("create_event"), "crm profile must NOT expose create_event");
   assert(!crm.has("upload_event_media"), "crm profile must NOT expose upload_event_media");
 }

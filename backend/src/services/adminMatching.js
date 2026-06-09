@@ -305,6 +305,12 @@ export async function confirmLinks(personId, actorId) {
     .select("id, kind, value");
   if (error) throw error;
   await logReview({ actorId, action: "confirm_link", personId, detail: { confirmed: data || [] } });
+  // Confirming links is also a chance to fill the person's empty cached params
+  // from the now-blessed sources (gap-fill only — never clobbers).
+  try {
+    const { enrichPersonProfile } = await import("./personSourceProfiles.js");
+    await enrichPersonProfile(personId);
+  } catch (e) { logger?.warn?.("[adminMatching] post-confirm enrich failed", { error: e?.message }); }
   return { ok: true, confirmed: (data || []).length };
 }
 
@@ -352,14 +358,84 @@ export async function splitIdentity(identityId, actorId) {
   return data;
 }
 
-// Merge two people into one (canonical absorbs merged). Atomic + audited in DB.
-export async function mergePeople({ canonicalId, mergedId, actorId, candidateId = null }) {
+// ── CANONICAL SPINE WEIGHT ───────────────────────────────────────────
+// PullUp-native identities are the gravity well: 3rd-party profiles merge INTO
+// the profile with the strongest PullUp anchor. The ladder (highest first):
+//   • has a real PullUp LOGIN account (Google / WhatsApp-OTP / email magic-link)
+//     — someone proved control and signed in. The truest PullUp profile.
+//   • a VERIFIED identifier (clicked a magic link, OTP'd a phone), no account yet
+//   • a STRONG platform-native id (ig_user_id, WA phone) — real, unconfirmed-by-us
+//   • a DECLARED email/phone the person typed (PullUp form), unverified
+//   • a typed-handle CLAIM only — the weakest, pure 3rd-party orbit
+// + a nudge for PullUp-origin sources (rsvp/manual/google) and identity richness.
+// Tie-break (equal score) keeps the OLDER row as the spine (stable, least surprising).
+
+// Pure scoring so the ladder is testable without a DB.
+export function anchorScoreFrom({ hasLogin = false, bestRank = 5, pullupOrigin = false, identityCount = 0 } = {}) {
+  // gradeIdentity ranks: confirmed 0, verified 1, strong/follower 2, declared 3, claim 4.
+  const BAND_WEIGHT = [200, 160, 120, 60, 20, 0];
+  let score = 0;
+  if (hasLogin) score += 1000;
+  score += BAND_WEIGHT[Math.min(Math.max(bestRank, 0), 5)] || 0;
+  if (pullupOrigin) score += 40;
+  score += Math.min(identityCount, 20);
+  return score;
+}
+
+const PULLUP_ORIGIN_SOURCES = new Set(["rsvp", "manual", "google"]);
+
+// Resolve a person's anchor strength from the live graph.
+export async function computeAnchorScore(personId) {
+  if (!personId) return { personId, score: 0 };
+  const [{ data: person }, identsRes, authRes, srcRes] = await Promise.all([
+    supabase.from("people").select("auth_user_id, created_at, acquisition_channel").eq("id", personId).maybeSingle(),
+    supabase.from("person_identities").select("kind, source, verified_at, reviewed_at").eq("person_id", personId),
+    supabase.from("person_auth_accounts").select("auth_user_id").eq("person_id", personId),
+    supabase.from("person_source_profiles").select("source").eq("person_id", personId),
+  ]);
+  const idents = identsRes?.data || [];
+  const hasLogin = (authRes?.data?.length || 0) > 0 || !!person?.auth_user_id;
+  let bestRank = 5;
+  for (const i of idents) { const r = gradeIdentity(i).rank; if (r < bestRank) bestRank = r; }
+  const pullupOrigin =
+    (srcRes?.data || []).some((s) => PULLUP_ORIGIN_SOURCES.has(s.source)) ||
+    idents.some((i) => PULLUP_ORIGIN_SOURCES.has(String(i.source || "").toLowerCase()));
+  const score = anchorScoreFrom({ hasLogin, bestRank, pullupOrigin, identityCount: idents.length });
+  return { personId, score, hasLogin, bestRank, pullupOrigin, createdAt: person?.created_at || null };
+}
+
+// Merge two people into one. By default the system ORIENTS the merge by anchor
+// strength — the PullUp-native profile survives, the 3rd-party one is absorbed —
+// regardless of which side the admin clicked from. Pass forceOrientation:true to
+// keep the caller's exact canonical/merged (manual override). After the atomic
+// DB merge, the surviving spine is re-enriched so the absorbed profile's params
+// (name / handle / IG id / phone) flow into its blanks. Audited in DB.
+export async function mergePeople({ canonicalId, mergedId, actorId, candidateId = null, forceOrientation = false }) {
   if (!canonicalId || !mergedId) throw new Error("canonicalId and mergedId required");
+  if (canonicalId === mergedId) throw new Error("cannot merge a person into themselves");
+
+  let oriented = false;
+  if (!forceOrientation) {
+    const [a, b] = await Promise.all([computeAnchorScore(canonicalId), computeAnchorScore(mergedId)]);
+    // Stronger anchor survives; on a tie keep the older row as the spine.
+    const flip = b.score > a.score ||
+      (b.score === a.score && a.createdAt && b.createdAt && new Date(b.createdAt) < new Date(a.createdAt));
+    if (flip) { [canonicalId, mergedId] = [mergedId, canonicalId]; oriented = true; }
+  }
+
   const { data, error } = await supabase.rpc("admin_merge_people", {
     p_canonical: canonicalId, p_merged: mergedId, p_actor: actorId || null, p_candidate: candidateId,
   });
   if (error) throw new Error(error.message);
-  return data;
+
+  // Match → enrich: pull the absorbed sources' params into the spine's blanks.
+  let enriched = { filled: [] };
+  try {
+    const { enrichPersonProfile } = await import("./personSourceProfiles.js");
+    enriched = await enrichPersonProfile(canonicalId);
+  } catch (e) { logger?.warn?.("[adminMatching] post-merge enrich failed", { error: e?.message }); }
+
+  return { ...(data || {}), canonicalId, mergedId, oriented, enriched: enriched.filled || [] };
 }
 
 // Reject a collision suggestion — they are NOT the same human.

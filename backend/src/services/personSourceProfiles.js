@@ -65,7 +65,7 @@ export async function upsertSourceProfile({ personId, source, sourceId = null, h
       return null;
     }
     // Keep people.* (the read cache) consistent with the new precedence picture.
-    await recomputePersonName(personId);
+    await enrichPersonProfile(personId);
     return row?.id || null;
   } catch (e) {
     logger?.warn?.("[sourceProfiles] upsert error", { error: e?.message });
@@ -122,41 +122,91 @@ export function resolveDisplay(profiles = []) {
 }
 
 /**
- * Conservatively reconcile people.name (the read cache) with the precedence
- * picture. SAFE by design — it never degrades an existing name:
+ * Conservatively fill people.* (the read cache) from EVERYTHING linked to this
+ * person — source profiles (by precedence) + verified identities. This is the
+ * "match → enrich" payoff: each link a person gains fills more of their empty
+ * params. SAFE / gap-fill by design — it never degrades an existing value:
  *   • a manual host edit always wins (top precedence),
- *   • an empty name gets filled from the best available source,
- *   • an existing non-manual name is left alone (no automated clobber).
- * The raw values live forever in person_source_profiles, so reads can later
- * resolve live without this cache.
+ *   • an EMPTY column gets filled from the best available source,
+ *   • an existing non-empty value is left alone (no automated clobber).
+ * The raw truth lives forever in person_source_profiles / person_identities, so
+ * reads that resolve live (e.g. roomService.resolveDisplay → the avatar) work
+ * regardless of this cache. Returns the list of fields it filled.
+ *
+ * Runs on every source upsert AND after a merge (so absorbing a profile flows
+ * its name / handle / id / phone into the surviving spine's blanks).
  */
-export async function recomputePersonName(personId) {
-  if (!personId) return;
+export async function enrichPersonProfile(personId) {
+  if (!personId) return { filled: [] };
   try {
     const profiles = await getForPerson(personId);
-    if (!profiles.length) return;
-    const manual = profiles.find((p) => p.source === "manual" && p.display_name);
-    const { name: resolved } = resolveDisplay(profiles);
+    const { data: idents } = await supabase
+      .from("person_identities")
+      .select("kind, value, verified_at")
+      .eq("person_id", personId);
     const { data: person } = await supabase
-      .from("people").select("name, instagram").eq("id", personId).maybeSingle();
-    if (!person) return;
+      .from("people")
+      .select("name, instagram, ig_user_id, phone_e164, email")
+      .eq("id", personId)
+      .maybeSingle();
+    if (!person) return { filled: [] };
+
+    const ids = idents || [];
+    const firstId = (kind, preferVerified = false) => {
+      const matches = ids.filter((i) => i.kind === kind && i.value);
+      if (!matches.length) return null;
+      if (preferVerified) {
+        const v = matches.find((i) => i.verified_at);
+        if (v) return v.value;
+      }
+      return matches[0].value;
+    };
 
     const patch = {};
+
+    // NAME — manual host edit wins; otherwise fill an EMPTY name from the best source.
+    const manual = profiles.find((p) => p.source === "manual" && p.display_name);
+    const { name: resolvedName, handle: resolvedHandle } = resolveDisplay(profiles);
     if (manual) {
       if (person.name !== manual.display_name) patch.name = manual.display_name; // host wins
-    } else if (!person.name && resolved) {
-      patch.name = resolved; // fill the gap only
+    } else if (!person.name && resolvedName) {
+      patch.name = resolvedName; // fill the gap only
     }
-    // Mirror the IG handle into people.instagram only when empty (gap-fill).
+
+    // INSTAGRAM handle — gap-fill from the best IG source profile, else a handle identity.
     if (!person.instagram) {
-      const ig = profiles.find((p) => p.source === "instagram" && p.handle);
-      if (ig) patch.instagram = ig.handle;
+      const ig = profiles.find((p) => p.source === "instagram" && p.handle)?.handle
+        || resolvedHandle || firstId("ig_handle");
+      if (ig) patch.instagram = String(ig).replace(/^@+/, "");
     }
-    if (Object.keys(patch).length) {
+    // IG user id — gap-fill from a platform-native identity (strongest IG anchor).
+    if (!person.ig_user_id) {
+      const v = firstId("ig_user_id");
+      if (v) patch.ig_user_id = v;
+    }
+    // PHONE — gap-fill, preferring a verified number.
+    if (!person.phone_e164) {
+      const v = firstId("phone", true);
+      if (v) patch.phone_e164 = v;
+    }
+    // EMAIL — gap-fill, preferring a verified address.
+    if (!person.email) {
+      const v = firstId("email", true);
+      if (v) patch.email = v;
+    }
+
+    const filled = Object.keys(patch);
+    if (filled.length) {
       patch.updated_at = new Date().toISOString();
       await supabase.from("people").update(patch).eq("id", personId);
     }
+    return { filled };
   } catch (e) {
-    logger?.warn?.("[sourceProfiles] recompute failed", { error: e?.message });
+    logger?.warn?.("[sourceProfiles] enrich failed", { error: e?.message });
+    return { filled: [] };
   }
 }
+
+// Back-compat alias: the original name-only entrypoint now does the full
+// gap-fill (callers that just wanted the name resolved get the rest for free).
+export const recomputePersonName = enrichPersonProfile;

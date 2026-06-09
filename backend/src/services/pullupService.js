@@ -213,7 +213,16 @@ async function mirrorPullUpToRsvp(personId, eventId) {
       status: "attending",
       pulled_up: true,
     });
-    if (error) console.error("[pullup] rsvp mirror insert failed:", error.message);
+    if (error) {
+      // A concurrent path (a parallel scan, or an RSVP landing the same instant)
+      // created the row first — rsvps now has UNIQUE(event_id, person_id), so this
+      // is a benign race: just make sure the flag is set.
+      if (error.code === "23505") {
+        await supabase.from("rsvps").update({ pulled_up: true }).eq("event_id", eventId).eq("person_id", personId);
+      } else {
+        console.error("[pullup] rsvp mirror insert failed:", error.message);
+      }
+    }
   } catch (e) {
     console.error("[pullup] rsvp mirror failed:", e?.message);
   }

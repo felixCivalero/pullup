@@ -90,7 +90,14 @@ function isVideoUrl(u) {
   return /\.(mp4|mov|m4v|webm|ogg)(\?|#|$)/i.test(String(u || ""));
 }
 
-function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
+function RoomSpace({ eventId, roster, isHost, permissions, meName, lobbyOpen }) {
+  // The room narrows on the lifecycle: before the doors it's the lobby (everyone
+  // who RSVP'd can prep); once the event starts only people who pulled up remain.
+  // The subtitle says which one you're looking at, honestly, instead of always
+  // claiming "only people who pulled up" even while the lobby is open.
+  const circleLabel = lobbyOpen
+    ? "the lobby — everyone who's RSVP'd"
+    : "a closed circle — only people who pulled up";
   const api = useMemo(() => {
     const base = isHost ? `/host/events/${eventId}` : `/p/${eventId}`;
     const msgs = (r) => (r.ok ? r.json().then((d) => d.messages || []) : []);
@@ -195,7 +202,7 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
             return (
               <div key={c.id} style={{ fontSize: "15px", fontWeight: 750, color: colors.text, letterSpacing: "-0.01em" }}>
                 {subjectName(c)}
-                <span style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, letterSpacing: 0 }}> · a closed circle — only people who pulled up</span>
+                <span style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, letterSpacing: 0 }}> · {circleLabel}</span>
               </div>
             );
           }
@@ -232,7 +239,7 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName }) {
           it inline above). */}
       {several && (
         <div style={{ fontSize: "12.5px", fontWeight: 500, color: colors.textFaded, marginBottom: 14, marginLeft: 37 }}>
-          a closed circle — only people who pulled up
+          {circleLabel}
         </div>
       )}
 
@@ -410,6 +417,10 @@ export default function EventRoomPage() {
   // Host AND guest fall through to the SAME room below — what differs is only
   // what each is allowed to see/do, driven by isHost + permissions.
   const when = event?.startsAt ? new Date(event.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+  // Doors-open boundary: before starts_at the room is the lobby (RSVP'd can prep);
+  // at/after start it narrows to people who pulled up. No date = forever-lobby.
+  const startsMs = event?.startsAt ? new Date(event.startsAt).getTime() : null;
+  const lobbyOpen = startsMs == null || Date.now() < startsMs;
   const hasCover = !!event?.cover;
   const meName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || "You";
 
@@ -493,7 +504,7 @@ export default function EventRoomPage() {
             ) : null}
           </div>
 
-          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} />
+          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} lobbyOpen={lobbyOpen} />
         </div>
       </div>
       {/* Install nudge — same room, role-aware copy. Only renders if the visitor

@@ -6541,7 +6541,7 @@ async function giphySearch(q) {
 app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { getCoPresentAtEvent, getRoomAccess, getComingCount } = await import("./services/pullupService.js");
+    const { getRoomRoster, getRoomAccess, getComingCount } = await import("./services/pullupService.js");
     const { supabase } = await import("./supabase.js");
 
     // Identity = the verified session only; a `?email=` query param is ignored.
@@ -6564,15 +6564,18 @@ app.get("/p/:eventId/interior", optionalAuth, async (req, res) => {
       return res.status(403).json({ error: "locked", reason: "read_off", phase: access.phase });
     }
 
-    // Co-presence is pull-up-keyed (empty in the lobby) AND only shown when the
-    // host lets this state see who's here.
+    // "Who's here" = the LIVE room roster (RSVP'd lobby + pulled-up), shown only
+    // when the host lets this state see who's here. Phase-correct: before the
+    // doors the whole lobby crowd is here; once the event starts the lobby
+    // closes and only pulled-up people remain (mirrors the access gate). This is
+    // the room roster, NOT the durable pull-up mesh — so it's populated in the
+    // lobby, which is the whole point of the seeWho capability for RSVP'd/waitlist.
     let coPresent = [];
     if (caps.seeWho) {
-      const coIds = await getCoPresentAtEvent(person.id, eventId);
-      if (coIds.length) {
-        const { data } = await supabase.from("people").select("id,name,instagram").in("id", coIds);
-        coPresent = (data || []).map((p) => ({ id: p.id, name: p.name, instagram: p.instagram }));
-      }
+      const roster = await getRoomRoster(eventId);
+      coPresent = roster.here
+        .filter((p) => p.id !== person.id)
+        .map((p) => ({ id: p.id, name: p.name, instagram: p.instagram }));
     }
 
     // The room's DARKROOM = peer-shared content (folder='darkroom'), kept apart
@@ -7165,20 +7168,16 @@ app.get("/host/events/:id/roster", requireAuth, async (req, res) => {
     const { isHost } = await hostGateForReq(req, req.params.id);
     if (!isHost) return res.status(403).json({ error: "Forbidden" });
     const { supabase } = await import("./supabase.js");
+    const { getRoomRoster } = await import("./services/pullupService.js");
     const eventId = req.params.id;
 
-    const [{ data: ev }, { data: rsvpRows }, { data: pullRows }] = await Promise.all([
+    // ONE roster source — the same getRoomRoster the guest "who's here" reads, so
+    // host and guest always see a consistent room. The host gets BOTH clusters
+    // (coming = who said yes, pulledUp = who showed) regardless of phase.
+    const [{ data: ev }, { pulledUp, coming }] = await Promise.all([
       supabase.from("events").select("title, cover_image_url, image_url, starts_at, ends_at, location, status").eq("id", eventId).maybeSingle(),
-      supabase.from("rsvps").select("person_id, people:person_id ( name )").eq("event_id", eventId),
-      supabase.from("pullups").select("person_id, verified_at, people:person_id ( name )").eq("event_id", eventId).order("verified_at"),
+      getRoomRoster(eventId),
     ]);
-
-    const pulledIds = new Set((pullRows || []).map((r) => r.person_id));
-    const pulledUp = (pullRows || []).map((r) => ({ id: r.person_id, name: r.people?.name || "Someone" }));
-    // "Coming" = RSVP'd but not yet pulled up (intent still pending presence).
-    const coming = (rsvpRows || [])
-      .filter((r) => !pulledIds.has(r.person_id))
-      .map((r) => ({ id: r.person_id, name: r.people?.name || "Someone" }));
 
     const end = ev?.ends_at ? new Date(ev.ends_at).getTime() : (ev?.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
     // Resolve the cover to a real public URL — a bare storage_path renders as a

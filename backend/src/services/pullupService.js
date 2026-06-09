@@ -222,12 +222,20 @@ export async function isMemberOfRoom(personId, hostProfileId) {
 // `personId` themselves pulled up to that event — you can't see a room you
 // didn't enter).
 // Did this person pull up to this event? The durable gate for room access and
-// for the event space — keyed off the PullUp record, never a live code.
+// for the event space. A pull-up = proof of presence, and it can be recorded by
+// EITHER path: the rotating-QR door scan (the `pullups` table) or a host
+// check-in (`rsvps.pulled_up = true`). Both mean "they showed and earned the
+// room", so the gate honours whichever recorded it — otherwise a guest the host
+// checked in is wrongly locked out once the doors open. (In prod today 100% of
+// pull-ups live on rsvps.pulled_up; the pullups table is the newer QR path.)
 export async function hasPulledUp(personId, eventId) {
   if (!personId || !eventId) return false;
-  const { data } = await supabase
+  const { data: up } = await supabase
     .from("pullups").select("id").eq("person_id", personId).eq("event_id", eventId).maybeSingle();
-  return !!data;
+  if (up) return true;
+  const { data: rs } = await supabase
+    .from("rsvps").select("id").eq("person_id", personId).eq("event_id", eventId).eq("pulled_up", true).maybeSingle();
+  return !!rs;
 }
 
 // ── The time-phased room gate ───────────────────────────────────────────────
@@ -318,6 +326,64 @@ export async function getComingCount(eventId) {
     .from("rsvps").select("id", { count: "exact", head: true })
     .eq("event_id", eventId).neq("status", "cancelled");
   return count || 0;
+}
+
+// ── The LIVE room roster: who's actually IN the room ────────────────────────
+// This is what the "see who's here" capability surfaces and what the host's
+// roster strip shows — the people present at THIS event, on the lifecycle:
+//   pulledUp = showed up (pullups) — in forever, ordered by when they arrived.
+//   coming   = confirmed RSVPs (non-cancelled, non-waitlist) not yet pulled up
+//              — intent, still pending presence.
+// A waitlister is "hoping for a spot", not "coming", so they're not counted here
+// (peek ≠ presence); a cancelled RSVP is gone. This is DELIBERATELY NOT
+// getCoPresentAtEvent — that one is the durable, pull-up-keyed connection mesh
+// (lateral comms across a host's events) and is empty before anyone pulls up.
+//
+// Returns { phase, pulledUp, coming, here }:
+//   pulledUp = showed up (pullups) — in forever, ordered by arrival.
+//   coming   = confirmed RSVPs not yet pulled up — full list (the host strip
+//              shows who said yes even after the night).
+//   here     = who is ACTUALLY in the room right now, narrowed by the REAL event
+//              phase: before the doors the lobby is open (coming + pulledUp);
+//              once the event starts the lobby closes and only pulledUp remain
+//              (mirrors getRoomAccess locking out RSVP'd-but-never-showed). This
+//              is keyed off the true phase, never the viewer's state, so the
+//              admin "view as RSVP'd" lens resolves the same population.
+export async function getRoomRoster(eventId, nowMs = Date.now()) {
+  if (!eventId) return { phase: "upcoming", pulledUp: [], coming: [], here: [] };
+  const [{ data: ev }, { data: rsvpRows }, { data: pullRows }] = await Promise.all([
+    supabase.from("events").select("starts_at, ends_at").eq("id", eventId).maybeSingle(),
+    supabase.from("rsvps")
+      .select("person_id, status, booking_status, pulled_up, people:person_id ( name, instagram )")
+      .eq("event_id", eventId),
+    supabase.from("pullups")
+      .select("person_id, verified_at, people:person_id ( name, instagram )")
+      .eq("event_id", eventId).order("verified_at"),
+  ]);
+  const phase = computeEventPhase(ev?.starts_at, ev?.ends_at, nowMs);
+
+  // Pulled up = proof of presence from EITHER path, deduped by person: the
+  // rotating-QR door scan (pullups, kept in arrival order) first, then host
+  // check-ins (rsvps.pulled_up). Same union the access gate uses, so the roster
+  // and the gate never disagree about who's in.
+  const pulledUp = [];
+  const pulledIds = new Set();
+  const addPulled = (r) => {
+    if (!r.person_id || pulledIds.has(r.person_id)) return;
+    pulledIds.add(r.person_id);
+    pulledUp.push({ id: r.person_id, name: r.people?.name || "Someone", instagram: r.people?.instagram || null });
+  };
+  (pullRows || []).forEach(addPulled);
+  (rsvpRows || []).filter((r) => r.pulled_up === true).forEach(addPulled);
+
+  // Coming = confirmed RSVPs (non-cancelled, non-waitlist) not yet pulled up.
+  const coming = (rsvpRows || [])
+    .filter((r) => r.status !== "cancelled" && r.status !== "waitlist" && r.booking_status !== "WAITLIST")
+    .filter((r) => !pulledIds.has(r.person_id))
+    .map((r) => ({ id: r.person_id, name: r.people?.name || "Someone", instagram: r.people?.instagram || null }));
+
+  const here = phase === "upcoming" ? [...pulledUp, ...coming] : [...pulledUp];
+  return { phase, pulledUp, coming, here };
 }
 
 // ── The event space (the room's conversation, organised into TOPICS) ────────

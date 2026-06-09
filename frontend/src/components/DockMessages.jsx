@@ -167,7 +167,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     // show as its local optimistic copy — dedupe by id, server wins.
     const seen = new Set(base.map((m) => m.id).filter(Boolean));
     const mine = sent.filter((m) => m.personId === open.id && !(m.id && seen.has(m.id)));
-    return [...base, ...mine];
+    // Order by real timestamp (ms precision), NOT insertion order — otherwise an
+    // optimistic send or a live-arriving reply can land out of sequence (your
+    // question sitting UNDER the answer it preceded). Stable tiebreak on equal
+    // timestamps via original index; anything genuinely untimed sinks to newest.
+    return [...base, ...mine]
+      .map((m, i) => ({ m, i, t: m.at ? new Date(m.at).getTime() : Number.MAX_SAFE_INTEGER }))
+      .sort((a, b) => (a.t - b.t) || (a.i - b.i))
+      .map((x) => x.m);
   }, [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
   useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); setSendChannel(null); }, [openId]);
@@ -217,7 +224,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     const clientId = newClientId();
     sentKeysRef.current.add(clientId);
     // Show the bubble INSTANTLY, then clear the composer — the send happens behind it.
-    setSent((s) => [...s, { clientId, personId: open.id, from: "you", text, atts, event: ev, location: loc, time: "now", channel: ch, status: "sending", _send: { personId: open.id, ch, text, atts, ev, loc } }]);
+    setSent((s) => [...s, { clientId, personId: open.id, from: "you", text, atts, event: ev, location: loc, at: new Date().toISOString(), time: "now", channel: ch, status: "sending", _send: { personId: open.id, ch, text, atts, ev, loc } }]);
     setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
     setSending(true);
     try { await doSend({ clientId, personId: open.id, ch, text, atts, ev, loc }); }

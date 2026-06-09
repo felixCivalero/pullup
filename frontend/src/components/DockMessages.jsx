@@ -469,6 +469,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                   )}
                   {(m.time || mine) && (
                     <div style={{ fontSize: 10, color: failed ? "#dc2626" : D.faint, marginTop: 3, display: "flex", gap: 4, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
+                      {/* Auto-DMs (comment→DM, flows) read as automated, not hand-typed. */}
+                      {m.type === "auto_dm_sent" && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: D.pink, fontWeight: 700 }}>
+                          <Sparkles size={9} /> Auto-DM
+                        </span>
+                      )}
                       {/* The label tracks the live delivery state of OUR messages. */}
                       <span>{failed ? "Not delivered · tap to retry" : m.status === "sending" ? "Sending…" : m.time === "now" ? "now" : m.time}</span>
                       {/* One tick language across WhatsApp / Instagram / email. */}

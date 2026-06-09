@@ -7377,6 +7377,7 @@ app.put(
         pulledUpForDinner, // Backward compatibility
         pulledUpForCocktails, // Backward compatibility
         forceConfirm, // Admin override flag
+        customAnswers, // Host-edited enrichment answers (service-desk edit)
       } = req.body;
 
       // BUSINESS RULE: Cannot move paid/confirmed guests to waitlist
@@ -7416,6 +7417,8 @@ app.put(
           cocktailOnlyPullUpCount,
           pulledUpForDinner, // Backward compatibility
           pulledUpForCocktails, // Backward compatibility
+          customAnswers, // gated in mapRsvpToDb (!== undefined), so a normal edit
+                         // that omits it never wipes the stored answers
         },
         { forceConfirm: !!forceConfirm }
       );

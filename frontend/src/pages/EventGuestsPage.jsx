@@ -2774,6 +2774,10 @@ function EditGuestModal({
   const [pulledUpForCocktails, setPulledUpForCocktails] = useState(
     guest.cocktailOnlyPullUpCount ?? guest.pulledUpForCocktails ?? null,
   );
+  // Enrichment answers are RSVP data (not identity), so the host CAN edit them
+  // here — the service desk: guest didn't fill allergies, host calls and types
+  // it in. Seeded from a full copy so other answer keys are never lost on save.
+  const [answers, setAnswers] = useState(() => ({ ...(guest.customAnswers || {}) }));
   const [loading, setLoading] = useState(false);
 
   const maxPlusOnes = event.maxPlusOnesPerGuest || 0;
@@ -2936,6 +2940,12 @@ function EditGuestModal({
       // Admin override: include forceConfirm if capacity would be exceeded
       forceConfirm:
         capacityCheck.willExceedCocktail || capacityCheck.willExceedDinner,
+      // Host-managed enrichment answers — full set, trimmed empties dropped.
+      customAnswers: Object.fromEntries(
+        Object.entries(answers)
+          .map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])
+          .filter(([, v]) => v !== "" && v !== null && v !== undefined),
+      ),
     };
 
     onSave(updates);
@@ -3136,7 +3146,8 @@ function EditGuestModal({
               </div>
             </div>
 
-            {/* Their answers to this event's questions (read-only) */}
+            {/* Their answers — editable. Host can fill what a guest left blank
+                (call them, type it in). These are RSVP data, not identity. */}
             {Array.isArray(event.enrichmentQuestions) && event.enrichmentQuestions.length > 0 && (
               <div>
                 <label
@@ -3152,19 +3163,31 @@ function EditGuestModal({
                 >
                   Their answers
                 </label>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {event.enrichmentQuestions.map((q) => {
-                    const raw = (guest.customAnswers || {})[q.id];
-                    const val = typeof raw === "string" ? raw.trim() : raw;
-                    return (
-                      <div key={q.id} style={{ padding: "10px 14px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface }}>
-                        <div style={{ fontSize: "12px", fontWeight: 600, color: colors.textSubtle }}>{q.label}</div>
-                        <div style={{ fontSize: "14px", color: val ? colors.text : colors.textFaded, marginTop: "3px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          {val || "No answer"}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {event.enrichmentQuestions.map((q) => (
+                    <div key={q.id}>
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: colors.textSubtle, marginBottom: "5px" }}>{q.label}</div>
+                      <textarea
+                        value={answers[q.id] || ""}
+                        onChange={(e) => { const v = e.target.value; setAnswers((prev) => ({ ...prev, [q.id]: v })); }}
+                        placeholder="No answer yet — add one"
+                        rows={2}
+                        style={{
+                          width: "100%",
+                          resize: "vertical",
+                          padding: "10px 14px",
+                          borderRadius: "12px",
+                          border: `1px solid ${colors.borderStrong}`,
+                          background: colors.background,
+                          color: colors.text,
+                          fontSize: "14px",
+                          fontFamily: "inherit",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

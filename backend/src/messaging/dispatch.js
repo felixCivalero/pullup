@@ -33,6 +33,34 @@ import { enqueueOutbox as enqueueEmailOutbox } from "../email/index.js";
 import { TEMPLATES } from "../whatsapp/templates/registry.js";
 import { logger } from "../logger.js";
 import { resolveTryOrder } from "../lib/idempotency.js";
+import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
+
+/**
+ * Pure decision for what an Instagram send may do, given the window state, who
+ * composed it, and whether Meta has approved the HUMAN_AGENT feature. Extracted
+ * so the policy is unit-testable without a DB or the network.
+ *
+ *   standard      → free text, no tag.
+ *   human_agent   → only a HUMAN_AGENT-tagged, human-composed reply, AND only
+ *                   once Meta has approved the feature (else it 403s — see
+ *                   IG_HUMAN_AGENT_APPROVED). Otherwise not sendable → fall to email.
+ *   expired/other → not sendable.
+ *
+ * @returns {{ send: boolean, humanAgent: boolean, reason?: string }}
+ */
+export function decideIgSend({ state, humanComposed, humanAgentApproved }) {
+  if (state === "standard") return { send: true, humanAgent: false };
+  if (state === "human_agent") {
+    if (!humanComposed) {
+      return { send: false, humanAgent: false, reason: "ig: 24h–7d window needs a human-composed reply" };
+    }
+    if (!humanAgentApproved) {
+      return { send: false, humanAgent: false, reason: "ig: extended (24h–7d) replies pending Meta Human Agent approval" };
+    }
+    return { send: true, humanAgent: true };
+  }
+  return { send: false, humanAgent: false, reason: "ig: window expired (>7d since inbound)" };
+}
 
 // A message dispatch() could not deliver on ANY channel — persist it so a drop
 // is a recoverable row, not just a stderr line. Best-effort: never throw out of
@@ -100,18 +128,15 @@ async function attemptInstagram({ recipient, text, attachments = [], humanCompos
     const { getWindowState, upsertThreadFromMessage } =
       await import("../instagram/repos/instagramThreadsRepo.js");
     const state = await getWindowState({ personId, hostProfileId });
-    if (state === "expired") { reasons.push("ig: window expired (>7d since inbound)"); return null; }
-    if (state === "human_agent" && !humanComposed) {
-      reasons.push("ig: 24h–7d window needs a human-composed reply");
-      return null;
-    }
+    const decision = decideIgSend({ state, humanComposed, humanAgentApproved: IG_HUMAN_AGENT_APPROVED });
+    if (!decision.send) { reasons.push(decision.reason); return null; }
     const { getConnectionForHost, getCredentialsByIgUserId } =
       await import("../instagram/repos/instagramConnectionsRepo.js");
     const conn = await getConnectionForHost(hostProfileId);
     const creds = conn?.ig_user_id ? await getCredentialsByIgUserId(conn.ig_user_id) : null;
     if (!creds?.accessToken) { reasons.push("ig: host not connected"); return null; }
     const { sendMessage } = await import("../instagram/providers/igGraphClient.js");
-    const base = { igUserId: creds.igUserId, accessToken: creds.accessToken, recipientId: igId, humanAgent: state === "human_agent" };
+    const base = { igUserId: creds.igUserId, accessToken: creds.accessToken, recipientId: igId, humanAgent: decision.humanAgent };
     // A message is text OR one attachment — so send the note, then one send per
     // image. Keep the last provider message id for delivery/read tracking.
     let mid = null;

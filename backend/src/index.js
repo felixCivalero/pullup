@@ -1611,6 +1611,23 @@ app.post("/internal/webhooks/ses-eventbridge", async (req, res) => {
 app.use(trackingRoutes);
 
 // ---------------------------
+// SHORT LINKS: /i/:code → 302 to the full canonical URL (migration 074)
+// Reachable today at /api/i/:code via the nginx /api proxy (no infra change);
+// works at a bare /i/:code too if a root nginx location is later added.
+// ---------------------------
+app.get("/i/:code", async (req, res) => {
+  const home = (process.env.APP_BASE_URL || "https://pullup.se").replace(/\/+$/, "") + "/";
+  try {
+    const { resolveShortLink } = await import("./services/shortLinks.js");
+    const target = await resolveShortLink(req.params.code);
+    return res.redirect(302, target || home);
+  } catch (err) {
+    console.error("Error resolving short link:", err?.message);
+    return res.redirect(302, home);
+  }
+});
+
+// ---------------------------
 // PARTNER CLICK TRACKING
 // ---------------------------
 app.post("/partner-clicks", optionalAuth, async (req, res) => {

@@ -55,6 +55,31 @@ export function buildSignupLink({ eventSlug, src = "ig_comment", ref = null, igI
   return `${base}${path}?${params.toString()}`;
 }
 
+// Base for short signup links. Today they resolve via the /api proxy (zero
+// nginx change needed); set SHORTLINK_BASE=https://pullup.se/i once a bare-path
+// nginx location is added to drop the /api segment.
+const SHORTLINK_BASE =
+  process.env.SHORTLINK_BASE ||
+  `${(APP_BASE_URL || "https://pullup.se").replace(/\/+$/, "")}/api/i`;
+
+/**
+ * Shorten a stamped signup URL to `${SHORTLINK_BASE}/<code>`. Instagram DMs are
+ * plain text (no anchors), so the full URL otherwise shows as a wall of
+ * acquisition params; the short code 302-redirects to the SAME full URL, so
+ * every attribution code path on the destination is untouched. Falls back to
+ * the full URL if minting fails — a long link beats a dropped message.
+ */
+async function shortenSignupLink(fullUrl, { hostProfileId = null } = {}) {
+  try {
+    const { mintShortLink } = await import("../services/shortLinks.js");
+    const code = await mintShortLink(fullUrl, { kind: "ig_signup", hostProfileId });
+    if (code) return `${SHORTLINK_BASE}/${code}`;
+  } catch (e) {
+    logger?.warn?.("[instagram/commentTriggers] short-link mint failed, using full url", { err: e?.message });
+  }
+  return fullUrl;
+}
+
 /**
  * Handle one inbound comment. Safe to call on every comment webhook — it
  * resolves the host, checks rules, dedupes, and only DMs on a match.
@@ -123,7 +148,8 @@ export async function handleCommentEvent({ igAccountId, comment }) {
     return { status: "error", reason: "claim_failed" };
   }
 
-  const replyText = `${rule.reply_text || "Tap to grab your spot:"}\n${signupLink}`;
+  const shortLink = await shortenSignupLink(signupLink, { hostProfileId: ctx.hostProfileId });
+  const replyText = `${rule.reply_text || "Tap to grab your spot:"}\n${shortLink}`;
   try {
     const res = await sendPrivateReply({
       igUserId: ctx.igUserId,
@@ -140,7 +166,54 @@ export async function handleCommentEvent({ igAccountId, comment }) {
       keyword: rule.keyword,
       username: commenterUsername,
     });
-    return { status: "sent", messageId: res.message_id, signupLink };
+
+    // Record the auto-DM on the commenter's timeline so the Room thread shows
+    // what we sent — without this the conversation looks empty even though the
+    // DM went out. Mirrors the dm_keyword path (metaIgWebhook.js). The IGSID on
+    // a comment is Meta-issued → a hard identity link. Best-effort: the DM is
+    // already delivered, so a logging hiccup must never read as a send failure.
+    try {
+      const { resolvePersonByIdentity } = await import("../services/personResolution.js");
+      const { personId } = await resolvePersonByIdentity({
+        identifiers: {
+          igUserId: commenterIgId ? String(commenterIgId) : null,
+          igHandle: commenterUsername || null,
+        },
+        profile: {
+          acquisition_channel: "ig_comment",
+          name: commenterUsername || null,
+          instagram: commenterUsername || null,
+        },
+        source: "ig",
+      });
+      if (personId) {
+        const { logPersonEvent } = await import("../services/personTimeline.js");
+        const { upsertThreadFromMessage } = await import("./repos/instagramThreadsRepo.js");
+        const { dedupeKey } = await import("../lib/idempotency.js");
+        await logPersonEvent({
+          personId,
+          hostId: ctx.hostProfileId,
+          type: "auto_dm_sent",
+          channel: "instagram",
+          direction: "out",
+          body: replyText,
+          // Deduped on the comment id so a webhook redelivery doesn't double-log.
+          dedupeKey: dedupeKey("ig:cmtreply", commentId),
+          metadata: { source: "comment_trigger", comment_id: commentId, mid: res.message_id || null, signup_link: signupLink },
+        });
+        await upsertThreadFromMessage({
+          personId,
+          hostProfileId: ctx.hostProfileId,
+          igUserId: commenterIgId ? String(commenterIgId) : ctx.igUserId,
+          direction: "outbound",
+          preview: replyText,
+        });
+      }
+    } catch (e) {
+      logger?.error?.("[instagram/commentTriggers] timeline log failed", { commentId, err: e?.message });
+    }
+
+    return { status: "sent", messageId: res.message_id, signupLink: shortLink };
   } catch (err) {
     await supabase
       .from("ig_comment_triggers")
@@ -212,7 +285,8 @@ export async function handleDmKeywordEvent({
     igId: senderId,
     username: senderUsername,
   });
-  const replyText = `${rule.reply_text || "Tap to grab your spot:"}\n${signupLink}`;
+  const shortLink = await shortenSignupLink(signupLink, { hostProfileId });
+  const replyText = `${rule.reply_text || "Tap to grab your spot:"}\n${shortLink}`;
 
   try {
     const res = await sendMessage({
@@ -226,7 +300,7 @@ export async function handleDmKeywordEvent({
       .update({ reply_message_id: res?.message_id || null })
       .eq("id", claim.data.id);
     logger?.info?.("[instagram/dmTriggers] replied", { keyword: rule.keyword, username: senderUsername });
-    return { status: "sent", messageId: res?.message_id, signupLink };
+    return { status: "sent", messageId: res?.message_id, signupLink: shortLink };
   } catch (err) {
     await supabase
       .from("ig_dm_triggers")

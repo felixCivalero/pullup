@@ -95,6 +95,17 @@ export const IG_MESSAGING_WINDOW_HOURS = 24;
 // Private Replies (comment → DM): one reply per comment, 7-day eligibility.
 export const IG_PRIVATE_REPLY_WINDOW_DAYS = 7;
 
+// The HUMAN_AGENT tag (the 24h–7d reply window) is gated behind a dedicated
+// Meta App Review. Until it's approved, sending with the tag 403s ("To use
+// 'Human Agent', your use of this endpoint must be reviewed and approved by
+// Facebook") — so we must NOT attempt it: the router treats the human_agent
+// window as un-sendable and falls to the email floor with a clear reason
+// instead of a raw 403 dead-letter. Flip IG_HUMAN_AGENT_APPROVED=true the
+// moment Meta approves and the 7-day window lights up automatically — exactly
+// the way the WhatsApp template-approval gate works. Not bypassed in sandbox,
+// on purpose: behaviour stays identical and honest regardless of the flag.
+export const IG_HUMAN_AGENT_APPROVED = bool(process.env.IG_HUMAN_AGENT_APPROVED, false);
+
 export function graphUrl(path) {
   return `https://graph.facebook.com/${META_GRAPH_VERSION}${path}`;
 }

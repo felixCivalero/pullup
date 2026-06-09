@@ -2434,6 +2434,9 @@ app.post("/events", requireAuth, async (req, res) => {
     collectInstagram,
     requireInstagram,
 
+    // Host-authored enrichment questions (mig 077).
+    enrichmentQuestions,
+
     // Reveal & waitlist features
     hideLocation,
     hideDate,
@@ -2511,6 +2514,7 @@ app.post("/events", requireAuth, async (req, res) => {
     requirePhone,
     collectInstagram,
     requireInstagram,
+    enrichmentQuestions,
     hideLocation,
     hideDate,
     instantWaitlist,
@@ -2548,42 +2552,16 @@ app.post("/events", requireAuth, async (req, res) => {
     }
   }
 
-  // If paid tickets, automatically create Stripe product and price (internal only)
-  if (ticketType === "paid" && ticketPrice) {
-    try {
-      // Create Stripe product
-      const product = await createStripeProduct({
-        eventTitle: title,
-        eventDescription: description || "",
-        eventId: event.id,
-        startsAt,
-        endsAt,
-      });
-
-      // Create Stripe price
-      const price = await createStripePrice({
-        productId: product.id,
-        amount: ticketPrice, // Already in cents
-        currency: ticketCurrency || "usd",
-        eventId: event.id,
-      });
-
-      // Update the event with the created Stripe IDs
-      const updatedEvent = await updateEvent(event.id, {
-        stripeProductId: product.id,
-        stripePriceId: price.id,
-      });
-
-      res.status(201).json(updatedEvent);
-      return;
-    } catch (error) {
-      console.error("Error creating Stripe product/price:", error);
-      // If Stripe creation fails, still return the event but without Stripe IDs
-      // This allows the event to be created even if Stripe is misconfigured
-      // The user can manually add Stripe IDs later if needed
-      res.status(201).json(event);
-      return;
-    }
+  // Paid tickets are PAUSED (money-hole guard): never mint a Stripe product via
+  // the API/MCP create path. The event was just created — if it came in paid,
+  // roll it back to free so no guest can pay into an un-set-up account. (The few
+  // events that took real payments before the pause aren't created through here,
+  // so they keep their Stripe config untouched.)
+  if (ticketType === "paid") {
+    const freed = await updateEvent(event.id, { ticketType: "free", ticketPrice: null });
+    logger?.warn?.("[POST /events] paid tickets paused — coerced new event to free", { eventId: event.id });
+    res.status(201).json(freed || { ...event, ticketType: "free", ticketPrice: null });
+    return;
   }
 
   res.status(201).json(event);
@@ -5278,6 +5256,11 @@ app.put(
       collectInstagram,
       requireInstagram,
 
+      // Host-authored enrichment questions (mig 077). Same class of field as the
+      // toggles above — must be read here AND forwarded to updateEvent, or the
+      // editor sends it and the route silently drops it (never persists).
+      enrichmentQuestions,
+
       // Reveal & waitlist features
       hideLocation,
       hideDate,
@@ -5349,34 +5332,16 @@ app.put(
       }
     }
 
-    // If switching to paid and no Stripe product exists, create one
-    if (ticketType === "paid" && ticketPrice && !currentEvent.stripeProductId) {
-      try {
-        const { createStripeProduct, createStripePrice } = await import(
-          "./stripe.js"
-        );
-        const product = await createStripeProduct({
-          eventTitle: currentEvent.title || title,
-          eventDescription: currentEvent.description || description || "",
-          eventId: id,
-          startsAt: currentEvent.startsAt || startsAt,
-          endsAt: currentEvent.endsAt || endsAt,
-        });
-        const price = await createStripePrice({
-          productId: product.id,
-          amount: ticketPrice,
-          currency: ticketCurrency || "usd",
-          eventId: id,
-        });
-        stripeProductId = product.id;
-        newStripePriceId = price.id;
-        console.log(
-          `[Stripe] Created product ${product.id} and price ${price.id} for event ${id}`
-        );
-      } catch (error) {
-        console.error("Error creating Stripe product/price:", error);
-        // Continue with update - Stripe IDs can be added later
-      }
+    // Paid tickets are PAUSED (money-hole guard): block switching a free event TO
+    // paid — never mint a Stripe product via update. Events already paid before
+    // the pause (they carry a stripeProductId) are left exactly as they are; their
+    // config passes through unchanged below.
+    let effectiveTicketType = ticketType;
+    let effectiveTicketPrice = ticketPrice;
+    if (ticketType === "paid" && !currentEvent.stripeProductId) {
+      logger?.warn?.("[PUT /host/events] paid tickets paused — keeping event free", { eventId: id });
+      effectiveTicketType = "free";
+      effectiveTicketPrice = null;
     }
 
     // Upload any hostedby logos from sections to storage before saving
@@ -5408,7 +5373,7 @@ app.put(
         brand,
         calendar,
         visibility,
-        ticketType,
+        ticketType: effectiveTicketType,
         requireApproval,
         maxPlusOnesPerGuest,
         dinnerEnabled,
@@ -5420,7 +5385,7 @@ app.put(
         dinnerSlots,
         dinnerBookingEmail,
         hideDinnerRemaining,
-        ticketPrice,
+        ticketPrice: effectiveTicketPrice,
         ticketCurrency: ticketCurrency
           ? String(ticketCurrency).toLowerCase()
           : undefined,
@@ -5444,6 +5409,7 @@ app.put(
         requirePhone,
         collectInstagram,
         requireInstagram,
+        enrichmentQuestions,
         hideLocation,
         hideDate,
         instantWaitlist,

@@ -835,6 +835,9 @@ export async function createEvent({
   // Custom RSVP form fields
   formFields,
 
+  // Host-authored enrichment questions (mig 077).
+  enrichmentQuestions = [],
+
   // Per-event RSVP contact channel: 'email' | 'whatsapp' | 'both'.
   contactChannel = "email",
 
@@ -923,6 +926,7 @@ export async function createEvent({
     soundcloud,
     sections: Array.isArray(sections) ? sections : [],
     formFields: Array.isArray(formFields) ? formFields : [],
+    enrichmentQuestions: Array.isArray(enrichmentQuestions) ? enrichmentQuestions : [],
     contactChannel: ["email","whatsapp","both"].includes(contactChannel) ? contactChannel : "email",
     hideLocation: !!hideLocation,
     hideDate: !!hideDate,
@@ -1402,14 +1406,15 @@ function splitCustomAnswers(customAnswers, formFields) {
 export async function findOrCreatePerson(email, name = null) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Try to find existing person in Supabase
-  const { data: existingPerson, error: findError } = await supabase
+  // Try to find existing person. maybeSingle (not single) so not-found is a clean
+  // null, never a thrown error, and a stray duplicate can't blow up the read.
+  const { data: existingPerson } = await supabase
     .from("people")
     .select("*")
     .eq("email", normalizedEmail)
-    .single();
+    .maybeSingle();
 
-  if (existingPerson && !findError) {
+  if (existingPerson) {
     // Person exists - update name if provided and different
     if (name && name.trim() && existingPerson.name !== name.trim()) {
       const { data: updatedPerson, error: updateError } = await supabase
@@ -1443,6 +1448,14 @@ export async function findOrCreatePerson(email, name = null) {
     .single();
 
   if (insertError) {
+    // A concurrent RSVP for the same email won the race — the lower(email) unique
+    // index (mig: people_email_unique) rejects this insert. Re-read instead of
+    // throwing or forking a duplicate person.
+    if (insertError.code === "23505") {
+      const { data: raced } = await supabase
+        .from("people").select("*").eq("email", normalizedEmail).maybeSingle();
+      if (raced) return mapPersonFromDb(raced);
+    }
     console.error("Error creating person:", insertError);
     throw new Error("Failed to create person");
   }

@@ -2638,7 +2638,10 @@ export function CreateEventPage() {
           navigate(`/events/${editEventId}/room`);
         } else {
           // Saving changes keeps the host in the editor — it shouldn't kick them
-          // out to the Guests page mid-edit.
+          // out to the Guests page mid-edit. Re-baseline the unsaved-edits
+          // snapshot to NOW so the header stops showing "unsaved changes" and the
+          // Save button settles (the finally{} setLoading re-render applies it).
+          baselineSnapshot.current = formSnapshot;
           showToast("Changes saved", "success");
         }
       } else if (draftEventIdRef.current) {

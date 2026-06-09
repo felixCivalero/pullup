@@ -97,14 +97,24 @@ export function RsvpForm({
   const collectInstagram = event?.collectInstagram !== false;
   const requirePhone = collectPhone && !!event?.requirePhone;
   const requireInstagram = collectInstagram && !!event?.requireInstagram;
+  // Host-authored enrichment questions (mig 077). NOT identity — they render
+  // below the four sacred anchors as plain free-text fields. Answers ride home
+  // in customAnswers, keyed by question id, and land in rsvps.custom_answers.
+  const customFields = (Array.isArray(event?.enrichmentQuestions) ? event.enrichmentQuestions : [])
+    .filter((q) => q && (q.label || q.prompt) && String(q.label || q.prompt).trim())
+    .map((q) => ({
+      id: q.id,
+      label: String(q.label || q.prompt).trim(),
+      required: !!q.required,
+      type: "text",
+    }));
   const orderedFields = [
     { id: NAME_FIELD_ID, type: "name" },
     { id: EMAIL_FIELD_ID, type: "email" },
     ...(collectPhone ? [{ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" }] : []),
     ...(collectInstagram ? [{ id: INSTAGRAM_FIELD_ID, type: "instagram" }] : []),
+    ...customFields,
   ];
-  // No host custom fields anymore; kept as [] so the submit handler's loop is a no-op.
-  const customFields = [];
 
   useEffect(() => {
     if (document.activeElement && document.activeElement.blur) {

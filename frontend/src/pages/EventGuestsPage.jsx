@@ -2732,8 +2732,9 @@ function EditGuestModal({
   onCancel,
   onRefund,
 }) {
-  const [name, setName] = useState(guest.name || "");
-  const [email, setEmail] = useState(guest.email || "");
+  // Identity (name / email) is canonical on the person — read-only here. This
+  // modal is a service desk: the host adjusts the BOOKING, never who the person
+  // is. We still echo the current values back unchanged in the save payload.
 
   // Use new model fields with backward compatibility
   const guestPartySize = guest.partySize || 1;
@@ -2916,8 +2917,8 @@ function EditGuestModal({
     );
 
     const updates = {
-      name: name.trim() || null,
-      email: email.trim(),
+      name: (guest.name || "").trim() || null,
+      email: (guest.email || "").trim(),
       plusOnes: newPlusOnes,
       status, // Backward compatibility
       bookingStatus, // New model field
@@ -3104,6 +3105,8 @@ function EditGuestModal({
           <div
             style={{ display: "flex", flexDirection: "column", gap: "20px" }}
           >
+            {/* Identity — read-only. The person is canonical; here the host
+                only adjusts the booking, never who the person is. */}
             <div>
               <label
                 style={{
@@ -3116,60 +3119,55 @@ function EditGuestModal({
                   letterSpacing: "0.1em",
                 }}
               >
-                Name
+                Guest
               </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  border: `1px solid ${colors.borderStrong}`,
-                  background: colors.background,
-                  color: colors.text,
-                  fontSize: "15px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-                placeholder="Guest name"
-              />
+              <div style={{ padding: "12px 16px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface }}>
+                <div style={{ fontSize: "16px", fontWeight: 600, color: colors.text }}>{guest.name || "Guest"}</div>
+                {guest.email && <div style={{ fontSize: "13px", color: colors.textMuted, marginTop: "2px", wordBreak: "break-all" }}>{guest.email}</div>}
+                {(guest.phone || guest.instagram) && (
+                  <div style={{ fontSize: "13px", color: colors.textMuted, marginTop: "2px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                    {guest.phone && <span>{guest.phone}</span>}
+                    {guest.instagram && <span>@{String(guest.instagram).replace(/^@+/, "")}</span>}
+                  </div>
+                )}
+                <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "8px", lineHeight: 1.4 }}>
+                  Managed on their profile — here you only adjust their booking.
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  color: colors.textSubtle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                Email *
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  border: `1px solid ${colors.borderStrong}`,
-                  background: colors.background,
-                  color: colors.text,
-                  fontSize: "15px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-                placeholder="guest@example.com"
-              />
-            </div>
+            {/* Their answers to this event's questions (read-only) */}
+            {Array.isArray(event.enrichmentQuestions) && event.enrichmentQuestions.length > 0 && (
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    marginBottom: "8px",
+                    color: colors.textSubtle,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                  }}
+                >
+                  Their answers
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {event.enrichmentQuestions.map((q) => {
+                    const raw = (guest.customAnswers || {})[q.id];
+                    const val = typeof raw === "string" ? raw.trim() : raw;
+                    return (
+                      <div key={q.id} style={{ padding: "10px 14px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface }}>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: colors.textSubtle }}>{q.label}</div>
+                        <div style={{ fontSize: "14px", color: val ? colors.text : colors.textFaded, marginTop: "3px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {val || "No answer"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <label

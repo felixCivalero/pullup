@@ -941,6 +941,11 @@ export function CreateEventPage() {
   // the form). With require* this gives each a 3-state Off/Optional/Required.
   const [collectPhone, setCollectPhone] = useState(draft?.collectPhone !== false);
   const [collectInstagram, setCollectInstagram] = useState(draft?.collectInstagram !== false);
+  // Host-authored enrichment questions (mig 077) — free-text prompts shown below
+  // the four sacred anchors. NOT identity; answers ride home in custom_answers.
+  const [enrichmentQuestions, setEnrichmentQuestions] = useState(
+    Array.isArray(draft?.enrichmentQuestions) ? draft.enrichmentQuestions : [],
+  );
 
   const [loading, setLoading] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -1040,7 +1045,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, enrichmentQuestions, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1226,6 +1231,7 @@ export function CreateEventPage() {
           requireInstagram,
           collectPhone,
           collectInstagram,
+          enrichmentQuestions,
           currentStep,
           wizardDone,
           _savedAt: Date.now(),
@@ -1244,7 +1250,7 @@ export function CreateEventPage() {
     dinnerOverflowAction, dinnerBookingEmail, hideDinnerRemaining,
     dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel,
+    formFields, contactChannel, enrichmentQuestions,
     currentStep, wizardDone, detailsColor, detailsGradient, detailsGradientEnabled,
     // These are saved in the payload but were missing here, so changes to them
     // (esp. `brand`, which holds the AI scene) never re-fired the save → reload
@@ -1735,6 +1741,7 @@ export function CreateEventPage() {
         setRequireInstagram(!!ev.requireInstagram);
         setCollectPhone(ev.collectPhone !== false);
         setCollectInstagram(ev.collectInstagram !== false);
+        setEnrichmentQuestions(Array.isArray(ev.enrichmentQuestions) ? ev.enrichmentQuestions : []);
         setFormFields(withLockedFields(ev.formFields, loadedChannel));
 
         // Media settings
@@ -1896,7 +1903,7 @@ export function CreateEventPage() {
     title, description, sections,
     startsAt, endsAt, timezone, hideDate, dateRevealHint,
     location, locationLat, locationLng, locationPlaceId, hideLocation, revealHint,
-    collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, formFields, contactChannel,
+    collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, formFields, contactChannel, enrichmentQuestions,
     maxAttendees, waitlistEnabled, instantWaitlist, allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerSlotsConfig, brand, instagram, spotify, tiktok, soundcloud,
   ]);
@@ -2462,6 +2469,9 @@ export function CreateEventPage() {
       requireInstagram,
       collectPhone,
       collectInstagram,
+      enrichmentQuestions: (enrichmentQuestions || [])
+        .filter((q) => q && q.id && (q.label || "").trim())
+        .map((q) => ({ id: q.id, label: q.label.trim(), required: !!q.required })),
       location,
       locationLat: locationLat || null,
       locationLng: locationLng || null,
@@ -5167,6 +5177,55 @@ export function CreateEventPage() {
                 </div>
               </div>
 
+              {/* enrichment questions — host-authored free-text prompts, shown
+                  below the four anchors. Not identity; pure enrichment. */}
+              <div style={{ marginTop: "24px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: colors.textSubtle, marginBottom: 6 }}>
+                  Your questions
+                </div>
+                <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10, lineHeight: 1.5 }}>
+                  Ask anything — you write the question. "Allergies?", "Which restaurant are you from?". Free text, shown below the fields above. Answers land on each guest and follow them across your events.
+                </div>
+                {(enrichmentQuestions || []).length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {(enrichmentQuestions || []).map((q, idx) => (
+                      <div key={q.id || idx} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px" }}>
+                        <input
+                          type="text"
+                          value={q.label || ""}
+                          onChange={(e) => { const v = e.target.value; setEnrichmentQuestions((prev) => prev.map((x) => (x.id === q.id ? { ...x, label: v } : x))); }}
+                          placeholder="Type your question…"
+                          style={{ flex: 1, minWidth: 0, padding: "7px 9px", border: `1px solid ${colors.border}`, borderRadius: "6px", background: "#fff", color: colors.text, fontSize: "14px", outline: "none" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEnrichmentQuestions((prev) => prev.map((x) => (x.id === q.id ? { ...x, required: !x.required } : x)))}
+                          title={q.required ? "Required — guests must answer" : "Optional — guests can skip"}
+                          style={{ padding: "5px 10px", borderRadius: "6px", border: `1px solid ${q.required ? colors.accent : colors.border}`, background: q.required ? colors.accent : "transparent", color: q.required ? "#fff" : colors.textMuted, fontSize: "12px", fontWeight: q.required ? 600 : 500, cursor: "pointer", whiteSpace: "nowrap" }}
+                        >
+                          {q.required ? "Required" : "Optional"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEnrichmentQuestions((prev) => prev.filter((x) => x.id !== q.id))}
+                          aria-label="Remove question"
+                          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: "6px", border: "none", background: "transparent", color: colors.textMuted, cursor: "pointer", flexShrink: 0 }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setEnrichmentQuestions((prev) => [...(prev || []), { id: `q_${Math.random().toString(36).slice(2, 9)}`, label: "", required: false }])}
+                  style={{ marginTop: (enrichmentQuestions || []).length ? "8px" : 0, display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 12px", borderRadius: "8px", border: `1px dashed ${colors.border}`, background: "transparent", color: colors.accent, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+                >
+                  <Plus size={15} /> Add a question
+                </button>
+              </div>
+
               {/* event options */}
               <div style={{ marginTop: "28px", marginBottom: "16px" }}>
                 <h3
@@ -5899,6 +5958,7 @@ export function CreateEventPage() {
                         maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                         timezone: timezone,
                         formFields,
+                        enrichmentQuestions,
                         contactChannel,
                         requirePhone,
                         requireInstagram,
@@ -6010,6 +6070,7 @@ export function CreateEventPage() {
                   hideDinnerRemaining: hideDinnerRemaining,
                   maxPlusOnesPerGuest: allowPlusOnes ? parseInt(maxPlusOnesPerGuest, 10) || 0 : 0,
                   formFields,
+                  enrichmentQuestions,
                   contactChannel,
                   requirePhone,
                   requireInstagram,

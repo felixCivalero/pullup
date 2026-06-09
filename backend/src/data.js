@@ -196,6 +196,7 @@ export async function mapEventFromDb(dbEvent) {
     sections: dbEvent.sections || [],
     adminTags: Array.isArray(dbEvent.admin_tags) ? dbEvent.admin_tags : [],
     formFields: dbEvent.form_fields || [],
+    enrichmentQuestions: Array.isArray(dbEvent.enrichment_questions) ? dbEvent.enrichment_questions : [],
     contactChannel: dbEvent.contact_channel || "email",
     requirePhone: dbEvent.require_phone || false,
     requireEmail: dbEvent.require_email !== false,
@@ -747,6 +748,9 @@ function mapEventToDb(eventData) {
   if (eventData.titleSettings !== undefined) dbData.title_settings = eventData.titleSettings;
   if (eventData.sections !== undefined) dbData.sections = eventData.sections;
   if (eventData.formFields !== undefined) dbData.form_fields = eventData.formFields;
+  // Host-authored free-text RSVP questions (mig 077). Identity stays the four
+  // sacred anchors; these are enrichment, stored as [{id,label,required}].
+  if (eventData.enrichmentQuestions !== undefined) dbData.enrichment_questions = eventData.enrichmentQuestions;
   if (eventData.contactChannel !== undefined) dbData.contact_channel = eventData.contactChannel;
   if (eventData.requirePhone !== undefined) dbData.require_phone = eventData.requirePhone;
   if (eventData.requireEmail !== undefined) dbData.require_email = eventData.requireEmail;

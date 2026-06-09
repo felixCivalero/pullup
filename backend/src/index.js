@@ -5462,6 +5462,16 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
     });
   }
 
+  // Reach floor: a published event MUST require a way to reach its guests — at
+  // least one of Email or WhatsApp(phone) at RSVP. Enforced server-side (not just
+  // the wizard) so the API/MCP can't ship an event nobody can be contacted from.
+  if (event.requireEmail === false && event.requirePhone !== true) {
+    return res.status(400).json({
+      error: "reach_floor",
+      message: "Require at least one of Email or WhatsApp at RSVP before publishing — otherwise you can't reach anyone who signs up.",
+    });
+  }
+
   const updated = await updateEvent(id, { status: "PUBLISHED" });
   if (!updated) {
     return res.status(404).json({ error: "Event not found" });

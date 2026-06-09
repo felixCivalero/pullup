@@ -21,6 +21,7 @@ import { useToast } from "../components/Toast";
 import { publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { PhoneVerifyBanner } from "../components/PhoneVerifyBanner.jsx";
+import { useAuth } from "../contexts/AuthContext";
 
 // Single Share Button Component (Instagram-style with conditional logic)
 // URL-only sharing to ensure rich previews (OG tags) are shown
@@ -82,6 +83,13 @@ export function RsvpSuccessPage() {
   const [storedPayment, setStoredPayment] = useState(statePayment);
   const [verifyError, setVerifyError] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  // The room is private — you enter on a verified SESSION, never a typed email
+  // (typing someone's address must never open their room). A logged-in guest
+  // walks straight in; everyone else gets a one-tap magic link to the room.
+  const { user, loading: authLoading } = useAuth();
+  const { showToast } = useToast();
+  const [entryLinkSent, setEntryLinkSent] = useState(false);
+  const [entryResending, setEntryResending] = useState(false);
 
   // Persist to / restore from localStorage
   useEffect(() => {
@@ -192,10 +200,25 @@ export function RsvpSuccessPage() {
   // errors hold here. Old /e/:slug/success bookmarks for confirmed spots forward
   // too; the room's own gate decides who actually gets in.
   useEffect(() => {
-    if (roomBound && event?.id && !verifying && !verifyError) {
+    if (!roomBound || !event?.id || verifying || verifyError) return;
+    if (authLoading) return; // wait for the session to resolve before deciding
+    if (user) {
+      // Logged in → their verified session resolves room access; walk straight in.
       navigate(`/events/${event.id}/room`, { replace: true });
+      return;
     }
-  }, [roomBound, event?.id, verifying, verifyError, navigate]);
+    // No session → they must prove they own this email before the private room
+    // opens. Send a one-tap magic link that lands them IN the room (safe: it goes
+    // to the inbox, never back to whoever submitted the form). Then hold on the
+    // verify state below instead of bouncing them to a login wall.
+    if (!entryLinkSent && booking?.email) {
+      setEntryLinkSent(true);
+      publicFetch("/auth/request-link", {
+        method: "POST",
+        body: JSON.stringify({ email: booking.email, name: booking.name || null, next: `/events/${event.id}/room` }),
+      }).catch(() => {});
+    }
+  }, [roomBound, event?.id, verifying, verifyError, authLoading, user, entryLinkSent, booking, navigate]);
 
   useEffect(() => {
     async function loadEvent() {
@@ -459,6 +482,49 @@ export function RsvpSuccessPage() {
           >
             Back to Event
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No session yet → the guest taps the magic link we emailed to open their
+  // (private) room. A smooth "check your email" state, never a login wall — the
+  // spot is already confirmed; this is just proving the email is theirs.
+  if (roomBound && event?.id && !authLoading && !user && !verifyError) {
+    const resendEntry = async () => {
+      if (!booking?.email || entryResending) return;
+      setEntryResending(true);
+      try {
+        await publicFetch("/auth/request-link", {
+          method: "POST",
+          body: JSON.stringify({ email: booking.email, name: booking.name || null, next: `/events/${event.id}/room` }),
+        });
+        showToast("Link sent — check your email", "success");
+      } catch {
+        showToast("Couldn't resend — try again", "error");
+      } finally {
+        setEntryResending(false);
+      }
+    };
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.gradientGlow}, ${colors.background}`, padding: "20px" }}>
+        <div style={{ textAlign: "center", maxWidth: 420, padding: "8px 4px" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
+            <FaCheckCircle size={26} color={colors.accent} />
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: colors.text, margin: "0 0 8px", letterSpacing: "-0.02em" }}>You're in!</h1>
+          <div style={{ fontSize: 15, color: colors.textMuted, lineHeight: 1.5, marginBottom: 22 }}>
+            Your spot{event?.title ? <> for <b style={{ color: colors.text }}>{event.title}</b></> : null} is confirmed. To open your room, tap the one-tap link we just emailed to{" "}
+            <b style={{ color: colors.text }}>{booking?.email}</b>.
+          </div>
+          <button onClick={resendEntry} disabled={entryResending} style={{ padding: "12px 22px", background: colors.accent, color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: entryResending ? "default" : "pointer", opacity: entryResending ? 0.7 : 1 }}>
+            {entryResending ? "Sending…" : "Resend link"}
+          </button>
+          <div style={{ marginTop: 14 }}>
+            <button onClick={() => navigate(`/e/${slug}`)} style={{ background: "none", border: "none", color: colors.textFaded, fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+              Wrong email? Back to the event
+            </button>
+          </div>
         </div>
       </div>
     );

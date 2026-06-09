@@ -97,15 +97,72 @@ export async function fetchProviderStatus() {
     throw new Error("META_WABA_ID/META_ACCESS_TOKEN missing");
   }
   const res = await fetch(
-    graphUrl(`/${META_WABA_ID}/message_templates?fields=name,status,category,id&limit=200`),
+    graphUrl(`/${META_WABA_ID}/message_templates?fields=name,status,category,rejected_reason,id&limit=200`),
     { headers: authHeaders() },
   );
   const json = await res.json().catch(() => ({}));
   const out = {};
   for (const t of json?.data ?? []) {
-    out[t.name] = { status: t.status, category: t.category, id: t.id };
+    out[t.name] = {
+      status: t.status,
+      category: t.category,
+      rejected_reason: t.rejected_reason,
+      id: t.id,
+    };
   }
   return out;
+}
+
+/**
+ * Delete a template from Meta by name (removes all language variants under
+ * that name). Returns { ok, error? }.
+ */
+export async function deleteTemplate(name) {
+  if (WHATSAPP_SANDBOX_MODE) return { ok: true, sandbox: true };
+  if (!META_WABA_ID || !META_ACCESS_TOKEN) {
+    return { ok: false, error: "META_WABA_ID/META_ACCESS_TOKEN missing" };
+  }
+  try {
+    const res = await fetch(
+      graphUrl(`/${META_WABA_ID}/message_templates?name=${encodeURIComponent(name)}`),
+      { method: "DELETE", headers: authHeaders() },
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json?.success === false) {
+      return { ok: false, error: json?.error?.message || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Delete every REJECTED template on Meta that isn't something the registry
+ * still wants live. Keeps the catalog clean of dead experiments. Returns
+ * { deleted: [], kept: [], failed: [] }.
+ */
+export async function deleteRejectedTemplates() {
+  const current = WHATSAPP_SANDBOX_MODE ? {} : await fetchProviderStatus();
+  const wanted = new Set(Object.values(TEMPLATES).map((t) => t.name));
+  const deleted = [];
+  const kept = [];
+  const failed = [];
+
+  for (const [name, info] of Object.entries(current)) {
+    if (info.status !== "REJECTED") continue;
+    // Defensive: never delete a name the registry still ships (we'd just
+    // resubmit it). A rejected name we still want needs a copy fix, not a wipe.
+    if (wanted.has(name)) {
+      kept.push({ name, reason: info.rejected_reason });
+      continue;
+    }
+    const r = await deleteTemplate(name);
+    if (r.ok) deleted.push({ name, reason: info.rejected_reason });
+    else failed.push({ name, error: r.error });
+  }
+
+  return { deleted, kept, failed };
 }
 
 /**

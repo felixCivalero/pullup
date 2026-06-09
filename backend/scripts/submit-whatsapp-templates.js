@@ -10,16 +10,26 @@
 // for real set WHATSAPP_SANDBOX_MODE=false and WHATSAPP_PROVIDER=meta_cloud
 // (and have META_WABA_ID + META_ACCESS_TOKEN set).
 //
+// Pass --delete-rejected to instead clean dead REJECTED templates out of
+// WhatsApp Manager (only names the registry no longer ships):
+//
+//   node scripts/submit-whatsapp-templates.js --delete-rejected
+//
 // NOTE: a phone number can only SEND once its display name is approved (resubmit
 // e.g. "PullUp.se" if "Pullup" was rejected) and the business is verified.
 // Template approval is independent and can start in parallel — that's this.
 
 import "dotenv/config";
 import { TEMPLATES } from "../src/whatsapp/templates/registry.js";
-import { submitTemplate, fetchProviderStatus } from "../src/whatsapp/templates/submitter.js";
+import {
+  submitTemplate,
+  fetchProviderStatus,
+  deleteRejectedTemplates,
+} from "../src/whatsapp/templates/submitter.js";
 import { WHATSAPP_SANDBOX_MODE, META_WABA_ID } from "../src/whatsapp/config.js";
 
 const LIVE = new Set(["PENDING", "APPROVED", "IN_APPEAL"]);
+const DELETE_REJECTED = process.argv.includes("--delete-rejected");
 
 async function main() {
   if (WHATSAPP_SANDBOX_MODE) {
@@ -29,6 +39,18 @@ async function main() {
   if (!WHATSAPP_SANDBOX_MODE && !META_WABA_ID) {
     console.error("META_WABA_ID / META_ACCESS_TOKEN missing — can't submit. Set them in the env.");
     process.exit(1);
+  }
+
+  if (DELETE_REJECTED) {
+    // Clean dead experiments out of WhatsApp Manager. Only touches names the
+    // registry no longer ships, so it can never wipe something we still want.
+    const { deleted, kept, failed } = await deleteRejectedTemplates();
+    console.log("\n── Delete rejected templates ──");
+    console.log(`deleted (${deleted.length}): ${deleted.map((d) => `${d.name}:${d.reason}`).join(", ") || "—"}`);
+    console.log(`kept, registry still ships (${kept.length}): ${kept.map((k) => k.name).join(", ") || "—"}`);
+    console.log(`failed (${failed.length}):`);
+    for (const f of failed) console.log(`   - ${f.name}: ${f.error}`);
+    return;
   }
 
   const current = WHATSAPP_SANDBOX_MODE ? {} : await fetchProviderStatus();

@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -39,6 +39,16 @@ const CH = {
 // in lucide, so the chat bubble stands in). Inherit currentColor so the pill's
 // active (white) / idle (brand-tinted) colour just works.
 const CH_ICON = { whatsapp: MessageCircle, instagram: Instagram, email: Mail };
+// Non-message timeline logs (rsvp, pull-up=attended, waitlist…) woven into the
+// same flow — the per-person source of truth: logs AND messages, one thread.
+const LOG = {
+  rsvp: { Icon: CalendarCheck, c: "#0d9488" },
+  attended: { Icon: Star, c: "#ec178f" },          // a pull-up — they showed up
+  waitlist_join: { Icon: Hourglass, c: "#b45309" },
+  rsvp_cancel: { Icon: X, c: "rgba(10,10,10,0.40)" },
+  payment: { Icon: CreditCard, c: "#16a34a" },
+};
+const logMeta = (type) => LOG[type] || { Icon: CircleDot, c: "rgba(10,10,10,0.40)" };
 const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
 function hashName(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
@@ -416,7 +426,21 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
           {open.read && <div style={{ fontSize: 12, color: D.faint, lineHeight: 1.5, textAlign: "center", padding: "0 10px 4px" }}>{open.read}</div>}
           {thread.map((m, i) => {
-            const mine = m.from === "you" || m.from === "system";
+            // A log entry (rsvp / pull-up / waitlist / payment…) — render it AS a
+            // log woven into the flow, not as a host message bubble.
+            if (m.from === "system") {
+              const { Icon, c } = logMeta(m.type);
+              return (
+                <div key={m.id || i} style={{ display: "flex", justifyContent: "center", margin: "1px 0" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: D.muted, background: D.raise, borderRadius: 999, padding: "4px 11px", maxWidth: "88%", lineHeight: 1.35 }}>
+                    <Icon size={12} color={c} style={{ flexShrink: 0 }} strokeWidth={2.25} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.text}</span>
+                    {m.time && <span style={{ color: D.faint, flexShrink: 0 }}>· {m.time === "now" ? "now" : m.time}</span>}
+                  </span>
+                </div>
+              );
+            }
+            const mine = m.from === "you";
             const failed = m.status === "failed";
             return (
               <div key={m.id || m.clientId || i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>

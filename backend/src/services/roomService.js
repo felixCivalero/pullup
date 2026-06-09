@@ -782,6 +782,7 @@ function buildThread(evs, eventTitleById, igReadAtMs = null) {
       id: e.id, // person_events id — the key Realtime + optimistic reconcile on
       clientId: e.metadata?.client_id || undefined, // echo of the sender's optimistic id
       from: e.direction === "in" ? "them" : e.direction === "out" ? "you" : "system",
+      type: e.type, // rsvp / attended (pull-up) / waitlist_join / message_* … so the UI renders logs AS logs
       text: e.body || (atts || event || location ? "" : lineFor(e, eventTitleById)),
       atts, // matches the dock's render (m.atts) + the optimistic-send shape
       event, // attached event → rendered as a card linking to /e/:slug

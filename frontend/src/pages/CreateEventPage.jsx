@@ -2637,8 +2637,9 @@ export function CreateEventPage() {
           showToast("Published — your event is live!", "success");
           navigate(`/events/${editEventId}/room`);
         } else {
-          showToast("Event updated successfully!", "success");
-          navigate(`/app/events/${editEventId}/guests`);
+          // Saving changes keeps the host in the editor — it shouldn't kick them
+          // out to the Guests page mid-edit.
+          showToast("Changes saved", "success");
         }
       } else if (draftEventIdRef.current) {
         // --- CREATE MODE (draft exists): publish the draft ---

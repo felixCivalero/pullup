@@ -472,7 +472,7 @@ export function RsvpForm({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your full name"
-                  required
+                  required={!preview}
                   disabled={loading}
                   autoComplete="name"
                   style={inputStyle}
@@ -488,7 +488,7 @@ export function RsvpForm({
                 </label>
                 <input
                   type="email"
-                  required
+                  required={!preview}
                   value={email}
                   onChange={(e) => { if (!isVipInvite) { setEmail(e.target.value); setError(""); } }}
                   placeholder="you@example.com"
@@ -519,7 +519,7 @@ export function RsvpForm({
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  required={requirePhone}
+                  required={!preview && requirePhone}
                   value={phone}
                   onChange={(e) => { setPhone(e.target.value); setError(""); }}
                   placeholder="+46 70 123 45 67"
@@ -552,7 +552,7 @@ export function RsvpForm({
                     value={instagram}
                     onChange={(e) => setInstagram(e.target.value.replace(/^@+/, ""))}
                     placeholder={requireInstagram ? "your handle" : "your handle (optional)"}
-                    required={requireInstagram}
+                    required={!preview && requireInstagram}
                     disabled={loading}
                     autoComplete="off"
                     style={inputStyle}
@@ -584,7 +584,7 @@ export function RsvpForm({
                 onChange={(e) => setCustomAnswers((prev) => ({ ...prev, [f.id]: e.target.value }))}
                 placeholder={placeholder}
                 disabled={loading}
-                required={!!f.required}
+                required={!preview && !!f.required}
                 autoComplete={
                   f.type === "phone" ? "tel" :
                   f.type === "company" ? "organization" :

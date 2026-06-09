@@ -70,6 +70,7 @@ export default function RoomConversation({
   canPinAny = false,
   api,
   meName = "",
+  mePersonId = null,
   meIsHost = false,
 }) {
   const C = dark
@@ -155,7 +156,7 @@ export default function RoomConversation({
     const optimistic = {
       id: clientId, clientId, body: body || "", media: localMedia,
       parentId: parentId || null, pinned: !!pinned,
-      authorName: meName || "You", isHost: meIsHost,
+      authorName: meName || "You", isHost: meIsHost, personId: mePersonId,
       at: new Date().toISOString(), _pending: true,
       _payload: { body, staged, pinned, parentId },
     };
@@ -178,7 +179,7 @@ export default function RoomConversation({
     } catch {
       setMessages((list) => (list || []).map((x) => (x.id === clientId ? { ...x, _pending: false, _failed: true } : x)));
     }
-  }, [api, channelId, meName, meIsHost]);
+  }, [api, channelId, meName, meIsHost, mePersonId]);
 
   const postTop = ({ body, staged, pinned }) => sendPost({ body, staged, pinned, parentId: null });
   const postReply = (rootId) => ({ body, staged }) => sendPost({ body, staged, parentId: rootId });
@@ -195,10 +196,17 @@ export default function RoomConversation({
   }
 
   // Managing your OWN content. "Mine" for a host viewer = the host's own posts;
-  // for a guest = their own non-host posts (the server is the real gate — this is
-  // just which affordances to show). Edit is author-only; delete is author OR the
-  // host (moderation). Never on a pending/failed/already-deleted post.
-  const isMine = (m) => (meIsHost ? !!m.isHost : (!m.isHost && m.authorName === meName));
+  // for a guest = posts authored by THIS person — matched by person id, not by a
+  // display-name snapshot (people.name and the auth display name needn't agree,
+  // which silently hid these actions). Fall back to a name match only when we
+  // somehow have no id (e.g. an optimistic post mid-send). The server is the real
+  // gate — this just decides which affordances to show. Edit is author-only;
+  // delete is author OR the host (moderation). Never on a pending/failed/deleted post.
+  const isMine = (m) => {
+    if (meIsHost) return !!m.isHost;
+    if (mePersonId && m.personId) return m.personId === mePersonId;
+    return !m.isHost && !!meName && m.authorName === meName;
+  };
   const liveOwn = (m) => !m.deleted && !m._pending && !m._failed;
   const canEditMsg = (m) => liveOwn(m) && !!api.editMessage && isMine(m);
   const canDeleteMsg = (m) => liveOwn(m) && !!api.deleteMessage && (isMine(m) || meIsHost);
@@ -290,7 +298,7 @@ export default function RoomConversation({
     }
   }
   const pinned = server.filter((m) => m.pinned);
-  const canPinThis = (m) => canPinAny || m.authorName === meName;
+  const canPinThis = (m) => canPinAny || isMine(m);
 
   const pinnedStrip = pinned.length > 0 && (
     <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>

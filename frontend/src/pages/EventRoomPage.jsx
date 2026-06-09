@@ -90,7 +90,7 @@ function isVideoUrl(u) {
   return /\.(mp4|mov|m4v|webm|ogg)(\?|#|$)/i.test(String(u || ""));
 }
 
-function RoomSpace({ eventId, roster, isHost, permissions, meName, lobbyOpen }) {
+function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, lobbyOpen }) {
   // The room narrows on the lifecycle: before the doors it's the lobby (everyone
   // who RSVP'd can prep); once the event starts only people who pulled up remain.
   // The subtitle says which one you're looking at, honestly, instead of always
@@ -284,7 +284,7 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, lobbyOpen }) 
         </div>
       )}
 
-      <RoomConversation key={activeId || "main"} channelId={activeId} canRead={canRead} canPost={canPost} canUpload={canUpload} canDownload={canDownload} canPinAny={isHost} api={api} meName={meName} meIsHost={isHost} />
+      <RoomConversation key={activeId || "main"} channelId={activeId} canRead={canRead} canPost={canPost} canUpload={canUpload} canDownload={canDownload} canPinAny={isHost} api={api} meName={meName} mePersonId={mePersonId} meIsHost={isHost} />
     </div>
   );
 }
@@ -341,7 +341,7 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, realHost, reason, permissions, event } = useEventAccess(id);
+  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId } = useEventAccess(id);
   const [roster, setRoster] = useState(null);
   const isHost = level === "host";
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
@@ -510,7 +510,7 @@ export default function EventRoomPage() {
             ) : null}
           </div>
 
-          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} lobbyOpen={lobbyOpen} />
+          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} />
         </div>
       </div>
       {/* Install nudge — same room, role-aware copy. Only renders if the visitor

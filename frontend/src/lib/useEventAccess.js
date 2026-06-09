@@ -20,6 +20,7 @@ export function useEventAccess(eventId) {
     phase: null,
     event: null,
     permissions: null,
+    personId: null,
   });
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function useEventAccess(eventId) {
     let alive = true;
     const fail = () =>
       alive &&
-      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null });
+      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null });
 
     authenticatedFetch(`/events/${eventId}/access`)
       .then((r) => (r.ok ? r.json() : null))
@@ -46,6 +47,7 @@ export function useEventAccess(eventId) {
           phase: d.phase,
           event: d.event,
           permissions: d.permissions,
+          personId: d.personId || null,
         });
       })
       .catch(fail);

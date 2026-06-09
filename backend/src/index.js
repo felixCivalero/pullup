@@ -6264,6 +6264,10 @@ app.get("/events/:id/access", optionalAuth, async (req, res) => {
       eventId,
       level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | no_access
       role: access.role || null, // host sub-role: owner | co_host | editor | reception | analytics
+      // The viewer's resolved person id (the impersonated person under a View-as
+      // lens). The room uses it to know which posts are YOURS — reliably, by id,
+      // not by matching a display-name snapshot.
+      personId: viewer.person?.id || null,
       realHost, // TRUE only if the logged-in user genuinely hosts this event (never forced)
       reason: access.reason || null,
       phase: access.phase || null,

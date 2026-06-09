@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy, Mail, Phone } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -1138,25 +1138,28 @@ function ProfileMasthead({ host, loading, onStat }) {
 // shared Room. This is what makes the home work for a pure guest, who otherwise
 // hosts nothing and would land on an empty page.
 function MemberRoomsRail({ rooms, onOpen }) {
+  const isMobile = useIsMobile();
   if (!rooms?.length) return null;
   const tag = (r) =>
     r.isHost ? { label: "Co-host", c: colors.accent, bg: colors.accentSoft, b: colors.accentBorder }
              : { label: "Guest", c: colors.textMuted, bg: colors.surfaceMuted, b: colors.border };
   return (
-    <div style={{ marginTop: "22px", marginBottom: "8px" }}>
+    <div style={{ marginTop: "26px", marginBottom: "8px" }}>
+      {/* Same small-caps section label + horizontal strip as "Your events", so
+          the two rails read as siblings — only the headline tells them apart. */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-        <DoorOpen size={16} color={colors.accent} strokeWidth={2.4} />
-        <div style={{ fontSize: "15px", fontWeight: 750, color: colors.text, letterSpacing: "-0.01em", fontFamily: SF }}>Rooms you're in</div>
-        <div style={{ fontSize: "12.5px", color: colors.textFaded }}>· events you joined</div>
+        <DoorOpen size={13} color={colors.textSubtle} strokeWidth={2.4} />
+        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Rooms you're in</span>
+        <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· events you joined</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+      <div style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "flex-start", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
         {rooms.map((r) => {
           const t = tag(r);
           return (
             <button
               key={r.id}
               onClick={() => onOpen(r.id)}
-              style={{ textAlign: "left", cursor: "pointer", padding: 0, border: `1px solid ${colors.border}`, borderRadius: "14px", overflow: "hidden", background: colors.surface, display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(10,10,10,0.03)" }}
+              style={{ flex: "0 0 auto", width: isMobile ? 200 : 228, scrollSnapAlign: isMobile ? "start" : undefined, textAlign: "left", cursor: "pointer", padding: 0, border: `1px solid ${colors.border}`, borderRadius: "14px", overflow: "hidden", background: colors.surface, display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(10,10,10,0.03)" }}
             >
               <div style={{ height: 84, background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)", position: "relative" }}>
                 {r.coverImage && <img src={r.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
@@ -1175,6 +1178,123 @@ function MemberRoomsRail({ rooms, onOpen }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Your people — the CRM layer, surfaced ──────────────────────────
+//
+// Felix's note: the system already holds everyone; the body never showed them.
+// This is the "richer version of the people you have" — searchable contact
+// cards over the SAME people the masthead counts (no extra fetch). A card is a
+// contact sheet (email / phone / @handle + where you met) and opens their full
+// cross-event thread on click. Identity-resolved, so each card is one person
+// no matter how many channels or events they touched.
+function ContactRow({ icon: Icon, text }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
+      <Icon size={13} color={colors.textFaded} style={{ flexShrink: 0 }} />
+      <span style={{ fontSize: "12.5px", color: colors.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>
+    </div>
+  );
+}
+
+function PeopleContactCard({ person, events, active, onClick }) {
+  const [hover, setHover] = useState(false);
+  const phone = person.phone || person.phone_e164 || null;
+  const ig = person.instagram ? String(person.instagram).replace(/^@+/, "") : null;
+  const evChips = (person.events || []).map((id) => events.find((e) => e.id === id)).filter(Boolean);
+  const hasContact = person.email || phone || ig;
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        textAlign: "left", cursor: "pointer", padding: "14px", borderRadius: "16px",
+        border: `1px solid ${active ? colors.accentBorder : colors.border}`,
+        background: active ? colors.accentSoft : hover ? colors.surfaceMuted : colors.surface,
+        transition: "background 0.15s ease, border-color 0.15s ease", fontFamily: SF,
+        display: "flex", flexDirection: "column", gap: "11px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+        <Avatar initials={person.initials} color={person.color} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+            <HeatDot warmth={person.warmth} />
+            <span style={{ fontSize: "14.5px", fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
+          </div>
+          {person.relationship && (
+            <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.relationship}</div>
+          )}
+        </div>
+        <span style={{ flexShrink: 0 }}>
+          <ChannelChip channel={person.channel} windowOpen={person.windowOpen} windowNote={person.windowNote} />
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        {person.email && <ContactRow icon={Mail} text={person.email} />}
+        {phone && <ContactRow icon={Phone} text={phone} />}
+        {ig && <ContactRow icon={Instagram} text={`@${ig}`} />}
+        {!hasContact && <div style={{ fontSize: "12px", color: colors.textFaded }}>No contact details yet</div>}
+      </div>
+
+      {evChips.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          {evChips.slice(0, 3).map((e) => (
+            <span key={e.id} style={{ fontSize: "10.5px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "2px 8px", borderRadius: "999px", whiteSpace: "nowrap", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
+          ))}
+          {evChips.length > 3 && <span style={{ fontSize: "10.5px", color: colors.textFaded }}>+{evChips.length - 3}</span>}
+        </div>
+      )}
+    </button>
+  );
+}
+
+function PeopleLayer({ people = [], events = [], activeId, onOpen }) {
+  const [q, setQ] = useState("");
+  const query = q.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!query) return people;
+    return people.filter((p) => {
+      const hay = [p.name, p.email, p.phone || p.phone_e164, p.instagram, p.relationship]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+  }, [people, query]);
+
+  return (
+    <div style={{ marginTop: "30px", fontFamily: SF }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your people</span>
+        {people.length > 0 && <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· {people.length}</span>}
+      </div>
+
+      {people.length > 0 && (
+        <div style={{ position: "relative", marginBottom: "14px" }}>
+          <Search size={15} color={colors.textFaded} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search your people — name, email, @handle…"
+            style={{ width: "100%", padding: "10px 12px 10px 34px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: "14px", outline: "none", fontFamily: SF, boxSizing: "border-box" }}
+          />
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div style={{ padding: "28px 20px", textAlign: "center", fontSize: "13px", color: colors.textFaded, border: `1px dashed ${colors.border}`, borderRadius: "16px" }}>
+          {people.length ? "No one matches that." : "Your people show up here as they RSVP and pull up."}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(258px, 1fr))", gap: "12px" }}>
+          {filtered.map((p) => (
+            <PeopleContactCard key={p.id} person={p} events={events} active={p.id === activeId} onClick={() => onOpen(p.id)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1248,13 +1368,14 @@ export function OwnerConsole({ room: roomProp }) {
       {/* Rooms you're in — events you co-host or attend as a guest. */}
       <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
 
-      {/* The people list + search live in the Messages dock (bottom-right), not
-          duplicated in the body. This space under the events is open for what the
-          Room becomes next. */}
-      <div style={{ marginTop: "6px", padding: "30px 20px", borderRadius: "16px", border: `1px dashed ${colors.border}`, textAlign: "center", fontFamily: SF }}>
-        <div style={{ fontSize: "13.5px", color: colors.textMuted }}>Your people moved into <strong style={{ color: colors.text }}>Messages</strong> — bottom-right.</div>
-        <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "4px" }}>This space is next.</div>
-      </div>
+      {/* Your people — the CRM, surfaced. Searchable contact cards over the same
+          people the masthead counts. A card opens the person's full thread. */}
+      <PeopleLayer
+        people={PEOPLE}
+        events={EVENTS}
+        activeId={selectedId}
+        onOpen={(id) => { setBulkPeople(null); setSelectedId(id); }}
+      />
 
       {/* Right slot — DESKTOP: floats fixed to the edge. PHONE: rises as a sheet
           with a tap-to-dismiss scrim. One at a time: a conversation or bulk compose. */}

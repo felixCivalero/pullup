@@ -524,6 +524,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       handle: person.instagram ? `@${String(person.instagram).replace(/^@/, "")}` : (disp.handle ? `@${disp.handle}` : (person.email || "")),
       initials: initials(person.name || disp.name, person.email),
       avatarUrl: disp.avatarUrl || null, // IG profile pic etc. → real avatar (UI: fall back to initials)
+      // Contact sheet — surfaced on the people-CRM cards in the Room body.
+      email: person.email || null,
+      phone: person.phone_e164 || person.phone || null,
+      instagram: person.instagram ? String(person.instagram).replace(/^@/, "") : null,
       color: colorFor(pid),
       channel,
       reachable,

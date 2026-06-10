@@ -590,6 +590,14 @@ function MarketingScroll({ onGetStarted, onLogin }) {
         </Reveal>
       </section>
 
+      {/* ─── PROOF (flexed early, right under the hero) ─── */}
+      <section className="mk-section mk-section-proof mk-section-proof--hero">
+        <Reveal>
+          <p className="mk-proof-label">They already chose PullUp</p>
+        </Reveal>
+      </section>
+      <LogoMarquee />
+
       {/* ─── 1 · THE ROOM (exclusive drops + who's in it) ─── */}
       <section className="mk-section">
         <Reveal><Chapter n="01" label="The Room" /></Reveal>
@@ -702,14 +710,6 @@ function MarketingScroll({ onGetStarted, onLogin }) {
         </Reveal>
         <McpScene />
       </section>
-
-      {/* ─── PROOF ─── */}
-      <section className="mk-section mk-section-proof">
-        <Reveal>
-          <p className="mk-proof-label">The rooms already run on PullUp</p>
-        </Reveal>
-      </section>
-      <LogoMarquee />
 
       {/* ─── 9 · FINAL CTA ─── */}
       <section className="mk-final mk-final--pre">
@@ -1383,6 +1383,7 @@ const STYLES = `
 
   /* ─── 7 · proof ─── */
   .mk-section-proof { padding-bottom: 8px; text-align: center; }
+  .mk-section-proof--hero { padding-top: clamp(24px, 5vh, 56px); padding-bottom: 8px; }
   .mk-proof-label {
     margin: 0;
     font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;

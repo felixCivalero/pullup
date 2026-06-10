@@ -3,6 +3,7 @@
 
 import { requireAuth } from "../middleware/auth.js";
 import { isUserEventHost, getUserProfile } from "../data.js";
+import { buildRosterPayload } from "../views/eventRoomView.js";
 import { hostGateForReq, signRoomUpload, sanitizeRoomMedia, giphySearch } from "./roomShared.js";
 
 export function registerHostSpaceRoutes(app) {
@@ -202,32 +203,7 @@ export function registerHostSpaceRoutes(app) {
     try {
       const { isHost } = await hostGateForReq(req, req.params.id);
       if (!isHost) return res.status(403).json({ error: "Forbidden" });
-      const { supabase } = await import("../supabase.js");
-      const { getRoomRoster } = await import("../services/pullupService.js");
-      const eventId = req.params.id;
-
-      // ONE roster source — the same getRoomRoster the guest "who's here" reads, so
-      // host and guest always see a consistent room. The host gets BOTH clusters
-      // (coming = who said yes, pulledUp = who showed) regardless of phase.
-      const [{ data: ev }, { pulledUp, coming }] = await Promise.all([
-        supabase.from("events").select("title, cover_image_url, image_url, starts_at, ends_at, location, status").eq("id", eventId).maybeSingle(),
-        getRoomRoster(eventId),
-      ]);
-
-      const end = ev?.ends_at ? new Date(ev.ends_at).getTime() : (ev?.starts_at ? new Date(ev.starts_at).getTime() + 12 * 3600 * 1000 : null);
-      // Resolve the cover to a real public URL — a bare storage_path renders as a
-      // broken banner otherwise.
-      let cover = ev?.cover_image_url || ev?.image_url || null;
-      if (cover && !cover.startsWith("http")) {
-        const match = cover.match(/event-images\/([^?]+)/);
-        const fp = match ? match[1] : cover;
-        const { data: pub } = supabase.storage.from("event-images").getPublicUrl(fp);
-        if (pub?.publicUrl) cover = pub.publicUrl;
-      }
-      res.json({
-        event: ev ? { title: ev.title, cover, startsAt: ev.starts_at, location: ev.location, status: ev.status, ended: end != null && Date.now() > end } : null,
-        coming, pulledUp, comingCount: coming.length, pulledUpCount: pulledUp.length,
-      });
+      res.json(await buildRosterPayload(req.params.id));
     } catch (err) {
       console.error("[roster] error:", err.message);
       res.status(500).json({ error: "Failed to load roster" });

@@ -9,17 +9,18 @@
 // Depth/closeness is surfaced as a FEELING (a plain sentence + a soft heat
 // dot), never a status badge or a column the host has to sort.
 //
-// Rendered against REAL data: access resolves via useEventAccess
-// (GET /events/:id/access), and the room itself is ONE flowing feed —
+// Rendered against REAL data: ONE page-shaped call (GET /events/:id/room-view,
+// via useEventRoomView) returns access + roster + channels + the Main feed for
+// first paint, and the room itself is ONE flowing feed —
 // RoomConversation (the /space stream: text + photos + replies + pinned), plus
 // the roster. No fixtures, no channels, no side galleries. (The old BYO-storage
 // grammar and the separate darkroom grid were folded into the feed.)
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useAuth } from "../contexts/AuthContext";
-import { useEventAccess } from "../lib/useEventAccess.js";
+import { useEventRoomView } from "../lib/useEventRoomView.js";
 import { AccessGate } from "../components/AccessGate.jsx";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
@@ -90,7 +91,7 @@ function isVideoUrl(u) {
   return /\.(mp4|mov|m4v|webm|ogg)(\?|#|$)/i.test(String(u || ""));
 }
 
-function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, lobbyOpen }) {
+function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, lobbyOpen, initialChannels, initialMessages, initialCoPresent }) {
   // The room narrows on the lifecycle: before the doors it's the lobby (everyone
   // who RSVP'd can prep); once the event starts only people who pulled up remain.
   // The subtitle says which one you're looking at, honestly, instead of always
@@ -98,6 +99,10 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, l
   const circleLabel = lobbyOpen
     ? "the lobby — everyone who's RSVP'd"
     : "a closed circle — only people who pulled up";
+  // The view payload carries the Main feed for first paint; the FIRST
+  // loadMessages call (always the initial Main load) consumes it instead of
+  // re-fetching. Every later call — polls, channel switches — hits the wire.
+  const preloadRef = useRef({ used: false, messages: initialMessages });
   const api = useMemo(() => {
     const base = isHost ? `/host/events/${eventId}` : `/p/${eventId}`;
     const msgs = (r) => (r.ok ? r.json().then((d) => d.messages || []) : []);
@@ -106,7 +111,13 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, l
       loadChannels: () => authenticatedFetch(`${base}/channels`).then((r) => (r.ok ? r.json().then((d) => d.channels || []) : [])),
       // Host holds the pen on subjects (the guest endpoint is read-only).
       createChannel: (name) => authenticatedFetch(`/host/events/${eventId}/channels`, { method: "POST", body: JSON.stringify({ name }) }).then((r) => (r.ok ? r.json().then((d) => d.channels || null) : null)),
-      loadMessages: (channelId) => authenticatedFetch(`${base}/space${qs(channelId)}`).then(msgs),
+      loadMessages: (channelId) => {
+        if (!preloadRef.current.used && Array.isArray(preloadRef.current.messages)) {
+          preloadRef.current.used = true;
+          return Promise.resolve(preloadRef.current.messages);
+        }
+        return authenticatedFetch(`${base}/space${qs(channelId)}`).then(msgs);
+      },
       post: ({ body, parentId, media, pinned, channelId }) =>
         authenticatedFetch(`${base}/space`, { method: "POST", body: JSON.stringify({ body, parentId, media, pinned, channelId }) }).then(msgs),
       pin: (messageId, pinned) =>
@@ -141,13 +152,19 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, l
 
   // Subjects (channels). "Room chat" (Main) is always there; the host can open
   // more with the + and everyone can switch between them.
-  const [channels, setChannels] = useState([]);
-  const [activeId, setActiveId] = useState(null);
+  const [channels, setChannels] = useState(() => initialChannels || []);
+  const [activeId, setActiveId] = useState(() => ((initialChannels || []).find((c) => c.isMain) || (initialChannels || [])[0])?.id || null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [coPresent, setCoPresent] = useState([]);
+  // "See who's here" for GUESTS — gated on the host's seeWho rule, computed
+  // server-side into the view payload (the server enforces it; co-presence is
+  // keyed to the viewer's own pull-up). The host has its own roster faces below.
+  const [coPresent, setCoPresent] = useState(() => (!isHost && Array.isArray(initialCoPresent) ? initialCoPresent : []));
 
+  // The view payload seeds channels at mount; this fetch only runs as the
+  // fallback when the page was reached without one (view failed / stale).
   useEffect(() => {
+    if (Array.isArray(initialChannels)) return;
     let alive = true;
     api.loadChannels().then((chs) => {
       if (!alive) return;
@@ -155,20 +172,18 @@ function RoomSpace({ eventId, roster, isHost, permissions, meName, mePersonId, l
       setActiveId((cur) => cur || (chs.find((c) => c.isMain) || chs[0])?.id || null);
     }).catch(() => {});
     return () => { alive = false; };
-  }, [api]);
+  }, [api, initialChannels]);
 
-  // "See who's here" for GUESTS — gated on the host's seeWho rule. The server
-  // also enforces it (returns [] when off, and co-presence is keyed to the
-  // viewer's own pull-up). The host has its own roster faces below.
   useEffect(() => {
     if (isHost || permissions?.seeWho !== true) { setCoPresent([]); return; }
+    if (Array.isArray(initialCoPresent)) { setCoPresent(initialCoPresent); return; }
     let alive = true;
     authenticatedFetch(`/p/${eventId}/interior`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive && d) setCoPresent(d.coPresent || []); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [eventId, isHost, permissions?.seeWho]);
+  }, [eventId, isHost, permissions?.seeWho, initialCoPresent]);
 
   async function addSubject() {
     const name = newName.trim();
@@ -341,7 +356,7 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId } = useEventAccess(id);
+  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
   const isHost = level === "host";
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
@@ -370,18 +385,13 @@ export default function EventRoomPage() {
       else clearEventNav();
       return;
     }
-    let alive = true;
-    authenticatedFetch(`/host/events/${id}/roster`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!alive || !d) return;
-        setRoster(d);
-        // Carry the REAL sub-role to the shell so the tab set matches the role.
-        setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role });
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [level, role, isHost, id, setEventNav, clearEventNav, event]);
+    // The roster rides the view payload — no second fetch.
+    const d = viewRoster;
+    if (!d) return;
+    setRoster(d);
+    // Carry the REAL sub-role to the shell so the tab set matches the role.
+    setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role });
+  }, [level, role, isHost, id, setEventNav, clearEventNav, event, viewRoster]);
 
   // QR walk-in: a logged-in viewer who scanned the host's live code records the
   // pull-up, then re-enters clean (replaces the old email box).
@@ -510,7 +520,7 @@ export default function EventRoomPage() {
             ) : null}
           </div>
 
-          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} />
+          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
         </div>
       </div>
       {/* Install nudge — same room, role-aware copy. Only renders if the visitor

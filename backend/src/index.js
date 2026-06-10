@@ -62,6 +62,8 @@ import {
 } from "./data.js";
 
 import { requireAuth, optionalAuth, requireAdmin } from "./middleware/auth.js";
+import { supabase } from "./supabase.js";
+import { WHATSAPP_SANDBOX_MODE } from "./whatsapp/config.js";
 import {
   validateEventData,
   validateRsvpData,
@@ -2367,7 +2369,9 @@ app.post("/events", requireAuth, async (req, res) => {
   // forwarded verbatim via pickEventFields (the shared allowlist) — so a new
   // field never has to be added here. createdVia/status are lifecycle fields
   // the route sets explicitly.
-  const { title, startsAt, endsAt, hideDate, createdVia, status } = req.body;
+  // sections/ticketType are read again below (hostedby logo upload + the
+  // paid-tickets-paused rollback guard) — they must stay in this destructure.
+  const { title, startsAt, endsAt, hideDate, createdVia, status, sections, ticketType } = req.body;
 
   if (!title || !startsAt) {
     return res.status(400).json({ error: "title and startsAt are required" });

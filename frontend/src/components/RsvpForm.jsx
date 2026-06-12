@@ -5,6 +5,7 @@ import { publicFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { colors } from "../theme/colors.js";
 import { formatEventTime } from "../lib/dateUtils.js";
+import { V2CheckoutPanel } from "./V2CheckoutPanel.jsx";
 
 function validateEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,6 +31,10 @@ export function RsvpForm({
   currentPartySize = 1,
   pendingPayment = null,
   PaymentFormComponent = null,
+  // Payments v2 (rail-agnostic checkout) — wired only when the RSVP response
+  // carried a paymentV2 descriptor; both default to no-ops otherwise.
+  onV2StripeCharge = null,
+  onV2Success = null,
   // Preview mode: pass pre-built slots to skip API call
   previewSlots = null,
   // In the editor preview this form is nested inside CreateEventPage's <form>,
@@ -892,7 +897,15 @@ export function RsvpForm({
               </button>
             </>
           )}
-          {pendingPayment && PaymentFormComponent && (
+          {pendingPayment?.v2 && (
+            <V2CheckoutPanel
+              payment={pendingPayment.v2}
+              onStripeCharge={onV2StripeCharge}
+              onSuccess={onV2Success}
+              onError={(err) => setError(err?.message || "")}
+            />
+          )}
+          {pendingPayment && !pendingPayment.v2 && PaymentFormComponent && (
             <div key={`payment-form-${pendingPayment.clientSecret}`}>
               <PaymentFormComponent
                 clientSecret={pendingPayment.clientSecret}

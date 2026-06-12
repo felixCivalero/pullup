@@ -793,6 +793,23 @@ export function CreateEventPage() {
   const [endsAt, setEndsAt] = useState(draft?.endsAt || "");
   const [timezone, setTimezone] = useState(draft?.timezone || getUserTimezone());
   const [maxAttendees, setMaxAttendees] = useState(draft?.maxAttendees || "");
+
+  // Tickets (payments v2). The ticket surface only exists when the backend
+  // says the rail-agnostic checkout is live — otherwise events stay free
+  // exactly as during the paid-tickets pause. The sellTicketsEnabled /
+  // ticketPrice / ticketCurrency states (major units) already exist below;
+  // this flag is what un-hides them.
+  const [paymentsV2Live, setPaymentsV2Live] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    import("../lib/api.js").then(({ publicFetch }) =>
+      publicFetch("/payments/v2/config")
+        .then((r) => r.json())
+        .then((cfg) => { if (alive) setPaymentsV2Live(!!cfg?.enabled); })
+        .catch(() => {})
+    );
+    return () => { alive = false; };
+  }, []);
   const [waitlistEnabled, setWaitlistEnabled] = useState(draft?.waitlistEnabled || false);
   const [instantWaitlist, setInstantWaitlist] = useState(draft?.instantWaitlist || false);
   const [hideDate, setHideDate] = useState(draft?.hideDate || false);
@@ -902,6 +919,9 @@ export function CreateEventPage() {
   const [ticketPrice, setTicketPrice] = useState(draft?.ticketPrice || "");
   const [ticketCurrency, setTicketCurrency] = useState(draft?.ticketCurrency || "SEK");
   const isPaidEvent = sellTicketsEnabled && ticketPrice && parseFloat(ticketPrice) > 0;
+  // Paid only when payments v2 is live AND a real price is set — the payload
+  // and previews key off this so flag-off behavior stays identical to the pause.
+  const ticketsArePaid = paymentsV2Live && isPaidEvent;
 
   // NEW: plus-ones
   const [allowPlusOnes, setAllowPlusOnes] = useState(draft?.allowPlusOnes || false);
@@ -1692,10 +1712,12 @@ export function CreateEventPage() {
         setMaxAttendees(ev.cocktailCapacity ? String(ev.cocktailCapacity) : "");
         setWaitlistEnabled(!!ev.waitlistEnabled);
 
-        // Tickets — paid tickets are paused (Stripe-only payments aren't
-        // viable; returning with Swish/M-Pesa). Never re-enable paid on load,
-        // so editing an existing paid event won't keep selling without payment.
-        // Existing paid events stay safe via the backend payments-unavailable guard.
+        // Tickets — hydrate from the event. When payments v2 is live the host
+        // can edit price/currency; when it's off the pause behavior holds (the
+        // payload forces free and the backend guard backs it up).
+        setSellTicketsEnabled(ev.ticketType === "paid");
+        setTicketPrice(ev.ticketPrice ? String(ev.ticketPrice / 100) : "");
+        setTicketCurrency((ev.ticketCurrency || "SEK").toUpperCase());
 
         // Plus-ones
         if (ev.maxPlusOnesPerGuest > 0) {
@@ -2494,10 +2516,11 @@ export function CreateEventPage() {
       brand: brand || null,
       calendar,
       visibility,
-      // Paid tickets are paused — always publish as free until Swish/M-Pesa land.
-      ticketType: "free",
-      ticketPrice: null,
-      ticketCurrency: null,
+      // Tickets: paid only when payments v2 is live AND a real price is set —
+      // otherwise free, exactly like during the paid-tickets pause.
+      ticketType: ticketsArePaid ? "paid" : "free",
+      ticketPrice: ticketsArePaid ? Math.round(Number(ticketPrice) * 100) : null,
+      ticketCurrency: ticketsArePaid ? ticketCurrency.toLowerCase() : null,
       maxPlusOnesPerGuest: parsedMaxPlus,
       dinnerEnabled,
       dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
@@ -5270,6 +5293,66 @@ export function CreateEventPage() {
                     />
                   }
                 />
+                {/* tickets — only when the rail-agnostic checkout is live */}
+                {paymentsV2Live && (
+                  <OptionRow
+                    icon={<SilverIcon as={Ticket} size={20} />}
+                    label="Paid tickets"
+                    description={sellTicketsEnabled ? "Guests pay when they register — Swish, M-Pesa or card by currency." : null}
+                    right={
+                      <Toggle
+                        checked={sellTicketsEnabled}
+                        onChange={setSellTicketsEnabled}
+                      />
+                    }
+                  />
+                )}
+                {paymentsV2Live && sellTicketsEnabled && (
+                  <OptionRow
+                    icon={<span style={{ width: 20 }} />}
+                    label="Price per person"
+                    right={
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={ticketPrice}
+                          onChange={(e) => setTicketPrice(e.target.value)}
+                          placeholder="150"
+                          style={{
+                            width: "80px",
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: `1px solid ${colors.border}`,
+                            background: "#fff",
+                            color: colors.text,
+                            fontSize: "16px",
+                            textAlign: "right",
+                            outline: "none",
+                          }}
+                        />
+                        <select
+                          value={ticketCurrency}
+                          onChange={(e) => setTicketCurrency(e.target.value)}
+                          style={{
+                            padding: "6px 8px",
+                            borderRadius: "8px",
+                            border: `1px solid ${colors.border}`,
+                            background: "#fff",
+                            color: colors.text,
+                            fontSize: "13px",
+                            outline: "none",
+                          }}
+                        >
+                          <option value="SEK">SEK</option>
+                          <option value="KES">KES</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </div>
+                    }
+                  />
+                )}
                 {/* waitlist — only show when capacity is set */}
                 {maxAttendees && (
                   <OptionRow
@@ -5932,14 +6015,13 @@ export function CreateEventPage() {
                     position: i,
                   })) : null,
                   mediaSettings: buildMediaSettings(),
-                  // Paid tickets are paused — always free until Swish/M-Pesa land.
-                  ticketType: "free",
+                  ticketType: ticketsArePaid ? "paid" : "free",
                   instagram,
                   spotify,
                   tiktok,
                   soundcloud,
-                  ticketPrice: null,
-                  ticketCurrency: null,
+                  ticketPrice: ticketsArePaid ? Math.round(Number(ticketPrice) * 100) : null,
+                  ticketCurrency: ticketsArePaid ? ticketCurrency.toLowerCase() : null,
                   sections,
                   design: brand?.design || null,
                   hoveredSection,
@@ -6053,14 +6135,14 @@ export function CreateEventPage() {
               position: i,
             })) : null}
             mediaSettings={buildMediaSettings()}
-            ticketType="free"
+            ticketType={ticketsArePaid ? "paid" : "free"}
             compact
             autoShowRsvp={currentStep === 4 || currentStep === 5}
             activeStep={currentStep}
             instagram={instagram}
             spotify={spotify}
-            ticketPrice={null}
-            ticketCurrency={null}
+            ticketPrice={ticketsArePaid ? Math.round(Number(ticketPrice) * 100) : null}
+            ticketCurrency={ticketsArePaid ? ticketCurrency.toLowerCase() : null}
             sections={sections}
             design={brand?.design || null}
             rsvpContent={({ onClose }) => (

@@ -15,6 +15,7 @@ import { SettingsProfileSection } from "./SettingsProfileSection.jsx";
 import { SettingsWhatsappSection } from "./SettingsWhatsappSection.jsx";
 import { SettingsCommsSection } from "./SettingsCommsSection.jsx";
 import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
+import { SettingsBillingSection } from "./SettingsBillingSection.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -255,6 +256,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
 
       {/* COMMS — automatic messages + Instagram auto-DMs. */}
       <SettingsCommsSection user={user} />
+
+      {/* PLAN & USAGE — the transaction layer's money mirror. Renders only
+          when metering / payments v2 are live on this deployment. */}
+      <SettingsBillingSection />
 
       {/* PULLUP MCP */}
       <SettingsSection

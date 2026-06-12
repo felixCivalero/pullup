@@ -246,6 +246,56 @@ export function EventPage() {
     [event, navigate, pendingPayment]
   );
 
+  // Payments v2: a settled rail charge (M-Pesa / Swish / mock) — the webhook
+  // confirmed the booking server-side; navigate exactly like the Stripe path.
+  const handleV2Success = useCallback(
+    (settled) => {
+      const currentPayment = pendingPayment;
+      const currentEvent = event;
+      if (!currentEvent?.slug) return;
+      const rsvpData = currentPayment?.booking?.rsvp || {};
+      const statusDetails = currentPayment?.booking?.statusDetails || {};
+      setPendingPayment(null);
+      setShowRsvpForm(false);
+      navigate(`/e/${currentEvent.slug}/success`, {
+        state: {
+          booking: {
+            name: currentPayment?.booking?.name || rsvpData?.name || null,
+            email: currentPayment?.booking?.email || rsvpData?.email || null,
+            bookingStatus: "CONFIRMED",
+            wantsDinner: statusDetails?.wantsDinner ?? rsvpData?.wantsDinner ?? false,
+            partySize: rsvpData?.partySize || 1,
+            plusOnes: rsvpData?.plusOnes || 0,
+            dinnerPartySize: rsvpData?.dinnerPartySize || null,
+            dinnerTimeSlot: rsvpData?.dinnerTimeSlot || null,
+          },
+          payment: {
+            id: settled?.paymentId || null,
+            status: "succeeded",
+            amount: settled?.amount ?? currentPayment?.amount,
+            currency: settled?.currency ?? currentPayment?.currency,
+            paymentBreakdown: settled?.breakdown || currentPayment?.paymentBreakdown || null,
+          },
+        },
+      });
+    },
+    [event, navigate, pendingPayment]
+  );
+
+  // Payments v2 → card: the charge endpoint returned a Stripe clientSecret.
+  // Morph into the LEGACY pendingPayment shape so the existing Stripe Elements
+  // form + webhook + verify flow take over unchanged.
+  const handleV2StripeCharge = useCallback((charge) => {
+    setPendingPayment((prev) => ({
+      clientSecret: charge.instructions.clientSecret,
+      amount: charge.amount,
+      currency: charge.currency,
+      paymentId: charge.paymentId,
+      paymentBreakdown: charge.breakdown || prev?.paymentBreakdown || null,
+      booking: prev?.booking || null,
+    }));
+  }, []);
+
   // Memoize PaymentFormComponent to prevent unnecessary remounts
   // MUST be called before any early returns to follow Rules of Hooks
   const PaymentFormComponent = useMemo(() => {
@@ -631,6 +681,28 @@ export function EventPage() {
 
       const body = await res.json();
 
+      // Payments v2 (rail-agnostic checkout): the RSVP is PENDING_PAYMENT and
+      // the backend offered rails (Swish / M-Pesa / card / mock). Keep the
+      // modal open and hand off to the V2CheckoutPanel; settlement is polled
+      // and onV2Success navigates. A card pick morphs into the legacy Stripe
+      // pendingPayment shape via onV2StripeCharge.
+      if (body.paymentV2?.required) {
+        setPendingPayment({
+          v2: body.paymentV2,
+          amount: body.paymentV2.amount,
+          currency: body.paymentV2.currency,
+          paymentBreakdown: body.paymentV2.breakdown || null,
+          booking: {
+            name: body.rsvp?.name || submittedData?.name || null,
+            email: body.rsvp?.email || submittedData?.email || null,
+            rsvp: body.rsvp,
+            event: body.event,
+            statusDetails: body.statusDetails || null,
+          },
+        });
+        return true;
+      }
+
       // If this is a paid event and payment is required, store payment info
       // and let the inline PaymentForm handle confirmation with Stripe.
       if (body.stripe?.clientSecret && body.payment) {
@@ -944,6 +1016,8 @@ export function EventPage() {
                     currentPartySize={currentPartySize}
                     pendingPayment={pendingPayment}
                     PaymentFormComponent={PaymentFormComponent}
+                    onV2StripeCharge={handleV2StripeCharge}
+                    onV2Success={handleV2Success}
                   />
                 </div>
               )

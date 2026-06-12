@@ -122,9 +122,10 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
     // Try to find by ID first (UUID format)
     let event = await findEventById(id);
 
-    // If not found by ID, try to find by slug
+    // If not found by ID, try to find by slug (pass the viewer so a host can
+    // still load their own DRAFT — slug lookups hide drafts from strangers).
     if (!event) {
-      event = await findEventBySlug(id);
+      event = await findEventBySlug(id, req.user.id);
     }
 
     if (!event) return res.status(404).json({ error: "Event not found" });

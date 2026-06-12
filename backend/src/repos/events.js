@@ -642,9 +642,12 @@ export async function findEventBySlug(slug, userId = null) {
     return null;
   }
 
-  // If event is DRAFT, only hosts can see it (owner or co-host)
-  if (data.status === "DRAFT" && userId) {
-    const { isHost } = await isUserEventHost(userId, data.id);
+  // If event is DRAFT, only hosts can see it (owner or co-host). No session =
+  // no draft: an anonymous request must never read an unpublished page (the
+  // old `&& userId` guard skipped the check entirely for logged-out viewers —
+  // caught by the publish contract probe 2026-06-12).
+  if (data.status === "DRAFT") {
+    const { isHost } = userId ? await isUserEventHost(userId, data.id) : { isHost: false };
     if (!isHost) {
       logger.info("[findEventBySlug] DRAFT event access denied", {
         slug,

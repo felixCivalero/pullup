@@ -124,7 +124,7 @@ export function registerCrmRpcRoutes(app) {
 
       if (surface === "event") {
         if (!id) return res.status(400).json({ error: "id required for surface=event" });
-        const ev = (await findEventBySlug(id)) || (await findEventById(id));
+        const ev = (await findEventBySlug(id, req.user?.id || null)) || (await findEventById(id));
         if (!ev) return res.status(404).json({ error: "Event not found" });
         const brief = await loadBrief();
         // Pull analytics for PUBLISHED events so perf_* suggestions surface

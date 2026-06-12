@@ -49,6 +49,7 @@ import { registerTrackingEventRoutes } from "./routes/trackingEvents.js";
 import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
 import { registerAdminAnalyticsLandingRoutes } from "./routes/adminAnalyticsLanding.js";
 import { registerAdminAnalyticsRoomsRoutes } from "./routes/adminAnalyticsRooms.js";
+import { registerHostExportRoutes } from "./routes/hostExport.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
@@ -293,6 +294,8 @@ registerTrackBatchRoutes(app);
 registerAdminAnalyticsLandingRoutes(app);
 
 registerAdminAnalyticsRoomsRoutes(app);
+
+registerHostExportRoutes(app);
 
 registerAdminAnalyticsRoutes(app);
 

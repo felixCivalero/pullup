@@ -22,7 +22,7 @@ import { PullupEyes } from "../components/PullupEyes.jsx";
 import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { AppHeader } from "../components/AppHeader.jsx";
 import { OwnerConsole } from "./RoomPage.jsx";
-import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
+import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe, DatabaseZap } from "lucide-react";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
@@ -46,10 +46,10 @@ function Socials({ socials }) {
 }
 
 // The public face — shown to everyone (the IG-style header). Content below is gated.
-function Masthead({ node, onCount }) {
+function Masthead({ node, onCount, ownerAction }) {
   const c = node.counts || {};
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 22 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 22, position: "relative" }}>
       <div style={{ width: 80, height: 80, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff", border: `1px solid ${colors.borderFaint}` }}>
         {node.avatar ? <img src={transformedImageUrl(node.avatar, { width: 120 })} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(node.name)}
       </div>
@@ -65,7 +65,62 @@ function Masthead({ node, onCount }) {
         <Socials socials={node.socials} />
         {node.bio && <div style={{ fontSize: 13.5, color: colors.textSubtle, marginTop: 8, lineHeight: 1.5 }}>{node.bio}</div>}
       </div>
+      {/* Owner-only corner action — the data-ownership button lives at the top
+          right of the identity face, deliberately unmissable. */}
+      {ownerAction && (
+        <div style={{ position: "absolute", top: 0, right: 0 }}>{ownerAction}</div>
+      )}
     </div>
+  );
+}
+
+// "All your data" — stage 1 of the ownership thesis: one tap hands the host
+// their entire slice (people, events, RSVPs, timeline, messages) as a file.
+// Policy becomes physics-adjacent: the copy is in their hands, not a promise.
+function ExportDataButton() {
+  const [state, setState] = useState("idle"); // idle | working | done | error
+  const run = async () => {
+    if (state === "working") return;
+    setState("working");
+    try {
+      const res = await authenticatedFetch("/host/export");
+      if (!res.ok) throw new Error("export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pullup-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setState("done");
+      setTimeout(() => setState("idle"), 4000);
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 4000);
+    }
+  };
+  const label = state === "working" ? "Packing…" : state === "done" ? "It's yours" : state === "error" ? "Try again" : "All your data";
+  return (
+    <button
+      onClick={run}
+      title="Download everything PullUp holds for you — people, events, RSVPs, timeline, messages. One file, yours."
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+        border: `1px solid ${colors.accentBorder}`,
+        background: state === "done" ? colors.accent : "#fff",
+        color: state === "done" ? "#fff" : colors.accent,
+        fontSize: 12.5, fontWeight: 700, fontFamily: SF,
+        boxShadow: colors.accentShadow,
+        opacity: state === "working" ? 0.7 : 1,
+        transition: "all 0.2s ease",
+      }}
+    >
+      <DatabaseZap size={14} strokeWidth={2.4} />
+      {label}
+    </button>
   );
 }
 
@@ -180,7 +235,7 @@ export default function NodeProfilePage() {
         <AppHeader />
         <div style={{ minHeight: "100dvh", background: colors.background, color: colors.text, fontFamily: SF }}>
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "calc(78px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px))" }}>
-            <Masthead node={node} onCount={setPopup} />
+            <Masthead node={node} onCount={setPopup} ownerAction={<ExportDataButton />} />
             <OwnerConsole room={data.console} />
           </div>
         </div>
@@ -194,7 +249,7 @@ export default function NodeProfilePage() {
     <Shell>
       {/* Only the host (owner) can tap the counts to open the people/events/
           pull-ups lists — visitors see the numbers, never the underlying lists. */}
-      <Masthead node={node} onCount={isOwner ? setPopup : undefined} />
+      <Masthead node={node} onCount={isOwner ? setPopup : undefined} ownerAction={isOwner && !asEmail ? <ExportDataButton /> : null} />
 
       {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
 

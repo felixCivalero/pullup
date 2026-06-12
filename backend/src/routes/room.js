@@ -2,6 +2,7 @@
 // channels/space chat, media sign, gifs) + person room payload (/r/:hostId).
 
 import { optionalAuth } from "../middleware/auth.js";
+import { validate, spaceMessageSchema } from "../middleware/validate.js";
 import {
   resolveViewer,
   adminForceLevel,
@@ -425,7 +426,7 @@ export function registerRoomRoutes(app) {
     }
   });
 
-  app.post("/p/:eventId/space", optionalAuth, async (req, res) => {
+  app.post("/p/:eventId/space", optionalAuth, validate(spaceMessageSchema), async (req, res) => {
     try {
       const { eventId } = req.params;
       // A post is text, attached media (already uploaded via the signed URL, or a

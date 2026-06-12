@@ -3,6 +3,7 @@
 
 import { getAllPeopleWithStats, updatePerson } from "../data.js";
 import { requireAuth } from "../middleware/auth.js";
+import { validate, personUpdateSchema } from "../middleware/validate.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 
 export function registerCrmPeopleRoutes(app) {
@@ -411,7 +412,7 @@ export function registerCrmPeopleRoutes(app) {
   // ---------------------------
   // PROTECTED: Update person (requires auth)
   // ---------------------------
-  app.put("/host/crm/people/:personId", requireAuth, async (req, res) => {
+  app.put("/host/crm/people/:personId", requireAuth, validate(personUpdateSchema), async (req, res) => {
     try {
       const { personId } = req.params;
       const {

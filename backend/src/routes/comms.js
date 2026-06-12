@@ -3,6 +3,7 @@
 
 import { getUserProfile } from "../data.js";
 import { requireAuth } from "../middleware/auth.js";
+import { validate, commentTriggerSchema, commentTriggerPatchSchema } from "../middleware/validate.js";
 import { getFrontendUrl } from "../lib/urls.js";
 
 export function registerCommsRoutes(app) {
@@ -157,7 +158,7 @@ export function registerCommsRoutes(app) {
     }
   });
 
-  app.post("/host/comment-triggers", requireAuth, async (req, res) => {
+  app.post("/host/comment-triggers", requireAuth, validate(commentTriggerSchema), async (req, res) => {
     try {
       const { eventId, keyword, match, replyText, mediaId, triggerType, flow } = req.body || {};
       const TYPES = new Set(["comment", "rsvp_success", "dm_keyword"]);
@@ -217,7 +218,7 @@ export function registerCommsRoutes(app) {
     }
   });
 
-  app.patch("/host/comment-triggers/:id", requireAuth, async (req, res) => {
+  app.patch("/host/comment-triggers/:id", requireAuth, validate(commentTriggerPatchSchema), async (req, res) => {
     try {
       const { id } = req.params;
       const { keyword, match, replyText, enabled, mediaId, flow } = req.body || {};

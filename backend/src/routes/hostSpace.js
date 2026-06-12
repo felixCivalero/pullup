@@ -2,6 +2,7 @@
 // signed media uploads, GIF search, room permissions, roster, and darkroom.
 
 import { requireAuth } from "../middleware/auth.js";
+import { validate, spaceMessageSchema } from "../middleware/validate.js";
 import { isUserEventHost, getUserProfile } from "../data.js";
 import { buildRosterPayload } from "../views/eventRoomView.js";
 import { hostGateForReq, signRoomUpload, sanitizeRoomMedia, giphySearch } from "./roomShared.js";
@@ -46,7 +47,7 @@ export function registerHostSpaceRoutes(app) {
     }
   });
 
-  app.post("/host/events/:id/space", requireAuth, async (req, res) => {
+  app.post("/host/events/:id/space", requireAuth, validate(spaceMessageSchema), async (req, res) => {
     try {
       const eventId = req.params.id;
       const { isHost } = await isUserEventHost(req.user.id, eventId);

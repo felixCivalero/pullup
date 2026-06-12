@@ -10,6 +10,7 @@ import {
   DeviceDonut, LandingDailyChart, getLandingSourceColor,
 } from "./analytics/chartKit.jsx";
 import { LandingOverview } from "./analytics/LandingOverview.jsx";
+import { RoomsOverview } from "./analytics/RoomsOverview.jsx";
 
 // Past-only quick ranges for the analytics date picker. Replaces the old
 // 7/14/30/90-button row so admin gets the full calendar UX with custom
@@ -207,6 +208,8 @@ export function AnalyticsPage() {
             <p style={{ margin: "4px 0 0", fontSize: "13px", color: colors.textSubtle }}>
               {tab === "landing"
                 ? "The front door — visits, scroll depth and host signups."
+                : tab === "rooms"
+                ? "Are rooms alive — reach, pulse and afterlife."
                 : tab === "pullup"
                 ? "Activity, funnel and campaigns — bound to the date range below."
                 : "Every event on the platform — open one to see its host analytics."}
@@ -228,6 +231,7 @@ export function AnalyticsPage() {
         <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
           {[
             { key: "landing", label: "Landing" },
+            { key: "rooms", label: "Rooms" },
             { key: "pullup", label: "PullUp Analytics" },
             { key: "events", label: "All Events" },
           ].map((t) => (
@@ -255,6 +259,8 @@ export function AnalyticsPage() {
         )}
 
         {tab === "landing" && <LandingOverview dateRange={dateRange} />}
+
+        {tab === "rooms" && <RoomsOverview dateRange={dateRange} />}
 
         {tab === "pullup" && (
           <>

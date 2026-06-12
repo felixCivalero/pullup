@@ -5,7 +5,7 @@
 // side). Keeping this a hard whitelist means a compromised or buggy client
 // can never flood the spine with arbitrary event names.
 
-export const TRACKED_PAGES = new Set(["landing"]);
+export const TRACKED_PAGES = new Set(["landing", "room"]);
 
 export const TRACKED_EVENTS = new Set([
   "page_view",            // one per page load (server dedupes via client_event_id only)
@@ -15,6 +15,7 @@ export const TRACKED_EVENTS = new Set([
   "onboarding_skip",      // { from }
   "auth_start",           // { method }
   "signed_in",            // { via }
+  "room_view",            // { role } + eventId/userId columns — identified room presence
 ]);
 
 const MAX_EVENTS_PER_BATCH = 50;
@@ -53,7 +54,7 @@ export function validateBatch(body, { now = Date.now() } = {}) {
   let dropped = 0;
   for (const ev of events) {
     if (!ev || typeof ev !== "object") { dropped++; continue; }
-    const { id, name, props, ts } = ev;
+    const { id, name, props, ts, page: evPage, eventId, userId } = ev;
     if (!UUID_RE.test(id || "") || !TRACKED_EVENTS.has(name)) { dropped++; continue; }
     let cleanProps = null;
     if (props && typeof props === "object" && !Array.isArray(props)) {
@@ -69,7 +70,11 @@ export function validateBatch(body, { now = Date.now() } = {}) {
       visitor_id: visitorId,
       session_id: typeof sessionId === "string" && sessionId ? sessionId.slice(0, 128) : null,
       event_name: name,
-      page: pageName,
+      page: TRACKED_PAGES.has(evPage) ? evPage : pageName,
+      // Identified surfaces (rooms) stamp who and which event — both columns
+      // stay null for anonymous surfaces like the landing page.
+      event_id: UUID_RE.test(eventId || "") ? eventId.toLowerCase() : null,
+      user_id: UUID_RE.test(userId || "") ? userId.toLowerCase() : null,
       props: cleanProps,
       referrer: typeof referrer === "string" ? referrer.slice(0, 2000) : null,
       utm: cleanUtm,

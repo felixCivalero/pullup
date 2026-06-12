@@ -89,6 +89,26 @@ console.log("🧪 oversized props are stripped, valid props kept");
   assert(rows[1].props === null, "oversized props stripped");
 }
 
+console.log("🧪 identified room events carry user_id/event_id; junk ids stay null");
+{
+  const EV_ID = "c5dd389e-8bf9-4888-9912-ace4e6543004";
+  const { rows } = validateBatch(
+    batch({
+      events: [
+        { id: UUID, name: "room_view", props: { role: "guest_pullup" }, ts: NOW,
+          page: "room", eventId: EV_ID, userId: UUID2 },
+        { id: UUID2, name: "room_view", props: { role: "host" }, ts: NOW,
+          page: "not_a_page", eventId: "junk", userId: "junk" },
+      ],
+    }),
+    { now: NOW }
+  );
+  assert(rows[0].page === "room" && rows[0].event_id === EV_ID && rows[0].user_id === UUID2,
+    "room event stamped with page/event/user");
+  assert(rows[1].page === "landing" && rows[1].event_id === null && rows[1].user_id === null,
+    "junk page falls back to envelope, junk ids null");
+}
+
 console.log("🧪 deriveSource: utm beats referrer, referrer maps to channel");
 {
   assert(deriveSource("https://www.instagram.com/x", null) === "instagram", "instagram referrer");

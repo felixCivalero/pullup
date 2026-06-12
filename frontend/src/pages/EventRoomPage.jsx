@@ -21,6 +21,7 @@ import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useAuth } from "../contexts/AuthContext";
 import { useEventRoomView } from "../lib/useEventRoomView.js";
+import { initTracking, track } from "../lib/track.js";
 import { AccessGate } from "../components/AccessGate.jsx";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
@@ -360,6 +361,18 @@ export default function EventRoomPage() {
   const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
   const isHost = level === "host";
+
+  // Room presence onto the analytics spine: one identified room_view per
+  // room per page load, fired once the gate has resolved who this viewer is.
+  // user_id + event_id make the afterlife metric joinable to the pull-up
+  // truth; level rides as the role prop. Denied viewers are not a presence.
+  const trackedRoomRef = useRef(null);
+  useEffect(() => {
+    if (!level || level === "no_access" || trackedRoomRef.current === id) return;
+    trackedRoomRef.current = id;
+    initTracking();
+    track("room_view", { role: level }, { page: "room", eventId: id, userId: user?.id });
+  }, [level, id, user]);
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
   // One-time intro banner explaining what the Room is, in the Room's own accent
   // so the identity is unmistakable. Dismissible; stays gone once seen.

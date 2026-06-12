@@ -155,10 +155,20 @@ function scheduleFlush() {
   if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flush(); }, FLUSH_INTERVAL_MS);
 }
 
-// The one entry point: queue an event for the spine.
-export function track(name, props) {
+// The one entry point: queue an event for the spine. Identified surfaces
+// (rooms) pass opts {page, eventId, userId} — those ride per-event so one
+// batch can span surfaces; anonymous surfaces just omit them.
+export function track(name, props, opts = {}) {
   try {
-    queue.push({ id: uuid(), name, props: props || null, ts: Date.now() });
+    queue.push({
+      id: uuid(),
+      name,
+      props: props || null,
+      ts: Date.now(),
+      ...(opts.page ? { page: opts.page } : {}),
+      ...(opts.eventId ? { eventId: opts.eventId } : {}),
+      ...(opts.userId ? { userId: opts.userId } : {}),
+    });
     scheduleFlush();
   } catch { /* never break the page */ }
 }

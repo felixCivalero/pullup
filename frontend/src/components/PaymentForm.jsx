@@ -25,14 +25,21 @@ const getStripePublishableKey = () => {
   return import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 };
 
-const stripePromise = (() => {
+// Lazy: loadStripe() injects js.stripe.com (~700KB across 3 scripts) the
+// moment it runs. At module level that meant EVERY guest on an event page
+// downloaded Stripe — for a paused feature. Now the script loads only when a
+// payment form actually renders.
+let _stripePromise = null;
+function getStripePromise() {
+  if (_stripePromise) return _stripePromise;
   const key = getStripePublishableKey();
   if (!key) {
     console.warn("Stripe publishable key not found");
     return null;
   }
-  return loadStripe(key);
-})();
+  _stripePromise = loadStripe(key);
+  return _stripePromise;
+}
 
 // Payment form component (inner component that uses Stripe hooks)
 function PaymentFormInner({
@@ -432,7 +439,7 @@ export function PaymentForm({
   showButton = true, // Allow hiding the submit button for external control
   eventSlug = null, // Optional: event slug for redirect-based payment methods
 }) {
-  if (!stripePromise) {
+  if (!getStripePromise()) {
     return (
       <div
         style={{
@@ -473,7 +480,7 @@ export function PaymentForm({
   return (
     <Elements
       key={`elements-${clientSecret}`}
-      stripe={stripePromise}
+      stripe={getStripePromise()}
       options={{ clientSecret }}
     >
       <PaymentFormInner

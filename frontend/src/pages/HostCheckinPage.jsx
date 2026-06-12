@@ -46,8 +46,12 @@ export default function HostCheckinPage() {
       } catch { /* ignore */ }
     };
     poll();
-    const iv = setInterval(poll, 5000);
-    return () => { alive = false; clearInterval(iv); };
+    // Visible-tab-only polling: the door QR screen often sits in a pocket.
+    const tick = () => { if (document.visibilityState === "visible") poll(); };
+    const iv = setInterval(tick, 5000);
+    const onVisible = () => { if (document.visibilityState === "visible") poll(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVisible); };
   }, [id]);
 
   const scanUrl = code ? `${window.location.origin}${code.url}` : "";

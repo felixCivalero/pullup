@@ -25,7 +25,18 @@ import { EventPageContent } from "../components/EventPageContent";
 import { EventPreview } from "../components/EventPreview";
 import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { RsvpForm } from "../components/RsvpForm";
-import { PaymentForm } from "../components/PaymentForm";
+import { lazy, Suspense } from "react";
+import { transformedImageUrl } from "../lib/imageUtils.js";
+// Stripe Elements ride their own chunk — fetched only if a paid flow renders
+// (paid tickets are paused, so in practice: never).
+const LazyPaymentForm = lazy(() => import("../components/PaymentForm").then((m) => ({ default: m.PaymentForm })));
+function PaymentForm(props) {
+  return (
+    <Suspense fallback={null}>
+      <LazyPaymentForm {...props} />
+    </Suspense>
+  );
+}
 import { Button } from "../components/ui/Button";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA";
 import { Badge } from "../components/ui/Badge";
@@ -1016,7 +1027,7 @@ export function EventPage() {
                     transition: "all 0.2s ease",
                   }}
                 >
-                  <img src={m.thumbnailUrl || m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <img src={transformedImageUrl(m.thumbnailUrl || m.url, { width: 200 })} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   {selectedShareIndexes.has(i) && (
                     <div style={{
                       position: "absolute", top: "6px", right: "6px",

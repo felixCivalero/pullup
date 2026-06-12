@@ -127,8 +127,13 @@ export default function RoomConversation({
       serverSigRef.current = feedSig(fresh);
       setMessages(fresh);
     })();
-    const iv = setInterval(load, 5000);
-    return () => { alive = false; clearInterval(iv); };
+    // Poll only while the tab is visible — a guest on mobile data shouldn't
+    // burn battery/bytes for a backgrounded room. On return, catch up at once.
+    const tick = () => { if (document.visibilityState === "visible") load(); };
+    const iv = setInterval(tick, 5000);
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVisible); };
   }, [api, channelId, load]);
 
   // Probe the GIF picker once — only show it if a provider key is configured.

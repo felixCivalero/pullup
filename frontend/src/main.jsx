@@ -12,7 +12,11 @@ import "./lib/pwa/installState.js";
 // Side-effect import: tags <html class="pwa-standalone"> when running installed.
 import "./lib/pwa/displayMode.js";
 import { registerServiceWorker } from "./lib/pwa/registerSW.js";
+// Error reporting first — a crash during boot should still report. No-op
+// until VITE_SENTRY_DSN is set (see lib/errorReporting.js).
+import { initErrorReporting } from "./lib/errorReporting.js";
 
+initErrorReporting();
 registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root")).render(

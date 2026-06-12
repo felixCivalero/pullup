@@ -11,6 +11,7 @@
     "deadfiles": "node scripts/find-dead-files.mjs"
   },
   "dependencies": {
+    "@sentry/react": "^10.57.0",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.5.3",
     "@supabase/supabase-js": "^2.87.1",

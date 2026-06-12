@@ -1,6 +1,7 @@
 import React from "react";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "./PullupEyes.jsx";
+import { reportError } from "../lib/errorReporting.js";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,8 +22,9 @@ class ErrorBoundary extends React.Component {
       errorInfo,
     });
 
-    // You can also log the error to an error reporting service here
-    // Example: logErrorToService(error, errorInfo);
+    // Render crashes are exactly the failures a user would otherwise just
+    // see as a broken page and leave — report them.
+    reportError(error, { componentStack: errorInfo?.componentStack });
   }
 
   handleReset = () => {

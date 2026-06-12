@@ -1,5 +1,6 @@
 // backend/src/stripe.js
 import Stripe from "stripe";
+import { captureError } from "./observability.js";
 import {
   findPersonByEmail,
   updatePersonStripeCustomerId,
@@ -583,7 +584,10 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
           // confirmation free guests already do).
           let recipientPerson = null;
           if (rsvp.personId) {
-            try { recipientPerson = await findPersonById(rsvp.personId); } catch {}
+            try { recipientPerson = await findPersonById(rsvp.personId); } catch (err) {
+              // Degrades to email-only confirmation — worth seeing, not worth blocking.
+              captureError(err, { area: "stripe.paidConfirmation.resolvePerson", rsvpId: rsvp.id });
+            }
           }
           const recipient = {
             id: rsvp.personId || null,

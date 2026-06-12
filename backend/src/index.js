@@ -49,6 +49,9 @@ import { registerTrackingEventRoutes } from "./routes/trackingEvents.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
+import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
+import { requestMetrics } from "./middleware/requestMetrics.js";
+import { captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
 import { reminder24hEmail } from "./emails/signupConfirmation.js";
@@ -134,6 +137,10 @@ app.use((req, res, next) => {
   if (isMcpOauthPath(req.path)) return next();
   return _globalCors(req, res, next);
 });
+
+// Metrics first: every response (webhooks included) lands in the per-route
+// aggregate behind GET /internal/metrics.
+app.use(requestMetrics);
 
 registerStripeWebhookRoutes(app);
 
@@ -284,6 +291,8 @@ registerAdminCrmSalesRoutes(app);
 
 registerAdminIdeaRoutes(app);
 
+registerInternalMetricsRoutes(app);
+
 // ---------------------------
 // 404 + global error handlers
 // ---------------------------
@@ -314,6 +323,11 @@ app.use((err, req, res, _next) => {
     message: err.message,
     stack: err.stack,
   });
+  // Every uncaught route error funnels through here — report real failures
+  // (5xx) to the tracker; intentional 4xx stay local noise.
+  if ((Number(err.statusCode || err.status) || 500) >= 500) {
+    captureError(err, { requestId, method: req.method, path: req.originalUrl });
+  }
   if (res.headersSent) return; // Express handles the rest
   const status = Number(err.statusCode || err.status) || 500;
   // Only surface the actual message when it's clearly an intentional

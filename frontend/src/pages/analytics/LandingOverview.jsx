@@ -29,6 +29,7 @@ const SECTION_LABELS = {
   final_cta: "Final CTA",
   showcase: "Showcase wall",
   coda: "Founder's note",
+  footer: "Footer — the very bottom",
 };
 
 const ORIGIN_COLORS = {

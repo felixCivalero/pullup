@@ -808,7 +808,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer className="mk-footer">
+      <footer className="mk-footer" data-mk-section="footer" data-mk-order="11">
         <span>Pullup &copy; {new Date().getFullYear()}</span>
         <span className="mk-footer-dot">·</span>
         <a href="/privacy">Privacy</a>

@@ -46,6 +46,8 @@ import { registerAdminAnalyticsOverviewRoutes } from "./routes/adminAnalyticsOve
 import { registerHostAnalyticsRoutes } from "./routes/hostAnalytics.js";
 import { registerAdminStockholmRoutes } from "./routes/adminStockholm.js";
 import { registerTrackingEventRoutes } from "./routes/trackingEvents.js";
+import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
+import { registerAdminAnalyticsLandingRoutes } from "./routes/adminAnalyticsLanding.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
@@ -284,6 +286,10 @@ registerHostAnalyticsRoutes(app);
 registerAdminStockholmRoutes(app);
 
 registerTrackingEventRoutes(app);
+
+registerTrackBatchRoutes(app);
+
+registerAdminAnalyticsLandingRoutes(app);
 
 registerAdminAnalyticsRoutes(app);
 

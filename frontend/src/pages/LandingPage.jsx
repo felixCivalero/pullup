@@ -2,9 +2,9 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
-import { publicFetch } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
-import { trackEvent, getVisitorId } from "../lib/analytics.js";
+import { trackEvent } from "../lib/analytics.js";
+import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { WebGLHero } from "../components/WebGLHero.jsx";
@@ -232,7 +232,7 @@ function ShowcaseCard({ item, live, dim }) {
 function EventShowcase() {
   const [ref, visible] = useReveal(0.2);
   return (
-    <section className="mk-show" ref={ref}>
+    <section className="mk-show" ref={ref} data-mk-section="showcase" data-mk-order="9">
       <div className="mk-show-head">
         <Reveal><Chapter n="06" label="The rooms themselves" /></Reveal>
         <Reveal delay={0.05}>
@@ -502,6 +502,36 @@ function MarketingScroll({ onGetStarted, onLogin }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Scroll-depth tracking: the page is a sequence of named beats, and each
+  // one fires section_view the first time it enters the viewport. The admin
+  // landing view reads these as "how far into the story do people get".
+  // Once-per-mount dedup here; the spine counts distinct visitors anyway.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const seen = new Set();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const el = entry.target;
+          const section = el.getAttribute("data-mk-section");
+          if (!section || seen.has(section)) continue;
+          seen.add(section);
+          track("section_view", {
+            section,
+            order: Number(el.getAttribute("data-mk-order")) || 0,
+          });
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.2 }
+    );
+    document
+      .querySelectorAll("[data-mk-section]")
+      .forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   const cta = (location, label = "Get started") => (
     <button
       type="button"
@@ -553,7 +583,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </header>
 
       {/* ─── 1 · HERO ─── */}
-      <section className="mk-hero">
+      <section className="mk-hero" data-mk-section="hero" data-mk-order="1">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-hero-eyes" />
         </Reveal>
@@ -591,7 +621,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── PROOF (flexed early, right under the hero) ─── */}
-      <section className="mk-section mk-section-proof mk-section-proof--hero">
+      <section className="mk-section mk-section-proof mk-section-proof--hero" data-mk-section="proof" data-mk-order="2">
         <Reveal>
           <p className="mk-proof-label">They already chose PullUp</p>
         </Reveal>
@@ -599,7 +629,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       <LogoMarquee />
 
       {/* ─── 1 · THE ROOM (exclusive drops + who's in it) ─── */}
-      <section className="mk-section">
+      <section className="mk-section" data-mk-section="room" data-mk-order="3">
         <Reveal><Chapter n="01" label="The Room" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
@@ -624,7 +654,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── 2 · EVERY PERSON, IN FULL (deep profile) ─── */}
-      <section className="mk-section mk-section-tint">
+      <section className="mk-section mk-section-tint" data-mk-section="person" data-mk-order="4">
         <Reveal><Chapter n="02" label="Every person, in full" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
@@ -643,7 +673,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── 3 · ONE CHAT, EVERY CHANNEL ─── */}
-      <section className="mk-section">
+      <section className="mk-section" data-mk-section="chat" data-mk-order="5">
         <Reveal><Chapter n="03" label="One chat, every channel" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
@@ -674,7 +704,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── 4 · FILL THE ROOM (INBOUND) ─── */}
-      <section className="mk-section mk-section-tint">
+      <section className="mk-section mk-section-tint" data-mk-section="fill" data-mk-order="6">
         <Reveal><Chapter n="04" label="Fill the room" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
@@ -693,7 +723,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── 5 · RUN IT FROM YOUR AI ─── */}
-      <section className="mk-section">
+      <section className="mk-section" data-mk-section="mcp" data-mk-order="7">
         <Reveal><Chapter n="05" label="No new app to learn" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
@@ -712,7 +742,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       </section>
 
       {/* ─── 9 · FINAL CTA ─── */}
-      <section className="mk-final mk-final--pre">
+      <section className="mk-final mk-final--pre" data-mk-section="final_cta" data-mk-order="8">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -738,7 +768,7 @@ function MarketingScroll({ onGetStarted, onLogin }) {
       <EventShowcase />
 
       {/* ─── A NOTE FROM FELIX (the quote) ─── */}
-      <section className="mk-final mk-coda">
+      <section className="mk-final mk-coda" data-mk-section="coda" data-mk-order="10">
         {/* first-person, in Felix's own voice — the founder talking straight to
             another creator, not a brand manifesto. */}
         <Reveal delay={0.08}>
@@ -806,17 +836,8 @@ export function LandingPage() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const visitorId = getVisitorId();
-    if (!visitorId) return;
-    publicFetch("/t/pageview", {
-      method: "POST",
-      body: JSON.stringify({
-        page: "landing",
-        visitorId,
-        referrer: document.referrer || null,
-        deviceType: window.innerWidth < 768 ? "mobile" : "desktop",
-      }),
-    }).catch(() => {});
+    initTracking();
+    trackPageView("landing");
   }, []);
 
   // The ONE auth check in the whole landing — and only on the login action.

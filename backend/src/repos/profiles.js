@@ -102,6 +102,24 @@ export async function createDefaultProfile(userId) {
     console.warn("[createDefaultProfile] auth lookup failed:", err.message);
   }
 
+  // Signup origin (migration 079): if a people row was already linked to this
+  // auth user when the profile is first created, the account was born as a
+  // guest on the RSVP path; otherwise they came through the front door. This
+  // runs exactly once per account, at the only moment the answer is knowable
+  // by construction — no inference flag needed.
+  let signupOrigin = "landing";
+  try {
+    const { data: personRow } = await supabase
+      .from("people")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (personRow) signupOrigin = "rsvp";
+  } catch (err) {
+    console.warn("[createDefaultProfile] origin lookup failed:", err.message);
+  }
+
   const defaultProfile = {
     id: userId,
     name: null,
@@ -123,6 +141,8 @@ export async function createDefaultProfile(userId) {
     additional_emails: [],
     third_party_accounts: [],
     is_admin: false,
+    signup_origin: signupOrigin,
+    signup_origin_inferred: false,
   };
 
   const { data, error } = await supabase
@@ -216,6 +236,8 @@ function mapProfileFromDb(dbProfile) {
     contactEmail: dbProfile.contact_email || "",
     stripeConnectedAccountId: dbProfile.stripe_connected_account_id || null,
     isAdmin: dbProfile.is_admin || false,
+    signupOrigin: dbProfile.signup_origin || null,
+    signupOriginInferred: dbProfile.signup_origin_inferred || false,
     hostBrief: dbProfile.host_brief || "",
     // Phone-as-identity + WhatsApp host preferences (migrations 037 + 044).
     // Surfaced under both camelCase and snake_case so the settings UI

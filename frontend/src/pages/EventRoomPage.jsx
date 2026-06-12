@@ -29,6 +29,7 @@ import { colors } from "../theme/colors.js";
 import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { supabase } from "../lib/supabase.js";
+import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
@@ -499,7 +500,7 @@ export default function EventRoomPage() {
             <div style={{ position: "relative", height: hasCover ? 196 : 132, background: hasCover ? "#1a1016" : "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)" }}>
               {hasCover && (isVideoUrl(event.cover)
                 ? <video src={event.cover} muted autoPlay loop playsInline preload="metadata" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                : <img src={event.cover} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : <img src={transformedImageUrl(event.cover, { width: 720 })} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               )}
               {hasCover && (
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.34) 64%, rgba(0,0,0,0.66) 100%)" }} />

@@ -17,6 +17,7 @@
 //   api.uploadMedia(file)                       -> { url, type }         (signed upload)
 //   api.searchGifs(query)                       -> { disabled, gifs:[{id,preview,url}] }
 
+import { transformedImageUrl } from "../../lib/imageUtils.js";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Paperclip, Pin, PinOff, X, File as FileIcon, Search } from "lucide-react";
 
@@ -265,9 +266,9 @@ export default function RoomConversation({
                     // the host said no downloads for this state).
                     : canDownload
                       ? <a href={mm.url} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}>
-                          <img src={mm.url} alt="" style={imgStyle} />
+                          <img src={transformedImageUrl(mm.url, { width: 440 })} alt="" style={imgStyle} />
                         </a>
-                      : <img src={mm.url} alt="" {...noSave} style={imgStyle} />}
+                      : <img src={transformedImageUrl(mm.url, { width: 440 })} alt="" {...noSave} style={imgStyle} />}
                 </div>
               );
             })}
@@ -313,7 +314,7 @@ export default function RoomConversation({
               {v
                 ? (v.type === "video"
                     ? <video src={v.url} style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} muted />
-                    : <img src={v.url} alt="" style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} />)
+                    : <img src={transformedImageUrl(v.url, { width: 200 })} alt="" style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }} />)
                 : <div style={{ padding: 12, fontSize: 13, color: C.ink, lineHeight: 1.45, maxHeight: 120, overflow: "hidden" }}>{m.body || "Attachment"}</div>}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", gap: 6 }}>
                 <span style={{ fontSize: 11.5, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{firstName(m.authorName)}</span>

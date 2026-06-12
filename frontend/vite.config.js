@@ -44,4 +44,23 @@ function envGuardPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [envGuardPlugin(), react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: the framework + supabase + sentry change far
+        // less often than app code, so returning visitors (and every visitor
+        // after a deploy) reuse them from cache — only the small page chunks
+        // re-download. Pages themselves split per-route via lazyPage().
+        // Function form: the object form missed react-dom's deep imports
+        // (react-dom/client), leaking 300KB of framework into the entry chunk.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("@supabase/")) return "supabase";
+          if (id.includes("@sentry/")) return "sentry";
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom)\//.test(id)) return "vendor";
+          return undefined; // other npm deps follow their importing page chunk
+        },
+      },
+    },
+  },
 });

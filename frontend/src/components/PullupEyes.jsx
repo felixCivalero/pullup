@@ -12,14 +12,36 @@
 // whose (x, y) sit where the eyes are in the 2761×2418 canvas. For bigeyes
 // there's an extra highlight path that moves with the right pupil so the
 // sparkle stays attached.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import smalleyesSvg from "/pullup-smalleyes.svg?raw";
-import bigeyesSvg from "/pullup-bigeyes.svg?raw";
+// The raw SVG text is 181KB combined — loaded as its OWN async chunk on first
+// render instead of riding the entry bundle (it used to be the single biggest
+// thing a guest's phone parsed before first paint). Cached module-level so the
+// fetch happens once; the eyes appear a tick later, and the pointer-tracking
+// effect self-heals (findTargets re-queries on the next move).
+const svgCache = {};
+const SVG_LOADERS = {
+  small: () => import("/pullup-smalleyes.svg?raw"),
+  big: () => import("/pullup-bigeyes.svg?raw"),
+};
+function useEyesSvg(variant) {
+  const [svg, setSvg] = useState(svgCache[variant] || null);
+  useEffect(() => {
+    if (svgCache[variant]) { setSvg(svgCache[variant]); return; }
+    let alive = true;
+    (SVG_LOADERS[variant] || SVG_LOADERS.small)()
+      .then((m) => {
+        svgCache[variant] = m.default;
+        if (alive) setSvg(m.default);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [variant]);
+  return svg;
+}
 
 const EYE_VARIANTS = {
   small: {
-    svg: smalleyesSvg,
     movables: [
       { x: 1135, y: 1160 },
       { x: 1614, y: 1162 },
@@ -27,7 +49,6 @@ const EYE_VARIANTS = {
     maxOffset: 55,
   },
   big: {
-    svg: bigeyesSvg,
     movables: [
       { x: 1129, y: 1097 },
       { x: 1620, y: 1097 },
@@ -67,7 +88,8 @@ function injectViewBox(rawSvg) {
 export function PullupEyes({ variant = "small", className, style }) {
   const wrapRef = useRef(null);
   const config = EYE_VARIANTS[variant] || EYE_VARIANTS.small;
-  const svgHtml = useMemo(() => injectViewBox(config.svg), [config.svg]);
+  const rawSvg = useEyesSvg(variant in EYE_VARIANTS ? variant : "small");
+  const svgHtml = useMemo(() => (rawSvg ? injectViewBox(rawSvg) : ""), [rawSvg]);
 
   useEffect(() => {
     const wrap = wrapRef.current;

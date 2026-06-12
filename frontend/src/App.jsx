@@ -29,43 +29,58 @@ function AppRoomRedirect() {
 // surface. IdeaWidget self-hides on public/event pages, on mobile, and when
 // logged out — so we mount it everywhere and let it decide.
 function CoachWidgetGate() {
-  return <IdeaWidget />;
+  // Session-gated lazy mount: logged-out visitors (the Nairobi guest on a
+  // shared event link) never download the dock/admin code at all.
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <Suspense fallback={null}>
+      <IdeaWidget />
+      <ViewAsBar />
+    </Suspense>
+  );
 }
-import { LandingPage } from "./pages/LandingPage";
-import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
-import { ResetPasswordPage } from "./pages/ResetPasswordPage";
-import { NewsletterPage } from "./pages/NewsletterPage";
-import { UnsubscribePage } from "./pages/UnsubscribePage";
-import { CreateEventPage } from "./pages/CreateEventPage";
-import { EventPage } from "./pages/EventPage";
-import { RsvpSuccessPage } from "./pages/RsvpSuccessPage";
-import { EventSuccessPage } from "./pages/EventSuccessPage";
-import { EventGuestsPage } from "./pages/EventGuestsPage";
-import EventRoomPage from "./pages/EventRoomPage";
-import HostCheckinPage from "./pages/HostCheckinPage";
-import NodeProfilePage from "./pages/NodeProfilePage";
-import { ViewAsBar } from "./components/admin/ViewAsBar.jsx"; // admin lens: flip between superhost (Host) and your real view; admin-gated, hidden for everyone else
-import { SettingsPage } from "./pages/SettingsPage";
-import { AutoDmPage } from "./pages/AutoDmPage";
-import { AdminPage } from "./pages/AdminPage";
-import { DiscoverPage } from "./pages/DiscoverPage";
-import { AnalyticsPage } from "./pages/AnalyticsPage";
-import { IdeasPage } from "./pages/IdeasPage";
-import { AdminEventsPage } from "./pages/AdminEventsPage";
-import { AdminCrmPage } from "./pages/AdminCrmPage";
-import { AdminMatchesPage } from "./pages/AdminMatchesPage";
-import { AdminPresentationPage } from "./pages/AdminPresentationPage";
-import { EventAnalyticsPage } from "./pages/EventAnalyticsPage";
-import { PrivacyPage } from "./pages/PrivacyPage";
-import { TermsPage } from "./pages/TermsPage";
-import { CookiesPage } from "./pages/CookiesPage";
-import { HostAnalyticsPage } from "./pages/HostAnalyticsPage";
-import { OAuthAuthorizePage } from "./pages/OAuthAuthorizePage";
+// ── Pages: every route is its own chunk (see lib/lazyPage.js). Eager only:
+// AuthCallbackPage (mid-OAuth redirect — a chunk hiccup there loses the login).
+import { Suspense } from "react";
+import { lazyPage } from "./lib/lazyPage.js";
+import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
-import { MediaUploadPage } from "./pages/MediaUploadPage";
-import { ProtectedLayout } from "./components/ProtectedLayout";
+const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
+const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
+const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"), "ResetPasswordPage");
+const NewsletterPage = lazyPage(() => import("./pages/NewsletterPage"), "NewsletterPage");
+const UnsubscribePage = lazyPage(() => import("./pages/UnsubscribePage"), "UnsubscribePage");
+const CreateEventPage = lazyPage(() => import("./pages/CreateEventPage"), "CreateEventPage");
+const EventPage = lazyPage(() => import("./pages/EventPage"), "EventPage");
+const RsvpSuccessPage = lazyPage(() => import("./pages/RsvpSuccessPage"), "RsvpSuccessPage");
+const EventSuccessPage = lazyPage(() => import("./pages/EventSuccessPage"), "EventSuccessPage");
+const EventGuestsPage = lazyPage(() => import("./pages/EventGuestsPage"), "EventGuestsPage");
+const EventRoomPage = lazyPage(() => import("./pages/EventRoomPage"));
+const HostCheckinPage = lazyPage(() => import("./pages/HostCheckinPage"));
+const NodeProfilePage = lazyPage(() => import("./pages/NodeProfilePage"));
+const SettingsPage = lazyPage(() => import("./pages/SettingsPage"), "SettingsPage");
+const AutoDmPage = lazyPage(() => import("./pages/AutoDmPage"), "AutoDmPage");
+const AdminPage = lazyPage(() => import("./pages/AdminPage"), "AdminPage");
+const DiscoverPage = lazyPage(() => import("./pages/DiscoverPage"), "DiscoverPage");
+const AnalyticsPage = lazyPage(() => import("./pages/AnalyticsPage"), "AnalyticsPage");
+const IdeasPage = lazyPage(() => import("./pages/IdeasPage"), "IdeasPage");
+const AdminEventsPage = lazyPage(() => import("./pages/AdminEventsPage"), "AdminEventsPage");
+const AdminCrmPage = lazyPage(() => import("./pages/AdminCrmPage"), "AdminCrmPage");
+const AdminMatchesPage = lazyPage(() => import("./pages/AdminMatchesPage"), "AdminMatchesPage");
+const AdminPresentationPage = lazyPage(() => import("./pages/AdminPresentationPage"), "AdminPresentationPage");
+const EventAnalyticsPage = lazyPage(() => import("./pages/EventAnalyticsPage"), "EventAnalyticsPage");
+const PrivacyPage = lazyPage(() => import("./pages/PrivacyPage"), "PrivacyPage");
+const TermsPage = lazyPage(() => import("./pages/TermsPage"), "TermsPage");
+const CookiesPage = lazyPage(() => import("./pages/CookiesPage"), "CookiesPage");
+const HostAnalyticsPage = lazyPage(() => import("./pages/HostAnalyticsPage"), "HostAnalyticsPage");
+const OAuthAuthorizePage = lazyPage(() => import("./pages/OAuthAuthorizePage"), "OAuthAuthorizePage");
+const MediaUploadPage = lazyPage(() => import("./pages/MediaUploadPage"), "MediaUploadPage");
+// The logged-in shell itself is lazy: guests on /e/:slug never download it.
+const ProtectedLayout = lazyPage(() => import("./components/ProtectedLayout"), "ProtectedLayout");
+const ViewAsBar = lazyPage(() => import("./components/admin/ViewAsBar.jsx"), "ViewAsBar"); // admin lens; admin-gated, hidden for everyone else
+const IdeaWidget = lazyPage(() => import("./components/IdeaWidget"), "IdeaWidget");
 import ErrorBoundary from "./components/ErrorBoundary";
-import { IdeaWidget } from "./components/IdeaWidget";
 import { HostResourceProvider } from "./contexts/HostResourceContext";
 import { useAuth } from "./contexts/AuthContext";
 
@@ -86,7 +101,9 @@ function App() {
       {/* The PullUp AI coach widget — only mounted on the create/edit-event
           builder (it gets in the way of the Room's chat composer elsewhere). */}
       <CoachWidgetGate />
-      <ViewAsBar />
+      {/* One Suspense for all lazy routes — the same loading eyes every
+          surface already uses, shown only while a page chunk fetches. */}
+      <Suspense fallback={<LoadingScreen label="loading" />}>
       <Routes>
         {/* Public — landing page renders the slide shell. /login and
             /start point at the same component so the URL still works
@@ -223,6 +240,7 @@ function App() {
           <Route path="/app/events/:id/room" element={<AppRoomRedirect />} />
         </Route>
       </Routes>
+      </Suspense>
       </HostResourceProvider>
     </ErrorBoundary>
   );

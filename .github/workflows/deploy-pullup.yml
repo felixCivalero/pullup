@@ -121,6 +121,46 @@ jobs:
               npm install
             fi
 
+            # ─── DEPLOY GATE ─────────────────────────────────────────────
+            # The NEW backend code must prove itself BEFORE it replaces the
+            # running process: unit tests, service-level e2e, then the HTTP
+            # probe suite against a side-port boot of the new code. Any red →
+            # the old API keeps running and the frontend swap is undone.
+            echo "🛡️ Deploy gate: tests + probes on the new code..."
+            GATE_OK=1
+            npm test || GATE_OK=0
+            if [ "$GATE_OK" = "1" ]; then npm run e2e || GATE_OK=0; fi
+            if [ "$GATE_OK" = "1" ]; then
+              echo "  booting new code on :3299 for HTTP probes..."
+              PORT=3299 nohup node src/index.js > /tmp/gate-server.log 2>&1 &
+              GATE_PID=$!
+              BOOTED=0
+              for i in $(seq 1 20); do
+                if curl -fsS -o /dev/null http://127.0.0.1:3299/mcp/health 2>/dev/null; then BOOTED=1; break; fi
+                sleep 1
+              done
+              if [ "$BOOTED" = "1" ]; then
+                API_BASE=http://127.0.0.1:3299 npm run probes || GATE_OK=0
+              else
+                echo "❌ Gate server failed to boot:" >&2
+                tail -25 /tmp/gate-server.log >&2 || true
+                GATE_OK=0
+              fi
+              kill $GATE_PID 2>/dev/null || true
+            fi
+            if [ "$GATE_OK" != "1" ]; then
+              echo "❌ DEPLOY GATE FAILED — keeping the running API, undoing the frontend swap." >&2
+              cd ~/pullup/frontend
+              if [ -d dist-prev ]; then
+                rm -rf dist-failed
+                mv dist dist-failed
+                mv dist-prev dist
+                echo "🔙 Frontend rolled back to dist-prev."
+              fi
+              exit 1
+            fi
+            echo "✅ Deploy gate green."
+
             echo "🔄 Reloading PM2 processes with updated env..."
 
             # API — reload (not restart) for zero-downtime. Falls back to

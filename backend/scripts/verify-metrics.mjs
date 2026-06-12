@@ -1,14 +1,10 @@
 // Verify the request-metrics layer over HTTP: generate traffic, then read
 // /internal/metrics as a throwaway admin and assert the aggregate saw it.
 import { createClient } from "@supabase/supabase-js";
-import fs from "node:fs";
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv.mjs";
 
-const backendEnv = fs.readFileSync("/Users/felixcivalero/projects/pullup/backend/.env", "utf8");
-const frontendEnv = fs.readFileSync("/Users/felixcivalero/Projects/pullup/frontend/.env", "utf8");
-const grab = (src, key) => (src.match(new RegExp(`^${key}=(.*)$`, "m")) || [])[1]?.trim().replace(/^"|"$/g, "");
-const admin = createClient(grab(backendEnv, "SUPABASE_URL"), grab(backendEnv, "SUPABASE_SERVICE_KEY"), { auth: { persistSession: false } });
-const anon = createClient(grab(backendEnv, "SUPABASE_URL"), grab(frontendEnv, "VITE_SUPABASE_ANON_KEY"), { auth: { persistSession: false } });
-const API = process.env.API_BASE || "http://localhost:3210";
+const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
 
 const email = `e2e_metrics_${Date.now()}@example.com`;
 let userId = null, failures = 0;

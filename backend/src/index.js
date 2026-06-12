@@ -53,6 +53,7 @@ import { registerAdminAnalyticsLandingRoutes } from "./routes/adminAnalyticsLand
 import { registerAdminAnalyticsRoomsRoutes } from "./routes/adminAnalyticsRooms.js";
 import { registerHostExportRoutes } from "./routes/hostExport.js";
 import { registerHostImportRoutes } from "./routes/hostImport.js";
+import { registerHostEventStoryRoutes } from "./routes/hostEventStory.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
@@ -307,6 +308,8 @@ registerAdminAnalyticsRoomsRoutes(app);
 registerHostExportRoutes(app);
 
 registerHostImportRoutes(app);
+
+registerHostEventStoryRoutes(app);
 
 registerAdminAnalyticsRoutes(app);
 

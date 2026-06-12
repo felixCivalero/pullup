@@ -50,6 +50,7 @@ import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
 import { registerAdminAnalyticsLandingRoutes } from "./routes/adminAnalyticsLanding.js";
 import { registerAdminAnalyticsRoomsRoutes } from "./routes/adminAnalyticsRooms.js";
 import { registerHostExportRoutes } from "./routes/hostExport.js";
+import { registerHostImportRoutes } from "./routes/hostImport.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
@@ -296,6 +297,8 @@ registerAdminAnalyticsLandingRoutes(app);
 registerAdminAnalyticsRoomsRoutes(app);
 
 registerHostExportRoutes(app);
+
+registerHostImportRoutes(app);
 
 registerAdminAnalyticsRoutes(app);
 

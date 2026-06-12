@@ -13,8 +13,8 @@
 // The person fields a dump can land into. email is the identity anchor —
 // a row without a valid email is a reject (the whole spine is email-keyed).
 export const TARGET_FIELDS = [
-  "email", "name", "phone", "instagram", "twitter", "tiktok", "linkedin",
-  "company", "birthday", "tags",
+  "email", "name", "first_name", "last_name", "phone", "instagram", "twitter",
+  "tiktok", "linkedin", "company", "birthday", "tags",
 ];
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -22,18 +22,31 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // Header-name synonyms, multilingual (sv/en first — our market).
 const HEADER_HINTS = {
   email: ["email", "e-mail", "mail", "epost", "e-post", "mejl", "email address", "e-postadress"],
-  name: ["name", "namn", "full name", "fullname", "fullständigt namn", "guest", "gäst", "attendee", "deltagare", "first name"],
+  name: ["name", "namn", "full name", "fullname", "fullständigt namn", "guest", "gäst", "attendee", "deltagare"],
+  first_name: ["first name", "firstname", "förnamn", "given name", "fname"],
+  last_name: ["last name", "lastname", "surname", "efternamn", "family name", "lname"],
   phone: ["phone", "telefon", "tel", "mobile", "mobil", "mobilnummer", "phone number", "telefonnummer", "cell"],
   instagram: ["instagram", "ig", "insta", "instagram handle", "ig handle"],
   twitter: ["twitter", "x handle", "x"],
   tiktok: ["tiktok", "tik tok"],
   linkedin: ["linkedin"],
-  company: ["company", "företag", "bolag", "organisation", "organization", "org"],
+  company: ["company", "företag", "bolag", "organisation", "organization", "org", "account name"],
   birthday: ["birthday", "födelsedag", "date of birth", "dob", "born", "födelsedatum"],
-  tags: ["tags", "taggar", "labels", "category", "kategori", "segment", "group", "grupp"],
+  tags: ["tags", "taggar", "labels", "category", "kategori", "segment"],
 };
 
 const norm = (s) => String(s || "").trim().toLowerCase().replace(/[_\-./]+/g, " ").replace(/\s+/g, " ");
+
+// Substring matching needs negatives: "Event Name", "Middle Name", "Username"
+// all contain "name" but none of them is the guest's name.
+const FIELD_NEGATIVES = {
+  name: ["middle", "mellannamn", "user", "användar", "nick", "event", "company", "ticket", "host", "brand", "file", "status", "type", "typ", "account", "konto", "form", "ad ", "domain"],
+  first_name: ["middle", "mellannamn"],
+  last_name: ["middle", "mellannamn"],
+  email: ["disabled", "status", "marketing", "accepts"],
+  phone: ["country", "carrier", "verified"],
+};
+const blocked = (field, n) => (FIELD_NEGATIVES[field] || []).some((neg) => n.includes(neg));
 
 // Hints are matched against normalized headers, so they must be normalized
 // the same way ("e-post" and "E-post" both become "e post").
@@ -50,29 +63,61 @@ function sniffValues(values) {
   if (!present.length) return null;
   const share = (re) => present.filter((v) => re.test(String(v).trim())).length / present.length;
   if (share(EMAIL_RE) > 0.7) return "email";
-  if (share(/^\+?[\d\s\-()]{7,18}$/) > 0.7) return "phone";
+  // Sniffed phones must start with + or 0 — order numbers ("123456789") and
+  // dates ("2026-04-15") are digit-runs too, and both burned us in the
+  // format experiment. A host can still map any column to phone by hand.
+  if (share(/^(\+|0)[\d\s\-()]{6,17}$/) > 0.7) return "phone";
   if (share(/^@?[a-z0-9._]{2,30}$/i) > 0.8 && present.some((v) => String(v).startsWith("@"))) return "instagram";
   if (share(/^\d{4}-\d{2}-\d{2}/) > 0.7 || share(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/) > 0.7) return "birthday";
   return null;
 }
 
+// Operational/metadata columns (timestamps, order numbers, amounts, statuses)
+// must never be shape-sniffed into person fields — an order date is exactly
+// the kind of value that would otherwise land as a birthday or phone.
+const OPERATIONAL_TOKENS = [
+  "date", "datum", "time", "created", "updated", "registered", "subscribed",
+  "submitted", "joined", "visited", "checked", "expiry", "expires", "status",
+  "order", "köp", "optin", "opt in", "amount", "spent", "total", "count",
+  "quantity", "rating", "price", "pris", "url", "länk", "link", "address",
+  "adress", "city", "stad", "country", "land", "zip", "postnummer", "timestamp",
+];
+const OPERATIONAL_RE = { test: (n) => OPERATIONAL_TOKENS.some((t) => n.includes(t)) };
+
 export function proposeMappingHeuristic(headers, rows) {
   const mapping = {}; // column header -> { field, via }
   const taken = new Set();
+  // Phase 1: EXACT header matches across all fields ("Förnamn" must win
+  // first_name before the substring pass lets "namn" grab it for name).
   for (const h of headers) {
     const n = norm(h);
     for (const [field, hints] of Object.entries(NORMALIZED_HINTS)) {
       if (taken.has(field)) continue;
-      if (hints.includes(n) || hints.some((hint) => n.includes(hint) && hint.length > 3)) {
+      if (hints.includes(n) && !blocked(field, n)) {
         mapping[h] = { field, via: "header" };
         taken.add(field);
         break;
       }
     }
   }
-  // Second pass: shape-sniff unmapped columns from up to 50 sample values.
+  // Phase 2: substring matches for what's left. (No operational guard here —
+  // "E-mail Address" contains "address" but must still match the email hint;
+  // the guard protects shape-sniffing only, where there's no hint evidence.)
   for (const h of headers) {
     if (mapping[h]) continue;
+    const n = norm(h);
+    for (const [field, hints] of Object.entries(NORMALIZED_HINTS)) {
+      if (taken.has(field)) continue;
+      if (hints.some((hint) => hint.length > 3 && n.includes(hint)) && !blocked(field, n)) {
+        mapping[h] = { field, via: "header" };
+        taken.add(field);
+        break;
+      }
+    }
+  }
+  // Phase 3: shape-sniff unmapped, non-operational columns from samples.
+  for (const h of headers) {
+    if (mapping[h] || OPERATIONAL_RE.test(norm(h))) continue;
     const field = sniffValues(rows.slice(0, 50).map((r) => r[h]));
     if (field && !taken.has(field)) {
       mapping[h] = { field, via: "values" };
@@ -144,17 +189,27 @@ function parseBirthday(v) {
     const [day, mon] = a > 12 ? [a, b] : b > 12 ? [b, a] : [a, b];
     d = new Date(Date.UTC(y, mon - 1, day));
   }
-  return d && !isNaN(d) ? d.toISOString().slice(0, 10) : null;
+  if (!d || isNaN(d)) return null;
+  const year = d.getUTCFullYear();
+  if (year < 1900 || year > new Date().getUTCFullYear() - 5) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 const FIELD_CLEANERS = {
   email: (v) => {
-    const e = String(v).trim().toLowerCase();
+    let e = String(v).trim();
+    // "Anna Andersson <anna@x.com>" and "mailto:anna@x.com" both appear in
+    // real dumps — extract the address before judging it.
+    const angle = e.match(/<([^<>\s]+@[^<>\s]+)>/);
+    if (angle) e = angle[1];
+    e = e.replace(/^mailto:/i, "").toLowerCase();
     return EMAIL_RE.test(e) ? e : null;
   },
   name: (v) => String(v).trim().slice(0, 200) || null,
+  first_name: (v) => String(v).trim().slice(0, 100) || null,
+  last_name: (v) => String(v).trim().slice(0, 100) || null,
   phone: (v) => {
-    const p = String(v).trim();
+    const p = String(v).trim().replace(/^p:/i, ""); // Facebook lead-ads prefix
     return /^\+?[\d\s\-()]{7,18}$/.test(p) ? p.replace(/[\s\-()]/g, "") : null;
   },
   instagram: cleanHandle,
@@ -164,7 +219,11 @@ const FIELD_CLEANERS = {
   company: (v) => String(v).trim().slice(0, 200) || null,
   birthday: parseBirthday,
   tags: (v) => {
-    const t = String(v).split(/[,;|]/).map((x) => x.trim()).filter(Boolean).slice(0, 20);
+    const t = String(v)
+      .split(/[,;|]/)
+      .map((x) => x.trim().replace(/^["'\u201c\u201d\u2018\u2019]+|["'\u201c\u201d\u2018\u2019]+$/g, "").trim())
+      .filter(Boolean)
+      .slice(0, 20);
     return t.length ? t : null;
   },
 };
@@ -202,6 +261,12 @@ export function validateRows(rows, mapping) {
       if (cleaned === null) fieldDrops[m.field] = (fieldDrops[m.field] || 0) + 1;
       else person[m.field] = cleaned;
     }
+    // First/Last compose into name; an explicit full-name column wins.
+    if (!person.name && (person.first_name || person.last_name)) {
+      person.name = [person.first_name, person.last_name].filter(Boolean).join(" ");
+    }
+    delete person.first_name;
+    delete person.last_name;
     for (const col of Object.keys(row)) {
       if (!mapping[col] && String(row[col] ?? "").trim()) person.extra[col] = String(row[col]).slice(0, 500);
     }

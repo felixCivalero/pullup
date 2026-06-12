@@ -71,7 +71,8 @@ function ExportButton() {
 // ─── The importer ────────────────────────────────────────────────────────
 
 const FIELD_LABELS = {
-  "": "— ignore —", email: "Email (required)", name: "Name", phone: "Phone",
+  "": "— ignore —", email: "Email (required)", name: "Full name",
+  first_name: "First name", last_name: "Last name", phone: "Phone",
   instagram: "Instagram", twitter: "Twitter / X", tiktok: "TikTok",
   linkedin: "LinkedIn", company: "Company", birthday: "Birthday", tags: "Tags",
 };

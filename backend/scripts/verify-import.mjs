@@ -67,6 +67,23 @@ try {
   await post("/host/import/commit", { csvText: CSV, mapping, source: "probe-dump" });
   const { data: anna2 } = await admin.from("people").select("name").eq("email", g1).single();
   ok(anna2?.name === "Anna Original", "existing data never overwritten");
+
+  // Swedish Excel torture file through the real HTTP path: BOM + sep-hint +
+  // semicolons + CRLF + a quoted multiline note + first/last composition.
+  const EXCEL = "\ufeffsep=;\r\n" +
+    "Förnamn;Efternamn;E-post;Anteckning\r\n" +
+    `Greta;Gran;${g1};"kom med\r\ntvå vänner"\r\n`;
+  const p2 = await post("/host/import/preview", { csvText: EXCEL });
+  ok(p2.status === 200 && p2.json.stats.delimiter === ";", `Excel sv file: semicolon detected (${p2.json.stats?.delimiter})`);
+  ok(p2.json.mapping["Förnamn"]?.field === "first_name" && p2.json.mapping["E-post"]?.field === "email",
+    "Excel sv file: Förnamn/E-post mapped");
+  ok(p2.json.sample[0]?.name === "Greta Gran", `Excel sv file: name composed (${p2.json.sample[0]?.name})`);
+
+  // Wrong-file walls.
+  const xlsx = await post("/host/import/preview", { csvText: "PK\u0003\u0004 fake xlsx bytes" });
+  ok(xlsx.status === 400 && /Excel/.test(xlsx.json.error), "xlsx drop gets a friendly wall");
+  const jsonDrop = await post("/host/import/preview", { csvText: '[{"email":"a@b.com"}]' });
+  ok(jsonDrop.status === 400 && /JSON/.test(jsonDrop.json.error), "json drop gets a friendly wall");
 } catch (err) {
   console.error("❌ probe blew up:", err.message);
   failures++;

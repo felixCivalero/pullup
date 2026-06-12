@@ -15,7 +15,7 @@
 //            re-dumping the same file can never double anyone.
 
 import { requireAuth } from "../middleware/auth.js";
-import { parseCsv } from "../services/csvImportService.js";
+import { parseDump } from "../services/dumpParser.js";
 import {
   TARGET_FIELDS,
   proposeMappingHeuristic,
@@ -28,16 +28,24 @@ const FILL_FIELDS = ["name", "phone", "instagram", "twitter", "tiktok", "linkedi
 
 function parseAndCap(csvText) {
   if (!csvText || typeof csvText !== "string") return { error: "csvText is required" };
-  const rows = parseCsv(csvText);
+  // Friendly walls for the two most common wrong-file drops.
+  if (csvText.startsWith("PK\u0003\u0004")) {
+    return { error: "That's an Excel file (.xlsx) — open it and save as CSV first, then drop it here" };
+  }
+  const head = csvText.slice(0, 64).trimStart();
+  if (head.startsWith("{") || head.startsWith("[")) {
+    return { error: "That's a JSON file — export as CSV instead (JSON dumps are coming later)" };
+  }
+  const { headers, rows, skipped, delimiter } = parseDump(csvText);
   if (!rows.length) return { error: "couldn't find any rows in the file" };
   if (rows.length > MAX_ROWS) return { error: `max ${MAX_ROWS} rows per import (got ${rows.length})` };
-  return { rows, headers: Object.keys(rows[0]) };
+  return { rows, headers, skipped, delimiter };
 }
 
 export function registerHostImportRoutes(app) {
   app.post("/host/import/preview", requireAuth, async (req, res) => {
     try {
-      const { error, rows, headers } = parseAndCap(req.body?.csvText);
+      const { error, rows, headers, skipped, delimiter } = parseAndCap(req.body?.csvText);
       if (error) return res.status(400).json({ error });
 
       const heuristic = proposeMappingHeuristic(headers, rows);
@@ -49,13 +57,17 @@ export function registerHostImportRoutes(app) {
         targetFields: TARGET_FIELDS,
         mapping: Object.fromEntries(Object.entries(mapping).map(([c, m]) => [c, m])),
         stats: {
-          totalRows: rows.length,
+          totalRows: rows.length + skipped.length,
           validPeople: people.length,
-          rejected: rejects.length,
+          rejected: rejects.length + skipped.length,
           fieldDrops,
+          delimiter,
         },
         sample: people.slice(0, 5),
-        rejects: rejects.slice(0, 20),
+        rejects: [
+          ...skipped.map((sk) => ({ row: sk.line, reason: `malformed row (${sk.reason})` })),
+          ...rejects,
+        ].slice(0, 20),
         mappingError: vErr || null,
         aiAvailable: !!process.env.ANTHROPIC_API_KEY,
       });
@@ -104,65 +116,69 @@ export function registerHostImportRoutes(app) {
 
       let created = 0, updated = 0;
       const importedAt = new Date().toISOString();
-      const timelineRows = [];
+      const metaFor = (p) => ({ source, importedAt, ...(Object.keys(p.extra).length ? { extra: p.extra } : {}) });
+      const personIdByEmail = new Map();
 
+      // Existing people: fill-only-empty updates, one by one (the dump
+      // enriches, never overwrites — and existing matches are usually few).
+      const fresh = [];
       for (const p of people) {
         const existing = byEmail.get(p.email);
-        const meta = { source, importedAt, ...(Object.keys(p.extra).length ? { extra: p.extra } : {}) };
-
-        let personId;
-        if (existing) {
-          // Fill-only-empty: the dump enriches, never overwrites.
-          const updates = {};
-          for (const f of FILL_FIELDS) {
-            if (p[f] != null && (existing[f] == null || existing[f] === "")) updates[f] = p[f];
-          }
-          if (p.tags?.length) {
-            const merged = [...new Set([...(existing.tags || []), ...p.tags])];
-            if (merged.length !== (existing.tags || []).length) updates.tags = merged;
-          }
-          if (!existing.import_source) updates.import_source = source;
-          updates.import_metadata = { ...(existing.import_metadata || {}), [`import_${importedAt.slice(0, 10)}`]: meta };
-          const { error: upErr } = await supabase.from("people").update(updates).eq("id", existing.id);
-          if (upErr) throw upErr;
-          personId = existing.id;
-          updated++;
-        } else {
-          const { data: ins, error: insErr } = await supabase
-            .from("people")
-            .insert({
-              email: p.email,
-              name: p.name || null,
-              phone: p.phone || null,
-              instagram: p.instagram || null,
-              twitter: p.twitter || null,
-              tiktok: p.tiktok || null,
-              linkedin: p.linkedin || null,
-              company: p.company || null,
-              birthday: p.birthday || null,
-              tags: p.tags || [],
-              import_source: source,
-              import_metadata: meta,
-            })
-            .select("id")
-            .single();
-          if (insErr) throw insErr;
-          personId = ins.id;
-          created++;
+        if (!existing) { fresh.push(p); continue; }
+        const updates = {};
+        for (const f of FILL_FIELDS) {
+          if (p[f] != null && (existing[f] == null || existing[f] === "")) updates[f] = p[f];
         }
+        if (p.tags?.length) {
+          const merged = [...new Set([...(existing.tags || []), ...p.tags])];
+          if (merged.length !== (existing.tags || []).length) updates.tags = merged;
+        }
+        if (!existing.import_source) updates.import_source = source;
+        updates.import_metadata = { ...(existing.import_metadata || {}), [`import_${importedAt.slice(0, 10)}`]: metaFor(p) };
+        const { error: upErr } = await supabase.from("people").update(updates).eq("id", existing.id);
+        if (upErr) throw upErr;
+        personIdByEmail.set(p.email, existing.id);
+        updated++;
+      }
 
-        timelineRows.push({
-          person_id: personId,
+      // New people: bulk inserts in chunks — a 5000-row dump lands in ~25
+      // round trips, not 5000.
+      for (const batch of chunk(fresh, 200)) {
+        const { data: ins, error: insErr } = await supabase
+          .from("people")
+          .insert(batch.map((p) => ({
+            email: p.email,
+            name: p.name || null,
+            phone: p.phone || null,
+            instagram: p.instagram || null,
+            twitter: p.twitter || null,
+            tiktok: p.tiktok || null,
+            linkedin: p.linkedin || null,
+            company: p.company || null,
+            birthday: p.birthday || null,
+            tags: p.tags || [],
+            import_source: source,
+            import_metadata: metaFor(p),
+          })))
+          .select("id, email");
+        if (insErr) throw insErr;
+        for (const row of ins || []) personIdByEmail.set((row.email || "").toLowerCase(), row.id);
+        created += batch.length;
+      }
+
+      const timelineRows = people
+        .filter((p) => personIdByEmail.has(p.email))
+        .map((p) => ({
+          person_id: personIdByEmail.get(p.email),
           host_id: hostId,
           type: "import",
           channel: null,
           direction: null,
           body: `Imported from ${source}`,
-          metadata: meta,
+          metadata: metaFor(p),
           occurred_at: importedAt,
           dedupe_key: `import:${source}:${p.email}`,
-        });
-      }
+        }));
 
       // Timeline entries, idempotent on dedupe_key — a re-run of the same
       // dump updates nothing and adds nothing.

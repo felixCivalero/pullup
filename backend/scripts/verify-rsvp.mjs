@@ -71,6 +71,21 @@ try {
   const { data: person } = await admin.from("people").select("auth_user_id, name").eq("id", guestPersonId).maybeSingle();
   ok(!!person?.auth_user_id, "guest person linked to a minted auth account");
 
+  // rail 6: the ROOM KEY — the confirmation email must carry a session-granting
+  // /api/k/ link; tapping it redeems + 302s into a fresh Supabase magic link.
+  const { data: mail } = await admin.from("email_outbox").select("html_body").eq("to_email", guestEmail.toLowerCase()).limit(1).maybeSingle();
+  const keyMatch = (mail?.html_body || "").match(/\/api\/k\/([A-Za-z0-9_-]+)/);
+  ok(!!keyMatch, "confirmation email carries a room key link");
+  if (keyMatch) {
+    const kr = await fetch(`${API}/k/${keyMatch[1]}`, { redirect: "manual" });
+    const loc = kr.headers.get("location") || "";
+    ok(kr.status === 302 && /\/auth\/v1\/verify\?/.test(loc), `room key 302s into a fresh magic link (${kr.status})`);
+    const kr2 = await fetch(`${API}/k/${keyMatch[1]}`, { redirect: "manual" });
+    ok(kr2.status === 302 && /\/auth\/v1\/verify\?|\/events\//.test(kr2.headers.get("location") || ""), "room key survives a second tap (scanner-prefetch safe)");
+  }
+  const bad = await fetch(`${API}/k/not-a-real-token`, { redirect: "manual" });
+  ok(bad.status === 302 && (bad.headers.get("location") || "").endsWith("/login"), `invalid key degrades to /login (${bad.status})`);
+
   // idempotent re-submit must not duplicate
   await fetch(`${API}/events/${slug}/rsvp`, {
     method: "POST",
@@ -88,6 +103,7 @@ try {
     ? (await admin.from("people").select("auth_user_id").eq("id", guestPersonId).maybeSingle()).data?.auth_user_id
     : null;
   await admin.from("email_outbox").delete().eq("to_email", guestEmail.toLowerCase());
+  await admin.from("magic_link_tokens").delete().contains("payload", { email: guestEmail.toLowerCase() });
   await admin.from("email_suppressions").delete().eq("email", guestEmail.toLowerCase());
   if (guestPersonId) {
     await admin.from("person_events").delete().eq("person_id", guestPersonId);

@@ -1233,6 +1233,20 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           }
         }
 
+        // Room key: the email's Room link signs the guest straight in (they
+        // have an account but no session — without this they'd hit a login
+        // wall at the Room door). Best-effort; plain link is the fallback.
+        let roomKeyUrl = "";
+        if (!isWaitlistEmail && result.event?.id) {
+          try {
+            const { mintRoomKey } = await import("../services/roomKeys.js");
+            const rawKey = await mintRoomKey({ email, eventId: result.event.id, personId: result.rsvp.personId || null });
+            if (rawKey) roomKeyUrl = `${getFrontendUrl().replace(/\/$/, "")}/api/k/${rawKey}`;
+          } catch (e) {
+            console.error("[rsvp] room key mint error:", e?.message);
+          }
+        }
+
         if (!confirmedViaWhatsApp) await dispatchMessage({
           recipient,
           hostProfile: hostProfileFull,
@@ -1260,6 +1274,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               slug: result.event.slug || "",
               eventId: result.event.id || "",
               frontendUrl: getFrontendUrl(),
+              roomKeyUrl,
               spotifyUrl: result.event.spotify || "",
               ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
               ticketCurrency: result.event.ticketCurrency || "",

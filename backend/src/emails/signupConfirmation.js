@@ -338,6 +338,10 @@ export function signupConfirmationEmail({
   eventId = "",
   customNote = "",
   frontendUrl = "https://pullup.se",
+  // Room key (services/roomKeys.js): a session-granting link — tapping it
+  // signs the guest in and lands them INSIDE the event Room. Falls back to
+  // the plain room URL (login wall) when minting failed.
+  roomKeyUrl = "",
   spotifyUrl = "",
   ticketPrice = 0,
   ticketCurrency = "",
@@ -363,7 +367,7 @@ export function signupConfirmationEmail({
   // The room: the post-arrival space, gated by a pull-up (scan at the door).
   // Confirmed guests get a one-line heads-up + link to the door (anticipation
   // pre-event; the real interior opens once they scan in person).
-  const roomUrl = eventId ? `${frontendUrl}/p/${eventId}` : "";
+  const roomUrl = roomKeyUrl || (eventId ? `${frontendUrl}/p/${eventId}` : "");
 
   // Calendar links only make sense when the date is real and public.
   const googleCal = !hideDate && startsAt ? googleCalUrl({ title: eventTitle, startsAt, endsAt, location: hideLocation ? "" : location, slug, frontendUrl }) : "";

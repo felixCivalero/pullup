@@ -9,6 +9,7 @@ import {
   redeemToken as redeemMagicLinkToken,
 } from "../services/phoneVerification.js";
 import { normalisePhone } from "../utils/phone.js";
+import { getFrontendUrl } from "../lib/urls.js";
 
 // Magic-link redemption. Hit by tapping the WhatsApp link.
 // Marks phone_verified_at, records the opt-in, and renders a polished
@@ -254,6 +255,33 @@ export function registerVerificationRoutes(app) {
       return res
         .status(500)
         .send(renderVerifyHtml({ ok: false, message: "something went wrong" }));
+    }
+  });
+
+  // Room key (RSVP confirmation email): validate our 7-day token, then mint a
+  // FRESH Supabase magic link (seconds old — its 1h expiry never matters) and
+  // 302 into it; /auth/callback establishes the session and forwards into the
+  // event Room. Multi-use by design (mail scanners prefetch links — see
+  // services/roomKeys.js). Every failure degrades to the plain Room URL,
+  // which shows the normal login wall — never a dead end.
+  app.get("/k/:token", async (req, res) => {
+    const ua = req.headers["user-agent"] || null;
+    if (isUrlPreviewBot(ua)) {
+      res.set("Content-Type", "text/html; charset=utf-8");
+      return res.status(200).send(renderVerifyHtml({ ok: true }));
+    }
+    const frontend = getFrontendUrl().replace(/\/$/, "");
+    try {
+      const { redeemRoomKey } = await import("../services/roomKeys.js");
+      const key = await redeemRoomKey(req.params.token);
+      if (!key.ok) return res.redirect(302, `${frontend}/login`);
+      const roomPath = `/events/${key.eventId}/room`;
+      const { mintMagicLink } = await import("../services/account.js");
+      const link = await mintMagicLink(key.email, { next: roomPath });
+      return res.redirect(302, link || `${frontend}${roomPath}`);
+    } catch (err) {
+      console.error("[/k/:token] error:", err?.message);
+      return res.redirect(302, `${frontend}/login`);
     }
   });
 

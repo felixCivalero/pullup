@@ -33,6 +33,8 @@ import { registerCrmPeopleRoutes } from "./routes/crmPeople.js";
 import { registerPlannerRoutes } from "./routes/planner.js";
 import { registerCrmViewRoutes } from "./routes/crmViews.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
+import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
+import { registerBillingRoutes } from "./routes/billing.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerProfileRoutes } from "./routes/profile.js";
 import { registerEventImageRoutes } from "./routes/eventImages.js";
@@ -263,6 +265,12 @@ registerPlannerRoutes(app);
 registerCrmViewRoutes(app);
 
 registerPaymentRoutes(app);
+
+// Transaction layer (rail-agnostic checkout + metered-motion billing) — every
+// endpoint is inert until PAYMENTS_V2_ENABLED / BILLING_METERING_ENABLED flip.
+registerPaymentsV2Routes(app);
+
+registerBillingRoutes(app);
 
 registerTokenRoutes(app);
 

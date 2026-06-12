@@ -1333,9 +1333,12 @@ app.put(
     // paid — never mint a Stripe product via update. Events already paid before
     // the pause (they carry a stripeProductId) are left exactly as they are; their
     // config passes through unchanged below.
+    // PAYMENTS V2 lifts the pause: the rail-agnostic checkout 503s any paid RSVP
+    // with no usable rail, so going paid can't open the silent-confirm hole.
+    const { paymentsV2Enabled } = await import("../config/billing.js");
     let effectiveTicketType = ticketType;
     let effectiveTicketPrice = ticketPrice;
-    if (ticketType === "paid" && !currentEvent.stripeProductId) {
+    if (ticketType === "paid" && !currentEvent.stripeProductId && !paymentsV2Enabled()) {
       logger?.warn?.("[PUT /host/events] paid tickets paused — keeping event free", { eventId: id });
       effectiveTicketType = "free";
       effectiveTicketPrice = null;

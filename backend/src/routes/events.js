@@ -559,7 +559,11 @@ export function registerEventRoutes(app) {
     // roll it back to free so no guest can pay into an un-set-up account. (The few
     // events that took real payments before the pause aren't created through here,
     // so they keep their Stripe config untouched.)
-    if (ticketType === "paid") {
+    // PAYMENTS V2 lifts the pause: the rail-agnostic checkout has its own
+    // no-rails 503 guard at RSVP time, so a paid event can never silently
+    // confirm unpaid — the exact condition this pause existed to prevent.
+    const { paymentsV2Enabled } = await import("../config/billing.js");
+    if (ticketType === "paid" && !paymentsV2Enabled()) {
       const freed = await updateEvent(event.id, { ticketType: "free", ticketPrice: null });
       logger?.warn?.("[POST /events] paid tickets paused — coerced new event to free", { eventId: event.id });
       res.status(201).json(freed || { ...event, ticketType: "free", ticketPrice: null });

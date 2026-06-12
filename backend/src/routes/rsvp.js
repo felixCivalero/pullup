@@ -32,6 +32,10 @@ import { recordOptIn as recordPhoneOptIn } from "../whatsapp/repos/phoneOptInsRe
 import { logPersonEvent } from "../services/personTimeline.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
 import { getFrontendUrl } from "../lib/urls.js";
+import { paymentsV2Enabled } from "../config/billing.js";
+import { railsForEvent } from "../services/payments/index.js";
+import { getPlanForHost } from "../repos/billing.js";
+import { computeTicketAmounts, meterRsvp } from "../services/billing/feeEngine.js";
 
 export function registerRsvpRoutes(app) {
 // ---------------------------
@@ -905,8 +909,81 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       result.rsvp.bookingStatus === "WAITLIST" ||
       result.rsvp.status === "waitlist";
 
+    // ── PAYMENTS V2 (flag-gated): the rail-agnostic checkout ──────────────
+    // No charge is created at RSVP time. The RSVP stays PENDING_PAYMENT and
+    // the response tells the frontend which rails this event takes (Swish /
+    // M-Pesa / card / mock by currency + host readiness); the guest picks one
+    // and POST /public/rsvps/:id/charge fires the actual charge. Flag off →
+    // this block is dead and the legacy inline-Stripe path below runs verbatim.
+    let paymentV2 = null;
+    if (
+      paymentsV2Enabled() &&
+      !isVipFreeEntry &&
+      result.event?.ticketType === "paid" &&
+      result.event?.ticketPrice &&
+      result.event?.hostId &&
+      !isWaitlistRsvp
+    ) {
+      try {
+        const [plan, hostProfileForRails] = await Promise.all([
+          getPlanForHost(result.event.hostId),
+          getUserProfile(result.event.hostId),
+        ]);
+        const rails = railsForEvent({
+          event: result.event,
+          hostProfile: hostProfileForRails,
+        });
+        if (rails.length === 0) {
+          // Same money-hole guard as the legacy path: a paid event with no
+          // way to pay must not silently confirm.
+          try {
+            await deleteRsvp(result.rsvp.id);
+          } catch (deleteError) {
+            console.error("Error deleting RSVP after no-rails:", deleteError);
+          }
+          return res.status(503).json({
+            error: "payments_unavailable",
+            message:
+              "This event can't accept payments right now. Please reach out to the host.",
+          });
+        }
+        const amounts = computeTicketAmounts({
+          event: result.event,
+          rsvp: result.rsvp,
+          plan,
+        });
+        paymentV2 = {
+          required: true,
+          rsvpId: result.rsvp.id,
+          eventId: result.event.id,
+          rails,
+          amount: amounts.totalAmount,
+          currency: amounts.currency,
+          breakdown: {
+            ticketAmount: amounts.ticketAmount,
+            platformFeeAmount: amounts.feeAmount,
+            customerTotalAmount: amounts.totalAmount,
+            partySize: amounts.partySize,
+          },
+        };
+        result.paymentBreakdown = paymentV2.breakdown;
+      } catch (v2Error) {
+        console.error("[rsvp] payments v2 pricing failed:", v2Error);
+        try {
+          await deleteRsvp(result.rsvp.id);
+        } catch (deleteError) {
+          console.error("Error deleting RSVP after v2 failure:", deleteError);
+        }
+        return res.status(500).json({
+          error: "payment_failed",
+          message: v2Error.message || "Failed to prepare payment. Please try again.",
+        });
+      }
+    }
+
     try {
       if (
+        !paymentsV2Enabled() &&
         !isVipFreeEntry &&
         result.event?.ticketType === "paid" &&
         result.event?.ticketPrice &&
@@ -1438,11 +1515,21 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       }
     }
 
+    // Meter the RSVP motion on the transaction ledger (flag-gated inside,
+    // fire-and-forget — billing must never delay the guest's confirmation).
+    meterRsvp({
+      hostId: result.event.hostId,
+      eventId: result.event.id,
+      personId: result.rsvp.personId || null,
+      rsvpId: result.rsvp.id,
+    }).catch(() => {});
+
     // Return detailed RSVP information including status details
     res.status(201).json({
       event: result.event,
       rsvp: result.rsvp,
       payment: stripePayment,
+      paymentV2, // rail-agnostic checkout descriptor (null unless flag on + paid event)
       paymentBreakdown: result.paymentBreakdown || null, // Fee breakdown for frontend display
       stripe:
         stripeClientSecret && stripePayment

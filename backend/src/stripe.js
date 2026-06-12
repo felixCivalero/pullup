@@ -556,6 +556,26 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
         };
       }
     }
+    // Meter the ticket-sale motion on the transaction ledger (flag-gated
+    // inside feeEngine, idempotent by payment id, never blocks the webhook).
+    // v2 card charges stamp feeCents/ticketAmount into payment.metadata;
+    // legacy charges (no stamp) meter gross with fee 0 rather than guess.
+    try {
+      const { meterTicketSale } = await import("./services/billing/feeEngine.js");
+      await meterTicketSale({
+        hostId: payment.userId,
+        eventId: payment.eventId,
+        personId: rsvp?.personId || null,
+        rsvpId: payment.rsvpId,
+        paymentId: payment.id,
+        amountCents: payment.metadata?.ticketAmount ?? payment.amount,
+        feeCents: payment.metadata?.feeCents ?? 0,
+        currency: payment.currency,
+      });
+    } catch (meterErr) {
+      console.error("[Webhook] ticket metering failed (non-blocking):", meterErr?.message);
+    }
+
     // Send confirmation email now that payment succeeded and RSVP is confirmed
     if (isPendingPayment || isWaitlistPayment) {
       try {

@@ -176,6 +176,16 @@ export async function recordPullUp({ personId, eventId, method = "scan", hostId 
       body: method === "manual" ? "Pulled up (checked in by host)" : "Pulled up",
       metadata: { method },
     });
+
+    // Meter the motion on the transaction ledger (flag-gated inside, never
+    // throws). A pull-up is THE billable unit of the free-event business
+    // model; the dedupe key makes a re-scan a metering no-op too.
+    try {
+      const { meterPullup } = await import("./billing/feeEngine.js");
+      await meterPullup({ hostId: resolvedHost, eventId, personId });
+    } catch (meterErr) {
+      console.error("[pullup] metering failed (non-blocking):", meterErr?.message);
+    }
   }
 
   return { ok: true, alreadyPresent: !isNew, pullupId };

@@ -16,6 +16,7 @@ export async function createPayment({
   paymentMethod = null,
   description = null,
   receiptUrl = null,
+  metadata = {},
 }) {
   // Ensure amount is a valid number
   const amountNum = typeof amount === "number" ? amount : Number(amount);
@@ -43,7 +44,7 @@ export async function createPayment({
     refunded_amount: 0,
     refunded_at: null,
     paid_at: status === "succeeded" ? new Date().toISOString() : null,
-    metadata: {},
+    metadata: metadata || {},
   };
 
   const { data: insertedPayment, error: insertError } = await supabase

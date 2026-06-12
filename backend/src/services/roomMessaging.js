@@ -18,6 +18,7 @@
 // Instagram outbound still needs the live send path; it honestly reports "not
 // available yet" rather than pretend to send.
 
+import crypto from "node:crypto";
 import { findPersonById, personBelongsToHost, getUserProfile } from "../data.js";
 import { SES_FROM_EMAIL } from "../email/config.js";
 import { logPersonEvent } from "./personTimeline.js";
@@ -242,9 +243,13 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const bodyForText = loc ? `${body}${body ? "\n\n" : ""}📍 ${loc.label}\n${loc.url}` : body;
   const htmlBody = emailHtmlFor(body, atts, evt) + locHtml;
   // Action-stable idempotency: a network-retried send reuses the same clientId,
-  // so the key is identical and the send dedupes instead of doubling. No clientId
-  // (legacy/broadcast) → a per-call key, as before.
-  const key = () => (clientId ? `room:${hostId}:${personId}:${clientId}` : `room:${hostId}:${personId}:${Date.now()}:${_sendSeq++}`);
+  // so the key is identical and the send dedupes instead of doubling. No
+  // clientId (legacy/MCP callers) → a CONTENT-stable key in a 5-minute bucket:
+  // a retried identical send inside the bucket dedupes (the old Date.now() key
+  // never matched its own retry → double-send), while an intentional repeat
+  // later gets a fresh bucket.
+  const contentSig = crypto.createHash("sha256").update(`${body || ""}|${(atts || []).map((a) => a?.url || "").join(",")}`).digest("hex").slice(0, 16);
+  const key = () => (clientId ? `room:${hostId}:${personId}:${clientId}` : `room:${hostId}:${personId}:${contentSig}:${Math.floor(Date.now() / 300000)}`);
   const logArgs = { personId, hostId, body, attachments: atts, event: evt, location: loc };
 
   // ── One unified route for every rail. dispatch() owns the channel choice

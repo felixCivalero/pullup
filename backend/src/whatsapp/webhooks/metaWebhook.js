@@ -125,10 +125,13 @@ async function resolvePerson(phoneE164, hostProfileId = null) {
 }
 
 async function resolveHostProfileForPhoneNumberId(/* phoneNumberId */) {
-  // Single-tenant: the first profile with phone_verified is the host the
-  // shared PullUp WABA number is "speaking for". Multi-tenant: look up by
-  // phone_number_id mapping table — to be added when we onboard premium
-  // hosts with their own numbers.
+  // Single-tenant: the shared PullUp WABA number "speaks for" ONE host —
+  // pinned explicitly via WHATSAPP_HOST_PROFILE_ID so inbound routing never
+  // depends on profile creation order (the old oldest-profile fallback would
+  // silently misroute the moment an older/other profile exists). Multi-tenant:
+  // a phone_number_id mapping table, when premium hosts get their own numbers.
+  const pinned = (process.env.WHATSAPP_HOST_PROFILE_ID || "").trim();
+  if (pinned) return pinned;
   const { data } = await supabase
     .from("profiles")
     .select("id")

@@ -25,56 +25,21 @@ export async function upsertThreadFromMessage({
 }) {
   if (!personId || !hostProfileId) return null;
 
-  const existing = await fetchByPair({ personId, hostProfileId });
-  const isInbound = direction === "inbound";
-
-  let conversation_window_opens_at = existing?.conversation_window_opens_at ?? null;
-  let conversation_window_expires_at = existing?.conversation_window_expires_at ?? null;
-
-  if (isInbound) {
-    // Inbound message opens / refreshes the 24h freeform window.
-    conversation_window_opens_at = at.toISOString();
-    conversation_window_expires_at = new Date(at.getTime() + HOURS_24).toISOString();
-  } else if (
-    conversation_window_expires_at &&
-    new Date(conversation_window_expires_at) < at
-  ) {
-    // Window has expired — clear.
-    conversation_window_opens_at = null;
-    conversation_window_expires_at = null;
-  }
-
-  const payload = {
-    person_id: personId,
-    host_profile_id: hostProfileId,
-    phone_e164: phoneE164,
-    last_message_at: at.toISOString(),
-    last_message_preview: preview ? String(preview).slice(0, 280) : null,
-    last_message_direction: direction,
-    last_outbox_id: outboxId ?? null,
-    conversation_window_opens_at,
-    conversation_window_expires_at,
-  };
-
-  if (existing) {
-    const nextUnread = isInbound ? (existing.unread_count ?? 0) + 1 : 0;
-    const { data, error } = await supabase
-      .from("whatsapp_threads")
-      .update({ ...payload, unread_count: nextUnread })
-      .eq("id", existing.id)
-      .select()
-      .single();
-    if (error) throw new Error(`[whatsappThreadsRepo] update: ${error.message}`);
-    return data;
-  }
-
-  const { data, error } = await supabase
-    .from("whatsapp_threads")
-    .insert({ ...payload, unread_count: isInbound ? 1 : 0 })
-    .select()
-    .single();
-  if (error) throw new Error(`[whatsappThreadsRepo] insert: ${error.message}`);
-  return data;
+  // Atomic: one INSERT ... ON CONFLICT computed in the database (see migration
+  // atomic_whatsapp_thread_upsert). The old JS read-modify-write lost updates
+  // under concurrency — two near-simultaneous messages both read the stale row
+  // and the loser's write wiped the winner's unread bump / 24h window.
+  const { data, error } = await supabase.rpc("upsert_whatsapp_thread", {
+    p_person_id: personId,
+    p_host_profile_id: hostProfileId,
+    p_phone_e164: phoneE164 ?? null,
+    p_direction: direction,
+    p_preview: preview ? String(preview).slice(0, 280) : null,
+    p_outbox_id: outboxId ?? null,
+    p_at: (at instanceof Date ? at : new Date(at)).toISOString(),
+  });
+  if (error) throw new Error(`[whatsappThreadsRepo] upsert rpc: ${error.message}`);
+  return Array.isArray(data) ? data[0] ?? null : data;
 }
 
 export async function fetchByPair({ personId, hostProfileId }) {

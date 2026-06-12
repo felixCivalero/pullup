@@ -32,11 +32,6 @@ const SECTION_LABELS = {
   footer: "Footer — the very bottom",
 };
 
-const ORIGIN_COLORS = {
-  landing: colors.accent,
-  rsvp: colors.secondary,
-};
-
 // Human names for the cta_click location tags. The first four are the live
 // page; the two "retired" ones are buttons from the pre-Jun-4-2026 landing
 // layout that still show up in historical ranges.
@@ -60,8 +55,10 @@ function pct(part, whole) {
 }
 
 export function LandingOverview({ dateRange }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // undefined = first load in flight; null = load failed. On range changes we
+  // keep the previous payload on screen until the new one lands (no flicker,
+  // and no synchronous setState inside the effect).
+  const [data, setData] = useState(undefined);
 
   // Date objects from the page-level DateRangePicker → stable ISO strings so
   // the effect doesn't refire on referentially-new-but-equal dates.
@@ -71,14 +68,11 @@ export function LandingOverview({ dateRange }) {
   useEffect(() => {
     if (!startIso || !endIso) return;
     let cancelled = false;
-    setLoading(true);
     const params = new URLSearchParams({ startDate: startIso, endDate: endIso });
     authenticatedFetch(`/admin/analytics/landing-view?${params}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!cancelled) { setData(json); setLoading(false); }
-      })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .then((json) => { if (!cancelled) setData(json); })
+      .catch(() => { if (!cancelled) setData((prev) => prev ?? null); });
     return () => { cancelled = true; };
   }, [startIso, endIso]);
 
@@ -110,25 +104,31 @@ export function LandingOverview({ dateRange }) {
     return map;
   }, [data]);
 
-  const signupDays = useMemo(() => {
-    if (!data?.signupSeries) return [];
-    const byDay = new Map();
-    for (const row of data.signupSeries) {
-      const e = byDay.get(row.day) || { date: row.day, views: 0, bySource: {} };
-      e.views += Number(row.signups || 0);
-      e.bySource[row.origin] = (e.bySource[row.origin] || 0) + Number(row.signups || 0);
-      byDay.set(row.day, e);
+  // Cumulative universe growth across the range: guest records (people) and
+  // app accounts (profiles), each starting from its pre-range baseline so the
+  // lines show real totals, not range-local counts.
+  const growth = useMemo(() => {
+    if (!data?.range?.from || !data?.range?.to) return [];
+    const guestAdds = {};
+    for (const row of data.rsvpAccountSeries || []) guestAdds[row.day] = Number(row.accounts || 0);
+    const accountAdds = {};
+    for (const row of data.signupSeries || []) {
+      accountAdds[row.day] = (accountAdds[row.day] || 0) + Number(row.signups || 0);
     }
-    return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+    let guests = Number(data.baselines?.guests || 0);
+    let accounts = Number(data.baselines?.profiles || 0);
+    const out = [];
+    const end = new Date(data.range.to + "T00:00:00Z");
+    for (let d = new Date(data.range.from + "T00:00:00Z"); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const day = d.toISOString().slice(0, 10);
+      guests += guestAdds[day] || 0;
+      accounts += accountAdds[day] || 0;
+      out.push({ date: day, guests, accounts });
+    }
+    return out;
   }, [data]);
 
-  const guestAccountsByDate = useMemo(() => {
-    const map = {};
-    for (const row of data?.rsvpAccountSeries || []) map[row.day] = row.accounts;
-    return map;
-  }, [data]);
-
-  if (loading) {
+  if (data === undefined) {
     return <div style={{ padding: 40, textAlign: "center", color: colors.textSubtle, fontSize: 13 }}>Loading…</div>;
   }
   if (!data) {
@@ -193,43 +193,19 @@ export function LandingOverview({ dateRange }) {
         <CtaFunnel funnel={funnel} locations={data.ctaLocations || []} />
       </div>
 
-      {/* ─── Signups by origin ─── */}
+      {/* ─── The universe, growing ─── */}
       <div style={{ marginBottom: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <SectionLabel>Signups — landing-born vs RSVP-born</SectionLabel>
-        </div>
-        {signupDays.length > 0 ? (
-          <LandingDailyChart
-            daily={signupDays}
-            allSources={["landing", "rsvp"]}
-            colorFor={(s) => ORIGIN_COLORS[s] || colors.textFaded}
-            lineOverlay={{
-              byDate: guestAccountsByDate,
-              color: colors.secondary,
-              label: "guest accounts created",
-            }}
-          />
-        ) : (
-          <EmptyNote>No signups in this range.</EmptyNote>
-        )}
+        <SectionLabel>The universe — everyone PullUp has touched</SectionLabel>
+        <GrowthChart days={growth} />
       </div>
 
-      {/* ─── Origin × hostness matrix (all time) ─── */}
+      {/* ─── The ladder + the flywheel ─── */}
       <div style={{ marginBottom: 12 }}>
-        <SectionLabel>Where accounts come from — all time</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-          <MatrixCard label="Landing-born hosts" sub="signed up, created events" value={matrix.landingHosts} color={colors.accent} />
-          <MatrixCard label="Landing-born, dormant" sub="signed up, no event yet" value={matrix.landingDormant} color={colors.textMuted} />
-          <MatrixCard label="RSVP-born hosts" sub="came as a guest, now hosting" value={matrix.rsvpHosts} color={colors.secondary} />
-          <MatrixCard label="RSVP-born members" sub="opened the dashboard, no event" value={matrix.rsvpDormant} color={colors.textMuted} />
-          <MatrixCard label="Guests" sub="have an account, never opened the app" value={matrix.guestsWithoutProfile} color={colors.textSubtle} />
+        <SectionLabel>The ladder — guest to host, all time</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, alignItems: "stretch" }}>
+          <Ladder ladder={data.ladder || {}} />
+          <Flywheel matrix={matrix} />
         </div>
-        {matrix.inferredCount > 0 && (
-          <p style={{ margin: "8px 0 0", fontSize: 11, color: colors.textFaded }}>
-            {matrix.inferredCount} pre-tracking account{matrix.inferredCount === 1 ? "" : "s"} classified
-            retroactively (created events → landing; linked guest record → RSVP).
-          </p>
-        )}
       </div>
     </>
   );
@@ -382,17 +358,139 @@ function CtaFunnel({ funnel, locations }) {
   );
 }
 
-function MatrixCard({ label, sub, value, color }) {
+// Two cumulative lines on independent axes (guests dwarf accounts ~17:1):
+// guest records filled teal on the left axis, app accounts as a pink line on
+// the right. Both start from pre-range baselines, so these are real totals.
+function GrowthChart({ days }) {
+  if (!days.length) return <EmptyNote>No growth data in this range.</EmptyNote>;
+  const W = 720, H = 170;
+  const PAD = { top: 14, right: 40, bottom: 22, left: 40 };
+  const iw = W - PAD.left - PAD.right;
+  const ih = H - PAD.top - PAD.bottom;
+  const maxG = Math.max(1, ...days.map((d) => d.guests));
+  const maxA = Math.max(1, ...days.map((d) => d.accounts));
+  const x = (i) => PAD.left + (i / (days.length - 1 || 1)) * iw;
+  const yG = (v) => PAD.top + ih - (v / maxG) * ih;
+  const yA = (v) => PAD.top + ih - (v / maxA) * ih;
+  const gPts = days.map((d, i) => `${x(i).toFixed(1)},${yG(d.guests).toFixed(1)}`).join(" ");
+  const aPts = days.map((d, i) => `${x(i).toFixed(1)},${yA(d.accounts).toFixed(1)}`).join(" ");
+  const last = days[days.length - 1];
+  const step = Math.max(1, Math.floor(days.length / 6));
   return (
     <div style={{
-      borderRadius: 12, background: "#fff", border: `1px solid ${colors.border}`,
-      padding: "12px 14px", boxShadow: "0 4px 16px rgba(10,10,10,0.04)",
+      borderRadius: 14, background: "#fff", border: `1px solid ${colors.border}`,
+      padding: "14px 12px 8px", boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
     }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1.2 }}>
-        {Number(value || 0).toLocaleString()}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD.left} x2={PAD.left + iw} y1={PAD.top + ih - f * ih} y2={PAD.top + ih - f * ih}
+              stroke="rgba(10,10,10,0.07)" strokeDasharray="4,4" />
+            <text x={PAD.left - 5} y={PAD.top + ih - f * ih + 3} textAnchor="end"
+              fill={colors.secondary} opacity={0.7} fontSize="10">{Math.round(maxG * f)}</text>
+            <text x={PAD.left + iw + 5} y={PAD.top + ih - f * ih + 3} textAnchor="start"
+              fill={colors.accent} opacity={0.7} fontSize="10">{Math.round(maxA * f)}</text>
+          </g>
+        ))}
+        <polygon
+          points={`${PAD.left},${PAD.top + ih} ${gPts} ${PAD.left + iw},${PAD.top + ih}`}
+          fill={colors.secondarySoft}
+        />
+        <polyline points={gPts} fill="none" stroke={colors.secondary} strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={aPts} fill="none" stroke={colors.accent} strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" />
+        {days.map((d, i) =>
+          i % step === 0 || i === days.length - 1 ? (
+            <text key={d.date} x={x(i)} y={H - 4} textAnchor="middle" fill="rgba(10,10,10,0.35)" fontSize="10">
+              {new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </text>
+          ) : null
+        )}
+      </svg>
+      <div style={{ display: "flex", gap: 16, marginTop: 6, paddingLeft: PAD.left, fontSize: 11, color: colors.textMuted }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 14, height: 2, background: colors.secondary, display: "inline-block" }} />
+          guest records — now {last.guests.toLocaleString()}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 14, height: 2, background: colors.accent, display: "inline-block" }} />
+          app accounts — now {last.accounts.toLocaleString()}
+        </span>
       </div>
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.text, marginTop: 2 }}>{label}</div>
-      <div style={{ fontSize: 10.5, color: colors.textFaded }}>{sub}</div>
+    </div>
+  );
+}
+
+// The activation ladder: every rung is "of everyone on the rung above".
+function Ladder({ ladder }) {
+  const rungs = [
+    { key: "universe", label: "In the universe", sub: "every person PullUp has touched" },
+    { key: "openedApp", label: "Opened the app", sub: "have a dashboard profile" },
+    { key: "createdEvent", label: "Created an event", sub: "became a host" },
+    { key: "activeHosts90d", label: "Hosting now", sub: "created an event in the last 90 days" },
+  ];
+  const base = Number(ladder.universe || 0) || 1;
+  return (
+    <div style={{
+      borderRadius: 14, background: "#fff", border: `1px solid ${colors.border}`,
+      padding: "14px 16px", boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+    }}>
+      {rungs.map((r, i) => {
+        const v = Number(ladder[r.key] || 0);
+        const prevV = i > 0 ? Number(ladder[rungs[i - 1].key] || 0) : null;
+        const stepRate = prevV ? pct(v, prevV) : null;
+        const share = Math.max(pct(v, base), v > 0 ? 2 : 0);
+        return (
+          <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0" }}>
+            <div style={{ width: 150, flexShrink: 0, textAlign: "right" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.text }}>{r.label}</div>
+              <div style={{ fontSize: 9.5, color: colors.textFaded }}>{r.sub}</div>
+            </div>
+            <div style={{ flex: 1, height: 18, borderRadius: 4, background: colors.borderFaint, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", width: `${share}%`, borderRadius: 4,
+                background: `linear-gradient(90deg, ${colors.secondary}, ${colors.accent})`,
+                opacity: 0.35 + 0.65 * ((i + 1) / rungs.length),
+              }} />
+            </div>
+            <span style={{ width: 48, fontSize: 13, fontWeight: 700, color: colors.text, textAlign: "right" }}>
+              {v.toLocaleString()}
+            </span>
+            <span style={{ width: 64, fontSize: 10, color: colors.textFaded, textAlign: "right" }}>
+              {stepRate !== null ? `${stepRate}% of prev` : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// The number this whole page exists to move: guests who became hosts.
+function Flywheel({ matrix }) {
+  const graduated = Number(matrix.rsvpHosts || 0);
+  const warming = Number(matrix.rsvpDormant || 0);
+  return (
+    <div style={{
+      borderRadius: 14, border: `1px solid ${graduated > 0 ? colors.secondaryBorder : colors.border}`,
+      background: graduated > 0 ? colors.secondarySoft : "#fff",
+      padding: "14px 16px", boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+      display: "flex", flexDirection: "column", justifyContent: "center",
+    }}>
+      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, color: colors.textFaded }}>
+        The flywheel
+      </div>
+      <div style={{ fontSize: 34, fontWeight: 800, color: graduated > 0 ? colors.secondary : colors.text, lineHeight: 1.1, marginTop: 4 }}>
+        {graduated}
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: colors.text, marginTop: 2 }}>
+        guests turned host
+      </div>
+      <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+        {warming} came in as guests and already opened the app — one event away.
+        When this number moves, the loop is closing.
+      </div>
     </div>
   );
 }

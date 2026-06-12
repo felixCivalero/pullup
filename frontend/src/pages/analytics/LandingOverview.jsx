@@ -37,6 +37,18 @@ const ORIGIN_COLORS = {
   rsvp: colors.secondary,
 };
 
+// Human names for the cta_click location tags. The first four are the live
+// page; the two "retired" ones are buttons from the pre-Jun-4-2026 landing
+// layout that still show up in historical ranges.
+const CTA_META = {
+  nav: { label: "Get started", place: "top bar" },
+  nav_login: { label: "Log in", place: "top bar" },
+  hero: { label: "Get started", place: "hero" },
+  final: { label: "Get started", place: "bottom CTA" },
+  hero_events: { label: "Events path", place: "old landing", retired: true },
+  hero_marketing: { label: "Creator path", place: "old landing", retired: true },
+};
+
 function pctChange(cur, prev) {
   if (!prev) return null;
   return Math.round(((cur - prev) / prev) * 100);
@@ -336,15 +348,30 @@ function CtaFunnel({ funnel, locations }) {
         {locations.length === 0 && <EmptyNote small>No CTA clicks in range.</EmptyNote>}
         {locations.map((l) => {
           const max = locations[0]?.visitors || 1;
+          const meta = CTA_META[l.location] || { label: l.location.replace(/_/g, " "), place: "" };
           return (
-            <div key={l.location} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-              <span style={{ flex: 1, fontSize: 11, color: colors.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {l.location.replace(/_/g, " ")}
-              </span>
-              <div style={{ width: 56, height: 4, borderRadius: 2, background: colors.borderFaint }}>
-                <div style={{ height: "100%", borderRadius: 2, background: colors.accent, width: `${pct(l.visitors, max)}%` }} />
+            <div key={l.location} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+              <div style={{ flex: 1, minWidth: 0, opacity: meta.retired ? 0.55 : 1 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {meta.label}
+                  {meta.retired && (
+                    <span style={{
+                      marginLeft: 5, fontSize: 9, fontWeight: 600, color: colors.textFaded,
+                      border: `1px solid ${colors.border}`, borderRadius: 4, padding: "0px 4px",
+                      verticalAlign: "1px",
+                    }}>
+                      retired
+                    </span>
+                  )}
+                </div>
+                {meta.place && (
+                  <div style={{ fontSize: 9.5, color: colors.textFaded }}>{meta.place}</div>
+                )}
               </div>
-              <span style={{ width: 28, fontSize: 11, fontWeight: 600, color: colors.text, textAlign: "right" }}>
+              <div style={{ width: 56, height: 4, borderRadius: 2, background: colors.borderFaint, flexShrink: 0 }}>
+                <div style={{ height: "100%", borderRadius: 2, background: meta.retired ? colors.textFaded : colors.accent, width: `${pct(l.visitors, max)}%` }} />
+              </div>
+              <span style={{ width: 28, fontSize: 11, fontWeight: 600, color: colors.text, textAlign: "right", flexShrink: 0 }}>
                 {l.visitors}
               </span>
             </div>

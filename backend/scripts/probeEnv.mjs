@@ -34,3 +34,5 @@ for (const [k, v] of Object.entries({ SUPABASE_URL, SERVICE_KEY, ANON_KEY })) {
     process.exit(1);
   }
 }
+
+// gate-path verification run 2026-06-12 (no-op)

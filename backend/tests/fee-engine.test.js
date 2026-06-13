@@ -2,7 +2,7 @@
 // pull-up monthly free tier, and the DPCS party math shared with checkout.
 import {
   computeTicketFee,
-  computePullupFee,
+  computeStorageServiceFee,
   computePartySize,
   computeTicketAmounts,
 } from "../src/services/billing/feeEngine.js";
@@ -25,12 +25,18 @@ console.log("🧪 ticket fee = bps of gross, rounded");
   assert(computeTicketFee(10000, { ticketFeeBps: 0 }) === 0, "0 bps concierge plan → zero fee");
 }
 
-console.log("🧪 pull-up fee respects the monthly free tier");
+console.log("🧪 storage service fee = markup_bps of the creator's Supabase bill");
 {
-  assert(computePullupFee(0, STARTER_PLAN) === 0, "first pull-up of the month is free");
-  assert(computePullupFee(499, STARTER_PLAN) === 0, "499th this month still free");
-  assert(computePullupFee(500, STARTER_PLAN) === 5, "501st pull-up bills 5¢");
-  assert(computePullupFee(10, { pullupFreeMonthly: 0, pullupFeeCents: 10 }) === 10, "no free tier → plan rate");
+  // 30% on a $25 (2500¢) Supabase bill = 750¢
+  assert(computeStorageServiceFee(2500, 3000) === 750, "30% of $25 is $7.50");
+  // 30% on an $85 (8500¢) promoter bill = 2550¢
+  assert(computeStorageServiceFee(8500, 3000) === 2550, "30% of $85 is $25.50");
+  // free tier → nothing to mark up → $0 (the BYO-dormant case)
+  assert(computeStorageServiceFee(0, 3000) === 0, "free-tier creator owes no service fee");
+  // default markup is 30% when unspecified
+  assert(computeStorageServiceFee(2500) === 750, "markup defaults to 30%");
+  // pull-ups are never billed — there is no per-pull-up fee function at all
+  assert(typeof computeStorageServiceFee === "function", "storage fee replaces the (removed) per-pull-up fee");
 }
 
 console.log("🧪 DPCS party math matches the legacy Stripe path");

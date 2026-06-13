@@ -41,6 +41,8 @@ export function SettingsBillingSection() {
   const currencies = Object.entries(month.byCurrency || {});
   const totalFees = currencies.reduce((s, [, v]) => s + (v.feeCents || 0), 0);
   const plan = summary.plan || {};
+  const storage = summary.storageService || { tierCents: 0, markupBps: 3000, feeCents: 0, currency: "usd" };
+  const markupPct = ((storage.markupBps ?? 3000) / 100).toFixed(0);
 
   return (
     <div>
@@ -67,8 +69,39 @@ export function SettingsBillingSection() {
             {plan.plan || "starter"} plan
           </div>
           <div style={{ fontSize: "12px", color: colors.textMuted }}>
-            {((plan.ticketFeeBps ?? 250) / 100).toFixed(1)}% per ticket · first {plan.pullupFreeMonthly ?? 500} pull-ups/mo free
+            {((plan.ticketFeeBps ?? 250) / 100).toFixed(1)}% per paid ticket · {markupPct}% on your storage
           </div>
+        </div>
+
+        {/* The recurring line: your data lives in your own Supabase; PullUp is
+            a service on top, priced as a transparent % of that bill. Dormant
+            (tier 0) until the host owns their Supabase project. */}
+        <div
+          style={{
+            padding: "12px 14px",
+            marginBottom: "16px",
+            background: colors.surface,
+            borderRadius: "10px",
+            border: `1px solid ${colors.border}`,
+          }}
+        >
+          {storage.tierCents > 0 ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: colors.textMuted, marginBottom: "4px" }}>
+                <span>Your Supabase storage</span>
+                <span>{money(storage.tierCents, storage.currency)}/mo</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600, color: colors.text }}>
+                <span>PullUp service ({markupPct}%)</span>
+                <span>{money(storage.feeCents, storage.currency)}/mo</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: "13px", color: colors.textMuted, lineHeight: 1.5 }}>
+              Your people live in a database <strong>you own</strong>. When you bring your own Supabase,
+              PullUp becomes a simple {markupPct}% on top of that bill — and nothing more. No storage fee from us today.
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: currencies.length ? "16px" : 0 }}>

@@ -9,11 +9,17 @@ import { supabase } from "../supabase.js";
 
 // No plan row = the starter defaults. A row exists only once a host upgrades
 // or a concierge deal is cut, so the table stays tiny and honest.
+//
+// Two revenue knobs, the ONLY two: ticketFeeBps (per paid ticket) and
+// markupBps (the % on top of the creator's own Supabase storage tier).
+// storageTierCents is what the creator pays Supabase that month — 0 until the
+// BYO graduation gives them their own billable project, so the recurring line
+// is dormant today.
 export const STARTER_PLAN = Object.freeze({
   plan: "starter",
   ticketFeeBps: 250, // 2.5% of the ticket motion
-  pullupFeeCents: 5, // $0.05/pull-up past the free tier
-  pullupFreeMonthly: 500,
+  storageTierCents: 0, // their monthly Supabase bill (0 until BYO)
+  markupBps: 3000, // 30% on top of that bill
   feeCurrency: "usd",
   carePlan: null,
   byoSupabase: false,
@@ -30,9 +36,8 @@ export async function getPlanForHost(hostId) {
   return {
     plan: data.plan || STARTER_PLAN.plan,
     ticketFeeBps: data.ticket_fee_bps ?? STARTER_PLAN.ticketFeeBps,
-    pullupFeeCents: data.pullup_fee_cents ?? STARTER_PLAN.pullupFeeCents,
-    pullupFreeMonthly:
-      data.pullup_free_monthly ?? STARTER_PLAN.pullupFreeMonthly,
+    storageTierCents: data.storage_tier_cents ?? STARTER_PLAN.storageTierCents,
+    markupBps: data.markup_bps ?? STARTER_PLAN.markupBps,
     feeCurrency: data.fee_currency || STARTER_PLAN.feeCurrency,
     carePlan: data.care_plan || null,
     byoSupabase: !!data.byo_supabase,
@@ -78,24 +83,9 @@ export async function meterMotion({
   return { ok: true, deduped: false };
 }
 
-// How many of a motion this host has accrued since the 1st of the current
-// month — the free-tier counter for pull-up metering.
-export async function countMotionsThisMonth(hostId, motion) {
-  if (!hostId) return 0;
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  const { count } = await supabase
-    .from("transaction_ledger")
-    .select("id", { count: "exact", head: true })
-    .eq("host_id", hostId)
-    .eq("motion", motion)
-    .gte("occurred_at", monthStart.toISOString());
-  return count || 0;
-}
-
-// The host-facing month picture: motions counted, money moved, fees accrued
-// (grouped by currency — a Nairobi+Stockholm host legitimately has both).
+// The host-facing month picture: motions counted (scale, never billed), ticket
+// money moved + ticket fees (grouped by currency — a Nairobi+Stockholm host
+// legitimately has both), and the recurring storage service line.
 export async function getBillingSummary(hostId) {
   const plan = await getPlanForHost(hostId);
   const monthStart = new Date();
@@ -121,9 +111,25 @@ export async function getBillingSummary(hostId) {
     month.byCurrency[cur].feeCents += r.fee_cents || 0;
   }
 
+  // The recurring line: PullUp's % on top of the creator's Supabase bill.
+  // 0 today (storageTierCents is 0 until BYO); shape is ready for the panel.
+  // (Inlined rather than importing feeEngine — that module imports this repo,
+  // and the math is one line. Mirrors feeEngine.computeStorageServiceFee.)
+  const storageFeeCents =
+    plan.storageTierCents > 0
+      ? Math.round((plan.storageTierCents * (plan.markupBps ?? 3000)) / 10000)
+      : 0;
+  const storageService = {
+    tierCents: plan.storageTierCents,
+    markupBps: plan.markupBps,
+    feeCents: storageFeeCents,
+    currency: plan.feeCurrency,
+  };
+
   return {
     plan,
     month,
+    storageService,
     recent: (rows || []).slice(0, 25).map((r) => ({
       motion: r.motion,
       amountCents: r.amount_cents,

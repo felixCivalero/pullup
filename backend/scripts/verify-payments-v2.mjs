@@ -116,6 +116,14 @@ try {
   ok(replay?.deduped === true || replay?.ok === true, "replayed confirm dedupes");
   const { count: saleCount } = await admin.from("transaction_ledger").select("*", { count: "exact", head: true }).eq("event_id", eventId).eq("motion", "ticket_sale");
   ok(saleCount === 1, `still exactly one ticket_sale row (${saleCount})`);
+
+  // 8. the host billing summary read path — the two-revenue-line model:
+  //    ticket fees counted, storage service line present (0 today, 30% ready).
+  const sum = await fetch(`${API}/host/billing/summary`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+  ok(sum?.month?.ticketSales >= 1, `billing summary counts the ticket sale (${sum?.month?.ticketSales})`);
+  ok(sum?.storageService?.markupBps === 3000, `storage service line = 30% markup (${sum?.storageService?.markupBps} bps)`);
+  ok(sum?.storageService?.feeCents === 0, `storage fee is 0 pre-BYO (tier 0) (${sum?.storageService?.feeCents})`);
+  ok(!("pullupFee" in (sum?.plan || {})) && sum?.plan?.markupBps === 3000, "plan exposes markup, not the removed per-pull-up fee");
 } catch (e) {
   failures++;
   console.error("❌ threw:", e.message);

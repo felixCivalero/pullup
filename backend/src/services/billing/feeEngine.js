@@ -6,14 +6,20 @@
 // flag-gated, best-effort hooks the live paths call — they must NEVER throw
 // into a request path.
 
-import {
-  meterMotion,
-  getPlanForHost,
-  countMotionsThisMonth,
-} from "../../repos/billing.js";
+import { meterMotion } from "../../repos/billing.js";
 import { meteringEnabled } from "../../config/billing.js";
 
 // ── Pure fee math ───────────────────────────────────────────────────────────
+//
+// PullUp earns on EXACTLY two things:
+//   (1) a per-PAID-ticket transaction fee (computeTicketFee) — usage-based,
+//       $0 on free tickets;
+//   (2) a % markup on the creator's OWN Supabase storage tier
+//       (computeStorageServiceFee) — the recurring "service on top of the
+//       plug" line, dormant until the BYO graduation gives each creator a
+//       billable Supabase project.
+// Pull-ups and RSVPs are NEVER billed — they're counted (for the host's own
+// scale dashboard) and that's all.
 
 // Ticket fee in cents: basis points of the gross ticket motion.
 // 250 bps = 2.5% — vs Eventbrite ~11% all-in; the fee IS the pitch.
@@ -24,13 +30,16 @@ export function computeTicketFee(amountCents, plan) {
   return Math.round((amount * bps) / 10000);
 }
 
-// Pull-up fee in cents for the (n+1)th pull-up of the month: free inside the
-// monthly tier, plan rate past it. Free events stay free at starter scale —
-// the line incumbents structurally can't offer.
-export function computePullupFee(monthCountSoFar, plan) {
-  const free = plan?.pullupFreeMonthly ?? 500;
-  if ((Number(monthCountSoFar) || 0) < free) return 0;
-  return plan?.pullupFeeCents ?? 5;
+// Storage service fee in cents: markup_bps of the creator's monthly Supabase
+// bill. 3000 bps = 30% on top of what they already pay Supabase. The % is a
+// cost-reflective proxy (server cost ∝ data+traffic ∝ their tier) and stays
+// transparent because the creator already sees their Supabase invoice.
+// storageTierCents is 0 until BYO, so this returns 0 today.
+export function computeStorageServiceFee(storageTierCents, markupBps) {
+  const cents = Number(storageTierCents) || 0;
+  const bps = markupBps ?? 3000;
+  if (cents <= 0) return 0;
+  return Math.round((cents * bps) / 10000);
 }
 
 // The DPCS party math — same rules the legacy Stripe path applies, factored
@@ -66,21 +75,18 @@ export function computeTicketAmounts({ event, rsvp, plan }) {
 
 // ── Flag-gated live hooks (best-effort, never throw) ───────────────────────
 
-// A pull-up happened — meter it. Fee respects the monthly free tier, priced
-// in the PLAN's currency (the meter fee is PullUp revenue, not guest money).
+// A pull-up happened — COUNT it (fee 0: pull-ups are never billed; the ledger
+// row exists only so the host can see their own scale this month).
 export async function meterPullup({ hostId, eventId, personId }) {
   if (!meteringEnabled()) return;
   try {
-    const plan = await getPlanForHost(hostId);
-    const monthCount = await countMotionsThisMonth(hostId, "pullup");
     await meterMotion({
       motion: "pullup",
       dedupeKey: `pullup:${eventId}:${personId}`,
       hostId,
       eventId,
       personId,
-      feeCents: computePullupFee(monthCount, plan),
-      currency: plan.feeCurrency,
+      feeCents: 0,
     });
   } catch (e) {
     console.error("[feeEngine] pullup metering failed (non-blocking):", e?.message);

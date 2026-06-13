@@ -14,6 +14,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import OwnDataWelcomeModal from "./OwnDataWelcomeModal.jsx";
 
 const STATUS_COPY = {
   connecting: "Connecting…",
@@ -31,22 +32,29 @@ export function SettingsOwnDataSection() {
   const [msg, setMsg] = useState("");
   const [notice, setNotice] = useState(""); // friendly message from the OAuth bounce-back
   const [form, setForm] = useState({ dbUrl: "", serviceKey: "", mgmtToken: "" });
+  const [welcomeOpen, setWelcomeOpen] = useState(false); // the "it worked" return-from-auth modal
+  const [autoRan, setAutoRan] = useState(false); // mirror auto-kicked once after provision
+  const [mirroredPeople, setMirroredPeople] = useState(null); // count to celebrate in the modal
 
-  // The OAuth callback bounces back to /settings?byo=<code>. Surface a friendly
-  // message for the edge cases (so a brand-new user who hit the no-org/expired
-  // path sees what to do, not a silent no-op), then strip the param so a refresh
-  // doesn't replay it. The happy 'provisioning' path is driven by status polling.
+  // The OAuth callback bounces back to /settings?byo=<code>. On the happy path
+  // (provisioning) we float the welcome modal over the page and read the setup
+  // back live; on the edge cases we surface a friendly message. Either way strip
+  // the param so a refresh doesn't replay it.
   useEffect(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       const code = p.get("byo");
       if (!code) return;
-      const MAP = {
-        noorg: "We couldn't find or set up a Supabase organization on your account. Create one free at supabase.com, then click Connect with Supabase again.",
-        badstate: "That connect link expired — please click Connect with Supabase again.",
-        error: "Something went wrong connecting to Supabase. Please try again.",
-      };
-      if (MAP[code]) setNotice(MAP[code]);
+      if (code === "provisioning") {
+        setWelcomeOpen(true);
+      } else {
+        const MAP = {
+          noorg: "We couldn't find or set up a Supabase organization on your account. Create one free at supabase.com, then click Connect with Supabase again.",
+          badstate: "That connect link expired — please click Connect with Supabase again.",
+          error: "Something went wrong connecting to Supabase. Please try again.",
+        };
+        if (MAP[code]) setNotice(MAP[code]);
+      }
       p.delete("byo");
       const qs = p.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
@@ -78,6 +86,26 @@ export function SettingsOwnDataSection() {
     tick();
     return () => { alive = false; clearInterval(id); };
   }, [state?.db?.status, refresh]);
+
+  // Welcome flow only: once the structure is provisioned ('connected'), copy the
+  // host's world in automatically so the modal can land on a populated, "it's
+  // yours" finish — no extra click. Fires once; the manual 1·2·3 buttons stay
+  // for re-runs and for the paste path (which never opens the modal).
+  useEffect(() => {
+    if (!welcomeOpen || autoRan) return;
+    if (state?.db?.status !== "connected") return;
+    setAutoRan(true);
+    (async () => {
+      setBusy("mirror");
+      try {
+        const r = await authenticatedFetch("/host/byo/mirror", { method: "POST" });
+        const b = await r.json().catch(() => ({}));
+        if (b?.counts && Number.isFinite(b.counts.people)) setMirroredPeople(b.counts.people);
+      } catch { /* status will reflect the error */ }
+      setBusy(null);
+      await refresh();
+    })();
+  }, [welcomeOpen, autoRan, state?.db?.status, refresh]);
 
   async function startOauth() {
     setBusy("oauth"); setMsg("");
@@ -128,14 +156,52 @@ export function SettingsOwnDataSection() {
     act("disconnect", () => authenticatedFetch("/host/byo/disconnect", { method: "POST" }));
   };
 
-  // Dormant deployment → no surface at all.
-  if (!state || !state.enabled) return null;
+  // Retry the failed step from inside the welcome modal: if the structure is
+  // already in, re-run the copy; otherwise re-run provisioning (which then
+  // auto-advances to the copy via the effect above).
+  const retryWelcome = async () => {
+    const hasSchema = !!state?.db?.schemaVersion;
+    setAutoRan(false);
+    setBusy(hasSchema ? "mirror" : "provision");
+    try {
+      const r = await authenticatedFetch(hasSchema ? "/host/byo/mirror" : "/host/byo/provision", { method: "POST" });
+      const b = await r.json().catch(() => ({}));
+      if (b?.counts && Number.isFinite(b.counts.people)) setMirroredPeople(b.counts.people);
+    } catch { /* status reflects it */ }
+    setBusy(null);
+    await refresh();
+  };
+
+  // Welcome modal phase/steps derived from the live connection status.
+  const wStatus = state?.db?.status;
+  const wPhase = wStatus === "error" ? "error" : wStatus === "live" ? "success" : "working";
+  const wSteps = [
+    { key: "connect", label: "Connected to Supabase", state: "done" },
+    { key: "structure", label: "Setting up your structure", state: ["connected", "mirroring", "live"].includes(wStatus) ? "done" : "active" },
+    { key: "world", label: "Copying your world in", state: wStatus === "live" ? "done" : (wStatus === "connected" || wStatus === "mirroring") ? "active" : "pending" },
+  ];
+  const welcomeModal = welcomeOpen ? (
+    <OwnDataWelcomeModal
+      phase={wPhase}
+      steps={wSteps}
+      projectRef={state?.db?.projectRef}
+      peopleCount={mirroredPeople}
+      errorMsg={state?.db?.lastError}
+      busy={!!busy}
+      onRetry={retryWelcome}
+      onClose={() => setWelcomeOpen(false)}
+    />
+  ) : null;
+
+  // Dormant deployment → no surface (but a return-from-auth modal can still show).
+  if (!state || !state.enabled) return welcomeModal;
 
   const db = state.db;
   const connected = state.connected;
 
   return (
     <div>
+      {welcomeModal}
       <div style={{ marginBottom: "16px" }}>
         <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "4px", color: colors.text }}>
           Own your data

@@ -21,6 +21,27 @@ import {
 // fleet migrator keys off per project.
 export const OWNED_SCHEMA_VERSION = 87;
 
+// A freshly-created Supabase project can reset the Management API connection
+// while it's still warming up — the DDL comes back as "...read ECONNRESET"
+// (often wrapped in a 400) or a transient 5xx. Retry with backoff so the
+// keyless flow self-heals instead of dead-ending on a cold start.
+function isTransientMgmtError(msg = "") {
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed|network|mgmt_api_5\d\d|mgmt_api_429/i.test(String(msg));
+}
+async function runProjectSqlWithRetry(projectRef, token, sql, attempts = 5) {
+  let lastErr;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await runProjectSql(projectRef, token, sql);
+    } catch (e) {
+      lastErr = e;
+      if (!isTransientMgmtError(e?.message) || i === attempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, 2500 * (i + 1))); // 2.5s,5s,7.5s,10s
+    }
+  }
+  throw lastErr;
+}
+
 // The owned-schema DDL, generated fresh from PullUp's central schema.
 export async function getOwnedSchemaDdl() {
   const { data, error } = await supabase.rpc("pullup_owned_schema_ddl");
@@ -48,7 +69,7 @@ export async function provisionOwnedProject(hostId) {
   await setCreatorDatabaseStatus(hostId, "provisioning").catch(() => {});
   try {
     const ddl = await getOwnedSchemaDdl();
-    await runProjectSql(row.project_ref, mgmtToken, ddl);
+    await runProjectSqlWithRetry(row.project_ref, mgmtToken, ddl);
     // schema stood up, no data yet — back to 'connected' with the version set;
     // the mirror moves it to 'live'.
     await setCreatorDatabaseStatus(hostId, "connected", {

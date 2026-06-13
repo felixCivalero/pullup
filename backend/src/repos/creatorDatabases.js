@@ -56,11 +56,14 @@ export async function getCreatorDatabaseWithKey(hostId) {
 // it touches the table; refuses to proceed if APP_ENCRYPTION_KEY is unset
 // (encryptSecret throws rather than store plaintext). Starts at 'connected' —
 // provisioning/mirroring/cutover are later, deliberate steps.
-export async function connectCreatorDatabase({ hostId, projectRef, dbUrl, serviceKey }) {
+export async function connectCreatorDatabase({ hostId, projectRef, dbUrl, serviceKey, mgmtToken = null }) {
   if (!hostId || !dbUrl || !serviceKey) {
     return { error: "missing_fields" };
   }
   const encrypted_service_key = encryptSecret(serviceKey);
+  // The Management API token (control plane: provisioning + tier reads) is
+  // optional at connect — a host who only mirrors needn't provide one.
+  const encrypted_mgmt_token = mgmtToken ? encryptSecret(mgmtToken) : null;
   const { data, error } = await supabase
     .from("creator_databases")
     .upsert(
@@ -70,6 +73,7 @@ export async function connectCreatorDatabase({ hostId, projectRef, dbUrl, servic
         project_ref: projectRef || null,
         db_url: dbUrl,
         encrypted_service_key,
+        ...(encrypted_mgmt_token ? { encrypted_mgmt_token } : {}),
         status: "connected",
         // re-connecting resets the cutover bit — a fresh key never silently
         // re-points the system of record.
@@ -108,6 +112,7 @@ export async function disconnectCreatorDatabase(hostId) {
       status: "revoked",
       system_of_record: false,
       encrypted_service_key: "",
+      encrypted_mgmt_token: null,
       updated_at: new Date().toISOString(),
     })
     .eq("host_id", hostId);

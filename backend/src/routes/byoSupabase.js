@@ -17,6 +17,7 @@ import {
   disconnectCreatorDatabase,
 } from "../repos/creatorDatabases.js";
 import { invalidateHost } from "../db/router.js";
+import { mirrorHostData, verifyMirror } from "../services/byo/mirror.js";
 
 // Reachability + auth probe for a creator's project, using ONLY the data-plane
 // service key (no management token needed): hit the PostgREST root with the
@@ -65,7 +66,7 @@ export function registerByoSupabaseRoutes(app) {
       // Never store a service key in plaintext.
       return res.status(503).json({ error: "encryption_unconfigured" });
     }
-    const { projectRef = null, dbUrl, serviceKey } = req.body || {};
+    const { projectRef = null, dbUrl, serviceKey, mgmtToken = null } = req.body || {};
     if (!dbUrl || !serviceKey) {
       return res.status(400).json({ error: "missing_fields", message: "dbUrl and serviceKey are required" });
     }
@@ -80,6 +81,7 @@ export function registerByoSupabaseRoutes(app) {
       projectRef,
       dbUrl,
       serviceKey,
+      mgmtToken, // optional control-plane token (provisioning + tier reads)
     });
     if (result.error) {
       return res.status(500).json({ error: "connect_failed", message: result.error });
@@ -87,6 +89,34 @@ export function registerByoSupabaseRoutes(app) {
     invalidateHost(req.user.id);
     // Next steps live behind their own increments; the UI reads `nextStep`.
     return res.json({ ...result, nextStep: "provision" });
+  });
+
+  // Stage-2 mirror: copy the host's relational slice into their own project.
+  // Idempotent (upsert by id) — safe to re-run to keep the mirror fresh. The
+  // target must already have the schema (provisioning, increment 2b).
+  app.post("/host/byo/mirror", requireAuth, async (req, res) => {
+    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    try {
+      const result = await mirrorHostData(req.user.id);
+      if (!result.ok) return res.status(409).json({ error: "mirror_failed", reason: result.reason });
+      return res.json(result);
+    } catch (e) {
+      console.error("[byo] mirror failed:", e?.message);
+      return res.status(500).json({ error: "mirror_failed" });
+    }
+  });
+
+  // Integrity check: per-table row counts shared vs owned. The gate before any
+  // cutover (increment 3).
+  app.get("/host/byo/verify", requireAuth, async (req, res) => {
+    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    try {
+      const result = await verifyMirror(req.user.id);
+      return res.json(result);
+    } catch (e) {
+      console.error("[byo] verify failed:", e?.message);
+      return res.status(500).json({ error: "verify_failed" });
+    }
   });
 
   // The kill switch (PullUp side). The creator can also rotate/revoke the key

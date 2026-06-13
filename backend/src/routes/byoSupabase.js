@@ -9,7 +9,7 @@
 // merging changes nothing in prod.
 
 import { requireAuth } from "../middleware/auth.js";
-import { byoEnabled, byoOauthConfigured } from "../config/byo.js";
+import { byoEnabledForHost, byoOauthConfigured } from "../config/byo.js";
 import { hasEncryptionKey } from "../utils/encryption.js";
 import {
   getCreatorDatabase,
@@ -42,7 +42,7 @@ async function validateConnection(dbUrl, serviceKey) {
 export function registerByoSupabaseRoutes(app) {
   // Where does this host's data live, and what's the connection state?
   app.get("/host/byo/status", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.json({ enabled: false, connected: false });
+    if (!byoEnabledForHost(req.user.id)) return res.json({ enabled: false, connected: false });
     try {
       const db = await getCreatorDatabase(req.user.id);
       return res.json({
@@ -63,7 +63,7 @@ export function registerByoSupabaseRoutes(app) {
   // key ENCRYPTED. The OAuth flow will later replace the paste but lands in the
   // same row.
   app.post("/host/byo/connect", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     if (!hasEncryptionKey()) {
       // Never store a service key in plaintext.
       return res.status(503).json({ error: "encryption_unconfigured" });
@@ -97,7 +97,7 @@ export function registerByoSupabaseRoutes(app) {
   // Management API). Idempotent (CREATE TABLE IF NOT EXISTS). Needs the mgmt
   // token + project ref from connect. The prerequisite for the mirror.
   app.post("/host/byo/provision", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const result = await provisionOwnedProject(req.user.id);
       if (!result.ok) return res.status(409).json({ error: "provision_failed", reason: result.reason });
@@ -112,7 +112,7 @@ export function registerByoSupabaseRoutes(app) {
   // Idempotent (upsert by id) — safe to re-run to keep the mirror fresh. The
   // target must already have the schema (provisioning, increment 2b).
   app.post("/host/byo/mirror", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const result = await mirrorHostData(req.user.id);
       if (!result.ok) return res.status(409).json({ error: "mirror_failed", reason: result.reason });
@@ -126,7 +126,7 @@ export function registerByoSupabaseRoutes(app) {
   // Integrity check: per-table row counts shared vs owned. The gate before any
   // cutover (increment 3).
   app.get("/host/byo/verify", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const result = await verifyMirror(req.user.id);
       return res.json(result);
@@ -140,7 +140,7 @@ export function registerByoSupabaseRoutes(app) {
   // in their own Supabase dashboard — either way the router falls back to the
   // shared DB. We revoke + drop the stored key here.
   app.post("/host/byo/disconnect", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const result = await disconnectCreatorDatabase(req.user.id);
       invalidateHost(req.user.id);

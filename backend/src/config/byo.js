@@ -20,6 +20,24 @@ export function byoEnabled() {
   return bool(process.env.BYO_SUPABASE_ENABLED);
 }
 
+// Per-host allowlist so BYO can be switched on in prod for specific accounts
+// only (dogfooding / the Adam demo) without exposing the connect-your-database
+// UI to every host. BYO_ALLOWED_HOSTS = comma-separated auth user ids. Empty/
+// unset → no restriction (every host, once the global flag is on). The actual
+// endpoints gate on THIS, not the bare flag.
+export function byoAllowedHosts() {
+  return (process.env.BYO_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function byoEnabledForHost(hostId) {
+  if (!byoEnabled()) return false;
+  const allow = byoAllowedHosts();
+  return allow.length === 0 || (hostId && allow.includes(hostId));
+}
+
 // The keyless "Connect with Supabase" OAuth path is available only once PullUp
 // is registered as a Supabase OAuth app (a one-time company setup). Until these
 // are set, the UI leads with the paste-a-key flow. (OAuth route impl is the

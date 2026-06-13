@@ -14,7 +14,7 @@
 
 import crypto from "node:crypto";
 import { requireAuth } from "../middleware/auth.js";
-import { byoEnabled, byoOauthConfigured } from "../config/byo.js";
+import { byoEnabled, byoEnabledForHost, byoOauthConfigured } from "../config/byo.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import {
   genPkce, signState, verifyState, buildAuthorizeUrl, exchangeCode,
@@ -35,7 +35,7 @@ export function registerByoOauthRoutes(app) {
   // 1) START — authed fetch returns the authorize URL (anchor nav can't carry
   //    the bearer token, so the frontend does window.location = url).
   app.get("/host/byo/oauth/start", requireAuth, async (req, res) => {
-    if (!byoEnabled() || !byoOauthConfigured()) {
+    if (!byoEnabledForHost(req.user.id) || !byoOauthConfigured()) {
       return res.status(503).json({ error: "oauth_unavailable" });
     }
     const { verifier, challenge } = genPkce();
@@ -52,6 +52,7 @@ export function registerByoOauthRoutes(app) {
     const st = verifyState(req.query.state);
     if (!st || !req.query.code) return back("badstate");
     const hostId = st.hostId;
+    if (!byoEnabledForHost(hostId)) return back("disabled");
 
     try {
       const tokens = await exchangeCode({ code: req.query.code, verifier: st.verifier });
@@ -84,7 +85,7 @@ export function registerByoOauthRoutes(app) {
   //    provision. Returns { ready, status }. The UI calls this on a timer while
   //    status is 'provisioning'.
   app.post("/host/byo/oauth/finalize", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const row = await getCreatorDatabaseWithKey(req.user.id);
       if (!row || !row.project_ref || !row.encrypted_mgmt_token) {
@@ -113,7 +114,7 @@ export function registerByoOauthRoutes(app) {
 
   // Abandon: tear down a half-created project (test cleanup / user backs out).
   app.post("/host/byo/oauth/abandon", requireAuth, async (req, res) => {
-    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const row = await getCreatorDatabaseWithKey(req.user.id);
       if (row?.project_ref && row?.encrypted_mgmt_token) {

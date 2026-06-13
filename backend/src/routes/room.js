@@ -309,8 +309,17 @@ export function registerRoomRoutes(app) {
       const pullupCountByEvent = {};
       for (const r of pullupRows) pullupCountByEvent[r.event_id] = (pullupCountByEvent[r.event_id] || 0) + 1;
 
+      // people count: aggregate SERVER-SIDE (rsvps ∪ timeline, distinct).
+      // worldPersonIds is REST-capped at 1000 rows so it undercounts large
+      // worlds (1553 → showed 1038); the SQL fn counts the true union. Falls
+      // back to the (capped) array length if the rpc ever errors.
+      let peopleCount = worldPersonIds.length;
+      if (accountId) {
+        const { data: wc, error: wcErr } = await supabase.rpc("pullup_host_world_people_count", { p_host_id: accountId });
+        if (!wcErr && Number.isFinite(wc)) peopleCount = wc;
+      }
       const counts = {
-        people: worldPersonIds.length,
+        people: peopleCount,
         hosted: hosted.length,
         pulledUp: pullupRows.length,
       };

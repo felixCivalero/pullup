@@ -18,6 +18,7 @@ import {
 } from "../repos/creatorDatabases.js";
 import { invalidateHost } from "../db/router.js";
 import { mirrorHostData, verifyMirror } from "../services/byo/mirror.js";
+import { provisionOwnedProject } from "../services/byo/provisioner.js";
 
 // Reachability + auth probe for a creator's project, using ONLY the data-plane
 // service key (no management token needed): hit the PostgREST root with the
@@ -89,6 +90,21 @@ export function registerByoSupabaseRoutes(app) {
     invalidateHost(req.user.id);
     // Next steps live behind their own increments; the UI reads `nextStep`.
     return res.json({ ...result, nextStep: "provision" });
+  });
+
+  // Provision the owned schema into the creator's project (control plane /
+  // Management API). Idempotent (CREATE TABLE IF NOT EXISTS). Needs the mgmt
+  // token + project ref from connect. The prerequisite for the mirror.
+  app.post("/host/byo/provision", requireAuth, async (req, res) => {
+    if (!byoEnabled()) return res.status(503).json({ error: "byo_disabled" });
+    try {
+      const result = await provisionOwnedProject(req.user.id);
+      if (!result.ok) return res.status(409).json({ error: "provision_failed", reason: result.reason });
+      return res.json(result);
+    } catch (e) {
+      console.error("[byo] provision failed:", e?.message);
+      return res.status(500).json({ error: "provision_failed" });
+    }
   });
 
   // Stage-2 mirror: copy the host's relational slice into their own project.

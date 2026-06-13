@@ -13,7 +13,8 @@
     "probes": "node scripts/verify-room-view.mjs && node scripts/verify-metrics.mjs && node scripts/verify-rsvp.mjs && node scripts/verify-publish.mjs",
     "probe:payments": "node scripts/verify-payments-v2.mjs",
     "probe:byo": "node scripts/verify-byo-router.mjs",
-    "probe:byo-mirror": "node scripts/verify-byo-mirror.mjs"
+    "probe:byo-mirror": "node scripts/verify-byo-mirror.mjs",
+    "probe:byo-provision": "node scripts/verify-byo-provision.mjs"
   },
   "keywords": [],
   "author": "",

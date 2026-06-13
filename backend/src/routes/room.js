@@ -16,6 +16,7 @@ import {
   giphySearch,
 } from "./roomShared.js";
 import { getRoomForHost } from "../services/roomService.js";
+import { unionWorldPersonIds } from "../services/worldPeople.js";
 
 export function registerRoomRoutes(app) {
   // The scan landing target. The guest scanned the host's live QR → verify the
@@ -248,9 +249,24 @@ export function registerRoomRoutes(app) {
       const hosted = effectiveOwner ? allHosted : allHosted.filter((e) => e.status === "PUBLISHED");
       const hostedIds = hosted.map((e) => e.id);
 
-      // World = the host's real audience: everyone who RSVP'd OR pulled up to their
-      // events (ANY status). Never erased by a status change.
-      const worldPersonIds = [...new Set([...rsvpRows.map((r) => r.person_id), ...pullupRows.map((r) => r.person_id)].filter(Boolean))];
+      // World = the host's real audience. Two substrates, unioned: everyone who
+      // RSVP'd OR pulled up to their events (ANY status), PLUS everyone they
+      // brought in from another system. Imported people live only in
+      // person_events (type 'import') — never in rsvps — so a count from rsvps
+      // alone silently drops them (39 shown vs 1500+ in the database). Read the
+      // timeline graph too (same substrate as the owner console's peopleCount +
+      // the "new people" moment), bounded to 5000 like getRoomForHost.
+      let timelineRows = [];
+      if (accountId) {
+        const { data: tl } = await supabase
+          .from("person_events")
+          .select("person_id")
+          .eq("host_id", accountId)
+          .order("occurred_at", { ascending: false })
+          .limit(5000);
+        timelineRows = tl || [];
+      }
+      const worldPersonIds = unionWorldPersonIds(rsvpRows, pullupRows, timelineRows);
 
       // This node's own person record (drives "pulled up to"). Either the bare
       // person row, or the person linked to the account.
@@ -274,10 +290,14 @@ export function registerRoomRoutes(app) {
 
       // Build the "people in [name]'s world" list. Everyone is clickable into
       // their own room — accounts use their auth id, bare guests use their
-      // person id (both resolve at the top of this handler).
+      // person id (both resolve at the top of this handler). The list is a popup
+      // preview (max 300), so only the first slice of ids is fetched — a 1500+ id
+      // .in() would blow the request-URL limit. The COUNT below still uses the
+      // full set; only the rendered list is bounded.
       let people = [];
       if (worldPersonIds.length) {
-        const { data: pp } = await supabase.from("people").select("id, name, auth_user_id").in("id", worldPersonIds).limit(300);
+        const listIds = worldPersonIds.slice(0, 300);
+        const { data: pp } = await supabase.from("people").select("id, name, auth_user_id").in("id", listIds);
         people = (pp || [])
           .map((p) => ({ name: p.name || "Someone", roomId: p.auth_user_id || p.id }))
           .sort((a, b) => a.name.localeCompare(b.name));

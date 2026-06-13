@@ -92,7 +92,7 @@ export default function OwnDataWelcomeModal({
         {/* Footer */}
         {phase === "success" && (
           <button onClick={onClose} style={primaryBtn}>
-            See my data <ArrowRight size={16} />
+            Start filling your database <ArrowRight size={16} />
           </button>
         )}
         {phase === "error" && (

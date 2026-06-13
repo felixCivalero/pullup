@@ -48,25 +48,32 @@ export function EventAnalyticsPage() {
 
   const [story, setStory] = useState(undefined); // undefined=loading, null=failed
 
+  // The event nav (title + Room/Guests/Insights/Edit tabs) is driven by
+  // eventNav.myRole and is fetched FIRST, independently of the heavier story
+  // payload — so the menu bar lights up the moment the page mounts and stays
+  // up even if the story is slow or fails. Ownership/redirect is decided by
+  // the event fetch alone; a story 403 just shows an inline message (the host
+  // can still navigate away via the bar).
   useEffect(() => {
     if (!user || !id) return;
     let cancelled = false;
-    Promise.all([
-      authenticatedFetch(`/host/events/${id}`),
-      authenticatedFetch(`/host/events/${id}/story`),
-    ]).then(async ([eventRes, storyRes]) => {
-      if (cancelled) return;
-      // Not your event → graceful exit into the room they can see.
-      if (eventRes.status === 403 || storyRes.status === 403) {
-        navigate(`/events/${id}/room`, { replace: true });
-        return;
+    (async () => {
+      try {
+        const eventRes = await authenticatedFetch(`/host/events/${id}`);
+        if (cancelled) return;
+        // Not your event → graceful exit into the room they can see.
+        if (eventRes.status === 403) { navigate(`/events/${id}/room`, { replace: true }); return; }
+        if (eventRes.ok) {
+          const ev = await eventRes.json();
+          setEventNav({ title: ev.title, slug: ev.slug, status: ev.status, myRole: ev.myRole });
+        }
+        const storyRes = await authenticatedFetch(`/host/events/${id}/story`);
+        if (cancelled) return;
+        setStory(storyRes.ok ? await storyRes.json() : null);
+      } catch {
+        if (!cancelled) setStory(null);
       }
-      if (eventRes.ok) {
-        const ev = await eventRes.json();
-        setEventNav({ title: ev.title, slug: ev.slug, status: ev.status, myRole: ev.myRole });
-      }
-      setStory(storyRes.ok ? await storyRes.json() : null);
-    }).catch(() => { if (!cancelled) setStory(null); });
+    })();
     return () => { cancelled = true; };
   }, [user, id, navigate, setEventNav]);
 
@@ -405,9 +412,12 @@ function Empty({ children }) {
   );
 }
 
+// Loading/error states keep `page-with-header` so they sit BELOW the event
+// menu bar (rendered by ProtectedLayout), not under it — the bar stays
+// present and usable while the story loads or if it fails.
 function Center({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div className="page-with-header" style={{ minHeight: "60vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ fontSize: 13, color: colors.textFaded }}>{children}</div>
     </div>
   );

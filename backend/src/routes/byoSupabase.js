@@ -9,7 +9,7 @@
 // merging changes nothing in prod.
 
 import { requireAuth } from "../middleware/auth.js";
-import { byoEnabled } from "../config/byo.js";
+import { byoEnabled, byoOauthConfigured } from "../config/byo.js";
 import { hasEncryptionKey } from "../utils/encryption.js";
 import {
   getCreatorDatabase,
@@ -48,6 +48,7 @@ export function registerByoSupabaseRoutes(app) {
       return res.json({
         enabled: true,
         encryptionReady: hasEncryptionKey(),
+        oauthAvailable: byoOauthConfigured(),
         connected: !!db && db.status !== "revoked",
         db, // sanitized — never carries the key
       });

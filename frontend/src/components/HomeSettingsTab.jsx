@@ -16,6 +16,7 @@ import { SettingsWhatsappSection } from "./SettingsWhatsappSection.jsx";
 import { SettingsCommsSection } from "./SettingsCommsSection.jsx";
 import { SettingsMcpIntegration } from "./SettingsMcpIntegration.jsx";
 import { SettingsBillingSection } from "./SettingsBillingSection.jsx";
+import { SettingsOwnDataSection } from "./SettingsOwnDataSection.jsx";
 
 export function SettingsTab({ user, setUser, onSave, showToast }) {
   const navigate = useNavigate();
@@ -260,6 +261,10 @@ export function SettingsTab({ user, setUser, onSave, showToast }) {
       {/* PLAN & USAGE — the transaction layer's money mirror. Renders only
           when metering / payments v2 are live on this deployment. */}
       <SettingsBillingSection />
+
+      {/* OWN YOUR DATA — BYO Supabase connect/provision/mirror. Renders only
+          when BYO is enabled on this deployment. */}
+      <SettingsOwnDataSection />
 
       {/* PULLUP MCP */}
       <SettingsSection

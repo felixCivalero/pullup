@@ -19,3 +19,15 @@ function bool(v) {
 export function byoEnabled() {
   return bool(process.env.BYO_SUPABASE_ENABLED);
 }
+
+// The keyless "Connect with Supabase" OAuth path is available only once PullUp
+// is registered as a Supabase OAuth app (a one-time company setup). Until these
+// are set, the UI leads with the paste-a-key flow. (OAuth route impl is the
+// next increment; this gate lets the frontend forward-detect it.)
+export function byoOauthConfigured() {
+  return !!(
+    process.env.SUPABASE_OAUTH_CLIENT_ID &&
+    process.env.SUPABASE_OAUTH_CLIENT_SECRET &&
+    process.env.SUPABASE_OAUTH_REDIRECT_URI
+  );
+}

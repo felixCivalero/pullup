@@ -35,6 +35,7 @@ import { registerCrmViewRoutes } from "./routes/crmViews.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
 import { registerBillingRoutes } from "./routes/billing.js";
+import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerProfileRoutes } from "./routes/profile.js";
 import { registerEventImageRoutes } from "./routes/eventImages.js";
@@ -272,6 +273,10 @@ registerPaymentRoutes(app);
 registerPaymentsV2Routes(app);
 
 registerBillingRoutes(app);
+
+// BYO-Supabase (creator owns their data) — connect/status/disconnect spine.
+// Inert until BYO_SUPABASE_ENABLED flips.
+registerByoSupabaseRoutes(app);
 
 registerTokenRoutes(app);
 

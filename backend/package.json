@@ -11,7 +11,8 @@
     "test": "fail=0; for f in tests/*.test.js; do echo \"\\n--- $f ---\"; node \"$f\" || fail=1; done; exit $fail",
     "e2e": "node scripts/e2e-core-flows.mjs",
     "probes": "node scripts/verify-room-view.mjs && node scripts/verify-metrics.mjs && node scripts/verify-rsvp.mjs && node scripts/verify-publish.mjs",
-    "probe:payments": "node scripts/verify-payments-v2.mjs"
+    "probe:payments": "node scripts/verify-payments-v2.mjs",
+    "probe:byo": "node scripts/verify-byo-router.mjs"
   },
   "keywords": [],
   "author": "",

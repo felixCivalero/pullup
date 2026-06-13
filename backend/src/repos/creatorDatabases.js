@@ -90,6 +90,46 @@ export async function connectCreatorDatabase({ hostId, projectRef, dbUrl, servic
   return { db: mapSafe(data) };
 }
 
+// OAuth connect, phase 1: we hold the Management token + the freshly-created
+// project ref, but NOT the service key yet (fetched once the project is healthy).
+// Store with an empty service-key placeholder; attachServiceKey fills it before
+// the project ever goes live.
+export async function beginOauthConnection({ hostId, projectRef, dbUrl, mgmtToken }) {
+  if (!hostId || !projectRef || !dbUrl || !mgmtToken) return { error: "missing_fields" };
+  const { data, error } = await supabase
+    .from("creator_databases")
+    .upsert(
+      {
+        host_id: hostId,
+        provider: "supabase",
+        project_ref: projectRef,
+        db_url: dbUrl,
+        encrypted_service_key: "", // filled by attachServiceKey once project is up
+        encrypted_mgmt_token: encryptSecret(mgmtToken),
+        status: "provisioning",
+        system_of_record: false,
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "host_id" }
+    )
+    .select("*")
+    .single();
+  if (error) return { error: error.message };
+  return { db: mapSafe(data) };
+}
+
+// OAuth connect, phase 2: the project is healthy — store its service key.
+export async function attachServiceKey(hostId, serviceKey) {
+  if (!hostId || !serviceKey) return { error: "missing_fields" };
+  const { error } = await supabase
+    .from("creator_databases")
+    .update({ encrypted_service_key: encryptSecret(serviceKey), updated_at: new Date().toISOString() })
+    .eq("host_id", hostId);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
 export async function setCreatorDatabaseStatus(hostId, status, extra = {}) {
   const patch = { status, updated_at: new Date().toISOString(), ...extra };
   const { data, error } = await supabase

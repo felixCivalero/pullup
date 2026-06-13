@@ -40,6 +40,37 @@ export function SettingsOwnDataSection() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // After the OAuth bounce-back (or any 'provisioning' state), poll finalize:
+  // it returns ready once the creator's project is healthy + the schema is in.
+  useEffect(() => {
+    if (state?.db?.status !== "provisioning") return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await authenticatedFetch("/host/byo/oauth/finalize", { method: "POST" });
+        const b = await r.json().catch(() => ({}));
+        if (alive && b.ready) { await refresh(); }
+      } catch { /* keep polling */ }
+    };
+    const id = setInterval(tick, 6000);
+    tick();
+    return () => { alive = false; clearInterval(id); };
+  }, [state?.db?.status, refresh]);
+
+  async function startOauth() {
+    setBusy("oauth"); setMsg("");
+    try {
+      const r = await authenticatedFetch("/host/byo/oauth/start");
+      const b = await r.json().catch(() => ({}));
+      if (b.url) window.location.assign(b.url);
+      else setMsg(b.error || "Couldn't start Supabase connect");
+    } catch (e) {
+      setMsg(e?.message || "Couldn't start Supabase connect");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function act(label, run) {
     setBusy(label);
     setMsg("");
@@ -99,12 +130,9 @@ export function SettingsOwnDataSection() {
               Connect a Supabase project you own. We'll set up the structure and copy your world into it — events, people, RSVPs, your whole timeline.
             </p>
             {state.oauthAvailable && (
-              <a
-                href="/api/host/byo/oauth/start"
-                style={{ ...primaryBtn, display: "inline-block", textDecoration: "none", marginBottom: "14px" }}
-              >
-                Connect with Supabase
-              </a>
+              <button onClick={startOauth} disabled={busy} style={{ ...primaryBtn, marginBottom: "14px", opacity: busy ? 0.5 : 1 }}>
+                {busy === "oauth" ? "Opening Supabase…" : "Connect with Supabase"}
+              </button>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <Field label="Supabase project URL" placeholder="https://xxxx.supabase.co" value={form.dbUrl} onChange={(v) => setForm({ ...form, dbUrl: v })} />

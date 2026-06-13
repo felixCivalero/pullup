@@ -59,6 +59,40 @@ export async function pingProject(projectRef, token) {
   }
 }
 
+// ── Org + project lifecycle (the keyless OAuth flow) ───────────────────────
+
+// The user's organizations — we create the project in the first one.
+export async function listOrganizations(token) {
+  const orgs = await mgmtFetch(token, `/v1/organizations`);
+  return Array.isArray(orgs) ? orgs : [];
+}
+
+// Create a project in an org. Async on Supabase's side — born COMING_UP, then
+// ACTIVE_HEALTHY a minute or two later (poll getProject).
+export async function createProject(token, { orgId, name, region, dbPass }) {
+  return mgmtFetch(token, `/v1/projects`, {
+    method: "POST",
+    body: { organization_id: orgId, name, region, plan: "free", db_pass: dbPass },
+  });
+}
+
+// Project status. status === 'ACTIVE_HEALTHY' means it's ready to provision.
+export async function getProject(token, ref) {
+  return mgmtFetch(token, `/v1/projects/${ref}`);
+}
+
+// Fetch the project's service-role key — so the creator never pastes one.
+export async function getProjectServiceKey(token, ref) {
+  const keys = await mgmtFetch(token, `/v1/projects/${ref}/api-keys`);
+  const sr = (Array.isArray(keys) ? keys : []).find((k) => k.name === "service_role");
+  return sr?.api_key || null;
+}
+
+// Tear a project back down (test cleanup; or a creator abandoning setup).
+export async function deleteProject(token, ref) {
+  return mgmtFetch(token, `/v1/projects/${ref}`, { method: "DELETE" });
+}
+
 // The project's tier/usage → the base the 30% storage markup is taken on. The
 // Management API exposes subscription + usage endpoints; we surface a normalized
 // monthly-cost-cents figure for creator_billing_plans.storage_tier_cents. Best

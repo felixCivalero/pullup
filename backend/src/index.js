@@ -36,6 +36,7 @@ import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
 import { registerBillingRoutes } from "./routes/billing.js";
 import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
+import { registerByoOauthRoutes } from "./routes/byoOauth.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerProfileRoutes } from "./routes/profile.js";
 import { registerEventImageRoutes } from "./routes/eventImages.js";
@@ -277,6 +278,9 @@ registerBillingRoutes(app);
 // BYO-Supabase (creator owns their data) — connect/status/disconnect spine.
 // Inert until BYO_SUPABASE_ENABLED flips.
 registerByoSupabaseRoutes(app);
+
+// BYO keyless connect (Supabase OAuth) — inert until the OAuth app is configured.
+registerByoOauthRoutes(app);
 
 registerTokenRoutes(app);
 

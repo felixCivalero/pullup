@@ -20,7 +20,7 @@ import {
   genPkce, signState, verifyState, buildAuthorizeUrl, exchangeCode,
 } from "../services/byo/supabaseOauth.js";
 import {
-  listOrganizations, createProject, getProject, getProjectServiceKey, deleteProject,
+  listOrganizations, createOrganization, createProject, getProject, getProjectServiceKey, deleteProject,
 } from "../services/byo/managementApi.js";
 import {
   beginOauthConnection, attachServiceKey, getCreatorDatabaseWithKey,
@@ -59,8 +59,19 @@ export function registerByoOauthRoutes(app) {
       const mgmtToken = tokens.access_token;
 
       const orgs = await listOrganizations(mgmtToken);
-      if (!orgs.length) return back("noorg");
-      const orgId = orgs[0].id;
+      let orgId = orgs[0]?.id || null;
+      if (!orgId) {
+        // Brand-new Supabase user with no org yet (the "I don't have an account"
+        // path) — create their first org so setup completes in one shot. If the
+        // OAuth token isn't scoped to create orgs, fall back to a friendly notice.
+        try {
+          const org = await createOrganization(mgmtToken, { name: `pullup-${hostId.slice(0, 8)}` });
+          orgId = org?.id || null;
+        } catch (e) {
+          console.error("[byo oauth] org auto-create failed:", e?.message);
+        }
+      }
+      if (!orgId) return back("noorg");
 
       const dbPass = crypto.randomBytes(18).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
       const project = await createProject(mgmtToken, {

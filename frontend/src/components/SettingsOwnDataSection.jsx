@@ -29,7 +29,29 @@ export function SettingsOwnDataSection() {
   const [state, setState] = useState(null); // status payload
   const [busy, setBusy] = useState(null); // which action is running
   const [msg, setMsg] = useState("");
+  const [notice, setNotice] = useState(""); // friendly message from the OAuth bounce-back
   const [form, setForm] = useState({ dbUrl: "", serviceKey: "", mgmtToken: "" });
+
+  // The OAuth callback bounces back to /settings?byo=<code>. Surface a friendly
+  // message for the edge cases (so a brand-new user who hit the no-org/expired
+  // path sees what to do, not a silent no-op), then strip the param so a refresh
+  // doesn't replay it. The happy 'provisioning' path is driven by status polling.
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get("byo");
+      if (!code) return;
+      const MAP = {
+        noorg: "We couldn't find or set up a Supabase organization on your account. Create one free at supabase.com, then click Connect with Supabase again.",
+        badstate: "That connect link expired — please click Connect with Supabase again.",
+        error: "Something went wrong connecting to Supabase. Please try again.",
+      };
+      if (MAP[code]) setNotice(MAP[code]);
+      p.delete("byo");
+      const qs = p.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    } catch { /* */ }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -124,15 +146,24 @@ export function SettingsOwnDataSection() {
       </div>
 
       <div style={{ padding: "20px", background: colors.background, borderRadius: "12px", border: `1px solid ${colors.border}`, boxShadow: "0 8px 30px rgba(10,10,10,0.06)" }}>
+        {notice && <div style={{ ...errStyle, marginTop: 0, marginBottom: "16px" }}>{notice}</div>}
         {!connected ? (
           <>
             <p style={{ fontSize: "13px", color: colors.textMuted, marginBottom: "16px", lineHeight: 1.5 }}>
               Connect a Supabase project you own. We'll set up the structure and copy your world into it — events, people, RSVPs, your whole timeline.
             </p>
             {state.oauthAvailable && (
-              <button onClick={startOauth} disabled={busy} style={{ ...primaryBtn, marginBottom: "14px", opacity: busy ? 0.5 : 1 }}>
-                {busy === "oauth" ? "Opening Supabase…" : "Connect with Supabase"}
-              </button>
+              <>
+                <button onClick={startOauth} disabled={busy} style={{ ...primaryBtn, marginBottom: "6px", opacity: busy ? 0.5 : 1 }}>
+                  {busy === "oauth" ? "Opening Supabase…" : "Connect with Supabase"}
+                </button>
+                <p style={{ fontSize: "12px", color: colors.textMuted, margin: "0 0 16px", lineHeight: 1.5 }}>
+                  No Supabase account yet? You'll create one free in the same step — we set up the project and copy your data automatically. <strong>You stay the owner</strong>; we never see your password.
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "0 0 14px", color: colors.textFaded, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  <span style={{ flex: 1, height: 1, background: colors.border }} /> or paste a key <span style={{ flex: 1, height: 1, background: colors.border }} />
+                </div>
+              </>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <Field label="Supabase project URL" placeholder="https://xxxx.supabase.co" value={form.dbUrl} onChange={(v) => setForm({ ...form, dbUrl: v })} />
@@ -143,6 +174,13 @@ export function SettingsOwnDataSection() {
             <button onClick={connect} disabled={busy || !form.dbUrl || !form.serviceKey} style={{ ...primaryBtn, marginTop: "14px", opacity: busy || !form.dbUrl || !form.serviceKey ? 0.5 : 1 }}>
               {busy === "connect" ? "Connecting…" : "Connect"}
             </button>
+            <p style={{ fontSize: "12px", color: colors.textMuted, margin: "12px 0 0", lineHeight: 1.5 }}>
+              Don't have a project yet?{" "}
+              <a href="https://supabase.com/dashboard/sign-up" target="_blank" rel="noreferrer" style={{ color: colors.accent, fontWeight: 600 }}>
+                Create one free at supabase.com →
+              </a>{" "}
+              then come back and paste the URL + service role key.
+            </p>
           </>
         ) : (
           <>

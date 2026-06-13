@@ -67,6 +67,17 @@ export async function listOrganizations(token) {
   return Array.isArray(orgs) ? orgs : [];
 }
 
+// Create the user's first organization. Best-effort recovery for the rare
+// brand-new Supabase account that authorizes with zero orgs — so the "I don't
+// have an account yet" path can complete in one shot instead of dead-ending.
+// Returns the org (with .id) or throws (caller falls back to a friendly notice).
+export async function createOrganization(token, { name }) {
+  return mgmtFetch(token, `/v1/organizations`, {
+    method: "POST",
+    body: { name },
+  });
+}
+
 // Create a project in an org. Async on Supabase's side — born COMING_UP, then
 // ACTIVE_HEALTHY a minute or two later (poll getProject).
 export async function createProject(token, { orgId, name, region, dbPass }) {

@@ -504,6 +504,38 @@ export async function uploadEventImageDirect({ eventId, file, onProgress, signal
 }
 
 /**
+ * Community cover upload — same signed direct-to-Supabase pipeline as the event
+ * cover, pointed at the host's single community. Returns the host community
+ * payload (incl. coverImageUrl).
+ */
+export async function uploadCommunityCoverDirect({ file, onProgress, signal }) {
+  const { blob, mimeType } = await processImageForUpload(file);
+
+  const tokenRes = await authenticatedFetch(`/host/community/cover-token`, {
+    method: "POST",
+    body: JSON.stringify({ mimeType }),
+  });
+  if (!tokenRes.ok) {
+    const err = await tokenRes.json().catch(() => ({}));
+    throw new Error(err.error || "Could not get upload URL");
+  }
+  const { path, uploadUrl } = await tokenRes.json();
+
+  await uploadBlobToSignedUrl({ url: uploadUrl, blob, mimeType, onProgress, signal });
+
+  const res = await authenticatedFetch(`/host/community/cover`, {
+    method: "POST",
+    body: JSON.stringify({ storagePath: path }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to save cover");
+  }
+  if (onProgress) onProgress(100);
+  return await res.json();
+}
+
+/**
  * Compress and resize an image file
  * @param {File} file - Image file to compress
  * @param {number} maxWidth - Maximum width (default: 1200)

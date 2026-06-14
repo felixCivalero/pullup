@@ -30,6 +30,11 @@ function shareUrl(slug) {
   return `${APP_BASE_URL.replace(/\/$/, "")}/c/${slug}`;
 }
 
+function extFromMime(m) {
+  const map = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/avif": "avif" };
+  return map[(m || "").toLowerCase()] || "jpg";
+}
+
 // What the host sees when managing their community.
 async function hostPayload(community) {
   const summary = community ? await getCommunityMemberSummary(community.id, { recent: 12 }) : { total: 0, recentMembers: [] };
@@ -64,13 +69,14 @@ export function registerCommunityRoutes(app) {
       const profile = await getUserProfile(req.user.id).catch(() => null);
       await ensureCommunityForHost(req.user.id, { hostName: profile?.name || profile?.brand || null });
 
-      const { title, blurb, brand, enabled, slug } = req.body || {};
+      const { title, blurb, brand, enabled, slug, coverImageUrl } = req.body || {};
       const fields = {};
       if (title !== undefined) fields.title = title;
       if (blurb !== undefined) fields.blurb = blurb;
       if (brand !== undefined) fields.brand = brand;
       if (enabled !== undefined) fields.enabled = !!enabled;
       if (slug !== undefined) fields.slug = slug;
+      if (coverImageUrl !== undefined) fields.coverImageUrl = coverImageUrl;
 
       const result = await updateCommunityForHost(req.user.id, fields);
       if (result?.error === "slug_taken") return res.status(409).json({ error: "slug_taken" });
@@ -78,6 +84,45 @@ export function registerCommunityRoutes(app) {
       res.json(await hostPayload(result));
     } catch (err) {
       logger?.error?.("[PUT /host/community] error", { error: err?.message });
+      res.status(500).json({ error: "failed" });
+    }
+  });
+
+  // ── Host: cover image — mint a signed direct-to-Supabase upload URL ───────
+  // (mirrors the event cover pipeline; reuses the event-images bucket).
+  app.post("/host/community/cover-token", requireAuth, async (req, res) => {
+    try {
+      const profile = await getUserProfile(req.user.id).catch(() => null);
+      const community = await ensureCommunityForHost(req.user.id, { hostName: profile?.name || profile?.brand || null });
+      if (!community) return res.status(500).json({ error: "community_unavailable" });
+
+      const ext = extFromMime(req.body?.mimeType);
+      const path = `community/${community.id}/cover_${Date.now()}.${ext}`;
+      const { supabase } = await import("../supabase.js");
+      const { data, error } = await supabase.storage.from("event-images").createSignedUploadUrl(path);
+      if (error || !data) {
+        logger?.error?.("[community cover-token] failed", { error: error?.message });
+        return res.status(500).json({ error: "Could not mint upload URL" });
+      }
+      res.json({ path, token: data.token, uploadUrl: data.signedUrl });
+    } catch (err) {
+      logger?.error?.("[POST /host/community/cover-token] error", { error: err?.message });
+      res.status(500).json({ error: "failed" });
+    }
+  });
+
+  // ── Host: cover image — finalize (resolve public URL + save on community) ──
+  app.post("/host/community/cover", requireAuth, async (req, res) => {
+    try {
+      const { storagePath } = req.body || {};
+      if (!storagePath || typeof storagePath !== "string") return res.status(400).json({ error: "missing_path" });
+      const { supabase } = await import("../supabase.js");
+      const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(storagePath);
+      const result = await updateCommunityForHost(req.user.id, { coverImageUrl: publicUrl });
+      if (result?.error) return res.status(500).json({ error: result.error });
+      res.json(await hostPayload(result));
+    } catch (err) {
+      logger?.error?.("[POST /host/community/cover] error", { error: err?.message });
       res.status(500).json({ error: "failed" });
     }
   });
@@ -97,6 +142,7 @@ export function registerCommunityRoutes(app) {
         title: community.title,
         blurb: community.blurb,
         brand: community.brand || null,
+        coverImageUrl: community.coverImageUrl || null,
         host: {
           name: host?.name || host?.brand || null,
           brand: host?.brand || null,

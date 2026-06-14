@@ -38,6 +38,7 @@ export function mapCommunityFromDb(row) {
     title: row.title || null,
     blurb: row.blurb || null,
     brand: row.brand || null,
+    coverImageUrl: row.cover_image_url || null,
     enabled: row.enabled !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -102,18 +103,20 @@ export async function ensureCommunityForHost(hostId, { hostName = null } = {}) {
   return getCommunityByHostId(hostId);
 }
 
-const EDITABLE = new Set(["title", "blurb", "brand", "enabled", "slug"]);
+// Maps a camelCase input field → its db column. Anything not here is ignored.
+const EDITABLE = { title: "title", blurb: "blurb", brand: "brand", enabled: "enabled", slug: "slug", coverImageUrl: "cover_image_url" };
 
 export async function updateCommunityForHost(hostId, fields = {}) {
   const patch = {};
   for (const [k, v] of Object.entries(fields)) {
-    if (!EDITABLE.has(k)) continue;
+    const col = EDITABLE[k];
+    if (!col) continue;
     if (k === "slug") {
       const s = slugify(v);
       if (s) patch.slug = s;
       continue;
     }
-    patch[k] = v;
+    patch[col] = v;
   }
   if (!Object.keys(patch).length) return getCommunityByHostId(hostId);
   patch.updated_at = new Date().toISOString();

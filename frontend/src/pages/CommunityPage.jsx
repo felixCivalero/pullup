@@ -64,7 +64,10 @@ function Proof({ count, faces }) {
 // ── Presentational shell (no data fetching) — used by the public page AND the
 // host editor's live preview. With a cover it's a full-bleed image landing
 // (like an event page); without one it falls back to the centered eyes layout.
-export function CommunityView({ community, joinSlot, fill = false }) {
+//
+// onEditPart (editor-only): click a region to open its panel —
+// onEditPart({ kind: "cover" | "details" }).
+export function CommunityView({ community, joinSlot, fill = false, onEditPart = null }) {
   const c = community || {};
   const { fontName, vars } = useMemo(() => brandVars(c.brand), [c.brand]);
   useEffect(() => { loadFont(fontName); }, [fontName]);
@@ -74,6 +77,8 @@ export function CommunityView({ community, joinSlot, fill = false }) {
   const faces = (c.recentMembers || []).slice(0, 5);
   const cover = c.coverImageUrl || null;
   const title = c.title || "Join the community";
+  const edit = (kind) => (e) => { e?.stopPropagation?.(); onEditPart?.({ kind }); };
+  const editable = !!onEditPart;
 
   return (
     <div style={{ ...vars, minHeight: fill ? "100%" : "100dvh", background: "var(--bg)", color: "var(--ink)", fontFamily: "var(--font)" }}>
@@ -83,9 +88,10 @@ export function CommunityView({ community, joinSlot, fill = false }) {
         <>
           {/* Full-bleed image landing — the cover IS the first screen, with the
               identity overlaid at the bottom over a gradient. */}
-          <div className="cm-hero" style={{ backgroundImage: `url(${cover})` }}>
+          <div className={`cm-hero${editable ? " cm-editable" : ""}`} style={{ backgroundImage: `url(${cover})` }} onClick={editable ? edit("cover") : undefined}>
             <div className="cm-hero-grad" />
-            <div className="cm-hero-content">
+            {editable && <button type="button" className="cm-editbtn cm-editbtn--cover" onClick={edit("cover")}>✎ Cover</button>}
+            <div className={`cm-hero-content${editable ? " cm-editable" : ""}`} onClick={editable ? edit("details") : undefined}>
               {c.host?.avatarUrl && <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-hero-av" />}
               {hostName && <p className="cm-eyebrow">{hostName}'s community</p>}
               <h1 className="cm-title">{title}</h1>
@@ -97,7 +103,7 @@ export function CommunityView({ community, joinSlot, fill = false }) {
         </>
       ) : (
         <div className="cm-wrap">
-          <div className="cm-head">
+          <div className={`cm-head${editable ? " cm-editable" : ""}`} onClick={editable ? edit("details") : undefined}>
             {c.host?.avatarUrl
               ? <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-host-av" />
               : <PullupEyes variant="big" className="cm-eyes" />}
@@ -105,6 +111,7 @@ export function CommunityView({ community, joinSlot, fill = false }) {
             <h1 className="cm-title">{title}</h1>
             {c.blurb && <p className="cm-blurb">{c.blurb}</p>}
             <Proof count={count} faces={faces} />
+            {editable && <button type="button" className="cm-editbtn cm-editbtn--add" onClick={edit("cover")}>✎ Add a cover image</button>}
           </div>
           {joinSlot}
         </div>
@@ -240,6 +247,16 @@ const STYLES = `
   .cm-hero-content { position: relative; z-index: 1; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 22px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
   .cm-hero-av { width: 60px; height: 60px; border-radius: 999px; object-fit: cover; border: 3px solid var(--bg); }
   .cm-body { max-width: 460px; margin: 0 auto; padding: 22px 22px 56px; }
+
+  /* Editor-only click affordances */
+  .cm-editable { cursor: pointer; }
+  .cm-hero.cm-editable:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 70%, transparent); }
+  .cm-hero-content.cm-editable:hover, .cm-head.cm-editable:hover { outline: 2px dashed color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: 6px; border-radius: 12px; }
+  .cm-editbtn { position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 5px; border: none; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 999px;
+    background: var(--primary); color: var(--ink-on-primary); }
+  .cm-editbtn--cover { top: 14px; right: 14px; }
+  .cm-editbtn--add { position: static; margin-top: 10px; background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); }
 
   .cm-wrap { max-width: 460px; margin: 0 auto; padding: clamp(40px, 8vh, 88px) 22px 56px; display: flex; flex-direction: column; gap: 30px; }
   .cm-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }

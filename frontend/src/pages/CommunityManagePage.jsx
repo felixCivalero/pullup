@@ -1,37 +1,65 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Check, Users, ExternalLink, ImagePlus, Loader2, Smartphone, Monitor } from "lucide-react";
+import {
+  Image as ImageIcon, Type, Palette, Share2, X,
+  Copy, Check, Users, ExternalLink, ImagePlus, Loader2, Smartphone, Monitor,
+} from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { uploadCommunityCoverDirect } from "../lib/imageUtils.js";
 import { BrandThemeEditor } from "../components/BrandThemeEditor.jsx";
 import { CommunityView, CommunityJoinPreview } from "./CommunityPage.jsx";
+import { colors } from "../theme/colors.js";
 
 // ════════════════════════════════════════════════════════════════════════
-// CommunityManagePage — the community editor, preview-first like the event
-// editor. The host edits on the left; the right shows the REAL community page
-// (/c/:slug) rendered live from the same component guests see. Copy + controls
-// are community-shaped: a cover, a name, the pitch, the theme, the share link,
-// and the member count.
+// CommunityManagePage — the community editor, built on the SAME shell as the
+// event editor (CreateEventPage): a 58px parts rail + a floating editor panel
+// that slides over a live preview, with click-the-preview-to-edit. It just has
+// fewer parts, because a community has fewer options than an event.
 // ════════════════════════════════════════════════════════════════════════
 
-const PINK = "#ec178f";
-const INK = "#0a0a0a";
+const PINK = colors.accent;
+
+const RAIL_GROUPS = [
+  {
+    group: "Community",
+    items: [
+      { id: "cover", label: "Cover", icon: ImageIcon },
+      { id: "details", label: "Details", icon: Type },
+      { id: "theme", label: "Theme", icon: Palette },
+      { id: "share", label: "Share", icon: Share2 },
+    ],
+  },
+];
+const RAIL_ITEMS = RAIL_GROUPS.flatMap((g) => g.items);
+const PART_FROM_KIND = { cover: "cover", details: "details" };
 
 export function CommunityManagePage() {
   const [community, setCommunity] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Editable fields (live, drive the preview).
+
+  // Editable fields (live → drive the preview).
   const [title, setTitle] = useState("");
   const [blurb, setBlurb] = useState("");
   const [brand, setBrand] = useState(null);
   const [coverImageUrl, setCoverImageUrl] = useState(null);
 
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const [coverPct, setCoverPct] = useState(null); // upload progress, null = idle
-  const [previewMode, setPreviewMode] = useState("phone"); // "phone" | "desktop"
+  const [coverPct, setCoverPct] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
+
+  const isDesktopEditor0 = typeof window !== "undefined" && window.innerWidth >= 969;
+  const [isDesktopEditor, setIsDesktopEditor] = useState(isDesktopEditor0);
+  const [pinnedPartId, setPinnedPartId] = useState(isDesktopEditor0 ? null : "details");
+  const [previewMode, setPreviewMode] = useState("phone");
+
+  const railNavRef = useRef(null);
+  const panelRef = useRef(null);
   const fileRef = useRef(null);
+  const saveTimer = useRef(null);
+  const savingRef = useRef(false);
+
+  const openPartId = pinnedPartId;
+  const panelOpen = !!openPartId;
 
   const hydrate = (data) => {
     setCommunity(data);
@@ -58,30 +86,64 @@ export function CommunityManagePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const dirty = community && (
-    title.trim() !== (community.title || "") ||
-    blurb.trim() !== (community.blurb || "") ||
-    JSON.stringify(brand || null) !== JSON.stringify(community.brand || null)
-  );
+  // Track desktop/mobile so the panel floats (desktop) vs sits in-flow (mobile).
+  useEffect(() => {
+    const onResize = () => {
+      const d = window.innerWidth >= 969;
+      setIsDesktopEditor(d);
+      setPinnedPartId((cur) => (!d && !cur ? "details" : cur));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
-  const save = async () => {
-    if (saving) return;
-    setSaving(true);
-    setError("");
+  // Click outside the rail/panel closes it (desktop only — mobile is in-flow).
+  useEffect(() => {
+    if (!pinnedPartId || !isDesktopEditor) return;
+    const onDown = (e) => {
+      if (railNavRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      setPinnedPartId(null);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [pinnedPartId, isDesktopEditor]);
+
+  const doSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaveState("saving");
     try {
       const res = await authenticatedFetch("/host/community", {
         method: "PUT",
         body: JSON.stringify({ title: title.trim(), blurb: blurb.trim(), brand: brand || null }),
       });
       if (!res.ok) throw new Error("save_failed");
-      hydrate(await res.json());
-      setSavedAt(Date.now());
+      const data = await res.json();
+      setCommunity(data); // sync saved baseline (don't re-hydrate inputs mid-typing)
+      setSaveState("saved");
+      setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1600);
     } catch {
-      setError("Couldn't save. Try again.");
+      setError("Couldn't save. Retrying on your next change.");
+      setSaveState("idle");
     } finally {
-      setSaving(false);
+      savingRef.current = false;
     }
   };
+
+  // Debounced autosave on edits — feels like the event editor (draft persists
+  // as you go), no Save button.
+  useEffect(() => {
+    if (!community) return;
+    const dirty =
+      title.trim() !== (community.title || "") ||
+      blurb.trim() !== (community.blurb || "") ||
+      JSON.stringify(brand || null) !== JSON.stringify(community.brand || null);
+    if (!dirty) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(doSave, 700);
+    return () => clearTimeout(saveTimer.current);
+  }, [title, blurb, brand]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPickCover = async (e) => {
     const file = e.target.files?.[0];
@@ -91,7 +153,7 @@ export function CommunityManagePage() {
     setCoverPct(0);
     try {
       const payload = await uploadCommunityCoverDirect({ file, onProgress: (p) => setCoverPct(Math.round(p)) });
-      hydrate(payload); // payload is the host community (incl. new coverImageUrl + counts)
+      hydrate(payload);
     } catch {
       setError("Cover upload failed. Try a different image.");
     } finally {
@@ -105,120 +167,143 @@ export function CommunityManagePage() {
       await navigator.clipboard.writeText(community.shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
-    } catch { /* clipboard blocked — field is selectable */ }
+    } catch { /* clipboard blocked */ }
   };
 
-  // The live object the preview renders — current edits over the loaded payload.
-  const preview = useMemo(() => ({
-    ...(community || {}),
-    title, blurb, brand, coverImageUrl,
-  }), [community, title, blurb, brand, coverImageUrl]);
+  const handleEditPart = (part) => {
+    const id = PART_FROM_KIND[part?.kind];
+    if (id) setPinnedPartId(id);
+  };
 
-  if (loading) return <div className="cme"><style>{STYLES}</style></div>;
+  const preview = useMemo(() => ({ ...(community || {}), title, blurb, brand, coverImageUrl }),
+    [community, title, blurb, brand, coverImageUrl]);
+
+  if (loading) {
+    return <div className="page-with-header create-event-page"><style>{STYLES}</style><div style={{ minHeight: "50vh" }} /></div>;
+  }
 
   return (
-    <div className="cme">
+    <div className="page-with-header create-event-page">
       <style>{STYLES}</style>
+      <div className="create-event-layout" style={{ position: "relative", height: "calc(100dvh - 56px)" }}>
+        <div className="create-event-grid" style={{ display: "flex", height: "100%" }}>
 
-      {/* ── Controls ── */}
-      <div className="cme-controls">
-        <header className="cme-head">
-          <p className="cme-kicker">Your community</p>
-          <h1 className="cme-h1">The front door to your world.</h1>
-          <p className="cme-sub">One link. People who join become part of your world — reachable on every channel, pulled into your events. This is exactly what they'll see.</p>
-        </header>
+          {/* ── Sidebar: 58px rail + floating panel ── */}
+          <div className="create-event-sidebar" style={{ position: "relative", width: 58, minWidth: 58, height: "100%", overflow: "visible", background: colors.background, display: "flex", flexDirection: "row" }}>
+            <nav ref={railNavRef} className="create-event-parts-rail"
+              style={{ width: 58, minWidth: 58, flexShrink: 0, height: "100%", overflowY: "auto", borderRight: `1px solid ${colors.border}`, background: colors.backgroundOverlay, padding: "14px 0", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              {RAIL_GROUPS.map((grp) => (
+                <div key={grp.group} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: "100%" }}>
+                  {grp.items.map((it) => {
+                    const active = openPartId === it.id;
+                    const Icon = it.icon;
+                    return (
+                      <button key={it.id} type="button" title={it.label} aria-label={it.label}
+                        onClick={() => setPinnedPartId((cur) => (cur === it.id ? (isDesktopEditor ? null : cur) : it.id))}
+                        style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 11, border: `1px solid ${active ? colors.accentBorder : "transparent"}`, cursor: "pointer", background: active ? colors.accentSoft : "transparent", color: active ? colors.accent : colors.textMuted, transition: "background 0.15s, color 0.15s, border-color 0.15s" }}>
+                        <Icon size={20} style={{ opacity: active ? 1 : 0.8 }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
 
-        {error && <p className="cme-error">{error}</p>}
-
-        {/* Share + members */}
-        <section className="cme-card cme-card--accent">
-          <div className="cme-count">
-            <Users size={18} />
-            <span><strong>{(community?.memberCount || 0).toLocaleString()}</strong> {community?.memberCount === 1 ? "member" : "members"}</span>
-          </div>
-          <div className="cme-share">
-            <input className="cme-link" readOnly value={community?.shareUrl || ""} onFocus={(e) => e.target.select()} />
-            <button type="button" className="cme-copy" onClick={copyLink}>
-              {copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}
-            </button>
-          </div>
-          {community?.slug && (
-            <a className="cme-open" href={`/c/${community.slug}`} target="_blank" rel="noopener noreferrer">
-              Open the live page <ExternalLink size={13} />
-            </a>
-          )}
-        </section>
-
-        {/* Cover */}
-        <section className="cme-card">
-          <p className="cme-label">Cover</p>
-          <button type="button" className="cme-cover-btn" onClick={() => fileRef.current?.click()} disabled={coverPct !== null}
-            style={coverImageUrl ? { backgroundImage: `url(${coverImageUrl})` } : undefined}>
-            {coverPct !== null ? (
-              <span className="cme-cover-ph"><Loader2 size={18} className="cme-spin" /> Uploading… {coverPct}%</span>
-            ) : coverImageUrl ? (
-              <span className="cme-cover-replace">Change cover</span>
-            ) : (
-              <span className="cme-cover-ph"><ImagePlus size={18} /> Add a cover image</span>
-            )}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickCover} />
-        </section>
-
-        {/* Name + pitch */}
-        <section className="cme-card">
-          <p className="cme-label">Name</p>
-          <input className="cme-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. The Nairobi crew" />
-          <p className="cme-label" style={{ marginTop: 16 }}>The pitch</p>
-          <textarea className="cme-input cme-textarea" value={blurb} onChange={(e) => setBlurb(e.target.value)} rows={4}
-            placeholder="What is this community, and what do people get for joining? Keep it short and real." />
-        </section>
-
-        {/* Theme */}
-        <section className="cme-card">
-          <p className="cme-label">Theme</p>
-          <p className="cme-hint">Make the page yours — background, join button, font. It updates in the preview as you go.</p>
-          <BrandThemeEditor value={brand} onChange={setBrand} />
-        </section>
-
-        <div className="cme-actions">
-          {savedAt > 0 && !dirty && <span className="cme-saved">Saved</span>}
-          <button type="button" className="cme-save" onClick={save} disabled={saving || !dirty}>
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Live preview (the real page) ── */}
-      <div className="cme-preview">
-        <div className="cme-toggle">
-          <button type="button" className={`cme-tog${previewMode === "phone" ? " is-on" : ""}`} onClick={() => setPreviewMode("phone")}>
-            <Smartphone size={13} /> Phone
-          </button>
-          <button type="button" className={`cme-tog${previewMode === "desktop" ? " is-on" : ""}`} onClick={() => setPreviewMode("desktop")}>
-            <Monitor size={13} /> Desktop
-          </button>
-        </div>
-
-        <div className={`cme-frame cme-frame--${previewMode}`}>
-          {previewMode === "phone" ? (
-            <div className="cme-chrome-phone">
-              <div className="cme-statusbar">
-                <span className="cme-clock">9:41</span>
-                <span className="cme-notch" />
-                <span className="cme-batt" />
+            <div ref={panelRef}
+              style={isDesktopEditor ? {
+                position: "absolute", left: 58, top: 0, bottom: 0, width: 418, zIndex: 35,
+                background: colors.background, borderRight: `1px solid ${colors.border}`,
+                display: "flex", flexDirection: "column",
+                transform: panelOpen ? "translateX(0)" : "translateX(-14px)",
+                opacity: panelOpen ? 1 : 0, pointerEvents: panelOpen ? "auto" : "none",
+                boxShadow: panelOpen ? "10px 0 34px rgba(10,10,10,0.12)" : "none",
+                transition: "transform 0.22s cubic-bezier(0.22,1,0.36,1), opacity 0.16s ease, box-shadow 0.22s ease",
+              } : { flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+              {/* header */}
+              <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 12px 10px 20px", borderBottom: `1px solid ${colors.border}` }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{RAIL_ITEMS.find((i) => i.id === openPartId)?.label || "Edit"}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: saveState === "saved" ? "#16a34a" : colors.textSubtle, minWidth: 44, textAlign: "right" }}>
+                    {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
+                  </span>
+                  {isDesktopEditor && (
+                    <button type="button" onClick={() => setPinnedPartId(null)} aria-label="Close" style={{ display: "inline-flex", width: 30, height: 30, borderRadius: 8, border: "none", background: "transparent", color: colors.textSubtle, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
+                      <X size={17} />
+                    </button>
+                  )}
+                </span>
               </div>
-              <div className="cme-urlbar"><span>pullup.se/c/{community?.slug || "your-community"}</span></div>
+              {/* content */}
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 22 }}>
+                {error && <p className="ce-err">{error}</p>}
+
+                {openPartId === "cover" && (
+                  <>
+                    <p className="ce-hint">A full-screen image is the first thing people see — make it count.</p>
+                    <button type="button" className="ce-cover" onClick={() => fileRef.current?.click()} disabled={coverPct !== null}
+                      style={coverImageUrl ? { backgroundImage: `url(${coverImageUrl})` } : undefined}>
+                      {coverPct !== null ? <span className="ce-cover-ph"><Loader2 size={18} className="ce-spin" /> Uploading… {coverPct}%</span>
+                        : coverImageUrl ? <span className="ce-cover-replace">Change cover</span>
+                        : <span className="ce-cover-ph"><ImagePlus size={18} /> Add a cover image</span>}
+                    </button>
+                    <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickCover} />
+                  </>
+                )}
+
+                {openPartId === "details" && (
+                  <>
+                    <p className="ce-label">Name</p>
+                    <input className="ce-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. The Nairobi crew" />
+                    <p className="ce-label" style={{ marginTop: 16 }}>The pitch</p>
+                    <textarea className="ce-input ce-textarea" value={blurb} onChange={(e) => setBlurb(e.target.value)} rows={5}
+                      placeholder="What is this community, and what do people get for joining? Keep it short and real." />
+                  </>
+                )}
+
+                {openPartId === "theme" && (
+                  <>
+                    <p className="ce-hint">Background, join button, font. The preview updates as you go.</p>
+                    <BrandThemeEditor value={brand} onChange={setBrand} />
+                  </>
+                )}
+
+                {openPartId === "share" && (
+                  <>
+                    <div className="ce-count"><Users size={18} /><span><strong>{(community?.memberCount || 0).toLocaleString()}</strong> {community?.memberCount === 1 ? "member" : "members"}</span></div>
+                    <p className="ce-label" style={{ marginTop: 16 }}>Your link</p>
+                    <div className="ce-share">
+                      <input className="ce-input ce-link" readOnly value={community?.shareUrl || ""} onFocus={(e) => e.target.select()} />
+                      <button type="button" className="ce-copy" onClick={copyLink}>{copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}</button>
+                    </div>
+                    {community?.slug && <a className="ce-open" href={`/c/${community.slug}`} target="_blank" rel="noopener noreferrer">Open the live page <ExternalLink size={13} /></a>}
+                    <p className="ce-hint" style={{ marginTop: 16 }}>Drop this link where your people already are. See and filter who joins in your Room.</p>
+                  </>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="cme-chrome-desktop">
-              <span className="cme-dot" /><span className="cme-dot" /><span className="cme-dot" />
-              <div className="cme-urlpill">pullup.se/c/{community?.slug || "your-community"}</div>
-            </div>
-          )}
-          <div className="cme-frame-scroll">
-            <CommunityView community={preview} joinSlot={<CommunityJoinPreview />} fill />
           </div>
+
+          {/* ── Preview stage ── */}
+          <div className="create-event-preview-desktop" style={{ flex: 1, height: "100%", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0d0b12" }}>
+            <div className="cme-toggle">
+              <button type="button" className={`cme-tog${previewMode === "phone" ? " is-on" : ""}`} onClick={() => setPreviewMode("phone")}><Smartphone size={13} /> Phone</button>
+              <button type="button" className={`cme-tog${previewMode === "desktop" ? " is-on" : ""}`} onClick={() => setPreviewMode("desktop")}><Monitor size={13} /> Desktop</button>
+            </div>
+            <div className={`cme-frame cme-frame--${previewMode}`}>
+              {previewMode === "phone" ? (
+                <div className="cme-chrome-phone">
+                  <div className="cme-statusbar"><span className="cme-clock">9:41</span><span className="cme-notch" /><span className="cme-batt" /></div>
+                  <div className="cme-urlbar"><span>pullup.se/c/{community?.slug || "your-community"}</span></div>
+                </div>
+              ) : (
+                <div className="cme-chrome-desktop"><span className="cme-dot" /><span className="cme-dot" /><span className="cme-dot" /><div className="cme-urlpill">pullup.se/c/{community?.slug || "your-community"}</div></div>
+              )}
+              <div className="cme-frame-scroll">
+                <CommunityView community={preview} joinSlot={<CommunityJoinPreview />} fill onEditPart={handleEditPart} />
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -226,60 +311,40 @@ export function CommunityManagePage() {
 }
 
 const STYLES = `
-  .cme { display: grid; grid-template-columns: minmax(0, 460px) 1fr; gap: 0; min-height: 100%; }
-  .cme-controls { padding: clamp(20px, 3vw, 36px) clamp(16px, 3vw, 32px) 100px; color: ${INK}; overflow-y: auto; }
-  .cme-head { margin-bottom: 20px; }
-  .cme-kicker { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(10,10,10,0.42); }
-  .cme-h1 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 30px); font-weight: 850; letter-spacing: -0.03em; line-height: 1.08; }
-  .cme-sub { margin: 0; font-size: 14.5px; line-height: 1.55; color: rgba(10,10,10,0.6); }
-  .cme-error { margin: 0 0 14px; font-size: 13.5px; color: #c0392b; }
+  .ce-err { margin: 0 0 14px; font-size: 13px; color: #c0392b; }
+  .ce-label { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(10,10,10,0.5); }
+  .ce-hint { margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; color: rgba(10,10,10,0.5); }
+  .ce-input { width: 100%; box-sizing: border-box; padding: 13px 14px; border-radius: 12px; border: 1px solid rgba(10,10,10,0.16); background: #fff; color: #0a0a0a; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.16s, box-shadow 0.16s; }
+  .ce-input:focus { border-color: ${PINK}; box-shadow: 0 0 0 3px rgba(236,23,143,0.14); }
+  .ce-textarea { resize: vertical; line-height: 1.5; }
 
-  .cme-card { background: #fff; border: 1px solid rgba(10,10,10,0.1); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
-  .cme-card--accent { border-color: rgba(236,23,143,0.25); background: linear-gradient(180deg, rgba(236,23,143,0.04), #fff 60%); }
-  .cme-label { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(10,10,10,0.5); }
-  .cme-hint { margin: -2px 0 12px; font-size: 12.5px; line-height: 1.45; color: rgba(10,10,10,0.5); }
+  .ce-cover { width: 100%; height: 150px; border-radius: 13px; cursor: pointer; border: 1px dashed rgba(10,10,10,0.22); background-color: rgba(10,10,10,0.03); background-size: cover; background-position: center; display: flex; align-items: flex-end; justify-content: center; padding: 12px; font-family: inherit; transition: border-color 0.16s; overflow: hidden; }
+  .ce-cover:hover { border-color: ${PINK}; }
+  .ce-cover-ph { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: rgba(10,10,10,0.6); }
+  .ce-cover-replace { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 999px; }
+  .ce-spin { animation: ce-spin 0.9s linear infinite; }
+  @keyframes ce-spin { to { transform: rotate(360deg); } }
 
-  .cme-count { display: flex; align-items: center; gap: 10px; color: ${PINK}; font-size: 14.5px; margin-bottom: 14px; }
-  .cme-count strong { color: ${INK}; font-size: 19px; font-weight: 850; }
-  .cme-share { display: flex; gap: 8px; }
-  .cme-link { flex: 1; min-width: 0; padding: 11px 13px; border-radius: 11px; border: 1px solid rgba(10,10,10,0.16); background: #fff; font-size: 13.5px; font-family: inherit; color: ${INK}; outline: none; }
-  .cme-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 15px; border-radius: 11px; border: none; background: ${PINK}; color: #fff; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-  .cme-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; font-size: 13px; color: rgba(10,10,10,0.55); text-decoration: none; }
-  .cme-open:hover { color: ${PINK}; }
+  .ce-count { display: flex; align-items: center; gap: 10px; color: ${PINK}; font-size: 15px; }
+  .ce-count strong { color: #0a0a0a; font-size: 20px; font-weight: 850; }
+  .ce-share { display: flex; gap: 8px; }
+  .ce-link { flex: 1; min-width: 0; font-size: 13.5px; }
+  .ce-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 15px; border-radius: 11px; border: none; background: ${PINK}; color: #fff; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .ce-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; font-size: 13px; color: rgba(10,10,10,0.55); text-decoration: none; }
+  .ce-open:hover { color: ${PINK}; }
 
-  .cme-cover-btn { width: 100%; height: 132px; border-radius: 13px; cursor: pointer; border: 1px dashed rgba(10,10,10,0.22);
-    background-color: rgba(10,10,10,0.03); background-size: cover; background-position: center; color: rgba(10,10,10,0.55);
-    display: flex; align-items: flex-end; justify-content: center; padding: 12px; font-family: inherit; transition: border-color 0.16s; position: relative; overflow: hidden; }
-  .cme-cover-btn:hover { border-color: ${PINK}; }
-  .cme-cover-btn:disabled { cursor: default; }
-  .cme-cover-ph { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: rgba(10,10,10,0.6); }
-  .cme-cover-replace { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 999px; }
-  .cme-spin { animation: cme-spin 0.9s linear infinite; }
-  @keyframes cme-spin { to { transform: rotate(360deg); } }
+  /* Preview stage — device toggle + framed chrome (on the dark stage) */
+  .cme-toggle { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 20; display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,0.10); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.14); }
+  .cme-tog { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 7px; border: none; background: transparent; color: rgba(255,255,255,0.45); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.18s, color 0.18s; }
+  .cme-tog.is-on { background: rgba(255,255,255,0.16); color: #fff; }
 
-  .cme-input { width: 100%; box-sizing: border-box; padding: 13px 14px; border-radius: 12px; border: 1px solid rgba(10,10,10,0.16); background: #fff; color: ${INK}; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.16s, box-shadow 0.16s; }
-  .cme-input:focus { border-color: ${PINK}; box-shadow: 0 0 0 3px rgba(236,23,143,0.14); }
-  .cme-textarea { resize: vertical; line-height: 1.5; }
-
-  .cme-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; margin-top: 6px; }
-  .cme-saved { font-size: 13px; color: #16a34a; font-weight: 600; }
-  .cme-save { padding: 12px 26px; border-radius: 999px; border: none; background: ${PINK}; color: #fff; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.16s; }
-  .cme-save:disabled { background: rgba(10,10,10,0.1); color: rgba(10,10,10,0.4); cursor: default; }
-
-  .cme-preview { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 16px;
-    padding: 22px 20px; background: radial-gradient(120% 90% at 50% 0%, rgba(236,23,143,0.06), rgba(10,10,10,0.04)); border-left: 1px solid rgba(10,10,10,0.08); }
-
-  .cme-toggle { display: inline-flex; gap: 3px; padding: 3px; border-radius: 11px; background: #fff; border: 1px solid rgba(10,10,10,0.1); box-shadow: 0 6px 20px -12px rgba(10,10,10,0.4); }
-  .cme-tog { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: none; background: transparent; color: rgba(10,10,10,0.5); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 0.18s, color 0.18s; }
-  .cme-tog.is-on { background: #0a0a0a; color: #fff; }
-
-  .cme-frame { display: flex; flex-direction: column; overflow: hidden; background: #0a0a0a; box-shadow: 0 40px 90px -30px rgba(10,10,10,0.5); transition: width 0.4s cubic-bezier(0.4,0,0.2,1), border-radius 0.3s; }
-  .cme-frame--phone { width: 390px; max-width: 100%; height: calc(100dvh - 104px); border-radius: 40px; padding: 8px; border: 3px solid #1a1a1a; }
-  .cme-frame--desktop { width: min(960px, 100%); height: calc(100dvh - 104px); border-radius: 14px; padding: 0; border: 2px solid #1a1a1a; }
+  .cme-frame { display: flex; flex-direction: column; overflow: hidden; background: #0a0a0a; box-shadow: 0 30px 80px -28px rgba(0,0,0,0.7); transition: width 0.4s cubic-bezier(0.4,0,0.2,1), border-radius 0.3s; margin-top: 26px; }
+  .cme-frame--phone { width: 390px; max-width: 100%; height: calc(100% - 80px); border-radius: 42px; padding: 8px; border: 3px solid #1c1c22; }
+  .cme-frame--desktop { width: min(960px, 94%); height: calc(100% - 80px); border-radius: 14px; padding: 0; border: 2px solid #1c1c22; }
   .cme-frame-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; background: #000; border-radius: inherit; }
-  .cme-frame--phone .cme-frame-scroll { border-radius: 30px; }
+  .cme-frame--phone .cme-frame-scroll { border-radius: 32px; }
 
-  .cme-chrome-phone { flex-shrink: 0; background: #121018; border-radius: 30px 30px 0 0; }
+  .cme-chrome-phone { flex-shrink: 0; background: #121018; border-radius: 32px 32px 0 0; }
   .cme-statusbar { height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; }
   .cme-clock { font-size: 12px; font-weight: 700; color: #fff; }
   .cme-notch { width: 64px; height: 16px; border-radius: 999px; background: #000; }
@@ -291,10 +356,9 @@ const STYLES = `
   .cme-dot { width: 11px; height: 11px; border-radius: 999px; background: rgba(255,255,255,0.2); }
   .cme-urlpill { margin-left: 10px; flex: 1; max-width: 380px; font-size: 11.5px; color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.08); border-radius: 7px; padding: 5px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  @media (max-width: 980px) {
-    .cme { grid-template-columns: 1fr; }
-    .cme-preview { position: relative; height: auto; order: -1; border-left: none; border-bottom: 1px solid rgba(10,10,10,0.08); padding: 16px; }
-    .cme-frame--phone { height: 560px; }
-    .cme-frame--desktop { height: 420px; }
+  /* Mobile (<969px): rail goes horizontal (responsive.css), panel sits in-flow,
+     desktop preview hides. Give the in-flow panel a sensible min-height. */
+  @media (max-width: 968px) {
+    .create-event-sidebar > div:last-child { min-height: 60vh; }
   }
 `;

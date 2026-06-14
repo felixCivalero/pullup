@@ -29,7 +29,7 @@ import { interpretUpsert } from "../lib/idempotency.js";
 export const PERSON_EVENT_TYPES = new Set([
   "page_view", "rsvp", "rsvp_cancel", "waitlist_join", "attended", "payment",
   "message_in", "message_out", "auto_dm_sent", "host_logged",
-  "identity_linked", "acquired", "note",
+  "identity_linked", "acquired", "note", "community_join",
 ]);
 
 const CHANNELS = new Set(["instagram", "whatsapp", "email", "web", "phone", "system"]);

@@ -76,6 +76,8 @@ const CookiesPage = lazyPage(() => import("./pages/CookiesPage"), "CookiesPage")
 const HostAnalyticsPage = lazyPage(() => import("./pages/HostAnalyticsPage"), "HostAnalyticsPage");
 const OAuthAuthorizePage = lazyPage(() => import("./pages/OAuthAuthorizePage"), "OAuthAuthorizePage");
 const MediaUploadPage = lazyPage(() => import("./pages/MediaUploadPage"), "MediaUploadPage");
+const CommunityPage = lazyPage(() => import("./pages/CommunityPage"), "CommunityPage");
+const CommunityManagePage = lazyPage(() => import("./pages/CommunityManagePage"), "CommunityManagePage");
 // The logged-in shell itself is lazy: guests on /e/:slug never download it.
 const ProtectedLayout = lazyPage(() => import("./components/ProtectedLayout"), "ProtectedLayout");
 const ViewAsBar = lazyPage(() => import("./components/admin/ViewAsBar.jsx"), "ViewAsBar"); // admin lens; admin-gated, hidden for everyone else
@@ -140,6 +142,15 @@ function App() {
             </ErrorBoundary>
           }
         />
+        {/* Public community join page — the front door to a host's world. */}
+        <Route
+          path="/c/:slug"
+          element={
+            <ErrorBoundary>
+              <CommunityPage />
+            </ErrorBoundary>
+          }
+        />
         {/* /p/:eventId retired → forwards into the one event Room (preserving
             any QR ?w=&s= so scans still pull up). */}
         <Route path="/p/:eventId" element={<PullupRedirect />} />
@@ -200,6 +211,8 @@ function App() {
               now it lands on the Room like everything else. */}
           <Route path="/home" element={<Navigate to="/room" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {/* Host's community — set up the public join page + see members. */}
+          <Route path="/community" element={<CommunityManagePage />} />
           {/* Auto-DM — Instagram comment→DM triggers (per-event, migration 068) */}
           <Route path="/auto-dm" element={<AutoDmPage />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />

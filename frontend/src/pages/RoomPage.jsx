@@ -1306,17 +1306,39 @@ function PeopleContactCard({ person, events }) {
   );
 }
 
+// The 3-way audience segment, on the relationship edges the backend computes
+// per person (roomService): joined the community, RSVP'd to an event, or both.
+const SEGMENTS = [
+  { key: "all", label: "All", match: () => true },
+  { key: "community_only", label: "Community only", match: (p) => p.segment === "community_only" },
+  { key: "community_plus_events", label: "Community + events", match: (p) => p.segment === "community_plus_events" },
+  { key: "events_only", label: "Events only", match: (p) => p.segment === "events_only" },
+];
+
 function PeopleLayer({ people = [], events = [] }) {
   const [q, setQ] = useState("");
+  const [seg, setSeg] = useState("all");
   const query = q.trim().toLowerCase();
+
+  // Only worth showing the segment filter once a community exists in this world
+  // (otherwise everyone is "events only" and the chips are noise).
+  const hasCommunity = useMemo(() => people.some((p) => p.isCommunityMember), [people]);
+  const segCounts = useMemo(() => {
+    const m = Object.fromEntries(SEGMENTS.map((s) => [s.key, 0]));
+    for (const p of people) for (const s of SEGMENTS) if (s.match(p)) m[s.key]++;
+    return m;
+  }, [people]);
+
   const filtered = useMemo(() => {
-    if (!query) return people;
+    const segFn = (SEGMENTS.find((s) => s.key === seg) || SEGMENTS[0]).match;
     return people.filter((p) => {
+      if (!segFn(p)) return false;
+      if (!query) return true;
       const hay = [p.name, p.email, p.phone || p.phone_e164, p.instagram, p.relationship]
         .filter(Boolean).join(" ").toLowerCase();
       return hay.includes(query);
     });
-  }, [people, query]);
+  }, [people, query, seg]);
 
   return (
     <div style={{ marginTop: "30px", fontFamily: SF }}>
@@ -1324,6 +1346,33 @@ function PeopleLayer({ people = [], events = [] }) {
         <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your people</span>
         {people.length > 0 && <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· {people.length}</span>}
       </div>
+
+      {hasCommunity && people.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
+          {SEGMENTS.map((s) => {
+            const on = seg === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setSeg(s.key)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 13px", borderRadius: 999, cursor: "pointer",
+                  fontFamily: SF, fontSize: "12.5px", fontWeight: 600,
+                  border: `1px solid ${on ? colors.accent : colors.border}`,
+                  background: on ? colors.accent : colors.surface,
+                  color: on ? "#fff" : colors.textMuted,
+                  transition: "background 0.15s, border-color 0.15s, color 0.15s",
+                }}
+              >
+                {s.label}
+                <span style={{ fontSize: "11px", opacity: on ? 0.85 : 0.6 }}>{segCounts[s.key]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {people.length > 0 && (
         <div style={{ position: "relative", marginBottom: "14px" }}>
@@ -1438,6 +1487,30 @@ export function OwnerConsole({ room: roomProp }) {
 
       {/* Rooms you're in — events you co-host or attend as a guest. */}
       <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
+
+      {/* Your community — the public join door to this world. Setup + share
+          link live on /community; the member slice shows in the chips below. */}
+      <button
+        type="button"
+        onClick={() => navigate("/community")}
+        style={{
+          display: "flex", alignItems: "center", gap: 12, width: "100%",
+          marginTop: 30, padding: "14px 16px", borderRadius: 16, cursor: "pointer",
+          textAlign: "left", fontFamily: SF,
+          border: `1px solid ${colors.border}`,
+          background: `linear-gradient(180deg, ${colors.accent}14, ${colors.surface} 70%)`,
+          color: colors.text,
+        }}
+      >
+        <span style={{ flex: "0 0 auto", width: 38, height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
+          <DoorOpen size={19} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>Your community</span>
+          <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted }}>Share one link — people who join land in your world. Set it up & grab the link.</span>
+        </span>
+        <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />
+      </button>
 
       {/* Your people — the CRM, surfaced. Each card is the full profile: contact
           sheet, where-you-met, message, and inline dated notes. No click-open. */}

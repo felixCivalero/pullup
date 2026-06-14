@@ -16,6 +16,7 @@ import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerInstagramConnectRoutes } from "./routes/instagramConnect.js";
 import { registerVerificationRoutes } from "./routes/verification.js";
 import { registerWaitlistRoutes } from "./routes/waitlist.js";
+import { registerCommunityRoutes } from "./routes/communities.js";
 import { registerLinkRoutes } from "./routes/links.js";
 import { registerEventsListRoutes } from "./routes/eventsList.js";
 import { registerShareRoutes } from "./routes/share.js";
@@ -230,6 +231,8 @@ registerInstagramConnectRoutes(app);
 registerVerificationRoutes(app);
 
 registerWaitlistRoutes(app);
+
+registerCommunityRoutes(app);
 
 // ---------------------------
 // EMAIL TRACKING: open pixel + click redirect

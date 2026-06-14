@@ -531,6 +531,38 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     logger?.warn?.("[roomService] enrichment answers read failed", { error: err?.message });
   }
 
+  // 4c. The two relationship edges per person → the 3-way audience segment the
+  // people view + message picker filter on: community-only / community+events /
+  // events-only. Community membership comes from the host's community; the event
+  // edge from any non-cancelled RSVP to the host's events.
+  const communityMemberIds = new Set();
+  const rsvpPersonIds = new Set();
+  try {
+    const { data: comm } = await supabase
+      .from("communities").select("id").eq("host_id", hostId).maybeSingle();
+    if (comm?.id) {
+      const { data: mems } = await supabase
+        .from("community_members")
+        .select("person_id")
+        .eq("community_id", comm.id)
+        .eq("status", "active")
+        .in("person_id", personIds);
+      for (const m of mems || []) communityMemberIds.add(m.person_id);
+    }
+    const hostEventIds = (events || []).map((e) => e.id);
+    if (hostEventIds.length) {
+      const { data: rs } = await supabase
+        .from("rsvps")
+        .select("person_id")
+        .in("event_id", hostEventIds)
+        .neq("status", "cancelled")
+        .in("person_id", personIds);
+      for (const r of rs || []) if (r.person_id) rsvpPersonIds.add(r.person_id);
+    }
+  } catch (err) {
+    logger?.warn?.("[roomService] segment read failed", { error: err?.message });
+  }
+
   // 5. Build each person.
   const peopleOut = [];
   for (const pid of personIds) {
@@ -573,6 +605,13 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const eventsTouched = [...new Set(evs.map((e) => e.event_id).filter(Boolean))];
     const lastAt = evs[0]?.occurred_at;
 
+    // The two edges + derived segment for this person.
+    const isCommunityMember = communityMemberIds.has(pid);
+    const hasEventRsvp = rsvpPersonIds.has(pid) || attended > 0 || rsvps > 0 || waitlisted;
+    const segment = isCommunityMember
+      ? (hasEventRsvp ? "community_plus_events" : "community_only")
+      : (hasEventRsvp ? "events_only" : null);
+
     const warmth = computeWarmth({ attended, rsvps, eventsTouched: eventsTouched.length, lastAt });
     const relationship = describeRelationship({ attended, rsvps, eventsTouched: eventsTouched.length, waitlisted, lastAt });
     const { needsYou, move } = suggestMove({ waitlisted, attended, lastAt, rsvps });
@@ -592,6 +631,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       phone: person.phone_e164 || person.phone || null,
       instagram: person.instagram ? String(person.instagram).replace(/^@/, "") : null,
       color: colorFor(pid),
+      // Relationship edges + segment for the people-view / message-audience filter.
+      isCommunityMember,
+      hasEventRsvp,
+      segment,
       channel,
       reachable,
       channelState,

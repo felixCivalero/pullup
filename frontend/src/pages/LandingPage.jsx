@@ -2,7 +2,7 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download, Database, KeyRound, TrendingUp, LogOut } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
-import { WaitlistGate } from "../components/auth/WaitlistGate.jsx";
+import { WaitlistForm } from "../components/auth/WaitlistForm.jsx";
 import { supabase } from "../lib/supabase.js";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
@@ -518,7 +518,7 @@ function McpScene() {
 // their room) or goes straight to their room URL. Keeping the public page
 // auth-agnostic is what makes it stable — no optimistic redirect off a token
 // that might be dead.
-function MarketingScroll({ onGetStarted, onLogin }) {
+function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -809,8 +809,9 @@ function MarketingScroll({ onGetStarted, onLogin }) {
         </Reveal>
       </section>
 
-      {/* ─── 9 · FINAL CTA ─── */}
-      <section className="mk-final mk-final--pre" data-mk-section="final_cta" data-mk-order="9">
+      {/* ─── 9 · JOIN (inline waitlist — the conversion happens on the page,
+          no modal) ─── */}
+      <section id="join" className="mk-final mk-final--pre" data-mk-section="join" data-mk-order="9">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -822,12 +823,16 @@ function MarketingScroll({ onGetStarted, onLogin }) {
         </Reveal>
         <Reveal delay={0.14}>
           <p className="mk-final-sub">
-            As the world goes synthetic, a room of people who actually showed up
-            is the one asset that compounds.
+            We're onboarding creators and agencies one by one, on a database you
+            own from day one. Tell us where to reach you and we'll bring you in.
           </p>
         </Reveal>
         <Reveal delay={0.2}>
-          <div className="mk-final-cta">{cta("final")}</div>
+          <div className="mk-join">
+            {/* keyed on joinEmail so a login "no account" hand-off remounts the
+                form with the email prefilled (it always-renders otherwise). */}
+            <WaitlistForm key={joinEmail || "fresh"} source="landing" initialEmail={joinEmail} onLogin={onLogin} />
+          </div>
         </Reveal>
       </section>
 
@@ -895,15 +900,33 @@ export function LandingPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  // URL → which surface we show. /login + /start are the auth shell;
-  // anything else is the marketing scroll.
-  // /start (the old self-serve onboarding) now folds into the waitlist — with
-  // BYO-Supabase, new people join a list instead of minting an account.
+  // URL → which surface we show. /login is the only modal shell now. The
+  // waitlist is INLINE in the page (#join), so /waitlist + /start (the old
+  // self-serve onboarding) just land on the marketing scroll and auto-scroll
+  // to the join form — with BYO-Supabase, new people join a list inline, no
+  // modal, no minted account.
   const view = useMemo(() => {
     if (location.pathname === "/login") return "login";
-    if (location.pathname === "/waitlist" || location.pathname === "/start") return "waitlist";
     return "hero";
   }, [location.pathname]);
+
+  // An email handed off from the login screen's "no account" pivot, used to
+  // prefill the inline join form. Arrives as router state.
+  const joinEmail = location.state?.joinEmail || "";
+
+  // Auto-scroll to the inline join form when arriving via a join intent:
+  // a /waitlist or /start URL, or the login no-account hand-off.
+  useEffect(() => {
+    const wantsJoin =
+      location.pathname === "/waitlist" ||
+      location.pathname === "/start" ||
+      Boolean(location.state?.joinEmail);
+    if (!wantsJoin) return;
+    const t = setTimeout(() => {
+      document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [location.pathname, location.state]);
 
   useEffect(() => {
     initTracking();
@@ -953,11 +976,14 @@ export function LandingPage() {
     <div className="landing-root">
       <style>{STYLES}</style>
 
-      {/* Marketing always renders; auth floats over it as a popup so the
-          landing stays behind. */}
+      {/* Marketing always renders; the join form is INLINE in it (#join), so
+          "Get started" just scrolls there. Only login floats over as a modal. */}
       <MarketingScroll
-        onGetStarted={() => navigate("/waitlist")}
+        onGetStarted={() =>
+          document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
         onLogin={() => navigate("/login")}
+        joinEmail={joinEmail}
       />
       {view === "login" && (
         <AuthGate
@@ -965,17 +991,11 @@ export function LandingPage() {
           redirectTo={resolveNext(searchParams)}
           onDismiss={() => navigate("/")}
           // BYO rule: login is for existing accounts only. An unknown email (or
-          // "new here?") is steered to the waitlist, carrying the typed email.
+          // "new here?") is steered to the inline join form, carrying the typed
+          // email so it lands prefilled.
           onSignupIntent={(email) =>
-            navigate("/waitlist", { state: email ? { email } : undefined })
+            navigate("/waitlist", { state: email ? { joinEmail: email } : undefined })
           }
-        />
-      )}
-      {view === "waitlist" && (
-        <WaitlistGate
-          initialEmail={location.state?.email || ""}
-          onDismiss={() => navigate("/")}
-          onLogin={() => navigate("/login")}
         />
       )}
     </div>
@@ -1542,6 +1562,7 @@ const STYLES = `
     color: rgba(10,10,10,0.6); max-width: 46ch;
   }
   .mk-final-cta { margin-top: 8px; }
+  .mk-join { width: 100%; margin-top: 34px; }
 
   /* ─── manifesto (the why, the shared future) ─── */
   .mk-manifesto {

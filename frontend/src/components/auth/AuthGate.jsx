@@ -549,9 +549,7 @@ export function AuthGate({ initialMode = "login", redirectTo = "/room", onDismis
 
 // All auth styling travels with the component so the one door works on the
 // landing page AND on any in-app wall (the landing no longer owns this CSS).
-// Exported so sibling surfaces (e.g. the WaitlistGate) reuse the same modal
-// shell + field styling instead of duplicating it.
-export const AUTH_STYLES = `
+const AUTH_STYLES = `
   .auth-modal-backdrop {
     position: fixed; inset: 0; z-index: 200;
     display: flex; align-items: center; justify-content: center;

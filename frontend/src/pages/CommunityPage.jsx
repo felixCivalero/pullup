@@ -47,7 +47,23 @@ function brandVars(brand) {
   };
 }
 
-// ── Presentational shell (no data fetching) ──────────────────────────────
+function Proof({ count, faces }) {
+  if (!count) return null;
+  return (
+    <div className="cm-proof">
+      {faces.length > 0 && (
+        <div className="cm-faces">
+          {faces.map((m, i) => <span className="cm-face" key={i} title={m.name || ""}>{initialsOf(m.name)}</span>)}
+        </div>
+      )}
+      <span className="cm-proof-txt"><strong>{count.toLocaleString()}</strong> {count === 1 ? "person has" : "people have"} pulled up</span>
+    </div>
+  );
+}
+
+// ── Presentational shell (no data fetching) — used by the public page AND the
+// host editor's live preview. With a cover it's a full-bleed image landing
+// (like an event page); without one it falls back to the centered eyes layout.
 export function CommunityView({ community, joinSlot, fill = false }) {
   const c = community || {};
   const { fontName, vars } = useMemo(() => brandVars(c.brand), [c.brand]);
@@ -57,34 +73,42 @@ export function CommunityView({ community, joinSlot, fill = false }) {
   const count = c.memberCount || 0;
   const faces = (c.recentMembers || []).slice(0, 5);
   const cover = c.coverImageUrl || null;
+  const title = c.title || "Join the community";
 
   return (
     <div style={{ ...vars, minHeight: fill ? "100%" : "100dvh", background: "var(--bg)", color: "var(--ink)", fontFamily: "var(--font)" }}>
       <style>{STYLES}</style>
-      {cover && <div className="cm-cover" style={{ backgroundImage: `url(${cover})` }} />}
-      <div className="cm-wrap" style={cover ? { paddingTop: 22 } : undefined}>
-        <div className="cm-head">
-          {!cover && (c.host?.avatarUrl
-            ? <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-host-av" />
-            : <PullupEyes variant="big" className="cm-eyes" />)}
-          {cover && c.host?.avatarUrl && <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-host-av cm-host-av--oncover" />}
-          {hostName && <p className="cm-eyebrow">{hostName}'s community</p>}
-          <h1 className="cm-title">{c.title || "Join the community"}</h1>
-          {c.blurb && <p className="cm-blurb">{c.blurb}</p>}
 
-          {count > 0 && (
-            <div className="cm-proof">
-              {faces.length > 0 && (
-                <div className="cm-faces">
-                  {faces.map((m, i) => <span className="cm-face" key={i} title={m.name || ""}>{initialsOf(m.name)}</span>)}
-                </div>
-              )}
-              <span className="cm-proof-txt"><strong>{count.toLocaleString()}</strong> {count === 1 ? "person has" : "people have"} pulled up</span>
+      {cover ? (
+        <>
+          {/* Full-bleed image landing — the cover IS the first screen, with the
+              identity overlaid at the bottom over a gradient. */}
+          <div className="cm-hero" style={{ backgroundImage: `url(${cover})` }}>
+            <div className="cm-hero-grad" />
+            <div className="cm-hero-content">
+              {c.host?.avatarUrl && <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-hero-av" />}
+              {hostName && <p className="cm-eyebrow">{hostName}'s community</p>}
+              <h1 className="cm-title">{title}</h1>
+              {c.blurb && <p className="cm-blurb">{c.blurb}</p>}
+              <Proof count={count} faces={faces} />
             </div>
-          )}
+          </div>
+          <div className="cm-body">{joinSlot}</div>
+        </>
+      ) : (
+        <div className="cm-wrap">
+          <div className="cm-head">
+            {c.host?.avatarUrl
+              ? <img src={c.host.avatarUrl} alt={hostName || "host"} className="cm-host-av" />
+              : <PullupEyes variant="big" className="cm-eyes" />}
+            {hostName && <p className="cm-eyebrow">{hostName}'s community</p>}
+            <h1 className="cm-title">{title}</h1>
+            {c.blurb && <p className="cm-blurb">{c.blurb}</p>}
+            <Proof count={count} faces={faces} />
+          </div>
+          {joinSlot}
         </div>
-        {joinSlot}
-      </div>
+      )}
     </div>
   );
 }
@@ -210,8 +234,13 @@ export function CommunityPage() {
 }
 
 const STYLES = `
-  .cm-cover { width: 100%; height: clamp(160px, 28vh, 280px); background-size: cover; background-position: center;
-    -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent); mask-image: linear-gradient(180deg, #000 60%, transparent); }
+  /* Full-bleed image landing (cover present) */
+  .cm-hero { position: relative; width: 100%; min-height: clamp(380px, 66vh, 640px); background-size: cover; background-position: center; display: flex; align-items: flex-end; }
+  .cm-hero-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 28%, color-mix(in srgb, var(--bg) 35%, transparent) 60%, var(--bg) 100%); }
+  .cm-hero-content { position: relative; z-index: 1; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 22px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+  .cm-hero-av { width: 60px; height: 60px; border-radius: 999px; object-fit: cover; border: 3px solid var(--bg); }
+  .cm-body { max-width: 460px; margin: 0 auto; padding: 22px 22px 56px; }
+
   .cm-wrap { max-width: 460px; margin: 0 auto; padding: clamp(40px, 8vh, 88px) 22px 56px; display: flex; flex-direction: column; gap: 30px; }
   .cm-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; }
   .cm-eyes { width: 64px; height: auto; }

@@ -112,6 +112,7 @@ function App() {
             panels instead of a hard page swap. */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/start" element={<LandingPage />} />
+        <Route path="/waitlist" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

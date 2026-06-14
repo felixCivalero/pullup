@@ -180,12 +180,21 @@ export function AuthProvider({ children }) {
   // Passwordless email sign-in — the default front door for everyone (guest or
   // host). We ask the backend to mint a Supabase magic link and deliver it via
   // our branded email; tapping it lands on /auth/callback and drops a session.
-  // The same call find-or-creates the account, so "log in" and "sign up" are one
-  // action. Always resolves ok (no account-enumeration); throws only on network.
-  const requestMagicLink = async (email, { next = "/room", name = null } = {}) => {
+  // Passwordless sign-in link. By default the same call find-or-creates the
+  // account, so "log in" and "sign up" are one action. Pass loginOnly:true to
+  // refuse account creation (the BYO-Supabase landing rule — login is for
+  // existing accounts only); an unknown email then resolves { ok:true,
+  // exists:false } so the caller can steer them to the waitlist.
+  // Always resolves ok (no account-enumeration); throws only on network.
+  const requestMagicLink = async (email, { next = "/room", name = null, loginOnly = false } = {}) => {
     const res = await publicFetch("/auth/request-link", {
       method: "POST",
-      body: JSON.stringify({ email: (email || "").trim().toLowerCase(), next, name }),
+      body: JSON.stringify({
+        email: (email || "").trim().toLowerCase(),
+        next,
+        name,
+        ...(loginOnly ? { mode: "login" } : {}),
+      }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -193,7 +202,8 @@ export function AuthProvider({ children }) {
       e.code = data?.error || "request_failed";
       throw e;
     }
-    return { ok: true };
+    const data = await res.json().catch(() => ({}));
+    return { ok: true, exists: data?.exists !== false };
   };
 
   // WhatsApp login = Supabase's NATIVE phone OTP, with delivery routed over

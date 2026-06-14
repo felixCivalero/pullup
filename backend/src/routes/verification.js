@@ -287,7 +287,8 @@ export function registerVerificationRoutes(app) {
 
   app.post("/auth/request-link", async (req, res) => {
     try {
-      const { email, name, next } = req.body || {};
+      const { email, name, next, mode } = req.body || {};
+      const loginOnly = mode === "login";
       const { isValidEmail, normalizeEmail, requestLoginLink } = await import("../services/account.js");
       const norm = normalizeEmail(email);
       if (!isValidEmail(norm)) return res.status(400).json({ ok: false, error: "invalid_email" });
@@ -303,10 +304,16 @@ export function registerVerificationRoutes(app) {
       if (_loginLinkCooldown.size > 5000) _loginLinkCooldown.clear();
 
       const safeNext = typeof next === "string" && next.startsWith("/") ? next : "/room";
-      const result = await requestLoginLink({ email: norm, name, next: safeNext });
+      const result = await requestLoginLink({ email: norm, name, next: safeNext, loginOnly });
       // Acknowledge regardless of whether the account existed (no enumeration).
       if (!result.ok && result.error === "invalid_email") {
         return res.status(400).json({ ok: false, error: "invalid_email" });
+      }
+      // Login-only path: an unknown email has no account to log into. Tell the
+      // client (exists:false) so it can offer the waitlist instead of leaving
+      // the user waiting on a sign-in mail that will never arrive.
+      if (loginOnly && result.error === "no_account") {
+        return res.json({ ok: true, exists: false });
       }
       // A real failure (account_failed / link_failed / send_failed) used to be
       // swallowed by the ok:true anti-enumeration response — the user is told

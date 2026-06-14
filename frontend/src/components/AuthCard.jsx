@@ -177,6 +177,8 @@ const GoogleIcon = (
  */
 export function AuthCard({
   onSuccess,
+  onNoAccount,
+  loginOnly = false,
   redirectTo = "/room",
   submitLabel = "Enter pullup",
   trackingPrefix = "auth",
@@ -244,7 +246,16 @@ export function AuthCard({
     if (funnelTrack) trackEvent("auth_start", { method: "email_link" });
     try {
       setSigningIn(true);
-      await requestMagicLink(addr, { next: redirectTo });
+      const r = await requestMagicLink(addr, { next: redirectTo, loginOnly });
+      // Login-only: no account for this email → hand off to the waitlist
+      // instead of showing a "check your inbox" for a mail that never sends.
+      if (loginOnly && r?.exists === false) {
+        trackEvent(`${trackingPrefix}_no_account`);
+        if (onNoAccount) {
+          onNoAccount(addr);
+          return;
+        }
+      }
       setLinkSent(true);
     } catch (err) {
       const msg = (err?.message || "").toLowerCase();

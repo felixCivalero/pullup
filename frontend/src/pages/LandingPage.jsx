@@ -1,7 +1,8 @@
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download } from "lucide-react";
+import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download, Database, KeyRound, TrendingUp, LogOut } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
+import { WaitlistGate } from "../components/auth/WaitlistGate.jsx";
 import { supabase } from "../lib/supabase.js";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
@@ -63,6 +64,31 @@ const TRUST = [
   { icon: PenLine, title: "You approve every send" },
   { icon: Heart, title: "Care, never faked" },
   { icon: Download, title: "Export anytime" },
+];
+
+// The four promises of the ownership section. Written to land for a solo
+// creator AND an agency running a roster of them.
+const OWNERSHIP = [
+  {
+    icon: Database,
+    title: "You own the database",
+    body: "Every name, number and message sits in your own cloud, in your name — not locked inside ours. PullUp is the software on top; the data underneath is yours.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Pay as you grow",
+    body: "You pay for your own storage as your room fills up — billed to you, at cost. No per-seat tax, no surprise lock-in. Small while you're small, never a wall.",
+  },
+  {
+    icon: KeyRound,
+    title: "You hold every permission",
+    body: "Full access is yours, always. You grant PullUp one scoped key to do its job — see it, use it, nothing more — and you can see exactly what it touches.",
+  },
+  {
+    icon: LogOut,
+    title: "Leave whenever",
+    body: "Walking away is a single switch. Revoke our key and your whole room is still there, still yours — no hostage export, no goodbye wall, no held data.",
+  },
 ];
 
 /* ─── scroll reveal hook ─── */
@@ -741,8 +767,50 @@ function MarketingScroll({ onGetStarted, onLogin }) {
         <McpScene />
       </section>
 
+      {/* ─── 6 · YOU OWN IT ALL (data ownership / BYO-Supabase) ─── */}
+      <section className="mk-section mk-section-tint" data-mk-section="ownership" data-mk-order="8">
+        <Reveal><Chapter n="06" label="You own it all" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Your people live in a database <span className="pink">you own.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Every other platform rents you access to your own audience — and keeps
+            the list the day you leave. PullUp runs on a database that's yours:
+            your people, your contacts, your whole room, held in your name. We're
+            the software on top. You're the owner underneath.
+          </p>
+        </Reveal>
+
+        <div className="own-grid">
+          {OWNERSHIP.map((o, i) => (
+            <Reveal key={o.title} delay={0.08 + i * 0.05} y={14} className="own-card">
+              <span className="own-card-ic"><o.icon size={20} strokeWidth={2} /></span>
+              <span className="own-card-t">{o.title}</span>
+              <span className="own-card-b">{o.body}</span>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal delay={0.08}>
+          <p className="mk-aside">
+            Solo creator or an agency running a whole roster — same deal. Every
+            creator's room stays theirs: owned, portable, and grant-access only,
+            even the ones you manage. Ownership isn't a setting here. It's the
+            ground you build on.
+          </p>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-creed">
+            We run the room. <span className="pink">You hold the keys.</span>
+          </p>
+        </Reveal>
+      </section>
+
       {/* ─── 9 · FINAL CTA ─── */}
-      <section className="mk-final mk-final--pre" data-mk-section="final_cta" data-mk-order="8">
+      <section className="mk-final mk-final--pre" data-mk-section="final_cta" data-mk-order="9">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -829,9 +897,11 @@ export function LandingPage() {
 
   // URL → which surface we show. /login + /start are the auth shell;
   // anything else is the marketing scroll.
+  // /start (the old self-serve onboarding) now folds into the waitlist — with
+  // BYO-Supabase, new people join a list instead of minting an account.
   const view = useMemo(() => {
     if (location.pathname === "/login") return "login";
-    if (location.pathname === "/start") return "onboarding";
+    if (location.pathname === "/waitlist" || location.pathname === "/start") return "waitlist";
     return "hero";
   }, [location.pathname]);
 
@@ -886,14 +956,26 @@ export function LandingPage() {
       {/* Marketing always renders; auth floats over it as a popup so the
           landing stays behind. */}
       <MarketingScroll
-        onGetStarted={() => navigate("/start")}
+        onGetStarted={() => navigate("/waitlist")}
         onLogin={() => navigate("/login")}
       />
-      {(view === "login" || view === "onboarding") && (
+      {view === "login" && (
         <AuthGate
-          initialMode={view === "onboarding" ? "onboarding" : "login"}
+          initialMode="login"
           redirectTo={resolveNext(searchParams)}
           onDismiss={() => navigate("/")}
+          // BYO rule: login is for existing accounts only. An unknown email (or
+          // "new here?") is steered to the waitlist, carrying the typed email.
+          onSignupIntent={(email) =>
+            navigate("/waitlist", { state: email ? { email } : undefined })
+          }
+        />
+      )}
+      {view === "waitlist" && (
+        <WaitlistGate
+          initialEmail={location.state?.email || ""}
+          onDismiss={() => navigate("/")}
+          onLogin={() => navigate("/login")}
         />
       )}
     </div>
@@ -1099,6 +1181,37 @@ const STYLES = `
     margin: 36px 0 0;
     font-size: clamp(24px, 4vw, 38px);
     font-weight: 800; letter-spacing: -0.03em;
+  }
+
+  /* ─── 6 · ownership pillars ─── */
+  .own-grid {
+    width: 100%;
+    max-width: 920px;
+    margin: 40px 0 8px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    text-align: left;
+  }
+  .own-card {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 24px 22px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid rgba(10,10,10,0.1);
+    box-shadow: 0 28px 60px -46px rgba(10,10,10,0.4);
+  }
+  .own-card-ic {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 13px;
+    background: rgba(236,23,143,0.09); color: ${PINK};
+    margin-bottom: 2px;
+  }
+  .own-card-t { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: ${INK}; }
+  .own-card-b { font-size: 14.5px; line-height: 1.55; color: rgba(10,10,10,0.62); }
+  @media (max-width: 680px) {
+    .own-grid { grid-template-columns: 1fr; max-width: 460px; gap: 12px; }
+    .own-card { padding: 20px 18px; }
   }
 
   /* cross-channel identity chip */

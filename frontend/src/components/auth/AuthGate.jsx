@@ -86,9 +86,14 @@ export function resolveNext(params, fallback = "/room") {
 /* ─── Login panel ───
    Light AuthCard. Once a session resolves, hands off to onAuthed (publish
    resume) or routes to `redirectTo`. */
-function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding }) {
+function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding, onSignupIntent }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // When a signup-intent handler is present (the landing's BYO rule), login is
+  // for existing accounts ONLY — an unknown email is sent to the waitlist, and
+  // the "New here?" link points there too, never into self-serve onboarding.
+  const waitlistMode = typeof onSignupIntent === "function";
 
   const complete = useCallback(() => {
     if (onAuthed) onAuthed();
@@ -108,8 +113,12 @@ function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding }) {
             Back
           </button>
         ) : <span />}
-        <button type="button" className="auth-link-small auth-link-btn" onClick={onSwitchToOnboarding}>
-          New here? <strong>Get started</strong>
+        <button
+          type="button"
+          className="auth-link-small auth-link-btn"
+          onClick={waitlistMode ? () => onSignupIntent() : onSwitchToOnboarding}
+        >
+          New here? <strong>{waitlistMode ? "Join the waitlist" : "Get started"}</strong>
         </button>
       </div>
       <div className="auth-card-wrap">
@@ -123,6 +132,8 @@ function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding }) {
           submitLabel="Log in"
           trackingPrefix="login"
           showForgotPassword
+          loginOnly={waitlistMode}
+          onNoAccount={waitlistMode ? (email) => onSignupIntent(email) : undefined}
           onSuccess={complete}
         />
       </div>
@@ -488,7 +499,7 @@ function OnboardingPanel({ onAuthed, onDismiss, onSwitchToLogin }) {
 }
 
 /* ─── AuthGate — the modal shell + mode switch ─── */
-export function AuthGate({ initialMode = "login", redirectTo = "/room", onDismiss, onAuthed }) {
+export function AuthGate({ initialMode = "login", redirectTo = "/room", onDismiss, onAuthed, onSignupIntent }) {
   const [mode, setMode] = useState(initialMode);
 
   // Keep the view in sync if the caller changes initialMode (e.g. the landing
@@ -522,6 +533,7 @@ export function AuthGate({ initialMode = "login", redirectTo = "/room", onDismis
             onAuthed={onAuthed}
             onDismiss={onDismiss}
             onSwitchToOnboarding={() => setMode("onboarding")}
+            onSignupIntent={onSignupIntent}
           />
         ) : (
           <OnboardingPanel
@@ -537,7 +549,9 @@ export function AuthGate({ initialMode = "login", redirectTo = "/room", onDismis
 
 // All auth styling travels with the component so the one door works on the
 // landing page AND on any in-app wall (the landing no longer owns this CSS).
-const AUTH_STYLES = `
+// Exported so sibling surfaces (e.g. the WaitlistGate) reuse the same modal
+// shell + field styling instead of duplicating it.
+export const AUTH_STYLES = `
   .auth-modal-backdrop {
     position: fixed; inset: 0; z-index: 200;
     display: flex; align-items: center; justify-content: center;

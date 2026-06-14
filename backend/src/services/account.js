@@ -131,10 +131,23 @@ export async function sendMagicLinkEmail({ email, name = null, actionLink, brand
 
 // Full passwordless-login request: find-or-create the user, mint the link, send
 // it. Returns { ok } — never leaks the link to the caller.
-export async function requestLoginLink({ email, name = null, next = "/room" }) {
+//
+// loginOnly: when true, DON'T create an account for an unknown email. With
+// BYO-Supabase the landing page no longer self-serves signup — login is for
+// people who already have an account (RSVP'ers included, since RSVP mints one).
+// An unknown email returns { ok:false, error:"no_account" } so the caller can
+// steer them to the waitlist instead of silently creating an account.
+export async function requestLoginLink({ email, name = null, next = "/room", loginOnly = false }) {
   const norm = normalizeEmail(email);
   if (!isValidEmail(norm)) return { ok: false, error: "invalid_email" };
-  const acct = await findOrCreateAuthUserForEmail(norm, name);
+  let acct;
+  if (loginOnly) {
+    const existing = await authUserIdByEmail(norm);
+    if (!existing) return { ok: false, error: "no_account" };
+    acct = { userId: existing, created: false };
+  } else {
+    acct = await findOrCreateAuthUserForEmail(norm, name);
+  }
   if (!acct) return { ok: false, error: "account_failed" };
   const link = await mintMagicLink(norm, { next });
   if (!link) return { ok: false, error: "link_failed" };

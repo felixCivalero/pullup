@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { colors } from "../theme/colors.js";
 import { trackEvent } from "../lib/analytics.js";
+import { authenticatedFetch } from "../lib/api.js";
 
 // Dedicated OAuth landing route. Every Google sign-in redirects here
 // (see AuthContext.signInWithGoogle) instead of dropping the user straight
@@ -48,10 +49,11 @@ function resolveNext() {
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [initial] = useState(() => ({ error: parseAuthError(), next: resolveNext() }));
   const [timedOut, setTimedOut] = useState(false);
   const failureReported = useRef(false);
+  const gateRan = useRef(false);
 
   // Derived, not a state transition: we've failed if the provider handed us an
   // error, if auth settled with no session (token exchange failed / storage
@@ -60,14 +62,43 @@ export function AuthCallbackPage() {
   const showError =
     !user && (Boolean(initial.error) || timedOut || !loading);
 
-  // Success: once auth settles with a user, forward to the destination. We do
-  // NOT clear pullup_signin_pending here — OnboardingPage's finalize still
+  // Success: once auth settles with a user, forward to the destination — but
+  // first enforce the BYO rule. OAuth (Google) self-creates a Supabase user, so
+  // a brand-new person who clicks "Continue with Google" would otherwise mint an
+  // account we never meant to self-serve. account-status tells us whether this
+  // is a real, established account (profile or people row). If not, we sign them
+  // back out and send them to the waitlist instead. Fail-OPEN: any error just
+  // forwards normally so a returning user is never wrongly bounced.
+  //
+  // We do NOT clear pullup_signin_pending here — OnboardingPage's finalize still
   // needs it; it's only cleared on the failure path below.
   useEffect(() => {
-    if (!loading && user) {
+    if (loading || !user || gateRan.current) return;
+    gateRan.current = true;
+    let cancelled = false;
+    (async () => {
+      let established = true;
+      try {
+        const res = await authenticatedFetch("/auth/account-status");
+        if (res.ok) {
+          const data = await res.json();
+          established = data?.established !== false;
+        }
+      } catch {
+        /* network hiccup — fail open, treat as established */
+      }
+      if (cancelled) return;
+      if (!established) {
+        trackEvent("signin_no_account", { via: "oauth" });
+        try { await signOut({ scope: "local" }); } catch { /* ignore */ }
+        if (cancelled) return;
+        navigate("/waitlist", { replace: true });
+        return;
+      }
       navigate(initial.next, { replace: true });
-    }
-  }, [loading, user, navigate, initial.next]);
+    })();
+    return () => { cancelled = true; };
+  }, [loading, user, navigate, initial.next, signOut]);
 
   // Safety net: AuthContext resolves loading within ~5s even when tokens are
   // present, but guard against it hanging so the user never sees a dead spinner.

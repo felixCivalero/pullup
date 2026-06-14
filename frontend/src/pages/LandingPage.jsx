@@ -258,9 +258,9 @@ function ShowcaseCard({ item, live, dim }) {
 function EventShowcase() {
   const [ref, visible] = useReveal(0.2);
   return (
-    <section className="mk-show" ref={ref} data-mk-section="showcase" data-mk-order="9">
+    <section className="mk-show" ref={ref} data-mk-section="showcase" data-mk-order="4">
       <div className="mk-show-head">
-        <Reveal><Chapter n="06" label="The rooms themselves" /></Reveal>
+        <Reveal><Chapter n="02" label="The rooms themselves" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
             Real rooms, already live. <span className="pink">A few dreamed up by AI.</span>
@@ -665,122 +665,10 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
       </section>
       <LogoMarquee />
 
-      {/* ─── 1 · THE ROOM (exclusive drops + who's in it) ─── */}
-      <section className="mk-section" data-mk-section="room" data-mk-order="3">
-        <Reveal><Chapter n="01" label="The Room" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Some things are only for the people <span className="pink">who showed up.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            The Room is everyone who's ever pulled up — kept long after the
-            night's over — and the place you share what no one else gets. Drop
-            the unreleased track, the photos from the night, the early product,
-            the next invite before it's public. The stuff that never touches
-            your grid lives here, just for them.
-          </p>
-        </Reveal>
-        <RoomDropScene />
-        <Reveal delay={0.1}>
-          <p className="mk-creed">
-            Showing up is the password. <span className="pink">What's inside is the reward.</span>
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 2 · EVERY PERSON, IN FULL (deep profile) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="person" data-mk-order="4">
-        <Reveal><Chapter n="02" label="Every person, in full" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Everything you know about someone — <span className="pink">in one glance.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Tap anyone in the room and the whole picture opens: where you met,
-            every night they came, who they brought, how warm things are — and
-            the little notes only you'd remember. The context you used to keep in
-            your head, finally on the screen.
-          </p>
-        </Reveal>
-        <ProfileScene />
-      </section>
-
-      {/* ─── 3 · ONE CHAT, EVERY CHANNEL ─── */}
-      <section className="mk-section" data-mk-section="chat" data-mk-order="5">
-        <Reveal><Chapter n="03" label="One chat, every channel" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Every message, one chat. <span className="pink">Reply any way you like.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Their Instagram DMs, their emails, their WhatsApps — PullUp pulls
-            them into one conversation, in order, no matter where they landed.
-            When you reply, you pick the way out: back into their DMs, a WhatsApp,
-            or an email — and PullUp drafts it in your voice first.
-          </p>
-        </Reveal>
-        <ChatScene />
-        <Reveal delay={0.1}>
-          <p className="mk-creed">
-            It drafts. <span className="pink">You send.</span>
-          </p>
-        </Reveal>
-        <Reveal delay={0.06}>
-          <p className="mk-aside">
-            PullUp amplifies care that already exists. It never manufactures
-            care that doesn't. The warmth is yours — it just makes sure you never
-            drop it. And it only sends when you say so.
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 4 · FILL THE ROOM (INBOUND) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="fill" data-mk-order="6">
-        <Reveal><Chapter n="04" label="Fill the room" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            A comment on your reel becomes a guest at your door.
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Someone comments asking to get in — PullUp slides into their DMs
-            with your sign-up link, then lands the confirmation on WhatsApp,
-            where people actually open and reply. The whole funnel, from hype to
-            RSVP, without you lifting a finger.
-          </p>
-        </Reveal>
-        <InboundScene />
-      </section>
-
-      {/* ─── 5 · RUN IT FROM YOUR AI ─── */}
-      <section className="mk-section" data-mk-section="mcp" data-mk-order="7">
-        <Reveal><Chapter n="05" label="No new app to learn" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Or just tell your AI to do it.
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            PullUp plugs into Claude, ChatGPT, Cursor — any AI that speaks MCP.
-            Spin up an event, pull a person's whole history, draft the
-            follow-ups, all in a sentence. The platform, run from wherever you
-            already think out loud.
-          </p>
-        </Reveal>
-        <McpScene />
-      </section>
-
-      {/* ─── 6 · YOU OWN IT ALL (data ownership / BYO-Supabase) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="ownership" data-mk-order="8">
-        <Reveal><Chapter n="06" label="You own it all" /></Reveal>
+      {/* ─── 01 · YOU OWN IT ALL (the killer feature — leads the tour, paired
+          with the live event-room spinner right under it) ─── */}
+      <section className="mk-section mk-section-tint" data-mk-section="ownership" data-mk-order="3">
+        <Reveal><Chapter n="01" label="You own it all" /></Reveal>
         <Reveal delay={0.05}>
           <h2 className="mk-h2">
             Your people live in a database <span className="pink">you own.</span>
@@ -820,9 +708,126 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
         </Reveal>
       </section>
 
-      {/* ─── 9 · JOIN (inline waitlist — the conversion happens on the page,
+      {/* ─── 02 · THE ROOMS THEMSELVES (the live event spinner — the visual
+          proof sitting right under the ownership pitch) ─── */}
+      <EventShowcase />
+
+      {/* ─── 03 · THE ROOM (exclusive drops + who's in it) ─── */}
+      <section className="mk-section" data-mk-section="room" data-mk-order="5">
+        <Reveal><Chapter n="03" label="The Room" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Some things are only for the people <span className="pink">who showed up.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            The Room is everyone who's ever pulled up — kept long after the
+            night's over — and the place you share what no one else gets. Drop
+            the unreleased track, the photos from the night, the early product,
+            the next invite before it's public. The stuff that never touches
+            your grid lives here, just for them.
+          </p>
+        </Reveal>
+        <RoomDropScene />
+        <Reveal delay={0.1}>
+          <p className="mk-creed">
+            Showing up is the password. <span className="pink">What's inside is the reward.</span>
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 2 · EVERY PERSON, IN FULL (deep profile) ─── */}
+      <section className="mk-section mk-section-tint" data-mk-section="person" data-mk-order="6">
+        <Reveal><Chapter n="04" label="Every person, in full" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Everything you know about someone — <span className="pink">in one glance.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Tap anyone in the room and the whole picture opens: where you met,
+            every night they came, who they brought, how warm things are — and
+            the little notes only you'd remember. The context you used to keep in
+            your head, finally on the screen.
+          </p>
+        </Reveal>
+        <ProfileScene />
+      </section>
+
+      {/* ─── 3 · ONE CHAT, EVERY CHANNEL ─── */}
+      <section className="mk-section" data-mk-section="chat" data-mk-order="7">
+        <Reveal><Chapter n="05" label="One chat, every channel" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Every message, one chat. <span className="pink">Reply any way you like.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Their Instagram DMs, their emails, their WhatsApps — PullUp pulls
+            them into one conversation, in order, no matter where they landed.
+            When you reply, you pick the way out: back into their DMs, a WhatsApp,
+            or an email — and PullUp drafts it in your voice first.
+          </p>
+        </Reveal>
+        <ChatScene />
+        <Reveal delay={0.1}>
+          <p className="mk-creed">
+            It drafts. <span className="pink">You send.</span>
+          </p>
+        </Reveal>
+        <Reveal delay={0.06}>
+          <p className="mk-aside">
+            PullUp amplifies care that already exists. It never manufactures
+            care that doesn't. The warmth is yours — it just makes sure you never
+            drop it. And it only sends when you say so.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ─── 4 · FILL THE ROOM (INBOUND) ─── */}
+      <section className="mk-section mk-section-tint" data-mk-section="fill" data-mk-order="8">
+        <Reveal><Chapter n="06" label="Fill the room" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            A comment on your reel becomes a guest at your door.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            Someone comments asking to get in — PullUp slides into their DMs
+            with your sign-up link, then lands the confirmation on WhatsApp,
+            where people actually open and reply. The whole funnel, from hype to
+            RSVP, without you lifting a finger.
+          </p>
+        </Reveal>
+        <InboundScene />
+      </section>
+
+      {/* ─── 5 · RUN IT FROM YOUR AI ─── */}
+      <section className="mk-section" data-mk-section="mcp" data-mk-order="9">
+        <Reveal><Chapter n="07" label="No new app to learn" /></Reveal>
+        <Reveal delay={0.05}>
+          <h2 className="mk-h2">
+            Or just tell your AI to do it.
+          </h2>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <p className="mk-lede">
+            PullUp plugs into Claude, ChatGPT, Cursor — any AI that speaks MCP.
+            Spin up an event, pull a person's whole history, draft the
+            follow-ups, all in a sentence. The platform, run from wherever you
+            already think out loud.
+          </p>
+        </Reveal>
+        <McpScene />
+      </section>
+
+      {/* ─── JOIN (inline waitlist — the conversion happens on the page,
           no modal) ─── */}
-      <section id="join" className="mk-final mk-final--pre" data-mk-section="join" data-mk-order="9">
+      <section id="join" className="mk-final mk-final--pre" data-mk-section="join" data-mk-order="10">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -847,12 +852,8 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
         </Reveal>
       </section>
 
-      {/* ─── THE ROOMS THEMSELVES (showcase wall) — sits between the CTA and
-          Felix's note, so right after "get started" you see what people make ─── */}
-      <EventShowcase />
-
       {/* ─── A NOTE FROM FELIX (the quote) ─── */}
-      <section className="mk-final mk-coda" data-mk-section="coda" data-mk-order="10">
+      <section className="mk-final mk-coda" data-mk-section="coda" data-mk-order="11">
         {/* first-person, in Felix's own voice — the founder talking straight to
             another creator, not a brand manifesto. */}
         <Reveal delay={0.08}>
@@ -892,7 +893,7 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
       </section>
 
       {/* ─── FOOTER ─── */}
-      <footer className="mk-footer" data-mk-section="footer" data-mk-order="11">
+      <footer className="mk-footer" data-mk-section="footer" data-mk-order="12">
         <span>Pullup &copy; {new Date().getFullYear()}</span>
         <span className="mk-footer-dot">·</span>
         <a href="/privacy">Privacy</a>

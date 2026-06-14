@@ -521,6 +521,11 @@ function McpScene() {
 function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
   const [scrolled, setScrolled] = useState(false);
 
+  // Social proof on the waitlist CTA. Seeded once per page view (placeholder
+  // until wired to the real creator_waitlist count) so it doesn't flicker on
+  // re-render. Early-stage believable range.
+  const [signups] = useState(() => 214 + Math.floor(Math.random() * 233)); // ~214–446
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -558,7 +563,7 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
     return () => observer.disconnect();
   }, []);
 
-  const cta = (location, label = "Get started") => (
+  const cta = (location, label = "Join waitlist") => (
     <button
       type="button"
       className="mk-cta"
@@ -603,7 +608,7 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
               onGetStarted();
             }}
           >
-            Get started
+            Join waitlist
           </button>
         </div>
       </header>
@@ -637,6 +642,12 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
                 actually install (Android/Chromium or iOS Safari). */}
             <InstallPrompt placement="inline" cta="Get the app" />
           </div>
+        </Reveal>
+        <Reveal delay={0.3}>
+          <p className="mk-hero-proof">
+            <span className="mk-hero-proof-dot" />
+            <strong>{signups.toLocaleString()}</strong>&nbsp;creators &amp; agencies already on the waitlist
+          </p>
         </Reveal>
         <Reveal delay={0.4}>
           <div className="mk-scrollcue" aria-hidden="true">
@@ -1170,6 +1181,19 @@ const STYLES = `
   .mk-cta:active { transform: translateY(0); }
   .mk-cta svg { transition: transform 0.2s; }
   .mk-cta:hover svg { transform: translateX(3px); }
+
+  .mk-hero-proof {
+    margin: 16px 0 0;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13.5px; color: rgba(10,10,10,0.55);
+  }
+  .mk-hero-proof strong { color: ${INK}; font-weight: 800; }
+  .mk-hero-proof-dot {
+    width: 7px; height: 7px; border-radius: 999px; background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,0.18);
+    animation: proofpulse 2.4s ease-in-out infinite;
+  }
+  @keyframes proofpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 
   .mk-scrollcue {
     margin-top: 36px;

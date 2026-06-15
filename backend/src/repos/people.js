@@ -481,18 +481,10 @@ export async function getAllPeopleWithStats(userId) {
     return [];
   }
 
-  // Fetch all people who have RSVPs for this user's events
-  const { data: allPeople, error: peopleError } = await supabase
-    .from("people")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (peopleError) {
-    console.error("Error fetching people:", peopleError);
-    return [];
-  }
-
-  // Fetch RSVPs only for this user's events
+  // RSVPs for this user's events FIRST (bounded by eventIds). This decides WHICH
+  // people we need — we then fetch only those. The old code fetched the entire
+  // GLOBAL people table with a bare select (capped at 1000) and filtered in JS,
+  // so at scale it silently dropped people.
   const { data: allRsvps, error: rsvpsError } = await supabase
     .from("rsvps")
     .select(
@@ -510,23 +502,30 @@ export async function getAllPeopleWithStats(userId) {
 
   if (rsvpsError) {
     console.error("Error fetching RSVPs:", rsvpsError);
-    return allPeople.map((p) => mapPersonFromDb(p));
+    return [];
   }
 
-  // Group RSVPs by person
+  // Group RSVPs by person.
   const rsvpsByPerson = {};
-  allRsvps.forEach((rsvp) => {
-    if (!rsvpsByPerson[rsvp.person_id]) {
-      rsvpsByPerson[rsvp.person_id] = [];
-    }
-    rsvpsByPerson[rsvp.person_id].push(rsvp);
-  });
+  for (const rsvp of allRsvps || []) {
+    if (!rsvp.person_id) continue;
+    (rsvpsByPerson[rsvp.person_id] ||= []).push(rsvp);
+  }
+  const personIdsWithRsvps = Object.keys(rsvpsByPerson);
+  if (personIdsWithRsvps.length === 0) return [];
 
-  // Get unique person IDs from RSVPs (only people who RSVP'd to user's events)
-  const personIdsWithRsvps = new Set(allRsvps.map((r) => r.person_id));
-
-  // Filter people to only those who have RSVPs for this user's events
-  const relevantPeople = allPeople.filter((p) => personIdsWithRsvps.has(p.id));
+  // Fetch ONLY those people, batched (a single oversized .in() 400s, and the
+  // table is far bigger than the 1000-row default).
+  const PEOPLE_BATCH = 150;
+  const relevantPeople = [];
+  for (let i = 0; i < personIdsWithRsvps.length; i += PEOPLE_BATCH) {
+    const { data, error } = await supabase
+      .from("people")
+      .select("*")
+      .in("id", personIdsWithRsvps.slice(i, i + PEOPLE_BATCH));
+    if (error) { console.error("Error fetching people batch:", error.message); continue; }
+    if (data) relevantPeople.push(...data);
+  }
 
   // Calculate stats for each person
   const peopleWithStats = relevantPeople.map((dbPerson) => {
@@ -1107,6 +1106,9 @@ export async function getPeopleWithFilters(
     eventIds.length > 5 ? `... (${eventIds.length} total)` : ""
   );
 
+  // Bounded by the host's events (eventIds); the person_id filter was the
+  // oversized redundant one (a big .in() 400s) — rsvps for people outside this
+  // page are simply not attached downstream.
   const { data: allRsvpsForPeople, error: rsvpsError2 } = await supabase
     .from("rsvps")
     .select(
@@ -1120,7 +1122,6 @@ export async function getPeopleWithFilters(
       )
     `
     )
-    .in("person_id", peopleIds)
     .in("event_id", eventIds);
 
   // Note: The * selector includes all RSVP fields including:

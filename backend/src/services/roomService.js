@@ -356,21 +356,36 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], memberRooms, community, signals: [], moments: [], people: [] };
   }
   const timeline = pe || [];
-  if (!timeline.length) {
-    // No per-person timeline yet — but the host may still have events (a fresh
-    // host who just created one, before any RSVP). Render those so the home is
-    // truthful from the first event, not only after the first guest.
-    const hostedCards = await getHostedEventCards(hostId);
-    return { host: { peopleCount: 0, eventsCount: hostedCards.length, pullupsCount: 0, ...hostProfile }, events: hostedCards, memberRooms, community, signals: [], moments: [], people: [] };
-  }
 
-  // 2. Group by person.
+  // 2. Group the RECENT timeline by person (drives warmth / last activity).
   const byPerson = new Map();
   for (const e of timeline) {
     if (!byPerson.has(e.person_id)) byPerson.set(e.person_id, []);
     byPerson.get(e.person_id).push(e);
   }
-  const personIds = [...byPerson.keys()];
+
+  // 2b. The FULL set of people in this host's world — RSVPs ∪ person_events,
+  // server-side (mig 094). The old code derived people from the recent-5000
+  // timeline only, so a host with more activity (e.g. 1500+ imports) saw a slice
+  // and the rest silently vanished. We render EVERYONE; people without recent
+  // timeline events just get a calm card (warmth from [] below).
+  let personIds = [];
+  try {
+    // Returns a uuid[] (a single scalar value, so PostgREST's 1000-row response
+    // cap can't truncate it — a TABLE return did).
+    const { data: ids } = await supabase.rpc("pullup_host_world_person_ids", { p_host_id: hostId });
+    personIds = (ids || []).filter(Boolean);
+  } catch (err) {
+    logger?.warn?.("[roomService] world person ids failed", { error: err?.message });
+  }
+  if (!personIds.length) personIds = [...byPerson.keys()]; // fallback if the RPC is missing
+
+  if (!personIds.length) {
+    // No people yet — but the host may still have events (a fresh host). Render
+    // those so the home is truthful from the first event, not only the first guest.
+    const hostedCards = await getHostedEventCards(hostId);
+    return { host: { peopleCount: 0, eventsCount: hostedCards.length, pullupsCount: 0, ...hostProfile }, events: hostedCards, memberRooms, community, signals: [], moments: [], people: [] };
+  }
 
   // 3. Fetch the people + their identities (reachable channels) in bulk.
   // people + identities are global tables → must filter by personIds, so chunk
@@ -558,6 +573,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // community page = a member; an RSVP to a real event = an attendee.
   const communityMemberIds = new Set();
   const rsvpPersonIds = new Set();
+  // person_id -> Set(event_id) of the REAL events they RSVP'd to. Authoritative
+  // for event-filtering (the message picker filters people by event), so it
+  // works for everyone — even people whose RSVP is older than the recent timeline.
+  const rsvpEventsByPerson = new Map();
   try {
     const communityEventIds = new Set((events || []).filter((e) => e.kind === "community").map((e) => e.id));
     const allHostEventIds = (events || []).map((e) => e.id);
@@ -570,7 +589,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       for (const r of rs || []) {
         if (!r.person_id) continue;
         if (communityEventIds.has(r.event_id)) communityMemberIds.add(r.person_id);
-        else rsvpPersonIds.add(r.person_id);
+        else {
+          rsvpPersonIds.add(r.person_id);
+          if (!rsvpEventsByPerson.has(r.person_id)) rsvpEventsByPerson.set(r.person_id, new Set());
+          rsvpEventsByPerson.get(r.person_id).add(r.event_id);
+        }
       }
     }
   } catch (err) {
@@ -580,7 +603,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // 5. Build each person.
   const peopleOut = [];
   for (const pid of personIds) {
-    const evs = byPerson.get(pid); // newest first
+    const evs = byPerson.get(pid) || []; // newest first; [] for people beyond the recent timeline
     const person = peopleById.get(pid);
     if (!person) continue;
 
@@ -616,7 +639,12 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const attended = evs.filter((e) => e.type === "attended").length;
     const rsvps = evs.filter((e) => e.type === "rsvp").length;
     const waitlisted = evs.some((e) => e.type === "waitlist_join");
-    const eventsTouched = [...new Set(evs.map((e) => e.event_id).filter(Boolean))];
+    // Union of timeline-derived events + their actual RSVP events (so the message
+    // picker's event filter matches everyone who RSVP'd, not just recently-active).
+    const eventsTouched = [...new Set([
+      ...evs.map((e) => e.event_id).filter(Boolean),
+      ...(rsvpEventsByPerson.get(pid) || []),
+    ])];
     const lastAt = evs[0]?.occurred_at;
 
     // The two edges + derived segment for this person.
@@ -704,7 +732,9 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   }
 
   return {
-    host: { peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount, ...hostProfile },
+    // Explicit, accurate counts WIN over any stale/capped value on hostProfile
+    // (spread first, then override) — the masthead now shows the true world size.
+    host: { ...hostProfile, peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount },
     events: eventsOut,
     memberRooms,
     community,

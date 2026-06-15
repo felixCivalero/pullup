@@ -1541,16 +1541,18 @@ export function OwnerConsole({ room: roomProp }) {
                 <DoorOpen size={20} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{c?.title || "Your community"}</span>
+                <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
+                  {live ? (c.title || "Your community") : !c ? "Create your community signup page" : "Finish your community signup page"}
+                </span>
                 <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
                   {!c
-                    ? "Set it up — one link, and everyone who joins lands in your room."
+                    ? "One link — everyone who wants in lands in your room."
                     : !live
-                      ? "Draft · publish it to open the doors."
+                      ? "It's a draft — publish it to open the doors."
                       : <><strong style={{ color: colors.text, fontWeight: 800 }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} <span style={{ color: colors.textFaded }}>· everyone who joined through your link</span></>}
                 </span>
               </span>
-              {live && shareUrl && (
+              {live && shareUrl ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
                   <button type="button" onClick={copyLink} style={{ ...ghostPill, color: commLinkCopied ? "#16a34a" : colors.textMuted, borderColor: commLinkCopied ? "rgba(34,197,94,0.4)" : colors.border }}>
                     {commLinkCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
@@ -1560,8 +1562,12 @@ export function OwnerConsole({ room: roomProp }) {
                     View <ExternalLink size={13} />
                   </a>
                 </div>
+              ) : (
+                // Not live → one clear CTA pill (create or finish/publish).
+                <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 800, color: "#fff", background: colors.accent, padding: "7px 13px", borderRadius: 999 }}>
+                  {!c ? <><Plus size={13} /> Create</> : "Publish"}
+                </span>
               )}
-              {!live && <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />}
             </div>
           </div>
         );

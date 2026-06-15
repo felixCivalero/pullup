@@ -325,6 +325,9 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   //    included so the home is never blank for a pure guest.
   const hostProfile = await buildHostProfile(hostId);
   const memberRooms = await getMemberRooms(hostId, email);
+  // The host's community page (a kind='community' event), surfaced in the Room
+  // so they can follow the signup journey. null when they haven't made one.
+  const community = await getHostCommunitySummary(hostId);
 
   // 1. All timeline events in this host's world, newest first.
   const { data: pe, error: peErr } = await supabase
@@ -335,7 +338,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     .limit(5000);
   if (peErr) {
     logger?.error?.("[roomService] timeline read failed", { error: peErr.message });
-    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], memberRooms, signals: [], moments: [], people: [] };
+    return { host: { peopleCount: 0, eventsCount: 0, pullupsCount: 0, ...hostProfile }, events: [], memberRooms, community, signals: [], moments: [], people: [] };
   }
   const timeline = pe || [];
   if (!timeline.length) {
@@ -343,7 +346,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     // host who just created one, before any RSVP). Render those so the home is
     // truthful from the first event, not only after the first guest.
     const hostedCards = await getHostedEventCards(hostId);
-    return { host: { peopleCount: 0, eventsCount: hostedCards.length, pullupsCount: 0, ...hostProfile }, events: hostedCards, memberRooms, signals: [], moments: [], people: [] };
+    return { host: { peopleCount: 0, eventsCount: hostedCards.length, pullupsCount: 0, ...hostProfile }, events: hostedCards, memberRooms, community, signals: [], moments: [], people: [] };
   }
 
   // 2. Group by person.
@@ -690,10 +693,40 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     host: { peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount, ...hostProfile },
     events: eventsOut,
     memberRooms,
+    community,
     signals,
     moments,
     people: peopleOut,
   };
+}
+
+// The host's community page summarized for the Room card: live state + how many
+// have joined (RSVPs to the kind='community' event). null when none exists.
+async function getHostCommunitySummary(hostId) {
+  try {
+    const { data: ev } = await supabase
+      .from("events")
+      .select("id, slug, title, status")
+      .eq("host_id", hostId)
+      .eq("kind", "community")
+      .maybeSingle();
+    if (!ev) return null;
+    const { count } = await supabase
+      .from("rsvps")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", ev.id)
+      .neq("status", "cancelled");
+    return {
+      id: ev.id,
+      slug: ev.slug,
+      title: ev.title,
+      status: ev.status,
+      live: (ev.status || "").toUpperCase() === "PUBLISHED",
+      memberCount: count || 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── moments (the "looking back" legacy layer) ───────────────────────

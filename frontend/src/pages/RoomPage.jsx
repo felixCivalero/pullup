@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy, Mail, Phone, Plus, Send } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy, Mail, Phone, Plus, Send, ExternalLink } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -1442,6 +1442,7 @@ export function OwnerConsole({ room: roomProp }) {
   const MEMBER_ROOMS = room?.memberRooms || [];
   const MOMENTS = room?.moments || [];
   const PEOPLE = room?.people || [];
+  const COMMUNITY = room?.community || null;
 
   const lensEvent = EVENTS.find((e) => e.id === lensEventId) || null;
   const selected = PEOPLE.find((p) => p.id === selectedId) || null;
@@ -1488,29 +1489,75 @@ export function OwnerConsole({ room: roomProp }) {
       {/* Rooms you're in — events you co-host or attend as a guest. */}
       <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
 
-      {/* Your community — the public join door to this world. Setup + share
-          link live on /community; the member slice shows in the chips below. */}
-      <button
-        type="button"
-        onClick={() => navigate("/community")}
-        style={{
-          display: "flex", alignItems: "center", gap: 12, width: "100%",
-          marginTop: 30, padding: "14px 16px", borderRadius: 16, cursor: "pointer",
-          textAlign: "left", fontFamily: SF,
-          border: `1px solid ${colors.border}`,
-          background: `linear-gradient(180deg, ${colors.accent}14, ${colors.surface} 70%)`,
-          color: colors.text,
-        }}
-      >
-        <span style={{ flex: "0 0 auto", width: 38, height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
-          <DoorOpen size={19} />
-        </span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>Your community</span>
-          <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted }}>Share one link — people who join land in your world. Set it up & grab the link.</span>
-        </span>
-        <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />
-      </button>
+      {/* Your community — the front door to THIS room. When it's live, follow the
+          signup journey right here (between the rooms you're in and your people). */}
+      {(() => {
+        const c = COMMUNITY;
+        const live = !!c?.live;
+        const members = c?.memberCount || 0;
+        const sub = !c
+          ? "Share one link — people who join land in your room. Set it up & grab the link."
+          : live
+            ? members > 0
+              ? `${members.toLocaleString()} ${members === 1 ? "person has" : "people have"} joined — they're in this room.`
+              : "Live — share your link to bring the first people in."
+            : "Draft — publish it to open the doors.";
+        return (
+          <div style={{ marginTop: 30 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your community</span>
+              {c && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
+                  padding: "3px 9px", borderRadius: 999,
+                  color: live ? "#16a34a" : colors.textMuted,
+                  background: live ? "rgba(34,197,94,0.12)" : colors.surfaceMuted,
+                  border: `1px solid ${live ? "rgba(34,197,94,0.35)" : colors.border}`,
+                }}>
+                  {live ? "● Live" : "Draft"}
+                </span>
+              )}
+            </div>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate("/community")}
+              onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, width: "100%",
+                padding: "14px 16px", borderRadius: 16, cursor: "pointer",
+                textAlign: "left", fontFamily: SF, boxSizing: "border-box",
+                border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
+                background: live
+                  ? `linear-gradient(180deg, rgba(34,197,94,0.07), ${colors.surface} 70%)`
+                  : `linear-gradient(180deg, ${colors.accent}14, ${colors.surface} 70%)`,
+                color: colors.text,
+              }}
+            >
+              <span style={{ flex: "0 0 auto", width: 38, height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
+                <DoorOpen size={19} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{c?.title || "Your community"}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted }}>{sub}</span>
+              </span>
+              {live && c?.slug && (
+                <a
+                  href={`/c/${c.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "6px 10px", borderRadius: 999, background: `${colors.accent}12` }}
+                >
+                  View <ExternalLink size={13} />
+                </a>
+              )}
+              <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Your people — the CRM, surfaced. Each card is the full profile: contact
           sheet, where-you-met, message, and inline dated notes. No click-open. */}

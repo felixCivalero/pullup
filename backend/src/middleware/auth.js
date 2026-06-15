@@ -64,6 +64,7 @@ export async function requireAuth(req, res, next) {
     req.user = {
       id: user.id,
       email: user.email,
+      phone: user.phone || null,
       ...user.user_metadata,
     };
     req.authType = authType;
@@ -91,6 +92,7 @@ export async function optionalAuth(req, res, next) {
         req.user = {
           id: resolved.user.id,
           email: resolved.user.email,
+          phone: resolved.user.phone || null,
           ...resolved.user.user_metadata,
         };
         req.authType = resolved.authType;

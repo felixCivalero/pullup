@@ -352,6 +352,38 @@ export async function ensurePersonLinked({ userId, email, name = null }) {
   return created?.id || null;
 }
 
+// Phone-keyed twin of ensurePersonLinked, for a phone-only session (WhatsApp/
+// SMS OTP carries no email). Same shape: link by auth_user_id, then by an
+// existing person on phone_e164 (links a guest who RSVP'd by phone to their new
+// session), else mint one. NOT a cross-channel merge — it never fuses a phone
+// person with an email person; it only resolves/creates within the phone lane,
+// the same risk profile as the email path. (Full phone↔email fusion is the M2
+// identity work, deliberately out of scope here.)
+export async function ensurePersonLinkedByPhone({ userId, phoneE164, name = null }) {
+  if (!userId || !phoneE164) return null;
+  const p = String(phoneE164).trim();
+  const { data: byAuth } = await supabase
+    .from("people").select("id").eq("auth_user_id", userId).limit(1).maybeSingle();
+  if (byAuth) return byAuth.id;
+  const linkedId = await personIdByAuthAccount(userId);
+  if (linkedId) return linkedId;
+  const { data: byPhone } = await supabase
+    .from("people").select("id, auth_user_id").eq("phone_e164", p).limit(1).maybeSingle();
+  if (byPhone) {
+    if (!byPhone.auth_user_id) {
+      await supabase.from("people").update({ auth_user_id: userId }).eq("id", byPhone.id);
+      await recordPrimaryAuthAccount(byPhone.id, userId, null);
+    }
+    return byPhone.id;
+  }
+  const { data: created } = await supabase
+    .from("people")
+    .insert({ phone_e164: p, phone: p, name, auth_user_id: userId, import_source: "account_signup" })
+    .select("id").maybeSingle();
+  if (created?.id) await recordPrimaryAuthAccount(created.id, userId, null);
+  return created?.id || null;
+}
+
 // Helper: Map database person to application format
 function mapPersonFromDb(dbPerson) {
   return {

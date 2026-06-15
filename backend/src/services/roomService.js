@@ -23,6 +23,9 @@ import { getUserProfile } from "../data.js";
 import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
 import { getForPersons, resolveDisplay } from "./personSourceProfiles.js";
 import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
+// Chunked id-filtered reads (shared safe-query toolkit) — a single oversized
+// .in() 400s, which once emptied the whole Room. fn(idsChunk) -> rows[].
+import { inChunks as chunkedByIds } from "../db/safeQuery.js";
 
 // The host's own profile, shaped for the Room masthead — so the page reads as
 // "this is YOUR profile, these are YOUR people" (the social-dashboard framing).
@@ -312,20 +315,6 @@ async function getMemberRooms(accountId, email = null) {
   }
 }
 
-// PostgREST rejects an oversized .in() filter (the ids go in the URL, which has
-// a length cap) — a host with hundreds+ of people made the people fetch fail with
-// "Bad Request", so the whole Room came back with ZERO people. Run id-filtered
-// reads in chunks and concatenate. fn(idsChunk) -> rows[].
-const IN_CHUNK = 150;
-async function chunkedByIds(ids, fn) {
-  if (!Array.isArray(ids) || ids.length === 0) return [];
-  const out = [];
-  for (let i = 0; i < ids.length; i += IN_CHUNK) {
-    const rows = await fn(ids.slice(i, i + IN_CHUNK));
-    if (Array.isArray(rows)) out.push(...rows);
-  }
-  return out;
-}
 
 /**
  * Build the global Room payload for a host.

@@ -1112,6 +1112,7 @@ export function CreateEventPage() {
       slug: eventSlug,
       status: isEditMode ? eventStatus : "DRAFT",
       myRole: "owner",
+      kind: eventKind,
       dirty: hasUnsavedEdits,
       guestsCount: null,
       // Published-event Edit puts its "Save changes" control in the top nav (same
@@ -1123,7 +1124,7 @@ export function CreateEventPage() {
         ? (uploadStatus ? `Uploading ${uploadStatus.done}/${uploadStatus.total}…` : "Saving…")
         : "Save changes",
     });
-  }, [isEditMode, editEventId, draftEventId, eventSlug, eventStatus, eventTitle, hasUnsavedEdits, hasAttemptedPublish, missingCount, loading, uploadStatus, setEventNav]);
+  }, [isEditMode, editEventId, draftEventId, eventSlug, eventStatus, eventTitle, eventKind, hasUnsavedEdits, hasAttemptedPublish, missingCount, loading, uploadStatus, setEventNav]);
 
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);

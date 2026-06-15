@@ -65,7 +65,7 @@ export function EventAnalyticsPage() {
         if (eventRes.status === 403) { navigate(`/events/${id}/room`, { replace: true }); return; }
         if (eventRes.ok) {
           const ev = await eventRes.json();
-          setEventNav({ title: ev.title, slug: ev.slug, status: ev.status, myRole: ev.myRole });
+          setEventNav({ title: ev.title, slug: ev.slug, status: ev.status, myRole: ev.myRole, kind: ev.kind || "event" });
         }
         const storyRes = await authenticatedFetch(`/host/events/${id}/story`);
         if (cancelled) return;

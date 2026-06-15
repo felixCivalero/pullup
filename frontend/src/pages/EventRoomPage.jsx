@@ -404,7 +404,7 @@ export default function EventRoomPage() {
     if (!d) return;
     setRoster(d);
     // Carry the REAL sub-role to the shell so the tab set matches the role.
-    setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role });
+    setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role, kind: event?.kind || d.event?.kind || "event" });
   }, [level, role, isHost, id, setEventNav, clearEventNav, event, viewRoster]);
 
   // QR walk-in: a logged-in viewer who scanned the host's live code records the
@@ -427,6 +427,13 @@ export default function EventRoomPage() {
   // Analytics-only collaborators don't run the room — send them to Insights.
   if (isHost && role === "analytics") {
     return <Navigate to={`/app/events/${id}/analytics`} replace />;
+  }
+
+  // A community has NO room of its own — it IS the host's main room. The host
+  // manages it via Signups + Insights; there's no separate room surface. Send
+  // them to their main room.
+  if (isHost && event?.kind === "community" && user?.id) {
+    return <Navigate to={`/r/${user.id}`} replace />;
   }
 
   // ONE auth gate + ONE permission gate. Identity is ALWAYS required — even a

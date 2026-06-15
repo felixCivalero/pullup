@@ -255,9 +255,14 @@ function ProtectedLayoutInner() {
   // The event Room is the home surface of an event — first tab, so the host can
   // always get to it (and back) from Guests/Insights/Edit. Analytics-only gets
   // bounced out of the room, so we don't offer them the tab.
+  // A community page has NO room of its own (it IS the creator's main room), so
+  // it's managed as a signup page: Members + Insights + Edit, no Room tab.
+  const isCommunityPage = eventNav?.kind === "community";
   const roomTab = { label: "Room", path: `/events/${eventId}/room`, tab: "room" };
   const guestsTab = {
-    label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+    label: isCommunityPage
+      ? `Members${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`
+      : `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
     path: `/app/events/${eventId}/guests`,
     tab: "guests",
   };
@@ -266,10 +271,12 @@ function ProtectedLayoutInner() {
   const eventTabItems = (eventId && canManageEvent)
     ? isAnalyticsOnly
       ? [insightsTab] // analytics-only: just the numbers
-      : isReception
-        ? [roomTab, guestsTab] // reception: the room + door duty (guest list)
-        // The event keeps Room + the event-scoped management: guest list, analytics, edit.
-        : [roomTab, guestsTab, insightsTab, editTab]
+      : isCommunityPage
+        ? [guestsTab, insightsTab, editTab] // community: signups + analytics, no room
+        : isReception
+          ? [roomTab, guestsTab] // reception: the room + door duty (guest list)
+          // The event keeps Room + the event-scoped management: guest list, analytics, edit.
+          : [roomTab, guestsTab, insightsTab, editTab]
     : [];
 
   // While creating / editing a DRAFT, the event still carries its full menu so
@@ -279,9 +286,10 @@ function ProtectedLayoutInner() {
   const menuEventId = eventId || eventNav?.id || null;
   const editorTabItems = (menuEventId && canManageEvent)
     ? [
-        { label: "Room", path: `/events/${menuEventId}/room`, tab: "room" },
+        // Community has no room of its own — skip the Room tab, signups → Members.
+        ...(isCommunityPage ? [] : [{ label: "Room", path: `/events/${menuEventId}/room`, tab: "room" }]),
         {
-          label: `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+          label: `${isCommunityPage ? "Members" : "Guests"}${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
           path: `/app/events/${menuEventId}/guests`,
           tab: "guests",
         },

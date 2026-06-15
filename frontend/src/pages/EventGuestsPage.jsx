@@ -273,6 +273,7 @@ export function EventGuestsPage() {
           status: data.event?.status,
           guestsCount: data.guests?.length || 0,
           myRole: data.event?.myRole,
+          kind: data.event?.kind || "event",
         });
 
         // Redirect analytics-only users to the analytics page
@@ -347,6 +348,7 @@ export function EventGuestsPage() {
         status: event.status,
         guestsCount: guests.length,
         myRole: event.myRole,
+        kind: event.kind || "event",
       });
     }
   }, [guests.length, event, setEventNav]);

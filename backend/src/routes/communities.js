@@ -69,7 +69,7 @@ export function registerCommunityRoutes(app) {
       const profile = await getUserProfile(req.user.id).catch(() => null);
       await ensureCommunityForHost(req.user.id, { hostName: profile?.name || profile?.brand || null });
 
-      const { title, blurb, brand, enabled, slug, coverImageUrl } = req.body || {};
+      const { title, blurb, brand, enabled, slug, coverImageUrl, status } = req.body || {};
       const fields = {};
       if (title !== undefined) fields.title = title;
       if (blurb !== undefined) fields.blurb = blurb;
@@ -77,6 +77,7 @@ export function registerCommunityRoutes(app) {
       if (enabled !== undefined) fields.enabled = !!enabled;
       if (slug !== undefined) fields.slug = slug;
       if (coverImageUrl !== undefined) fields.coverImageUrl = coverImageUrl;
+      if (status !== undefined) fields.status = status;
 
       const result = await updateCommunityForHost(req.user.id, fields);
       if (result?.error === "slug_taken") return res.status(409).json({ error: "slug_taken" });
@@ -131,7 +132,8 @@ export function registerCommunityRoutes(app) {
   app.get("/communities/:slug", optionalAuth, async (req, res) => {
     try {
       const community = await getCommunityBySlug(req.params.slug);
-      if (!community || community.enabled === false) {
+      // Only a PUBLISHED community is publicly reachable (drafts 404 like events).
+      if (!community || community.status !== "published" || community.enabled === false) {
         return res.status(404).json({ error: "not_found" });
       }
       const host = await getUserProfile(community.hostId).catch(() => null);
@@ -162,7 +164,7 @@ export function registerCommunityRoutes(app) {
   app.post("/communities/:slug/join", async (req, res) => {
     try {
       const community = await getCommunityBySlug(req.params.slug);
-      if (!community || community.enabled === false) {
+      if (!community || community.status !== "published" || community.enabled === false) {
         return res.status(404).json({ error: "not_found" });
       }
 

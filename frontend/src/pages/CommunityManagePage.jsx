@@ -46,6 +46,7 @@ export function CommunityManagePage() {
   const [coverPct, setCoverPct] = useState(null);
   const [copied, setCopied] = useState(false);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
+  const [publishing, setPublishing] = useState(false);
 
   const isDesktopEditor0 = typeof window !== "undefined" && window.innerWidth >= 969;
   const [isDesktopEditor, setIsDesktopEditor] = useState(isDesktopEditor0);
@@ -175,6 +176,27 @@ export function CommunityManagePage() {
     if (id) setPinnedPartId(id);
   };
 
+  const isLive = community?.status === "published";
+  const publish = async (next) => {
+    if (publishing) return;
+    setPublishing(true);
+    setError("");
+    try {
+      // Flush any pending text/brand edits first so we never publish a stale draft.
+      clearTimeout(saveTimer.current);
+      const res = await authenticatedFetch("/host/community", {
+        method: "PUT",
+        body: JSON.stringify({ title: title.trim(), blurb: blurb.trim(), brand: brand || null, status: next }),
+      });
+      if (!res.ok) throw new Error("publish_failed");
+      hydrate(await res.json());
+    } catch {
+      setError("Couldn't update publish state. Try again.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const preview = useMemo(() => ({ ...(community || {}), title, blurb, brand, coverImageUrl }),
     [community, title, blurb, brand, coverImageUrl]);
 
@@ -285,6 +307,13 @@ export function CommunityManagePage() {
 
           {/* ── Preview stage ── */}
           <div className="create-event-preview-desktop" style={{ flex: 1, height: "100%", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0d0b12" }}>
+            {/* Publish bar — see if it's live, flip it like an event. */}
+            <div className="cme-publishbar">
+              <span className={`cme-livepill${isLive ? " is-live" : ""}`}>{isLive ? "● Live" : "Draft"}</span>
+              <button type="button" className={`cme-publish${isLive ? " is-live" : ""}`} onClick={() => publish(isLive ? "draft" : "published")} disabled={publishing}>
+                {publishing ? "…" : isLive ? "Unpublish" : "Publish"}
+              </button>
+            </div>
             <div className="cme-toggle">
               <button type="button" className={`cme-tog${previewMode === "phone" ? " is-on" : ""}`} onClick={() => setPreviewMode("phone")}><Smartphone size={13} /> Phone</button>
               <button type="button" className={`cme-tog${previewMode === "desktop" ? " is-on" : ""}`} onClick={() => setPreviewMode("desktop")}><Monitor size={13} /> Desktop</button>
@@ -332,6 +361,15 @@ const STYLES = `
   .ce-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 15px; border-radius: 11px; border: none; background: ${PINK}; color: #fff; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
   .ce-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; font-size: 13px; color: rgba(10,10,10,0.55); text-decoration: none; }
   .ce-open:hover { color: ${PINK}; }
+
+  /* Publish bar — top-right of the dark stage */
+  .cme-publishbar { position: absolute; top: 14px; right: 18px; z-index: 21; display: inline-flex; align-items: center; gap: 10px; }
+  .cme-livepill { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 11px; border-radius: 999px; color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.14); }
+  .cme-livepill.is-live { color: #fff; background: rgba(34,197,94,0.22); border-color: rgba(34,197,94,0.5); }
+  .cme-publish { padding: 8px 18px; border-radius: 999px; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 800; background: ${PINK}; color: #fff; transition: opacity 0.16s, transform 0.16s; }
+  .cme-publish:hover { transform: translateY(-1px); }
+  .cme-publish.is-live { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); }
+  .cme-publish:disabled { opacity: 0.6; cursor: default; transform: none; }
 
   /* Preview stage — device toggle + framed chrome (on the dark stage) */
   .cme-toggle { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 20; display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,0.10); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.14); }

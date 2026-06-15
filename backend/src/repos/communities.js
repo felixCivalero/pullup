@@ -39,6 +39,8 @@ export function mapCommunityFromDb(row) {
     blurb: row.blurb || null,
     brand: row.brand || null,
     coverImageUrl: row.cover_image_url || null,
+    status: row.status || "draft",
+    isLive: (row.status || "draft") === "published",
     enabled: row.enabled !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -104,7 +106,7 @@ export async function ensureCommunityForHost(hostId, { hostName = null } = {}) {
 }
 
 // Maps a camelCase input field → its db column. Anything not here is ignored.
-const EDITABLE = { title: "title", blurb: "blurb", brand: "brand", enabled: "enabled", slug: "slug", coverImageUrl: "cover_image_url" };
+const EDITABLE = { title: "title", blurb: "blurb", brand: "brand", enabled: "enabled", slug: "slug", coverImageUrl: "cover_image_url", status: "status" };
 
 export async function updateCommunityForHost(hostId, fields = {}) {
   const patch = {};
@@ -114,6 +116,10 @@ export async function updateCommunityForHost(hostId, fields = {}) {
     if (k === "slug") {
       const s = slugify(v);
       if (s) patch.slug = s;
+      continue;
+    }
+    if (k === "status") {
+      patch.status = v === "published" ? "published" : "draft";
       continue;
     }
     patch[col] = v;

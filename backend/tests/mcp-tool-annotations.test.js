@@ -27,6 +27,8 @@ const EXPECTED_READ_ONLY = new Set([
   "find_matches", "suggest_event_improvements",
   "get_crm_signals", "audit_customer_journey",
   "get_recent_actions", "get_host_brief",
+  // Portable smart-twin exports — they only read + package existing state.
+  "export_context_pack", "export_person_pack",
 ]);
 
 // Tools whose effect is irreversible / hard to undo — money or real people.

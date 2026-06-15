@@ -44,6 +44,7 @@ import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerProfileRoutes } from "./routes/profile.js";
 import { registerEventImageRoutes } from "./routes/eventImages.js";
 import { registerCrmRpcRoutes } from "./routes/crmRpc.js";
+import { registerContextPackRoutes } from "./routes/contextPack.js";
 import { registerMediaLinkRoutes } from "./routes/mediaLink.js";
 import { registerEventMediaRoutes } from "./routes/eventMedia.js";
 import { registerProfileMediaRoutes } from "./routes/profileMedia.js";
@@ -301,6 +302,8 @@ registerProfileRoutes(app);
 registerEventImageRoutes(app);
 
 registerCrmRpcRoutes(app);
+
+registerContextPackRoutes(app);
 
 registerMediaLinkRoutes(app);
 

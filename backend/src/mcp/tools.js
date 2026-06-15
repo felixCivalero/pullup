@@ -634,6 +634,24 @@ const HostBriefSetInput = {
   ),
 };
 
+const ContextPackInput = {
+  includePeople: z.boolean().optional().describe(
+    "Embed the people of the host's world in the pack. Default false — just the host plus the shape and intelligence of their world (core people, drifters, spenders)."
+  ),
+  peopleLimit: z.number().int().positive().max(2000).optional().describe(
+    "Cap on embedded people when includePeople is true. Default 100."
+  ),
+};
+
+const PersonPackInput = {
+  personId: z.string().optional().describe(
+    "The person's id (from query_people / find_person)."
+  ),
+  query: z.string().optional().describe(
+    "Alternatively, a name, email, or @handle to resolve to one person."
+  ),
+};
+
 const SuggestImprovementsInput = {
   slug: z.string().describe(
     "The event's slug. Returns a ranked list of the most impactful next improvements with the exact MCP call to make each."
@@ -1991,6 +2009,44 @@ function buildHandlers(api, hostId) {
     return toolResultText(lines.join("\n"));
   }
 
+  // ── Context pack — the portable smart twin ────────────────────────────
+  // Data ownership that carries the intelligence, not just rows: a markdown
+  // brief of the host's world (or one person) you paste into ANY AI so it
+  // knows this creator as of PullUp.
+  async function exportContextPack(args) {
+    const query = {};
+    if (args.includePeople === true) query.people = "true";
+    if (args.peopleLimit) query.limit = args.peopleLimit;
+    const pack = await api("GET", "/host/context-pack", { query });
+    const md = pack?.markdown || "(empty — no world yet)";
+    const dl =
+      "/host/context-pack?format=markdown" +
+      (args.includePeople ? "&people=true" : "");
+    const footer = [
+      "",
+      "—",
+      `Portable context pack: paste this into any AI to brief it on this creator's world as of PullUp. Raw .md download: ${dl}`,
+    ].join("\n");
+    return toolResultText(md + "\n" + footer);
+  }
+
+  async function exportPersonPack(args) {
+    let personId = args.personId || null;
+    if (!personId && args.query) {
+      const found = await api("GET", "/host/crm/people", {
+        query: { search: args.query, limit: 1 },
+      });
+      const list = Array.isArray(found) ? found : found?.people || [];
+      if (!list.length) throw new Error(`No person found matching "${args.query}".`);
+      personId = list[0].id;
+    }
+    if (!personId) {
+      throw new Error("Provide personId or query (a name, email, or @handle).");
+    }
+    const pack = await api("GET", `/host/context-pack/people/${personId}`);
+    return toolResultText(pack?.markdown || "(empty)");
+  }
+
   return {
     createEvent,
     updateEvent,
@@ -2030,6 +2086,9 @@ function buildHandlers(api, hostId) {
     getCrmSignals,
     auditCustomerJourney,
     getRecentActions,
+    // Portable smart twin — data ownership that carries the intelligence
+    exportContextPack,
+    exportPersonPack,
   };
 }
 
@@ -2238,6 +2297,7 @@ const READ_ONLY_TOOLS = new Set([
   "suggest_event_improvements",
   "get_crm_signals", "audit_customer_journey",
   "get_recent_actions", "get_host_brief",
+  "export_context_pack", "export_person_pack",
 ]);
 
 // Irreversible: moves real money or reaches real people in a way you can't take
@@ -2288,6 +2348,7 @@ const TOOL_PROFILES = {
     "update_rsvp", "list_events", "get_event", "get_event_analytics",
     "audit_customer_journey", "get_recent_activity", "get_recent_actions",
     "get_host_brief",
+    "export_context_pack", "export_person_pack",
   ]),
 };
 
@@ -2577,6 +2638,22 @@ export function buildTools(ctx) {
         "Returns the host's recent mutating actions across the whole product, in MCP-tool shape — anything they did in the web app AND anything done via this MCP. Use this at the START of a fresh chat to ground the assistant ('I see you just published Volume 01 and checked in 40 guests') or when the host asks 'what did I do this week' / 'pick up where I left off'. Optional filters: targetType ('event' | 'person' | 'rsvp' | 'payment'), targetId, source ('ui' | 'chat'), since (ISO datetime).",
       inputSchema: GetRecentActionsInput,
       handler: h.getRecentActions,
+    },
+    {
+      name: "export_context_pack",
+      title: "Export the host's portable smart twin",
+      description:
+        "Builds the host's PORTABLE CONTEXT PACK — who they are (brief + brand), the shape of their world (people, events, regulars, dinner-goers, spenders), and the resolved intelligence normally locked inside PullUp (core people who keep coming back, regulars who've gone quiet, biggest spenders). Returns ready-to-paste markdown you hand to ANY AI so it knows this creator as of PullUp — the smarts, not just rows. Set includePeople=true to embed the people of their world too. This is the host THEMSELVES; use export_person_pack for one specific person. Use when the host says 'export my data / give me my AI brief / what does PullUp know about me'.",
+      inputSchema: ContextPackInput,
+      handler: h.exportContextPack,
+    },
+    {
+      name: "export_person_pack",
+      title: "Export one person's resolved record",
+      description:
+        "Builds ONE person's portable pack — their identity fused across every channel (email / phone / Instagram), their full history with the host, IG reach + follow reciprocity, the host's private notes, and who they're closest to in the host's world. Pass personId or a query (name / email / @handle). Returns markdown you can feed to an AI so it knows this person as of PullUp. Use export_context_pack for the host themselves or the whole world.",
+      inputSchema: PersonPackInput,
+      handler: h.exportPersonPack,
     },
   ];
   const scoped = allow ? defs.filter((t) => allow.has(t.name)) : defs;

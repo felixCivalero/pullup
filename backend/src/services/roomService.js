@@ -358,7 +358,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   const [{ data: people }, { data: idents }, { data: events }] = await Promise.all([
     supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", personIds),
     supabase.from("person_identities").select("person_id, kind").in("person_id", personIds),
-    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions").eq("host_id", hostId),
+    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions, kind").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
   // Linked external-source profiles (IG etc.) → avatar + reach/reciprocity signals.
@@ -456,6 +456,8 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   }
   const now = Date.now();
   const eventsOut = (events || [])
+    // The community PAGE is a kind='community' event — it's not an event card.
+    .filter((e) => e.kind !== "community")
     .map((e) => {
       const published = (e.status || "").toUpperCase() === "PUBLISHED";
       const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
@@ -533,31 +535,26 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
 
   // 4c. The two relationship edges per person → the 3-way audience segment the
   // people view + message picker filter on: community-only / community+events /
-  // events-only. Community membership comes from the host's community; the event
-  // edge from any non-cancelled RSVP to the host's events.
+  // events-only. In the unified model a community page is a kind='community'
+  // event, so BOTH edges are RSVPs — split by the event's kind: an RSVP to the
+  // community page = a member; an RSVP to a real event = an attendee.
   const communityMemberIds = new Set();
   const rsvpPersonIds = new Set();
   try {
-    const { data: comm } = await supabase
-      .from("communities").select("id").eq("host_id", hostId).maybeSingle();
-    if (comm?.id) {
-      const { data: mems } = await supabase
-        .from("community_members")
-        .select("person_id")
-        .eq("community_id", comm.id)
-        .eq("status", "active")
-        .in("person_id", personIds);
-      for (const m of mems || []) communityMemberIds.add(m.person_id);
-    }
-    const hostEventIds = (events || []).map((e) => e.id);
-    if (hostEventIds.length) {
+    const communityEventIds = new Set((events || []).filter((e) => e.kind === "community").map((e) => e.id));
+    const allHostEventIds = (events || []).map((e) => e.id);
+    if (allHostEventIds.length) {
       const { data: rs } = await supabase
         .from("rsvps")
-        .select("person_id")
-        .in("event_id", hostEventIds)
+        .select("person_id, event_id")
+        .in("event_id", allHostEventIds)
         .neq("status", "cancelled")
         .in("person_id", personIds);
-      for (const r of rs || []) if (r.person_id) rsvpPersonIds.add(r.person_id);
+      for (const r of rs || []) {
+        if (!r.person_id) continue;
+        if (communityEventIds.has(r.event_id)) communityMemberIds.add(r.person_id);
+        else rsvpPersonIds.add(r.person_id);
+      }
     }
   } catch (err) {
     logger?.warn?.("[roomService] segment read failed", { error: err?.message });

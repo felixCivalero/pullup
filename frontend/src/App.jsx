@@ -76,8 +76,7 @@ const CookiesPage = lazyPage(() => import("./pages/CookiesPage"), "CookiesPage")
 const HostAnalyticsPage = lazyPage(() => import("./pages/HostAnalyticsPage"), "HostAnalyticsPage");
 const OAuthAuthorizePage = lazyPage(() => import("./pages/OAuthAuthorizePage"), "OAuthAuthorizePage");
 const MediaUploadPage = lazyPage(() => import("./pages/MediaUploadPage"), "MediaUploadPage");
-const CommunityPage = lazyPage(() => import("./pages/CommunityPage"), "CommunityPage");
-const CommunityManagePage = lazyPage(() => import("./pages/CommunityManagePage"), "CommunityManagePage");
+import { CommunityRedirect } from "./components/CommunityRedirect.jsx";
 // The logged-in shell itself is lazy: guests on /e/:slug never download it.
 const ProtectedLayout = lazyPage(() => import("./components/ProtectedLayout"), "ProtectedLayout");
 const ViewAsBar = lazyPage(() => import("./components/admin/ViewAsBar.jsx"), "ViewAsBar"); // admin lens; admin-gated, hidden for everyone else
@@ -142,12 +141,13 @@ function App() {
             </ErrorBoundary>
           }
         />
-        {/* Public community join page — the front door to a host's world. */}
+        {/* Public community page — a kind='community' event, rendered by the
+            same page engine as an event (dateless, "Join" CTA). */}
         <Route
           path="/c/:slug"
           element={
             <ErrorBoundary>
-              <CommunityPage />
+              <EventPage />
             </ErrorBoundary>
           }
         />
@@ -211,8 +211,8 @@ function App() {
               now it lands on the Room like everything else. */}
           <Route path="/home" element={<Navigate to="/room" replace />} />
           <Route path="/settings" element={<SettingsPage />} />
-          {/* Host's community — set up the public join page + see members. */}
-          <Route path="/community" element={<CommunityManagePage />} />
+          {/* Host's single community page → opens in the event editor. */}
+          <Route path="/community" element={<CommunityRedirect />} />
           {/* Auto-DM — Instagram comment→DM triggers (per-event, migration 068) */}
           <Route path="/auto-dm" element={<AutoDmPage />} />
           <Route path="/app/events/:id/edit" element={<CreateEventPage key="edit" />} />

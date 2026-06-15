@@ -1053,6 +1053,9 @@ export function EventPage() {
             instantWaitlist: event?.instantWaitlist,
             autoShowRsvp: !!vipOffer || !!waitlistOffer,
             rsvpContent: renderRsvp,
+            // Page kind — drives the CTA label (community → "Join"). Date/place
+            // are already hidden via the row's hide_date/hide_location flags.
+            kind: event?.kind || "event",
           };
 
           return isDesktop

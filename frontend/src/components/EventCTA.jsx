@@ -5,8 +5,10 @@ import { Button } from "./ui/Button";
 /** Height reserved for the CTA bar (used to offset content) */
 export const EVENT_CTA_HEIGHT = 72;
 
-/** Compute the CTA label from ticket config */
-export function getCtaLabel({ ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist } = {}) {
+/** Compute the CTA label from page kind + ticket config */
+export function getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist } = {}) {
+  // Non-event page kinds carry their own CTA (community → "Join", etc.).
+  if (kind === "community") return "Join the community";
   if (isEventPast) return "Event has ended";
   if (isSoldOut) return "Sold out";
   if (instantWaitlist) return "Register interest";

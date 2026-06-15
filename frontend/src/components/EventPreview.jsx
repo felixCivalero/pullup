@@ -54,6 +54,8 @@ export function EventPreview({
   // Editor-only: hover a part of the preview to peek its editor open.
   // onHoverPart({ kind }) on enter, onHoverPart(null) on leave.
   onHoverPart = null,
+  // Page kind ('event' | 'community' | …) — drives the CTA label.
+  kind = "event",
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -171,7 +173,7 @@ export function EventPreview({
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [hoveredSection]);
 
-  const buttonLabel = getCtaLabel({ ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut });
+  const buttonLabel = getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut });
   const hasContent = description || (sections && sections.length > 0);
 
   return (

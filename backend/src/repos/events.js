@@ -187,6 +187,10 @@ export async function mapEventFromDb(dbEvent) {
     totalCapacity: dbEvent.total_capacity,
     createdVia: dbEvent.created_via || "legacy",
     status: dbEvent.status || "PUBLISHED",
+    // Page-kind discriminator ('event' default). A community page is an events
+    // row with kind='community' (dateless, "Join" CTA) edited/rendered by the
+    // same engine. Read-only to clients — set at creation, never via update.
+    kind: dbEvent.kind || "event",
     instagram: dbEvent.instagram || null,
     spotify: dbEvent.spotify || null,
     tiktok: dbEvent.tiktok || null,
@@ -259,6 +263,7 @@ function mapEventToDb(eventData) {
       dbData.image_url = null;
     }
   }
+  if (eventData.kind !== undefined) dbData.kind = eventData.kind;
   if (eventData.theme !== undefined) dbData.theme = eventData.theme;
   // Per-event brand snapshot (migration 047). A plain object of brand
   // tokens, or null to clear back to the PullUp standard theme.
@@ -430,6 +435,10 @@ export async function createEvent({
   createdVia = "legacy",
   status = "PUBLISHED",
 
+  // Page kind ('event' default). 'community' = a dateless community page edited
+  // and rendered by the same engine. Set at creation only.
+  kind = "event",
+
   // Media settings
   mediaSettings,
 
@@ -531,6 +540,7 @@ export async function createEvent({
     totalCapacity: totalCapacity ? Number(totalCapacity) : null,
     createdVia,
     status,
+    kind: ["event", "community", "product", "waitlist", "widget"].includes(kind) ? kind : "event",
     mediaSettings,
     titleSettings,
     instagram,
@@ -625,6 +635,42 @@ export async function createEvent({
   }
 
   return await mapEventFromDb(data);
+}
+
+// Get-or-create the host's SINGLE community page — an events row kind='community',
+// dateless, draft until published. One-per-host is enforced by a partial unique
+// index (mig 093); on a create race we just return the existing one. The placeholder
+// startsAt is never shown (hideDate=true) but satisfies the not-null column.
+export async function ensureCommunityPage(hostId, { hostName = null } = {}) {
+  if (!hostId) return null;
+  const findExisting = async () => {
+    const { data } = await supabase
+      .from("events").select("*")
+      .eq("host_id", hostId).eq("kind", "community")
+      .order("created_at", { ascending: true }).limit(1).maybeSingle();
+    return data ? await mapEventFromDb(data) : null;
+  };
+  const existing = await findExisting();
+  if (existing) return existing;
+  try {
+    return await createEvent({
+      hostId,
+      title: hostName ? `${hostName}'s community` : "My community",
+      kind: "community",
+      status: "DRAFT",
+      createdVia: "create",
+      hideDate: true,
+      hideLocation: true,
+      ticketType: "free",
+      waitlistEnabled: false,
+      startsAt: new Date("2099-01-01T00:00:00.000Z").toISOString(),
+      timezone: "UTC",
+    });
+  } catch (e) {
+    const after = await findExisting(); // lost the one-per-host race → return winner
+    if (after) return after;
+    throw e;
+  }
 }
 
 export async function findEventBySlug(slug, userId = null) {

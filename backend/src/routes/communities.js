@@ -25,6 +25,7 @@ import {
   addCommunityMember,
   getCommunityMemberSummary,
 } from "../repos/communities.js";
+import { ensureCommunityPage } from "../repos/events.js";
 
 function shareUrl(slug) {
   return `${APP_BASE_URL.replace(/\/$/, "")}/c/${slug}`;
@@ -47,6 +48,21 @@ async function hostPayload(community) {
 }
 
 export function registerCommunityRoutes(app) {
+  // ── Host: get-or-create THE community page (an events row kind='community') ──
+  // Returns the id so the frontend opens it in the same editor as an event.
+  // This is the unified path — a community page IS an event of kind 'community'.
+  app.get("/host/community-page", requireAuth, async (req, res) => {
+    try {
+      const profile = await getUserProfile(req.user.id).catch(() => null);
+      const page = await ensureCommunityPage(req.user.id, { hostName: profile?.name || profile?.brand || null });
+      if (!page) return res.status(500).json({ error: "community_unavailable" });
+      res.json({ id: page.id, slug: page.slug, status: page.status });
+    } catch (err) {
+      logger?.error?.("[GET /host/community-page] error", { error: err?.message });
+      res.status(500).json({ error: "failed" });
+    }
+  });
+
   // ── Host: get-or-create my community ──────────────────────────────────────
   app.get("/host/community", requireAuth, async (req, res) => {
     try {

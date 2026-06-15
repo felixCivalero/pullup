@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { getPageKind } from "../lib/pageKinds.js";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import {
@@ -589,6 +590,20 @@ export function CreateEventPage() {
   const [eventTitle, setEventTitle] = useState(null);
   const [eventSlug, setEventSlug] = useState(null);
   const [eventStatus, setEventStatus] = useState(null);
+  // Page kind ('event' default). A loaded kind='community' row turns this editor
+  // into the community page editor: no date/location, "Join" CTA. Set from the
+  // loaded row (community pages are always edited, never freshly created here).
+  const [eventKind, setEventKind] = useState("event");
+  const isCommunity = eventKind === "community";
+  // The rail, filtered to this kind's parts (registry-driven). Events get the
+  // full rail unchanged; a community drops the event-only tools (e.g. Auto-DM).
+  const railGroups = useMemo(() => {
+    if (eventKind === "event") return RAIL_GROUPS;
+    const allowed = new Set(getPageKind(eventKind).parts);
+    return RAIL_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((it) => allowed.has(it.id)) }))
+      .filter((g) => g.items.length);
+  }, [eventKind]);
 
   // PullUp coach widget hands off into the editor by appending ?focus=<key>.
   // Read it, flip to the matching tab, briefly gold-flash a relevant field
@@ -1687,14 +1702,20 @@ export function CreateEventPage() {
         setBrand(ev.brand || null);
         setDescription(ev.description || "");
         (() => {
-          const saved = ev.sections || [];
+          // A community page has no date or place, so we never seed the
+          // location/datetime sections (and drop any that snuck in). Everything
+          // else — title, text, Spotify, hosted-by — is shared with events.
+          const community = (ev.kind || "event") === "community";
+          const saved = community
+            ? (ev.sections || []).filter(s => s.type !== "location" && s.type !== "datetime")
+            : (ev.sections || []);
           const hasT = saved.some(s => s.type === "title");
           const hasLoc = saved.some(s => s.type === "location");
           const hasDt = saved.some(s => s.type === "datetime");
           const defaults = [];
           if (!hasT) defaults.push({ type: "title" });
-          if (!hasLoc) defaults.push({ type: "location" });
-          if (!hasDt) defaults.push({ type: "datetime" });
+          if (!community && !hasLoc) defaults.push({ type: "location" });
+          if (!community && !hasDt) defaults.push({ type: "datetime" });
           setSections([...defaults, ...saved]);
         })();
         setLocation(ev.location || "");
@@ -1833,6 +1854,7 @@ export function CreateEventPage() {
         setEventTitle(ev.title);
         setEventSlug(ev.slug);
         setEventStatus(ev.status || "PUBLISHED");
+        setEventKind(ev.kind || "event");
       } catch (err) {
         console.error("Error loading event for edit:", err);
         showToast("Failed to load event", "error");
@@ -3026,7 +3048,7 @@ export function CreateEventPage() {
                 gap: "10px",
               }}
             >
-              {RAIL_GROUPS.map((grp, gi) => (
+              {railGroups.map((grp, gi) => (
                 <div key={grp.group} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", width: "100%" }}>
                   {/* Hairline divider between tool groups (skip before the first). */}
                   {gi > 0 && <div style={{ width: "28px", height: "1px", background: colors.border, margin: "2px 0 4px" }} />}
@@ -5998,6 +6020,7 @@ export function CreateEventPage() {
               {(() => {
                 const previewProps = {
                   title,
+                  kind: eventKind,
                   autoShowRsvp: currentStep === 3 || currentStep === 5,
                   activeStep: currentStep,
                   description,
@@ -6120,6 +6143,7 @@ export function CreateEventPage() {
           <EventPreview
             onFocusDrag={makeFocusDragHandler("phone")}
             title={title}
+            kind={eventKind}
             description={description}
             location={location}
             locationLat={locationLat}

@@ -7,3 +7,8 @@
 -- edited by the same editor and rendered by the same page.
 alter table events add column if not exists kind text not null default 'event';
 create index if not exists events_kind_host_idx on events (kind, host_id);
+
+-- A host has at most ONE community page (singleton). Enforced at the DB so the
+-- get-or-create can't race into two.
+create unique index if not exists events_one_community_per_host
+  on events (host_id) where kind = 'community';

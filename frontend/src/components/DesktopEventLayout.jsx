@@ -40,6 +40,7 @@ export function DesktopEventLayout({
   autoShowRsvp = false,
   activeStep,
   onFocusDrag,
+  kind = "event",
 }) {
   const rightScrollRef = useRef(null);
   const rsvpSectionRef = useRef(null);
@@ -124,6 +125,7 @@ export function DesktopEventLayout({
   };
 
   const buttonLabel = getCtaLabel({
+    kind,
     ticketType,
     ticketPrice,
     ticketCurrency,

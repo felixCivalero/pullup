@@ -17,7 +17,7 @@ const AWAIT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Open an awaiting session. Returns the new row id, or null on failure. */
 export async function createFlowSession({
   hostProfileId, personId, triggerId = null, eventId = null,
-  eventSlug = null, openerCommentId = null, flow,
+  eventSlug = null, eventKind = "event", openerCommentId = null, flow,
 }) {
   if (!hostProfileId || !personId || !flow) return null;
   const { data, error } = await supabase
@@ -28,6 +28,7 @@ export async function createFlowSession({
       trigger_id: triggerId,
       event_id: eventId,
       event_slug: eventSlug,
+      event_kind: eventKind || "event",
       opener_comment_id: openerCommentId,
       flow,
       status: "awaiting",

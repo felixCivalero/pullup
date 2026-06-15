@@ -104,8 +104,14 @@ function Notice({ children, action }) {
   );
 }
 
-export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
+export function EventAutoDmPanel({ eventId, eventStatus, isEditMode, kind = "event" }) {
   const { showToast } = useToast();
+  // The page this panel is wired to drives the link a comment→DM sends and the
+  // wording: a community join (/c), a product buy (/p), or an event RSVP (/e).
+  const pageNoun = kind === "community" ? "community" : kind === "product" ? "product" : "event";
+  const linkNoun = kind === "community" ? "community link" : kind === "product" ? "product link" : "event link";
+  // RSVP → DM card verb — what "signing up" means for this kind.
+  const signupVerb = kind === "community" ? "joins" : kind === "product" ? "buys" : "RSVPs";
   const [loading, setLoading] = useState(true);
   const [igConnected, setIgConnected] = useState(false);
   const [account, setAccount] = useState(null); // { id, ig_username }
@@ -503,7 +509,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
             lineHeight: 1.5,
           }}
         >
-          This event is a draft — anything you set up is saved now and goes live automatically when you publish.
+          This {pageNoun} is a draft — anything you set up is saved now and goes live automatically when you publish.
         </div>
       )}
 
@@ -869,7 +875,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
         <div style={{ ...cardHead, justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <UserCheck size={15} color={colors.instagram} />
-            <span style={cardTitle}>When someone RSVPs → DM</span>
+            <span style={cardTitle}>When someone {signupVerb} → DM</span>
           </div>
           {rsvpTrigger && rsvpStatus !== "expired" && (
             <button
@@ -891,7 +897,7 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode }) {
           )}
         </div>
         <p style={cardSub}>
-          Lands in the DMs of guests who came through Instagram and messaged you back — the event link is added
+          Lands in the DMs of people who came through Instagram and messaged you back — the {linkNoun} is added
           automatically. Everyone else still gets your normal confirmation.
         </p>
 

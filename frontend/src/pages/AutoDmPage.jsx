@@ -76,9 +76,17 @@ function fmtDate(iso) {
   }
 }
 
+// A trigger can be wired to an event, a community page, or a product page.
+// Evergreen pages (community / product) have no date, so we tag them by kind.
+function kindLabel(kind) {
+  return kind === "community" ? "Community" : kind === "product" ? "Product" : "Event";
+}
+const isEvergreen = (kind) => kind === "community" || kind === "product";
+
 function StatusBadge({ status, expiresAt }) {
   const map = {
-    active: { label: `Active · retires ${fmtDate(expiresAt)}`, bg: colors.successRgba, fg: colors.success, bd: "rgba(22,163,74,0.3)" },
+    // Evergreen pages (community / product) have no expiresAt → they don't retire.
+    active: { label: expiresAt ? `Active · retires ${fmtDate(expiresAt)}` : "Active", bg: colors.successRgba, fg: colors.success, bd: "rgba(22,163,74,0.3)" },
     pending: { label: "Pending · goes live when published", bg: colors.instagramSoft, fg: colors.instagram, bd: colors.instagramBorder },
     paused: { label: "Paused", bg: colors.surfaceMuted, fg: colors.textMuted, bd: colors.border },
     expired: { label: "Expired · event ended", bg: colors.dangerRgba, fg: colors.danger, bd: "rgba(220,38,38,0.25)" },
@@ -257,7 +265,7 @@ export function AutoDmPage() {
           color: colors.textMuted,
         }}
       >
-        {["Post on Instagram", "Someone comments your keyword", "PullUp DMs them your event link"].map(
+        {["Post on Instagram", "Someone comments your keyword", "PullUp DMs them your signup link"].map(
           (step, i) => (
             <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span
@@ -380,17 +388,18 @@ export function AutoDmPage() {
         {noEvents ? (
           <div style={{ fontSize: 13.5, color: colors.textMuted, display: "flex", alignItems: "center", gap: 8 }}>
             <AlertCircle size={15} color={colors.textSubtle} />
-            You have no upcoming events yet. Create one first (a draft is fine — the trigger goes live
-            when you publish), then come back to wire a comment trigger to it.
+            You have nothing to wire a trigger to yet. Create an event, community or product page first
+            (a draft is fine — the trigger goes live when you publish), then come back to wire a comment
+            trigger to it.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
-              <div style={fieldLabel}>Event</div>
+              <div style={fieldLabel}>Page</div>
               <select value={eventId} onChange={(e) => setEventId(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
                 {events.map((ev) => (
                   <option key={ev.id} value={ev.id}>
-                    {ev.title} · {fmtDate(ev.startsAt)}{ev.isDraft ? " · draft" : ""}
+                    {ev.title} · {ev.startsAt ? fmtDate(ev.startsAt) : kindLabel(ev.kind)}{ev.isDraft ? " · draft" : ""}
                   </option>
                 ))}
               </select>
@@ -529,7 +538,11 @@ export function AutoDmPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: colors.textMuted }}>
                 <Calendar size={13} color={colors.textSubtle} />
                 {t.eventTitle}
-                {t.startsAt && <span style={{ color: colors.textFaded }}>· {fmtDate(t.startsAt)}</span>}
+                {t.startsAt ? (
+                  <span style={{ color: colors.textFaded }}>· {fmtDate(t.startsAt)}</span>
+                ) : isEvergreen(t.kind) ? (
+                  <span style={{ color: colors.textFaded }}>· {kindLabel(t.kind)}</span>
+                ) : null}
               </div>
 
               {(t.flow?.opener || t.replyText) && (

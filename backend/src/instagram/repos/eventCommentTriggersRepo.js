@@ -14,19 +14,30 @@
 
 import { supabase } from "../../supabase.js";
 
-const EVENT_COLS = "id, title, slug, starts_at, ends_at, status";
+const EVENT_COLS = "id, title, slug, starts_at, ends_at, status, kind";
 
 /** event_comment_triggers + its embedded event, in one round-trip. */
 const SELECT_WITH_EVENT =
   `id, event_id, host_profile_id, trigger_type, keyword, match_type, reply_text, enabled, media_id, flow, created_at, updated_at, event:event_id ( ${EVENT_COLS} )`;
 
-/** ends_at if set, else starts_at. ISO string or null. */
+// Page kinds with no date of their own — a community door and a product page are
+// evergreen: they never "end", so a trigger on one lives until the host pauses
+// or deletes it (no date-based expiry). Dated events keep the original behavior.
+const EVERGREEN_KINDS = new Set(["community", "product"]);
+function isEvergreen(ev) {
+  return EVERGREEN_KINDS.has(ev?.kind);
+}
+
+/** ends_at if set, else starts_at. ISO string or null. Evergreen kinds: null. */
 function effectiveEnd(ev) {
+  if (isEvergreen(ev)) return null;
   return ev?.ends_at || ev?.starts_at || null;
 }
 
-/** The event has passed (or has no usable date). */
+/** The event has passed (or, for a dated event, has no usable date). */
 function isExpired(row, nowMs) {
+  // Evergreen pages (community / product) never expire on a clock.
+  if (isEvergreen(row.event)) return false;
   const end = effectiveEnd(row.event);
   if (!end) return true;
   const t = Date.parse(end);
@@ -59,6 +70,7 @@ function toView(row, nowMs) {
     id: row.id,
     eventId: row.event_id,
     triggerType: row.trigger_type || "comment",
+    kind: row.event?.kind || "event",
     eventTitle: row.event?.title || "(untitled event)",
     eventSlug: row.event?.slug || null,
     eventStatus: row.event?.status || null,
@@ -125,6 +137,7 @@ export async function getLiveTriggersForHost(hostProfileId, typeOrOpts = "commen
       media_id: r.media_id || null,
       event_id: r.event_id,
       event_slug: r.event?.slug || null,
+      event_kind: r.event?.kind || "event",
       reply_text: r.reply_text || "",
       flow: r.flow || null,
       enabled: true,
@@ -250,10 +263,12 @@ export async function deleteTrigger(id, hostProfileId) {
 }
 
 /**
- * The host's events eligible to attach a trigger to: published OR draft, and
- * not yet ended. Drafts are allowed so a host can PREPARE a trigger ahead of
- * launch — it stays pending and goes live when they publish. Sorted soonest
- * first for the picker; `isDraft` lets the UI label pending ones.
+ * The host's PAGES eligible to attach a trigger to: published OR draft. Dated
+ * events must not have ended yet; evergreen pages (community / product) are
+ * always eligible — they never end. Drafts are allowed so a host can PREPARE a
+ * trigger ahead of launch — it stays pending and goes live when they publish.
+ * Dated events sort soonest-first; evergreen pages have no date and sort after
+ * them. `isDraft` lets the UI label pending ones; `kind` lets it group/label.
  */
 export async function getEligibleEventsForHost(hostProfileId, nowMs = Date.now()) {
   const { data, error } = await supabase
@@ -265,6 +280,7 @@ export async function getEligibleEventsForHost(hostProfileId, nowMs = Date.now()
   if (error) throw error;
   return (data || [])
     .filter((ev) => {
+      if (isEvergreen(ev)) return true; // community / product never expire
       const end = effectiveEnd(ev);
       return end && Date.parse(end) > nowMs;
     })
@@ -272,6 +288,7 @@ export async function getEligibleEventsForHost(hostProfileId, nowMs = Date.now()
       id: ev.id,
       title: ev.title || "(untitled event)",
       slug: ev.slug,
+      kind: ev.kind || "event",
       startsAt: ev.starts_at,
       endsAt: ev.ends_at,
       isDraft: ev.status !== "PUBLISHED",

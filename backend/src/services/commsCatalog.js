@@ -30,6 +30,8 @@ const MOCK = {
   endsAt: "2026-07-18T23:00:00+02:00",
   timezone: "Europe/Stockholm",
   location: "Söder Rooftop, Stockholm",
+  locationLat: 59.3138,
+  locationLng: 18.0726,
   slug: "rooftop-sessions-4",
   eventId: "preview-event-id",
   imageUrl: "",
@@ -63,7 +65,8 @@ export function buildHostComms(hostProfile = {}) {
 function catalog(b, frontendUrl) {
   const base = {
     eventTitle: MOCK.eventTitle, date: MOCK.whenPhrase, imageUrl: MOCK.imageUrl,
-    location: MOCK.location, startsAt: MOCK.startsAt, endsAt: MOCK.endsAt,
+    location: MOCK.location, locationLat: MOCK.locationLat, locationLng: MOCK.locationLng,
+    startsAt: MOCK.startsAt, endsAt: MOCK.endsAt,
     timezone: MOCK.timezone, slug: MOCK.slug, eventId: MOCK.eventId, frontendUrl,
     brandName: b.brandName, brandWebsite: b.brandWebsite, contactEmail: b.contactEmail,
     brand: b.brand,

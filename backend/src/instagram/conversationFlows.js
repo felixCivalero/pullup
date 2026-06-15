@@ -98,6 +98,7 @@ export async function handleFlowReply({ session, creds, personId, senderId, send
   if (chosen.includeLink) {
     link = await buildSignupShortLink({
       eventSlug: session.event_slug,
+      kind: session.event_kind || "event",
       src: "ig_comment",
       ref: session.opener_comment_id || session.id,
       igId: senderId,
@@ -107,10 +108,10 @@ export async function handleFlowReply({ session, creds, personId, senderId, send
   }
   let messageText = [chosen.text, link].filter(Boolean).join("\n").trim();
   // Safety net: never leave them hanging. If the host configured neither text
-  // nor a link on this branch, fall back to the event link.
+  // nor a link on this branch, fall back to the page link.
   if (!messageText) {
     link = link || (await buildSignupShortLink({
-      eventSlug: session.event_slug, src: "ig_comment",
+      eventSlug: session.event_slug, kind: session.event_kind || "event", src: "ig_comment",
       ref: session.opener_comment_id || session.id, igId: senderId,
       username: senderUsername, hostProfileId: session.host_profile_id,
     }));

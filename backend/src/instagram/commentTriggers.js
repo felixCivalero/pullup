@@ -37,15 +37,25 @@ export function matchRule(rules, { text, mediaId }) {
   return null;
 }
 
+// Public route prefix per page kind — mirrors the frontend page-kind registry
+// (frontend/src/lib/pageKinds.js). A comment→DM can now drive a community join
+// or a product buy, not just an event RSVP, so the link must land on the right
+// public page. Unknown/legacy kinds fall back to the event path.
+const KIND_PREFIX = { event: "/e", community: "/c", product: "/p" };
+function prefixForKind(kind) {
+  return KIND_PREFIX[kind] || "/e";
+}
+
 /**
  * Build the stamped signup link. Carries the entry path + a ref so the signup
  * handler can set acquisition_channel/acquisition_ref + bind the sender's IGSID
  * to the new account. `src` is the entry surface ('ig_comment' or 'ig_dm');
- * `ref` is the comment id (comments) or inbound message id (DMs).
+ * `ref` is the comment id (comments) or inbound message id (DMs); `kind` routes
+ * the link to the event (/e), community (/c) or product (/p) page.
  */
-export function buildSignupLink({ eventSlug, src = "ig_comment", ref = null, igId = null, username = null }) {
+export function buildSignupLink({ eventSlug, kind = "event", src = "ig_comment", ref = null, igId = null, username = null }) {
   const base = APP_BASE_URL || "https://pullup.se";
-  const path = eventSlug ? `/e/${encodeURIComponent(eventSlug)}` : "/join";
+  const path = eventSlug ? `${prefixForKind(kind)}/${encodeURIComponent(eventSlug)}` : "/join";
   const params = new URLSearchParams({ src });
   if (ref) params.set("ig_ref", ref);
   if (igId) params.set("ig_uid", igId);
@@ -85,8 +95,8 @@ async function shortenSignupLink(fullUrl, { hostProfileId = null } = {}) {
  * for any auto-DM that wants a clean, attribution-carrying link (used by the
  * conversational-flow answers too). Falls back to the full URL if minting fails.
  */
-export async function buildSignupShortLink({ eventSlug, src = "ig_comment", ref = null, igId = null, username = null, hostProfileId = null }) {
-  const full = buildSignupLink({ eventSlug, src, ref, igId, username });
+export async function buildSignupShortLink({ eventSlug, kind = "event", src = "ig_comment", ref = null, igId = null, username = null, hostProfileId = null }) {
+  const full = buildSignupLink({ eventSlug, kind, src, ref, igId, username });
   return shortenSignupLink(full, { hostProfileId });
 }
 
@@ -124,6 +134,7 @@ export async function handleCommentEvent({ igAccountId, comment }) {
   const commenterUsername = comment?.from?.username || null;
   const signupLink = buildSignupLink({
     eventSlug: rule.event_slug,
+    kind: rule.event_kind,
     src: "ig_comment",
     ref: commentId,
     igId: commenterIgId,
@@ -190,6 +201,7 @@ export async function handleCommentEvent({ igAccountId, comment }) {
           await createFlowSession({
             hostProfileId: ctx.hostProfileId, personId, triggerId: rule.id,
             eventId: rule.event_id || null, eventSlug: rule.event_slug || null,
+            eventKind: rule.event_kind || "event",
             openerCommentId: commentId, flow: rule.flow,
           });
           await logPersonEvent({
@@ -351,6 +363,7 @@ export async function handleDmKeywordEvent({
 
   const signupLink = buildSignupLink({
     eventSlug: rule.event_slug,
+    kind: rule.event_kind,
     src: "ig_dm",
     ref: mid,
     igId: senderId,

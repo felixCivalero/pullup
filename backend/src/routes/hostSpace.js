@@ -198,6 +198,32 @@ export function registerHostSpaceRoutes(app) {
     }
   });
 
+  // The host-editable welcome the whole room lands on (mig 099). A focused
+  // one-field save so the host can edit it inline in the Room — no need to run
+  // the full event-update path (date validation, Stripe, lifecycle) for a line
+  // of copy. Owner/admin only, matching event-content edit rights. Empty string
+  // clears it (guests then see no card; the host still sees the "add" prompt).
+  app.put("/host/events/:id/room-welcome", requireAuth, async (req, res) => {
+    try {
+      const { canEditEvent } = await import("../repos/eventAccess.js");
+      if (!(await canEditEvent(req.user.id, req.params.id))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const raw = req.body?.roomWelcome;
+      const value = typeof raw === "string" ? raw.trim().slice(0, 2000) : "";
+      const { supabase } = await import("../supabase.js");
+      const { error } = await supabase
+        .from("events")
+        .update({ room_welcome: value || null })
+        .eq("id", req.params.id);
+      if (error) throw error;
+      res.json({ ok: true, roomWelcome: value || null });
+    } catch (err) {
+      console.error("[room-welcome:put] error:", err.message);
+      res.status(500).json({ ok: false, error: "failed" });
+    }
+  });
+
   // The event-room roster — who's here, on the lifecycle: RSVP'd (coming) first,
   // then pull-up-only (showed). The shared area's "who's in the room", not a CRM.
   app.get("/host/events/:id/roster", requireAuth, async (req, res) => {

@@ -5,6 +5,8 @@ import { optionalAuth } from "../middleware/auth.js";
 import { validate, spaceMessageSchema } from "../middleware/validate.js";
 import {
   resolveViewer,
+  ensurePersonLinked,
+  ensurePersonLinkedByPhone,
   adminForceLevel,
   isAdminUser,
   isUserEventHost,
@@ -28,28 +30,68 @@ export function registerRoomRoutes(app) {
   app.post("/p/:eventId/pullup", optionalAuth, async (req, res) => {
     try {
       const { eventId } = req.params;
-      const { w, s } = req.body || {};
-      const { verifyCheckinCode, recordPullUp } = await import("../services/pullupService.js");
+      const { w, s, pass } = req.body || {};
+      const { verifyCheckinCode, verifyPresencePass, mintPresencePass, recordPullUp } =
+        await import("../services/pullupService.js");
 
-      const check = await verifyCheckinCode(eventId, w, s);
-      if (!check.valid) {
-        // `expired` = they're scanning a stale screenshot, not the live screen.
-        return res
-          .status(check.reason === "expired" ? 410 : 400)
-          .json({ ok: false, reason: check.reason });
+      // Two ways to prove presence at the door:
+      //   • a fresh live code (w/s, ≤45s) — the scan itself, and
+      //   • a presence pass minted from one — which OUTLIVES the 45s code so the
+      //     scan survives the sign-in detour (the walk-in had no session yet).
+      // The pass is checked first because on the post-sign-in retry the original
+      // code is already stale; the pass is the only thing still standing.
+      let presenceOk = false;
+      if (pass && verifyPresencePass(eventId, pass).valid) presenceOk = true;
+      if (!presenceOk && (w != null || s != null)) {
+        const check = await verifyCheckinCode(eventId, w, s);
+        if (!check.valid) {
+          // `expired` = a stale screenshot, not the live screen.
+          return res
+            .status(check.reason === "expired" ? 410 : 400)
+            .json({ ok: false, reason: check.reason });
+        }
+        presenceOk = true;
       }
+      if (!presenceOk) return res.status(400).json({ ok: false, reason: "no_presence" });
 
       // WHO = the verified session only (or an admin view-as). No session ⇒ the
-      // walk-in must verify first; the frontend bounces `needs_identify` to the
-      // room's AuthGate, then retries the scan with a real identity.
+      // walk-in must verify first; the frontend shows the light door step (email
+      // code) and retries with the pass + a real session.
       const vw = await resolveViewer(req);
-      const person = vw.person;
-      if (!person) return res.status(401).json({ ok: false, reason: "needs_identify" });
+      let personId = vw.person?.id || null;
 
-      const result = await recordPullUp({ personId: person.id, eventId, method: "scan" });
+      // A FRESH session (just verified a code at the door) has no person row
+      // linked yet — resolvePerson keys off people.auth_user_id, which a
+      // first-time walk-in doesn't have. Provision/link one from the VERIFIED
+      // session identity (email/phone/name come from the signed JWT, never a
+      // claim), so a first-timer isn't stuck looping needs_identify. Email is
+      // the norm; phone covers the WhatsApp/SMS OTP door path.
+      if (!personId && req.user?.id) {
+        if (req.user.email) {
+          personId = await ensurePersonLinked({
+            userId: req.user.id,
+            email: req.user.email,
+            name: req.user.name || null,
+          });
+        } else if (req.user.phone) {
+          personId = await ensurePersonLinkedByPhone({
+            userId: req.user.id,
+            phoneE164: req.user.phone,
+            name: req.user.name || null,
+          });
+        }
+      }
+
+      if (!personId) {
+        return res
+          .status(401)
+          .json({ ok: false, reason: "needs_identify", pass: mintPresencePass(eventId) });
+      }
+
+      const result = await recordPullUp({ personId, eventId, method: "scan" });
       if (!result.ok) return res.status(500).json({ ok: false, reason: result.reason });
 
-      res.json({ ok: true, alreadyPresent: !!result.alreadyPresent, personId: person.id });
+      res.json({ ok: true, alreadyPresent: !!result.alreadyPresent, personId });
     } catch (err) {
       console.error("[pullup] error:", err.message);
       res.status(500).json({ ok: false, reason: "pullup_failed" });

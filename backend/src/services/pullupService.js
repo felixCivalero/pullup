@@ -26,6 +26,7 @@ import { supabase } from "../supabase.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { resolveCapabilities } from "./roomPermissions.js";
 import { isUserEventHost } from "../data.js";
+import { generateWaitlistToken, verifyWaitlistToken } from "../utils/waitlistTokens.js";
 
 // Window length for the rotating code. Short enough that a screenshot is
 // useless within seconds; long enough to absorb scan latency. One window of
@@ -118,6 +119,44 @@ export async function verifyCheckinCode(eventId, scannedWindow, scannedSig, nowM
   const { secret } = await getOrCreateEventSecret(eventId);
   const expected = signWindow(secret, eventId, win);
   if (!constantTimeEqual(scannedSig, expected)) return { valid: false, reason: "bad_signature" };
+  return { valid: true };
+}
+
+// ── Presence pass ───────────────────────────────────────────────────────────
+// THE fix for the 45s-vs-sign-in race: the rotating code lives ~45 seconds, but
+// a walk-in with no session must sign in first (email magic-link / OAuth — far
+// longer than 45s), so the code was always dead by the time the pull-up posted.
+// Zero scans ever recorded in prod because of this.
+//
+// A presence pass decouples the two factors. It is minted ONLY after a live
+// code verifies (so the anti-screenshot property holds — you still need a fresh
+// scan to get one), then certifies "presence proven at the door for THIS event"
+// for a window long enough to outlast the sign-in detour. Identity is still
+// proven separately by the session; the pass never says WHO, only "was here".
+//
+// Reuses the short-lived host-action JWT family (waitlist/VIP/media) so no new
+// secret is needed on the box — gated by a dedicated `type` so a leaked VIP or
+// media token can never double as a fake door pass.
+const PRESENCE_PASS_TYPE = "presence_pass";
+const PRESENCE_PASS_TTL = "15m";
+
+export function mintPresencePass(eventId) {
+  return generateWaitlistToken(
+    { type: PRESENCE_PASS_TYPE, eventId },
+    { expiresIn: PRESENCE_PASS_TTL },
+  );
+}
+
+export function verifyPresencePass(eventId, pass) {
+  if (!pass) return { valid: false, reason: "missing" };
+  let decoded;
+  try {
+    decoded = verifyWaitlistToken(pass);
+  } catch (err) {
+    return { valid: false, reason: err.message === "Token expired" ? "expired" : "bad_pass" };
+  }
+  if (decoded?.type !== PRESENCE_PASS_TYPE) return { valid: false, reason: "wrong_type" };
+  if (decoded?.eventId !== eventId) return { valid: false, reason: "wrong_event" };
   return { valid: true };
 }
 

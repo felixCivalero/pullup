@@ -24,6 +24,7 @@ import { useEventRoomView } from "../lib/useEventRoomView.js";
 import { initTracking, track } from "../lib/track.js";
 import { AccessGate } from "../components/AccessGate.jsx";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
+import { DoorVerify } from "../components/room/DoorVerify.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
 import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
@@ -34,7 +35,8 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, DoorOpen } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown } from "lucide-react";
+import { EventHostsSection } from "../components/EventHostsSection.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -346,10 +348,131 @@ function RosterStrip({ roster, inBar = false }) {
   );
 }
 
+// The host's "Team" fold-down — assign roles to other arrangers right inside
+// the room, next to Room access. Mirrors RoomAccessSettings' pill+fold so the
+// two host controls read as one toolbar. Reuses EventHostsSection (add by
+// email, role dropdown, pending invites). Owner/admin only.
+function RoomTeamSettings({ eventId, open, setOpen }) {
+  const pill = {
+    display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px",
+    borderRadius: 999, border: `1px solid ${open ? colors.accent : colors.border}`,
+    background: open ? (colors.accentSoft || "rgba(236,23,143,0.08)") : "#fff",
+    color: open ? colors.accent : colors.text, fontSize: 13, fontWeight: 600,
+    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+  };
+  return (
+    <>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={pill}>
+        <Users size={15} /> Team
+        <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <div style={{ width: "100%", marginTop: 10 }}>
+          <p style={{ fontSize: 12.5, color: colors.textMuted, lineHeight: 1.5, margin: "0 0 10px" }}>
+            Give people a role so they can help run this room. Add by email — they'll get an invite and see the event when they sign in.
+          </p>
+          <EventHostsSection eventId={eventId} canManageHosts compact />
+        </div>
+      )}
+    </>
+  );
+}
+
 // Host sub-roles that actually RUN the room (get the chief-of-staff view +
 // edit the room's access config). reception works the door; analytics only
 // reads Insights — neither manages the room itself.
 const ROOM_MANAGER_ROLES = ["owner", "admin", "co_host", "editor"];
+// Who can edit event-level content (the welcome) and assign other hosts:
+// owner/admin only — mirrors the backend canEditEvent / canManageHosts gates.
+const EVENT_ADMIN_ROLES = ["owner", "admin"];
+
+// The room's welcome — the host's greeting that everyone lands on. Shown to
+// guests as a soft card under the cover; the host edits it inline (pencil →
+// textarea → save). Empty + host = a gentle "add a welcome" prompt; empty +
+// guest = nothing. Saves through the focused PUT /host/events/:id/room-welcome,
+// so a one-line edit never runs the full event-update path.
+function RoomWelcomeCard({ eventId, initial, canEdit, editing, setEditing, cardRef, onSavedChange }) {
+  const [welcome, setWelcome] = useState(initial || "");
+  const [draft, setDraft] = useState(initial || "");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => { setDraft(welcome); setEditing(true); };
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await authenticatedFetch(`/host/events/${eventId}/room-welcome`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomWelcome: draft }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      const data = await res.json();
+      setWelcome(data.roomWelcome || "");
+      setEditing(false);
+      onSavedChange?.(!!data.roomWelcome);
+    } catch {
+      /* leave the editor open so the host can retry */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div ref={cardRef} style={{ marginBottom: 22, padding: "16px 18px", borderRadius: 16, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.accentText, marginBottom: 8, display: "flex", alignItems: "center", gap: 7 }}>
+          <Sparkles size={15} color={colors.accent} strokeWidth={2.3} /> Welcome message
+        </div>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+          rows={4}
+          maxLength={2000}
+          placeholder="Say hi. Tell them what this room is for, what to expect, how to reach you…"
+          style={{ width: "100%", boxSizing: "border-box", resize: "vertical", padding: "12px 14px", borderRadius: 12, border: `1px solid ${colors.border}`, background: "#fff", color: colors.text, fontSize: 14.5, lineHeight: 1.5, fontFamily: SF, outline: "none" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => setEditing(false)} disabled={saving} style={{ padding: "8px 16px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: SF }}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{ padding: "8px 18px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1, boxShadow: colors.accentShadow, fontFamily: SF }}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty: guests see nothing; the host sees a soft prompt to add one.
+  if (!welcome) {
+    if (!canEdit) return null;
+    return (
+      <button
+        ref={cardRef}
+        onClick={startEdit}
+        style={{ width: "100%", textAlign: "left", marginBottom: 22, padding: "14px 16px", borderRadius: 16, background: colors.surface, border: `1px dashed ${colors.border}`, color: colors.textMuted, fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: SF, display: "flex", alignItems: "center", gap: 9 }}
+      >
+        <Sparkles size={16} color={colors.accent} strokeWidth={2.2} />
+        Add a welcome message your guests land on
+      </button>
+    );
+  }
+
+  // Set: everyone sees the greeting; the host gets a quiet pencil to edit it.
+  return (
+    <div ref={cardRef} style={{ marginBottom: 22, padding: "16px 18px", borderRadius: 16, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, position: "relative" }}>
+      {canEdit && (
+        <button
+          onClick={startEdit}
+          aria-label="Edit welcome message"
+          style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: 999, border: `1px solid ${colors.accentBorder}`, background: "#fff", color: colors.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+        >
+          <Pencil size={13} strokeWidth={2.3} />
+        </button>
+      )}
+      <div style={{ fontSize: 14.5, lineHeight: 1.55, color: colors.text, whiteSpace: "pre-wrap", fontFamily: SF, paddingRight: canEdit ? 30 : 0 }}>
+        {welcome}
+      </div>
+    </div>
+  );
+}
 
 export default function EventRoomPage() {
   const { id } = useParams();
@@ -361,6 +484,13 @@ export default function EventRoomPage() {
   const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
   const isHost = level === "host";
+  // The scanned code/pass that proves this viewer is at the door. The presence
+  // pass (minted server-side once a live code verifies) is stashed here so it
+  // outlives the sign-in round-trip the 45s code never could.
+  const scanKey = `pullup_scan_pass_${id}`;
+  // Flips true once a door scan has terminally failed (stale code, no pass) so
+  // we stop holding the "checking you in" screen and fall through to the gate.
+  const [scanFailed, setScanFailed] = useState(false);
 
   // Room presence onto the analytics spine: one identified room_view per
   // room per page load, fired once the gate has resolved who this viewer is.
@@ -374,6 +504,10 @@ export default function EventRoomPage() {
     track("room_view", { role: level }, { page: "room", eventId: id, userId: user?.id });
   }, [level, id, user]);
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
+  // Owner/admin can edit the welcome and assign other hosts (mirrors backend
+  // canEditEvent / canManageHosts). Editors run the room but don't reshape the
+  // team or the event's front-door copy.
+  const canEditEvent = EVENT_ADMIN_ROLES.includes(role);
   // One-time intro banner explaining what the Room is, in the Room's own accent
   // so the identity is unmistakable. Dismissible; stays gone once seen.
   const [showRoomIntro, setShowRoomIntro] = useState(() => {
@@ -382,6 +516,36 @@ export default function EventRoomPage() {
   const dismissRoomIntro = () => {
     try { localStorage.setItem("pullup_room_intro_seen", "1"); } catch { /* ignore */ }
     setShowRoomIntro(false);
+  };
+
+  // The intro banner is a one-time, self-advancing nudge through the three
+  // moves that warm a room: greet → seed it with a post → bring the team in.
+  // It DRIVES controls that live elsewhere on the page (the welcome editor
+  // below, the feed below that, the Team fold-down in the toolbar), so their
+  // open state is lifted here. Each step clears as it's done — welcome from a
+  // real save, post/team from a local ack — so acting moves the nudge forward
+  // instead of dismissing it; only the × dismisses for good. scrollRef is the
+  // page's scroll container; welcomeRef/feedRef carry the host to what opened.
+  const [welcomeEditing, setWelcomeEditing] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [welcomeSaved, setWelcomeSaved] = useState(false);
+  const [ackedPost, setAckedPost] = useState(false);
+  const [ackedTeam, setAckedTeam] = useState(false);
+  const scrollRef = useRef(null);
+  const welcomeRef = useRef(null);
+  const feedRef = useRef(null);
+  const openWelcomeEditor = () => {
+    setWelcomeEditing(true);
+    setTimeout(() => welcomeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+  };
+  const goPost = () => {
+    setAckedPost(true);
+    setTimeout(() => feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
+  const openTeam = () => {
+    setTeamOpen(true);
+    setAckedTeam(true);
+    setTimeout(() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 60);
   };
 
   // The host view needs the roster data; load it once the gate confirms we own
@@ -407,18 +571,44 @@ export default function EventRoomPage() {
     setEventNav({ title: d.event?.title || event?.title || "Event", status: d.event?.ended ? "PASSED" : (d.event?.status || "LIVE"), guestsCount: d.pulledUpCount, myRole: role, kind: event?.kind || d.event?.kind || "event" });
   }, [level, role, isHost, id, setEventNav, clearEventNav, event, viewRoster]);
 
-  // QR walk-in: a logged-in viewer who scanned the host's live code records the
-  // pull-up, then re-enters clean (replaces the old email box).
+  // QR door scan → pull-up. Runs whether or not we're signed in yet: a fresh
+  // scan carries ?w=&s=; once signed in we replay the stored presence pass (the
+  // code is long dead by then). The two-phase dance:
+  //   1. Logged out + live code → server proves presence, hands back a pass and
+  //      says `needs_identify`. We stash the pass; the AuthGate below renders
+  //      (user is null) so the guest signs in — the pass waits in localStorage.
+  //   2. Signed in (now, or returning from the auth round-trip) → we POST the
+  //      pass, the pull-up records, and we land clean in the room.
   useEffect(() => {
-    if (!user) return;
     const p = new URLSearchParams(window.location.search);
     const w = p.get("w"), s = p.get("s");
-    if (!w || !s) return;
-    authenticatedFetch(`/p/${id}/pullup`, { method: "POST", body: JSON.stringify({ w: Number(w), s }) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.ok) window.location.replace(`/events/${id}/room`); })
-      .catch(() => {});
-  }, [id, user]);
+    let storedPass = null;
+    try { storedPass = localStorage.getItem(scanKey); } catch { /* ignore */ }
+    // Prefer the pass — on the post-sign-in replay the original code is stale.
+    const body = storedPass ? { pass: storedPass } : (w && s ? { w: Number(w), s } : null);
+    if (!body) return;
+    let cancelled = false;
+    authenticatedFetch(`/p/${id}/pullup`, { method: "POST", body: JSON.stringify(body) })
+      .then((r) => r.json().catch(() => null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (d.ok) {
+          try { localStorage.removeItem(scanKey); } catch { /* ignore */ }
+          window.location.replace(`/events/${id}/room`); // clean URL → refetch access
+          return;
+        }
+        if (d.reason === "needs_identify" && d.pass) {
+          // Presence proven, identity pending — keep the pass for after sign-in.
+          try { localStorage.setItem(scanKey, d.pass); } catch { /* ignore */ }
+          return;
+        }
+        // Stale screenshot or dead pass — give up; the normal gate takes over.
+        try { localStorage.removeItem(scanKey); } catch { /* ignore */ }
+        setScanFailed(true);
+      })
+      .catch(() => { if (!cancelled) setScanFailed(true); });
+    return () => { cancelled = true; };
+  }, [id, user, scanKey]);
 
   if (loading) {
     return <LoadingScreen label="opening the room" />;
@@ -442,12 +632,23 @@ export default function EventRoomPage() {
   // live code only waives the PERMISSION gate, so a verified walk-in with no
   // prior RSVP can still pull up at the door.
   const hasLiveCode = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("w");
-  // No session (real logged-out, or the admin "No session" lens) → the auth wall.
-  // Carries ?w=&s= through, so after verifying, the scan retries with identity.
+  let storedPass = null;
+  try { storedPass = typeof window !== "undefined" ? localStorage.getItem(scanKey) : null; } catch { /* ignore */ }
+  // A door scan is still resolving while we hold a live code or a stashed pass
+  // and it hasn't failed — the effect above is recording the pull-up right now.
+  const scanInFlight = (hasLiveCode || !!storedPass) && !scanFailed;
   if (!user || level === "no_session") {
+    // At the door (a scan is in flight) → the light guest step-2: verify it's
+    // you with an email code, never the host onboarding modal. Verifying mints a
+    // session; the scan effect above then replays the pass and lands them in the
+    // room. Anywhere else with no session → the standard auth wall.
+    if (scanInFlight) return <DoorVerify eventTitle={event?.title || null} />;
     return <AuthGate redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
   }
-  if (level === "no_access" && !hasLiveCode) {
+  if (level === "no_access") {
+    // Signed in but not yet pulled up. If a scan is mid-flight, hold the door a
+    // beat rather than flashing the denial — the effect will land them inside.
+    if (scanInFlight) return <LoadingScreen label="checking you in" />;
     return <AccessGate reason={reason} event={event} eventId={id} />;
   }
 
@@ -463,7 +664,7 @@ export default function EventRoomPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "calc(58px + env(safe-area-inset-top, 0px))", boxSizing: "border-box" }}>
-      <div style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
+      <div ref={scrollRef} style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* Top actions — sit ABOVE the event so they read as a toolbar of
               things you DO to it, not part of the event content. Quick CTAs
@@ -475,37 +676,68 @@ export default function EventRoomPage() {
               startsAt={event?.startsAt}
               endsAt={event?.endsAt}
               location={event?.location}
-              trailing={canManageRoom ? <RoomAccessSettings eventId={id} /> : null}
+              trailing={canManageRoom ? (
+                <>
+                  <RoomAccessSettings eventId={id} />
+                  {canEditEvent && <RoomTeamSettings eventId={id} open={teamOpen} setOpen={setTeamOpen} />}
+                </>
+              ) : null}
             />
           </div>
 
-          {/* What-is-this-room banner — host-only, dismissible, in the Room's
-              own pink so it visually says "this is the Room." Points at the
-              Room access control that rides in the toolbar just above. */}
-          {isHost && showRoomIntro && (
-            <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 12px 13px 15px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
-              <div style={{ width: 30, height: 30, borderRadius: 9, background: "#fff", border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <DoorOpen size={16} color={colors.accent} strokeWidth={2.3} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.accentText, lineHeight: 1.3 }}>
-                  This is where your guests land after they RSVP.
+          {/* Make-the-most-of-your-room nudge — host-only (owner/admin),
+              dismissible, in the Room's own pink. NOT a description of the room:
+              it walks the host through the three moves that warm it, one at a
+              time, showing only the next one that's still undone:
+                1. welcome  — the door-opener guests land on
+                2. post     — seed the feed so the room isn't empty on arrival
+                3. team     — bring people in to help run it
+              Tapping a step opens that control and carries the host to it; the
+              step clears (real save / local ack) so the nudge advances. When all
+              three are done — or the host taps × — it's gone. */}
+          {canEditEvent && showRoomIntro && (() => {
+            const hasWelcome = !!event?.roomWelcome || welcomeSaved;
+            const hasPosts = (viewMessages?.length || 0) > 0 || ackedPost;
+            const nudge = !hasWelcome
+              ? { Icon: Sparkles, title: "Open the door with a welcome.", sub: "The first thing guests see when they land — say hi and set the tone.", cta: "Write a welcome", action: openWelcomeEditor }
+              : !hasPosts
+              ? { Icon: MessageSquare, title: "Post the first thing.", sub: "Seed the room so it feels alive when guests arrive — a hello, a plan, a photo.", cta: "Post to the room", action: goPost }
+              : !ackedTeam
+              ? { Icon: Users, title: "Bring your team into the room.", sub: "Give people a role so they can help you run it — add them by email.", cta: "Add team", action: openTeam }
+              : null;
+            if (!nudge) return null;
+            const { Icon } = nudge;
+            return (
+              <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 12px 13px 15px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: "#fff", border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon size={16} color={colors.accent} strokeWidth={2.3} />
                 </div>
-                <div style={{ fontSize: "12.5px", color: colors.textMuted, marginTop: 2, lineHeight: 1.4 }}>
-                  Manage what they can see in <span style={{ fontWeight: 600, color: colors.accent }}>Room access</span>.
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.accentText, lineHeight: 1.3 }}>
+                    {nudge.title}
+                  </div>
+                  <div style={{ fontSize: "12.5px", color: colors.textMuted, marginTop: 2, lineHeight: 1.4 }}>
+                    {nudge.sub}
+                  </div>
+                  <button
+                    onClick={nudge.action}
+                    style={{ marginTop: 9, padding: "6px 14px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: SF, boxShadow: colors.accentShadow }}
+                  >
+                    {nudge.cta}
+                  </button>
                 </div>
+                <button
+                  onClick={dismissRoomIntro}
+                  aria-label="Dismiss"
+                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, border: "none", background: "transparent", color: colors.accent, cursor: "pointer" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = colors.accentSoftStrong; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <X size={15} />
+                </button>
               </div>
-              <button
-                onClick={dismissRoomIntro}
-                aria-label="Dismiss"
-                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, border: "none", background: "transparent", color: colors.accent, cursor: "pointer" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = colors.accentSoftStrong; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Owner-commercial partner CTAs ("buy for YOUR event") — show ONLY to
               the real host AND only at host level. So they're hidden both on an
@@ -541,7 +773,13 @@ export default function EventRoomPage() {
             ) : null}
           </div>
 
-          <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
+          {/* The host's greeting — everyone who lands sees it; the host edits
+              it inline. Sits between the event identity and the live feed. */}
+          <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditEvent} editing={welcomeEditing} setEditing={setWelcomeEditing} cardRef={welcomeRef} onSavedChange={setWelcomeSaved} />
+
+          <div ref={feedRef}>
+            <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
+          </div>
         </div>
       </div>
       {/* Install nudge — same room, role-aware copy. Only renders if the visitor

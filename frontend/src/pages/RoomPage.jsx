@@ -1973,7 +1973,7 @@ function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, foc
 
       {/* Inline content for the selected tab */}
       {tab === "team" && (
-        <EventHostsSection eventId={event.id} canManageHosts compact />
+        <EventHostsSection eventId={event.id} canManageHosts={["owner", "admin"].includes(event.myRole)} compact />
       )}
       {tab === "vip" && (
         <VipInviteSection event={event} showToast={showToast} compact />

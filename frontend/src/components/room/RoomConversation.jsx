@@ -256,16 +256,16 @@ export default function RoomConversation({
     const files = media.filter((m) => m.type === "file");
     const cols = visual.length === 1 ? 1 : 2;
     return (
-      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8, maxWidth: 440 }}>
+      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8, maxWidth: isMobile ? 280 : 440 }}>
         {visual.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 4, borderRadius: 12, overflow: "hidden" }}>
             {visual.slice(0, 4).map((mm, i) => {
               const noSave = !canDownload ? { onContextMenu: (e) => e.preventDefault(), draggable: false } : {};
-              const imgStyle = { width: "100%", height: "100%", objectFit: "cover", display: "block", maxHeight: visual.length === 1 ? 360 : undefined };
+              const imgStyle = { width: "100%", height: "100%", objectFit: "cover", display: "block", maxHeight: visual.length === 1 ? (isMobile ? 260 : 360) : undefined };
               return (
                 <div key={i} style={{ position: "relative", aspectRatio: visual.length === 1 ? "auto" : "1", background: C.chip, borderRadius: visual.length === 1 ? 12 : 0, overflow: "hidden" }}>
                   {mm.type === "video"
-                    ? <video src={mm.url} controls playsInline controlsList={canDownload ? undefined : "nodownload"} disablePictureInPicture={!canDownload} {...noSave} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", maxHeight: 360 }} />
+                    ? <video src={mm.url} controls playsInline controlsList={canDownload ? undefined : "nodownload"} disablePictureInPicture={!canDownload} {...noSave} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", maxHeight: isMobile ? 260 : 360 }} />
                     // Download ON → click opens the full-res file (saveable). OFF →
                     // a plain image, no open-link + save/drag suppressed (UI-level;
                     // the host said no downloads for this state).
@@ -338,8 +338,8 @@ export default function RoomConversation({
     const replies = repliesByRoot.get(m.id) || [];
     const open = openThreads.has(m.id);
     return (
-      <div className="rc-post" style={{ display: "flex", gap: 11, padding: "10px 8px", borderRadius: 14 }}>
-        <Avatar name={m.authorName} host={m.isHost} />
+      <div className="rc-post" style={{ display: "flex", gap: isMobile ? 9 : 11, padding: isMobile ? "8px 4px" : "10px 8px", borderRadius: 14 }}>
+        <Avatar name={m.authorName} host={m.isHost} size={isMobile ? 32 : 36} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontSize: 13.5, fontWeight: 750, color: m.isHost ? C.pink : C.ink }}>{m.authorName}{m.isHost ? " · host" : ""}</span>
@@ -353,7 +353,7 @@ export default function RoomConversation({
             <div style={{ fontSize: 14, color: C.faint, fontStyle: "italic", marginTop: 2 }}>This message was deleted</div>
           ) : (
             <>
-              {m.body && <div style={{ fontSize: 14.5, color: C.ink, lineHeight: 1.5, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
+              {m.body && <div style={{ fontSize: isMobile ? 14 : 14.5, color: C.ink, lineHeight: 1.5, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>}
               <PostMedia media={m.media} />
             </>
           )}
@@ -395,7 +395,7 @@ export default function RoomConversation({
                       <div style={{ fontSize: 13, color: C.faint, fontStyle: "italic", marginTop: 1 }}>This message was deleted</div>
                     ) : (
                       <>
-                        {r.body && <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.45, marginTop: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.body}</div>}
+                        {r.body && <div style={{ fontSize: isMobile ? 13 : 13.5, color: C.ink, lineHeight: 1.45, marginTop: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.body}</div>}
                         <PostMedia media={r.media} />
                       </>
                     )}

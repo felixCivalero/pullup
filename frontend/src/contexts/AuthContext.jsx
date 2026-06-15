@@ -221,6 +221,31 @@ export function AuthProvider({ children }) {
     return { data };
   };
 
+  // Email login = Supabase's NATIVE email OTP — a short numeric CODE, not a
+  // magic link — for the at-the-door step-2 verify. signInWithOtp emails the
+  // code (shouldCreateUser so a first-time walk-in is minted on the spot);
+  // verifyOtp checks it and mints a real session, identical to the WhatsApp
+  // path. A name, if given, rides in user_metadata so the backend can seed the
+  // person. NOTE: the Supabase email template must expose {{ .Token }} for the
+  // code to appear (otherwise only the magic link is sent).
+  const sendEmailCode = async (email, name = null) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: (email || "").trim().toLowerCase(),
+      options: { shouldCreateUser: true, ...(name ? { data: { name } } : {}) },
+    });
+    if (error) throw error;
+    return { ok: true };
+  };
+  const verifyEmailCode = async (email, token) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: (email || "").trim().toLowerCase(),
+      token: (token || "").trim(),
+      type: "email",
+    });
+    if (error) throw error;
+    return { data };
+  };
+
   const signInWithGoogle = async (returnTo = null) => {
     // Land every OAuth round-trip on the dedicated /auth/callback handler
     // rather than dropping the user straight onto a protected route. The
@@ -269,6 +294,8 @@ export function AuthProvider({ children }) {
     requestMagicLink,
     sendWhatsappCode,
     verifyWhatsappCode,
+    sendEmailCode,
+    verifyEmailCode,
     signInWithGoogle,
     signOut,
     // Helper to get access token for API requests

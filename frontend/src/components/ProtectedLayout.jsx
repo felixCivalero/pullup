@@ -10,6 +10,7 @@ import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
+import { PageTypePicker } from "./PageTypePicker.jsx";
 import { colors } from "../theme/colors.js";
 import { LoadingScreen } from "./LoadingScreen.jsx";
 
@@ -28,6 +29,7 @@ function ProtectedLayoutInner() {
   const [profilePic, setProfilePic] = useState(null);
   const [profileComplete, setProfileComplete] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false); // create gate → onboarding door
+  const [createPickerOpen, setCreatePickerOpen] = useState(false); // "+ create" → page-type picker
   // Draft autosave state from the create editor (it lives in CreateEventPage but
   // its Publish button is here), surfaced via pullup:draft-status.
   const [draftStatus, setDraftStatus] = useState({ saveStatus: "idle", slug: null, hasDraft: false });
@@ -895,7 +897,9 @@ function ProtectedLayoutInner() {
                   // then into the editor.
                   setOnboardOpen(true);
                 } else {
-                  handleNav("/create");
+                  // Page-type picker (Event / Community / Product-coming-soon)
+                  // instead of jumping straight to the event editor.
+                  setCreatePickerOpen(true);
                 }
               }}
               style={{
@@ -1408,6 +1412,20 @@ function ProtectedLayoutInner() {
           initialMode="onboarding"
           onDismiss={() => setOnboardOpen(false)}
           onAuthed={() => { setOnboardOpen(false); navigate("/create"); }}
+        />
+      )}
+
+      {/* "+ create" → choose what kind of page to make. Event opens the event
+          editor; Community opens the host's single community page (get-or-create);
+          Product is coming soon. */}
+      {createPickerOpen && (
+        <PageTypePicker
+          onClose={() => setCreatePickerOpen(false)}
+          onPick={(kindId) => {
+            setCreatePickerOpen(false);
+            if (kindId === "community") navigate("/community");
+            else navigate("/create");
+          }}
         />
       )}
 

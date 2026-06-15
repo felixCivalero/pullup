@@ -60,6 +60,7 @@ import { registerHostImportRoutes } from "./routes/hostImport.js";
 import { registerHostEventStoryRoutes } from "./routes/hostEventStory.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
+import { registerAdminEcosystemRoutes } from "./routes/adminEcosystem.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
 import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
 import { requestMetrics } from "./middleware/requestMetrics.js";
@@ -329,6 +330,8 @@ registerHostEventStoryRoutes(app);
 registerAdminAnalyticsRoutes(app);
 
 registerAdminCrmSalesRoutes(app);
+
+registerAdminEcosystemRoutes(app);
 
 registerAdminIdeaRoutes(app);
 

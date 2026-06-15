@@ -82,6 +82,7 @@ export function AppHeader() {
   ];
   const adminNavItems = [
     { label: "CRM", path: "/admin/crm" },
+    { label: "Matches", path: "/admin/matches" },
     { label: "Analytics", path: "/admin/analytics" },
   ];
 

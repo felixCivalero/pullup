@@ -1432,6 +1432,7 @@ export function OwnerConsole({ room: roomProp }) {
   const [selectedId, setSelectedId] = useState(null);
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
+  const [commLinkCopied, setCommLinkCopied] = useState(false); // community card: copy-link feedback
   // Local copy so ProfileSetup patches + event deletion update in place without
   // a refetch. Re-seed if the parent hands a fresh payload.
   const [room, setRoom] = useState(roomProp);
@@ -1495,13 +1496,14 @@ export function OwnerConsole({ room: roomProp }) {
         const c = COMMUNITY;
         const live = !!c?.live;
         const members = c?.memberCount || 0;
-        const sub = !c
-          ? "Share one link — people who join land in your room. Set it up & grab the link."
-          : live
-            ? members > 0
-              ? `${members.toLocaleString()} ${members === 1 ? "person has" : "people have"} joined — they're in this room.`
-              : "Live — share your link to bring the first people in."
-            : "Draft — publish it to open the doors.";
+        const origin = typeof window !== "undefined" ? window.location.origin : "https://pullup.se";
+        const shareUrl = c?.slug ? `${origin}/c/${c.slug}` : null;
+        const copyLink = async (e) => {
+          e.stopPropagation();
+          if (!shareUrl) return;
+          try { await navigator.clipboard.writeText(shareUrl); setCommLinkCopied(true); setTimeout(() => setCommLinkCopied(false), 1800); } catch { /* clipboard blocked */ }
+        };
+        const ghostPill = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, fontFamily: SF, cursor: "pointer", padding: "7px 11px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted };
         return (
           <div style={{ marginTop: 30 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -1525,35 +1527,41 @@ export function OwnerConsole({ room: roomProp }) {
               onClick={() => navigate("/community")}
               onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
               style={{
-                display: "flex", alignItems: "center", gap: 12, width: "100%",
-                padding: "14px 16px", borderRadius: 16, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 13, width: "100%",
+                padding: "15px 16px", borderRadius: 16, cursor: "pointer",
                 textAlign: "left", fontFamily: SF, boxSizing: "border-box",
                 border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
                 background: live
-                  ? `linear-gradient(180deg, rgba(34,197,94,0.07), ${colors.surface} 70%)`
-                  : `linear-gradient(180deg, ${colors.accent}14, ${colors.surface} 70%)`,
+                  ? `linear-gradient(180deg, rgba(34,197,94,0.06), ${colors.surface} 70%)`
+                  : `linear-gradient(180deg, ${colors.accent}12, ${colors.surface} 70%)`,
                 color: colors.text,
               }}
             >
-              <span style={{ flex: "0 0 auto", width: 38, height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
-                <DoorOpen size={19} />
+              <span style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
+                <DoorOpen size={20} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>{c?.title || "Your community"}</span>
-                <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted }}>{sub}</span>
+                <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
+                  {!c
+                    ? "Set it up — one link, and everyone who joins lands in your room."
+                    : !live
+                      ? "Draft · publish it to open the doors."
+                      : <><strong style={{ color: colors.text, fontWeight: 800 }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} <span style={{ color: colors.textFaded }}>· everyone who joined through your link</span></>}
+                </span>
               </span>
-              {live && c?.slug && (
-                <a
-                  href={`/c/${c.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "6px 10px", borderRadius: 999, background: `${colors.accent}12` }}
-                >
-                  View <ExternalLink size={13} />
-                </a>
+              {live && shareUrl && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+                  <button type="button" onClick={copyLink} style={{ ...ghostPill, color: commLinkCopied ? "#16a34a" : colors.textMuted, borderColor: commLinkCopied ? "rgba(34,197,94,0.4)" : colors.border }}>
+                    {commLinkCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
+                  </button>
+                  <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                     style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "7px 11px", borderRadius: 999, background: `${colors.accent}12` }}>
+                    View <ExternalLink size={13} />
+                  </a>
+                </div>
               )}
-              <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />
+              {!live && <ChevronRight size={18} color={colors.textFaded} style={{ flex: "0 0 auto" }} />}
             </div>
           </div>
         );

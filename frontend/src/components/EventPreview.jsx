@@ -114,7 +114,8 @@ export function EventPreview({
 
   const eventTime = (!hideDate && startsAt) ? formatEventTime(new Date(startsAt), timezone) : "";
 
-  const formattedDate = hideDate ? (dateRevealHint || "Date TBA") : startsAt ? (() => {
+  // A community signup has no date — never show "Date TBA".
+  const formattedDate = kind === "community" ? "" : hideDate ? (dateRevealHint || "Date TBA") : startsAt ? (() => {
     const d = new Date(startsAt);
     const tzOpt = timezone ? { timeZone: timezone } : {};
     const day = d.toLocaleDateString("en-US", { weekday: "short", ...tzOpt });
@@ -447,13 +448,17 @@ export function EventPreview({
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
-                    {ticketType === "paid" && ticketPrice
-                      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                      : "Free entry"}
+                    {kind === "community"
+                      ? "Free to join"
+                      : ticketType === "paid" && ticketPrice
+                        ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                        : "Free entry"}
                   </div>
-                  <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brand-on-bg, #fff)", opacity: 0.7, marginTop: "1px" }}>
-                    {formattedDate}
-                  </div>
+                  {formattedDate && (
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brand-on-bg, #fff)", opacity: 0.7, marginTop: "1px" }}>
+                      {formattedDate}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -493,13 +498,17 @@ export function EventPreview({
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
-                {ticketType === "paid" && ticketPrice
-                  ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                  : "Free entry"}
+                {kind === "community"
+                  ? "Free to join"
+                  : ticketType === "paid" && ticketPrice
+                    ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+                    : "Free entry"}
               </div>
-              <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
-                {formattedDate}
-              </div>
+              {formattedDate && (
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                  {formattedDate}
+                </div>
+              )}
             </div>
             <button
               type="button"

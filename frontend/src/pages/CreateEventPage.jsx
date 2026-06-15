@@ -595,6 +595,12 @@ export function CreateEventPage() {
   // loaded row (community pages are always edited, never freshly created here).
   const [eventKind, setEventKind] = useState("event");
   const isCommunity = eventKind === "community";
+  // A community has no room of its own — it IS the creator's main room. So
+  // publishing/leaving the community editor lands in the main room, not an
+  // event room.
+  const mainRoomPath = user?.id ? `/r/${user.id}` : "/room";
+  const afterPublishPath = (eventId) => (isCommunity ? mainRoomPath : `/events/${eventId}/room`);
+  const publishToast = () => (isCommunity ? "Your community is live!" : "Published — your event is live!");
   // The rail, filtered to this kind's parts (registry-driven). Events get the
   // full rail unchanged; a community drops the event-only tools (e.g. Auto-DM).
   const railGroups = useMemo(() => {
@@ -2712,8 +2718,8 @@ export function CreateEventPage() {
 
         setUploadStatus(null);
         if (publishing) {
-          showToast("Published — your event is live!", "success");
-          navigate(`/events/${editEventId}/room`);
+          showToast(publishToast(), "success");
+          navigate(afterPublishPath(editEventId));
         } else {
           // Saving changes keeps the host in the editor — it shouldn't kick them
           // out to the Guests page mid-edit. Re-baseline the unsaved-edits
@@ -2792,7 +2798,7 @@ export function CreateEventPage() {
         // New host lands inside their own event's Room — the same surface their
         // guests will see — so they immediately get what they built. (Host is
         // signed in, so the room auto-enters via their session identity.)
-        navigate(`/events/${finalEvent.id}/room`);
+        navigate(afterPublishPath(finalEvent.id));
       } else {
         // --- CREATE MODE (no media): POST new event ---
         const res = await authenticatedFetch("/events", {
@@ -2861,7 +2867,7 @@ export function CreateEventPage() {
         // New host lands inside their own event's Room — the same surface their
         // guests will see — so they immediately get what they built. (Host is
         // signed in, so the room auto-enters via their session identity.)
-        navigate(`/events/${finalEvent.id}/room`);
+        navigate(afterPublishPath(finalEvent.id));
       }
     } catch (err) {
       if (isNetworkError(err)) {

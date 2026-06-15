@@ -135,6 +135,7 @@ export function DesktopEventLayout({
   });
 
   const formattedDate = useMemo(() => {
+    if (kind === "community") return ""; // a community signup has no date
     if (hideDate) return dateRevealHint || "Date TBA";
     if (!startsAt) return "";
     const d = new Date(startsAt);
@@ -146,12 +147,14 @@ export function DesktopEventLayout({
       .toLowerCase();
     const t = formatEventTime(d, timezone);
     return `${day} ${dateNum} ${month}${t ? `, ${t}` : ""}`;
-  }, [startsAt, timezone, hideDate, dateRevealHint]);
+  }, [startsAt, timezone, hideDate, dateRevealHint, kind]);
 
   const priceLabel =
-    ticketType === "paid" && ticketPrice
-      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-      : "Free entry";
+    kind === "community"
+      ? "Free to join"
+      : ticketType === "paid" && ticketPrice
+        ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+        : "Free entry";
 
   // Per-screen focus (drag-to-reposition) — desktop view reads from .desktop,
   // with graceful fallback to top-level fields (legacy events). The frame
@@ -354,17 +357,19 @@ export function DesktopEventLayout({
                     <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
                       {priceLabel}
                     </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        color: "var(--brand-on-bg, #fff)",
-                        marginTop: "1px",
-                        opacity: hideDate ? 0.4 : 0.7,
-                      }}
-                    >
-                      {formattedDate}
-                    </div>
+                    {formattedDate && (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          color: "var(--brand-on-bg, #fff)",
+                          marginTop: "1px",
+                          opacity: hideDate ? 0.4 : 0.7,
+                        }}
+                      >
+                        {formattedDate}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -449,16 +454,18 @@ export function DesktopEventLayout({
                   <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
                     {priceLabel}
                   </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: "rgba(255,255,255,0.4)",
-                      marginTop: "1px",
-                    }}
-                  >
-                    {formattedDate}
-                  </div>
+                  {formattedDate && (
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "rgba(255,255,255,0.4)",
+                        marginTop: "1px",
+                      }}
+                    >
+                      {formattedDate}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

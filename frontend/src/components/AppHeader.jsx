@@ -20,6 +20,7 @@ import { Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
+import { PageTypePicker } from "./PageTypePicker.jsx";
 import { colors } from "../theme/colors.js";
 
 export function AppHeader() {
@@ -31,6 +32,7 @@ export function AppHeader() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [profileComplete, setProfileComplete] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false); // create gate → onboarding door
+  const [createPickerOpen, setCreatePickerOpen] = useState(false); // "+ create" → page-type picker
   const [navConfirm, setNavConfirm] = useState(null);
 
   useEffect(() => {
@@ -169,7 +171,7 @@ export function AppHeader() {
             </div>
           )}
 
-          <button onClick={() => { if (!profileComplete) { setOnboardOpen(true); } else { handleNav("/create"); } }} style={{ padding: "10px 18px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(11px, 2.5vw, 12px)", letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.2s ease", boxShadow: colors.accentShadow, whiteSpace: "nowrap", touchAction: "manipulation" }}
+          <button onClick={() => { if (!profileComplete) { setOnboardOpen(true); } else { setCreatePickerOpen(true); } }} style={{ padding: "10px 18px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(11px, 2.5vw, 12px)", letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.2s ease", boxShadow: colors.accentShadow, whiteSpace: "nowrap", touchAction: "manipulation" }}
             onMouseEnter={(e) => { e.target.style.transform = "translateY(-1px)"; e.target.style.background = colors.accentHover; e.target.style.boxShadow = "0 8px 22px rgba(236, 23, 143, 0.34)"; }}
             onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.background = colors.accent; e.target.style.boxShadow = colors.accentShadow; }}>
             + create
@@ -185,6 +187,18 @@ export function AppHeader() {
           initialMode="onboarding"
           onDismiss={() => setOnboardOpen(false)}
           onAuthed={() => { setOnboardOpen(false); navigate("/create"); }}
+        />
+      )}
+
+      {/* "+ create" → choose what to make (Event / Community / Product-soon). */}
+      {createPickerOpen && (
+        <PageTypePicker
+          onClose={() => setCreatePickerOpen(false)}
+          onPick={(kindId) => {
+            setCreatePickerOpen(false);
+            if (kindId === "community") navigate("/community");
+            else navigate("/create");
+          }}
         />
       )}
 

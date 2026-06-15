@@ -2080,6 +2080,11 @@ export function CreateEventPage() {
   async function ensureDraftEvent() {
     if (isEditMode) return editEventId;
     if (draftEventIdRef.current) return draftEventIdRef.current;
+    // Don't mint a draft — and therefore a slug — until there's a REAL name.
+    // Otherwise the slug locks in as "untitled-xxxx" forever. Callers tolerate
+    // null: media stays held locally and uploads once the event is named/published.
+    const realTitle = (title || "").trim();
+    if (!realTitle || realTitle === "Event Name") return null;
     if (draftCreationRef.current) return draftCreationRef.current;
 
     draftCreationRef.current = (async () => {
@@ -2092,13 +2097,12 @@ export function CreateEventPage() {
       } catch {
         draftStartsAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
       }
-      // Never persist the editor's placeholder ("Event Name") as a real draft —
-      // that's how junk drafts ended up in the Room. Use a clean fallback.
+      // Guaranteed real by the guard above — the draft + slug are born named.
       const cleanTitle = (title || "").trim();
       const res = await authenticatedFetch("/events", {
         method: "POST",
         body: JSON.stringify({
-          title: cleanTitle && cleanTitle !== "Event Name" ? cleanTitle : "Untitled event",
+          title: cleanTitle,
           startsAt: draftStartsAt.toISOString(),
           timezone,
           createdVia: "create",
@@ -2139,6 +2143,28 @@ export function CreateEventPage() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, isEditMode]);
+
+  // Flush media that was added BEFORE the event had a name (so it had no draft
+  // to upload to). The moment a draft is born — i.e. once you name the event —
+  // any locally-held files upload, so nothing is lost on refresh.
+  const pendingFlushedRef = useRef(false);
+  useEffect(() => {
+    if (isEditMode || !draftEventId || pendingFlushedRef.current) return;
+    const pending = mediaFiles.filter((m) => m?.file && !m.serverId && !m.uploading && !m.uploadError);
+    if (!pending.length) return;
+    pendingFlushedRef.current = true;
+    pending.forEach((item) => {
+      const idx = mediaFiles.findIndex((m) => m.id === item.id);
+      patchMediaItem(item.id, { uploading: true, uploadError: false });
+      uploadQueuedMedia(draftEventId, item, idx >= 0 ? idx : 0)
+        .then((row) => patchMediaItem(item.id, { uploading: false, serverId: row.id, url: row.url || item.preview }))
+        .catch((err) => {
+          console.error("[draft] pending media flush failed", err);
+          patchMediaItem(item.id, { uploading: false, uploadError: true });
+        });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftEventId, isEditMode]);
 
   async function handleMediaAdd(files) {
     const fileList = Array.isArray(files) ? files : [files];
@@ -2261,6 +2287,13 @@ export function CreateEventPage() {
       console.error("[handleMediaAdd] could not start draft", err);
       showToast("Couldn't start the upload — it'll retry when you create the event", "warning");
       return; // items stay in mediaFiles without serverId → submit uploads them
+    }
+
+    // No name yet → no draft yet (so the slug isn't born "untitled"). The media
+    // sits in the preview locally and uploads the moment you name it / publish.
+    if (!eventId) {
+      showToast("Name your event and your media uploads automatically", "info");
+      return;
     }
 
     addedItems.forEach((item, k) => {

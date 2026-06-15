@@ -77,11 +77,18 @@ export async function settleByProviderRef({ provider, providerRef, outcome, rece
             contactEmail: hostProfile?.contactEmail || "",
           };
         } catch {}
+        // A product purchase confirms a buy, not a spot — and carries a link
+        // back to the gated delivery (download/secret/unlock served only after
+        // this settlement). The buyer lands on /p/:slug?purchase=<rsvpId>.
+        const isProduct = event.kind === "product";
+        const productDeliveryUrl = isProduct
+          ? `${getFrontendUrl()}/p/${event.slug}?purchase=${rsvp.id}`
+          : "";
         await sendEmail({
           to: email,
           personId: rsvp.personId || null,
           hostProfileId: event.hostId || null,
-          subject: "Your spot is confirmed",
+          subject: isProduct ? "Your purchase is confirmed" : "Your spot is confirmed",
           html: signupConfirmationEmail({
             name: rsvp.name || person?.name || "there",
             eventTitle: event.title,
@@ -89,6 +96,9 @@ export async function settleByProviderRef({ provider, providerRef, outcome, rece
             isWaitlist: false,
             imageUrl: event.coverImageUrl || event.imageUrl || "",
             location: event.location || "",
+            locationLat: event.locationLat ?? null,
+            locationLng: event.locationLng ?? null,
+            showCoordinates: event.showCoordinates ?? false,
             startsAt: event.startsAt || "",
             endsAt: event.endsAt || "",
             timezone: event.timezone || "",
@@ -98,6 +108,8 @@ export async function settleByProviderRef({ provider, providerRef, outcome, rece
             frontendUrl: getFrontendUrl(),
             ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
             ticketCurrency: event.ticketCurrency || "",
+            productDeliveryUrl,
+            productTitle: isProduct ? event.title : "",
             ...hostBrand,
             brand: event.brand
               ? {

@@ -1425,13 +1425,14 @@ function ProtectedLayoutInner() {
 
       {/* "+ create" → choose what kind of page to make. Event opens the event
           editor; Community opens the host's single community page (get-or-create);
-          Product is coming soon. */}
+          Product opens the editor in product mode. */}
       {createPickerOpen && (
         <PageTypePicker
           onClose={() => setCreatePickerOpen(false)}
           onPick={(kindId) => {
             setCreatePickerOpen(false);
             if (kindId === "community") navigate("/community");
+            else if (kindId === "product") navigate("/create?kind=product");
             else navigate("/create");
           }}
         />

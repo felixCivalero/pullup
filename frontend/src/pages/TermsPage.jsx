@@ -56,7 +56,7 @@ export function TermsPage() {
         <p style={s.p}>Paid ticketing is processed by Stripe. When you sell tickets:</p>
         <ul style={s.ul}>
           <li style={s.li}>You must connect a Stripe account to receive payouts</li>
-          <li style={s.li}>PullUp charges a platform fee of 3% on paid tickets</li>
+          <li style={s.li}>PullUp charges a platform fee of 2.5% on paid tickets</li>
           <li style={s.li}>Stripe's own processing fees apply in addition</li>
           <li style={s.li}>You are responsible for any tax obligations on ticket revenue</li>
         </ul>

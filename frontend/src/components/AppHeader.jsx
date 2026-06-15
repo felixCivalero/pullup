@@ -198,6 +198,7 @@ export function AppHeader() {
           onPick={(kindId) => {
             setCreatePickerOpen(false);
             if (kindId === "community") navigate("/community");
+            else if (kindId === "product") navigate("/create?kind=product");
             else navigate("/create");
           }}
         />

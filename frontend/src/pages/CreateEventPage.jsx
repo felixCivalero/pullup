@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getPageKind } from "../lib/pageKinds.js";
+import { getPageKind, PAGE_KINDS } from "../lib/pageKinds.js";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import {
@@ -15,6 +15,7 @@ import {
   Instagram,
   Lightbulb,
   Ticket,
+  Tag,
   Palette,
   AlertTriangle,
   Eye,
@@ -59,6 +60,7 @@ import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { CreateWizard } from "../components/CreateWizard.jsx";
 import { BrandThemeEditor } from "../components/BrandThemeEditor.jsx";
 import { EventAutoDmPanel } from "../components/EventAutoDmPanel.jsx";
+import { ProductPricePanel } from "../components/ProductPricePanel.jsx";
 import { pickTextColor, fontStack, softColor, FONTS } from "../lib/brand.js";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -89,6 +91,50 @@ import {
   handleApiError,
 } from "../lib/errorHandler.js";
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
+import { parseCoordinates, formatCoordinates } from "../lib/urlUtils";
+
+// Paste-coordinates field for the location editor. Lets a host who has the exact
+// pin (but no precise street address) type/paste "59.3293, 18.0686" and have it
+// flow into locationLat/locationLng. Keeps its own text state so the host can
+// type freely; re-syncs when coords change from the map/search picker.
+function CoordinatePaste({ lat, lng, colors, onApply }) {
+  const [text, setText] = useState(() => formatCoordinates(lat, lng));
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    setText(formatCoordinates(lat, lng));
+  }, [lat, lng]);
+  const handle = (val) => {
+    setText(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setError(false);
+      return;
+    }
+    const parsed = parseCoordinates(trimmed);
+    if (parsed) {
+      setError(false);
+      onApply(parsed);
+    } else {
+      setError(true);
+    }
+  };
+  return (
+    <div style={{ marginTop: "8px" }}>
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => handle(e.target.value)}
+        placeholder="Paste coordinates — e.g. 59.3293, 18.0686"
+        style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${error ? "rgba(239,68,68,0.6)" : colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+      />
+      <div style={{ fontSize: "11px", color: error ? "rgba(239,68,68,0.9)" : colors.textFaded, marginTop: "5px", lineHeight: 1.4 }}>
+        {error
+          ? 'Couldn’t read that — try "lat, lng" like 59.3293, 18.0686'
+          : "Shown on the page, in the RSVP email, and in shares."}
+      </div>
+    </div>
+  );
+}
 
 const inputStyle = {
   width: "100%",
@@ -563,6 +609,15 @@ const RAIL_GROUPS = [
     ],
   },
   {
+    group: "Sell",
+    items: [
+      // Product pages only (registry: product.parts includes "price"). Price +
+      // currency + the four delivery forms. Shares step 3, own panel via
+      // activePartId === "price".
+      { id: "price", label: "Price & delivery", icon: Tag, step: 3 },
+    ],
+  },
+  {
     group: "Promote",
     items: [
       // Auto-DM lives in the same step as sign-up (step 3) but toggles its own
@@ -610,6 +665,16 @@ export function CreateEventPage() {
       .map((g) => ({ ...g, items: g.items.filter((it) => allowed.has(it.id)) }))
       .filter((g) => g.items.length);
   }, [eventKind]);
+
+  // New page from the create picker: ?kind=product opens the editor in product
+  // mode (community has its own /community route). The kind is pinned at draft
+  // creation (POST /events) — never edited after. On an existing page the kind
+  // comes from the loaded row, so this only applies to fresh creates.
+  useEffect(() => {
+    if (isEditMode) return;
+    const k = searchParams.get("kind");
+    if (k && PAGE_KINDS[k] && k !== "event") setEventKind(k);
+  }, [isEditMode, searchParams]);
 
   // PullUp coach widget hands off into the editor by appending ?focus=<key>.
   // Read it, flip to the matching tab, briefly gold-flash a relevant field
@@ -801,6 +866,7 @@ export function CreateEventPage() {
   const [locationLng, setLocationLng] = useState(draft?.locationLng || null);
   const [locationPlaceId, setLocationPlaceId] = useState(draft?.locationPlaceId || null);
   const [hideLocation, setHideLocation] = useState(draft?.hideLocation || false);
+  const [showCoordinates, setShowCoordinates] = useState(draft?.showCoordinates || false);
   const [startsAt, setStartsAt] = useState(() => {
     // Always start at tomorrow 19:00 local — overwritten by the load path in
     // edit mode. Intentionally ignores any stale draft value.
@@ -939,7 +1005,15 @@ export function CreateEventPage() {
   const [sellTicketsEnabled, setSellTicketsEnabled] = useState(draft?.sellTicketsEnabled || false);
   const [ticketPrice, setTicketPrice] = useState(draft?.ticketPrice || "");
   const [ticketCurrency, setTicketCurrency] = useState(draft?.ticketCurrency || "SEK");
-  const isPaidEvent = sellTicketsEnabled && ticketPrice && parseFloat(ticketPrice) > 0;
+  // Digital-product delivery config (kind='product'). Authored in the price
+  // part; reuses ticketPrice/ticketCurrency for the charge, adds the four
+  // delivery forms. See ProductPricePanel + events.fulfillment (mig 095).
+  const [fulfillment, setFulfillment] = useState(draft?.fulfillment || null);
+  // A product IS inherently paid (no sell-tickets toggle): a real price alone
+  // makes it paid. An event still gates behind the explicit sell toggle.
+  const isProductKind = eventKind === "product";
+  const isPaidEvent =
+    (isProductKind ? true : sellTicketsEnabled) && ticketPrice && parseFloat(ticketPrice) > 0;
   // Paid only when payments v2 is live AND a real price is set — the payload
   // and previews key off this so flag-off behavior stays identical to the pause.
   const ticketsArePaid = paymentsV2Live && isPaidEvent;
@@ -982,6 +1056,12 @@ export function CreateEventPage() {
   // the form). With require* this gives each a 3-state Off/Optional/Required.
   const [collectPhone, setCollectPhone] = useState(draft?.collectPhone !== false);
   const [collectInstagram, setCollectInstagram] = useState(draft?.collectInstagram !== false);
+  // On-page sign-up surface control (mig 096). hidden suppresses the inline
+  // block AND the sticky bottom bar together; the two strings override the
+  // eyebrow ("Free to join") and the button text. Empty = kind-derived default.
+  const [signupHidden, setSignupHidden] = useState(!!draft?.signupHidden);
+  const [signupLabelText, setSignupLabelText] = useState(draft?.signupLabel || "");
+  const [signupCtaText, setSignupCtaText] = useState(draft?.signupCta || "");
   // Host-authored enrichment questions (mig 077) — free-text prompts shown below
   // the four sacred anchors. NOT identity; answers ride home in custom_answers.
   const [enrichmentQuestions, setEnrichmentQuestions] = useState(
@@ -1080,13 +1160,14 @@ export function CreateEventPage() {
   const formSnapshot = JSON.stringify({
     title, titleVisible, titleAlign, titleFont, titleSize, titleColor,
     detailsColor, detailsGradient, detailsGradientEnabled, description, sections,
-    location, locationLat, locationLng, locationPlaceId, hideLocation, hideDate, revealHint,
+    location, locationLat, locationLng, locationPlaceId, hideLocation, showCoordinates, hideDate, revealHint,
     dateRevealHint, startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
-    instantWaitlist, sellTicketsEnabled, ticketPrice, ticketCurrency,
+    instantWaitlist, sellTicketsEnabled, ticketPrice, ticketCurrency, fulfillment,
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
     formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, enrichmentQuestions, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    signupHidden, signupLabelText, signupCtaText,
     customThumbnail: !!customThumbnail,
   });
   const baselineSnapshot = useRef(null);
@@ -1257,9 +1338,9 @@ export function CreateEventPage() {
           title, titleVisible, titleAlign, titleFont, titleSize, titleColor, detailsColor, detailsGradient, detailsGradientEnabled,
           brand,
           draftEventId: draftEventIdRef.current,
-          description, location, locationLat, locationLng, locationPlaceId, hideLocation, hideDate, revealHint, dateRevealHint,
+          description, location, locationLat, locationLng, locationPlaceId, hideLocation, showCoordinates, hideDate, revealHint, dateRevealHint,
           startsAt, endsAt, timezone, maxAttendees, waitlistEnabled, instantWaitlist,
-          sellTicketsEnabled, ticketPrice, ticketCurrency,
+          sellTicketsEnabled, ticketPrice, ticketCurrency, fulfillment,
           allowPlusOnes, maxPlusOnesPerGuest,
           dinnerEnabled, dinnerStartTime, dinnerEndTime,
           dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
@@ -1274,6 +1355,9 @@ export function CreateEventPage() {
           collectPhone,
           collectInstagram,
           enrichmentQuestions,
+          signupHidden,
+          signupLabel: signupLabelText,
+          signupCta: signupCtaText,
           currentStep,
           wizardDone,
           _savedAt: Date.now(),
@@ -1283,9 +1367,9 @@ export function CreateEventPage() {
     }, 500);
     return () => clearTimeout(timeout);
   }, [
-    isEditMode, title, description, location, locationLat, locationLng, locationPlaceId,
+    isEditMode, title, description, location, locationLat, locationLng, locationPlaceId, showCoordinates,
     startsAt, endsAt, timezone, maxAttendees, waitlistEnabled,
-    sellTicketsEnabled, ticketPrice, ticketCurrency,
+    sellTicketsEnabled, ticketPrice, ticketCurrency, fulfillment,
     allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerStartTime, dinnerEndTime,
     dinnerMaxSeatsPerSlot, dinnerMaxGuestsPerBooking,
@@ -1293,6 +1377,7 @@ export function CreateEventPage() {
     dinnerSlotsConfig,
     instagram, spotify, tiktok, soundcloud,
     formFields, contactChannel, enrichmentQuestions,
+    signupHidden, signupLabelText, signupCtaText,
     currentStep, wizardDone, detailsColor, detailsGradient, detailsGradientEnabled,
     // These are saved in the payload but were missing here, so changes to them
     // (esp. `brand`, which holds the AI scene) never re-fired the save → reload
@@ -1730,6 +1815,7 @@ export function CreateEventPage() {
         setLocationLng(ev.locationLng || null);
         setLocationPlaceId(ev.locationPlaceId || null);
         setHideLocation(ev.hideLocation || false);
+        setShowCoordinates(ev.showCoordinates || false);
         setHideDate(ev.hideDate || false);
         setInstantWaitlist(ev.instantWaitlist || false);
         setRevealHint(ev.revealHint || "");
@@ -1746,6 +1832,8 @@ export function CreateEventPage() {
         setSellTicketsEnabled(ev.ticketType === "paid");
         setTicketPrice(ev.ticketPrice ? String(ev.ticketPrice / 100) : "");
         setTicketCurrency((ev.ticketCurrency || "SEK").toUpperCase());
+        // Digital-product delivery config (kind='product').
+        setFulfillment(ev.fulfillment || null);
 
         // Plus-ones
         if (ev.maxPlusOnesPerGuest > 0) {
@@ -1793,6 +1881,11 @@ export function CreateEventPage() {
         setCollectInstagram(ev.collectInstagram !== false);
         setEnrichmentQuestions(Array.isArray(ev.enrichmentQuestions) ? ev.enrichmentQuestions : []);
         setFormFields(withLockedFields(ev.formFields, loadedChannel));
+
+        // On-page sign-up surface control (mig 096).
+        setSignupHidden(!!ev.signupSettings?.hidden);
+        setSignupLabelText(ev.signupSettings?.label || "");
+        setSignupCtaText(ev.signupSettings?.cta || "");
 
         // Media settings
         const ms = ev.mediaSettings || {};
@@ -1953,10 +2046,11 @@ export function CreateEventPage() {
     autosaveTargetId,
     title, description, sections,
     startsAt, endsAt, timezone, hideDate, dateRevealHint,
-    location, locationLat, locationLng, locationPlaceId, hideLocation, revealHint,
+    location, locationLat, locationLng, locationPlaceId, hideLocation, showCoordinates, revealHint,
     collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, formFields, contactChannel, enrichmentQuestions,
     maxAttendees, waitlistEnabled, instantWaitlist, allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerSlotsConfig, brand, instagram, spotify, tiktok, soundcloud,
+    ticketPrice, ticketCurrency, fulfillment,
   ]);
 
   // Make sure we have the draft's slug for the header "Preview" link, even if
@@ -2114,6 +2208,12 @@ export function CreateEventPage() {
           timezone,
           createdVia: "create",
           status: "DRAFT",
+          // Pin the page kind at birth (route-controlled, never editable after)
+          // and apply the kind's registry defaults so a product/community is born
+          // dateless/locationless instead of showing event-only fields.
+          ...(eventKind && eventKind !== "event"
+            ? { kind: eventKind, hideDate: getPageKind(eventKind).hideDate, hideLocation: getPageKind(eventKind).hideLocation }
+            : {}),
         }),
       });
       if (!res.ok) {
@@ -2553,6 +2653,11 @@ export function CreateEventPage() {
       requireInstagram,
       collectPhone,
       collectInstagram,
+      // On-page sign-up surface (mig 096). Only persist a real config when the
+      // host has changed something; otherwise leave it null = kind-default.
+      signupSettings: (signupHidden || signupLabelText.trim() || signupCtaText.trim())
+        ? { hidden: signupHidden, label: signupLabelText.trim() || null, cta: signupCtaText.trim() || null }
+        : null,
       enrichmentQuestions: (enrichmentQuestions || [])
         .filter((q) => q && q.id && (q.label || "").trim())
         .map((q) => ({ id: q.id, label: q.label.trim(), required: !!q.required })),
@@ -2561,6 +2666,7 @@ export function CreateEventPage() {
       locationLng: locationLng || null,
       locationPlaceId: locationPlaceId || null,
       hideLocation,
+      showCoordinates,
       hideDate,
       revealHint: revealHint.trim() || null,
       dateRevealHint: dateRevealHint.trim() || null,
@@ -2583,6 +2689,9 @@ export function CreateEventPage() {
       ticketType: ticketsArePaid ? "paid" : "free",
       ticketPrice: ticketsArePaid ? Math.round(Number(ticketPrice) * 100) : null,
       ticketCurrency: ticketsArePaid ? ticketCurrency.toLowerCase() : null,
+      // Digital-product delivery config (kind='product'). Sent for products
+      // only; null elsewhere keeps event/community payloads untouched.
+      fulfillment: isProductKind ? (fulfillment || null) : undefined,
       maxPlusOnesPerGuest: parsedMaxPlus,
       dinnerEnabled,
       dinnerStartTime: dinnerEnabled ? dinnerStartTimeIso : null,
@@ -4695,6 +4804,42 @@ export function CreateEventPage() {
                           style={{ width: "100%", boxSizing: "border-box", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "8px", color: colors.text, fontSize: "12px", padding: "8px 10px", outline: "none", fontFamily: "inherit", marginTop: "8px" }}
                         />
                       )}
+                      {/* Show exact coordinates — for spots an address can't pin
+                          precisely. Flips on automatically when a host pastes
+                          coordinates; once on, the lat/lng pair shows everywhere. */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowCoordinates(!showCoordinates)}
+                          style={{
+                            width: "36px", height: "20px", borderRadius: "10px", border: "none",
+                            background: showCoordinates ? colors.accent : colors.surfaceMuted,
+                            position: "relative", cursor: "pointer", transition: "background 0.2s ease", flexShrink: 0,
+                          }}
+                        >
+                          <div style={{
+                            width: "16px", height: "16px", borderRadius: "50%", background: "#fff",
+                            position: "absolute", top: "2px",
+                            left: showCoordinates ? "18px" : "2px",
+                            transition: "left 0.2s ease",
+                            boxShadow: "0 1px 3px rgba(10,10,10,0.12)",
+                          }} />
+                        </button>
+                        <span style={{ fontSize: "12px", color: colors.textSubtle, fontWeight: 500 }}>Show exact coordinates</span>
+                      </div>
+                      {showCoordinates && (
+                        <CoordinatePaste
+                          lat={locationLat}
+                          lng={locationLng}
+                          colors={colors}
+                          onApply={async ({ lat, lng }) => {
+                            setLocationLat(lat);
+                            setLocationLng(lng);
+                            const tz = await fetchTimezoneForLocation(lat, lng);
+                            if (tz) setTimezone(tz);
+                          }}
+                        />
+                      )}
                     </>
                   ) : section.type === "datetime" ? (
                     /* Date/time inputs */
@@ -5154,15 +5299,130 @@ export function CreateEventPage() {
                 display: currentStep === 3 && activePartId === "autoDm" ? "block" : "none",
               }}
             >
-              <EventAutoDmPanel eventId={editEventId} eventStatus={eventStatus} isEditMode={isEditMode} />
+              <EventAutoDmPanel eventId={editEventId} eventStatus={eventStatus} isEditMode={isEditMode} kind={eventKind} />
+            </div>
+
+            {/* Product price & delivery panel — product pages only, same step,
+                toggled by the rail's "Price & delivery" item. */}
+            <div
+              style={{
+                display: currentStep === 3 && activePartId === "price" ? "block" : "none",
+              }}
+            >
+              <ProductPricePanel
+                eventId={isEditMode ? editEventId : draftEventId}
+                paymentsV2Live={paymentsV2Live}
+                price={ticketPrice}
+                setPrice={setTicketPrice}
+                currency={ticketCurrency}
+                setCurrency={setTicketCurrency}
+                fulfillment={fulfillment}
+                setFulfillment={setFulfillment}
+                ensureDraft={ensureDraftEvent}
+              />
             </div>
 
             {/* === STEP 4 (tab position): FORM === */}
             <div
               style={{
-                display: currentStep === 3 && activePartId !== "autoDm" ? "block" : "none",
+                display: currentStep === 3 && activePartId !== "autoDm" && activePartId !== "price" ? "block" : "none",
               }}
             >
+
+            {/* Sign-up display — show/hide the on-page sign-up surface (the
+                inline "Free to join" block + the sticky bottom bar move
+                together) and override the eyebrow + button text. */}
+            <div style={{ marginBottom: "28px" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.15em",
+                  color: colors.textSubtle,
+                  fontWeight: 600,
+                  marginBottom: "12px",
+                }}
+              >
+                SIGN-UP ON THE PAGE
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 12px",
+                  background: colors.surface,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: "8px",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: colors.text }}>
+                    Sign-up block
+                  </div>
+                  <div style={{ fontSize: "12px", color: colors.textMuted, marginTop: "2px" }}>
+                    {signupHidden ? "Hidden from the page" : "Shown on the page"}
+                  </div>
+                </div>
+                <div style={{ display: "inline-flex", gap: "2px", padding: "2px", background: colors.background, border: `1px solid ${colors.border}`, borderRadius: "8px", flexShrink: 0 }}>
+                  {[{ key: false, label: "Show" }, { key: true, label: "Hide" }].map((opt) => {
+                    const active = signupHidden === opt.key;
+                    return (
+                      <button
+                        key={String(opt.key)}
+                        type="button"
+                        onClick={() => setSignupHidden(opt.key)}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: "6px",
+                          border: "none",
+                          background: active ? colors.accent : "transparent",
+                          color: active ? "#fff" : colors.textMuted,
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {!signupHidden && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                  <label style={{ display: "block" }}>
+                    <span style={{ display: "block", fontSize: "12px", color: colors.textMuted, marginBottom: "4px" }}>Eyebrow text</span>
+                    <input
+                      type="text"
+                      value={signupLabelText}
+                      onChange={(e) => setSignupLabelText(e.target.value)}
+                      placeholder={eventKind === "community" ? "Free to join" : "Free entry"}
+                      style={{
+                        width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                        background: colors.surface, border: `1px solid ${colors.border}`,
+                        borderRadius: "8px", color: colors.text, fontSize: "14px",
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span style={{ display: "block", fontSize: "12px", color: colors.textMuted, marginBottom: "4px" }}>Button text</span>
+                    <input
+                      type="text"
+                      value={signupCtaText}
+                      onChange={(e) => setSignupCtaText(e.target.value)}
+                      placeholder={eventKind === "community" ? "Join the community" : "Sign-up"}
+                      style={{
+                        width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                        background: colors.surface, border: `1px solid ${colors.border}`,
+                        borderRadius: "8px", color: colors.text, fontSize: "14px",
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
             {/* Form Section */}
             <div>
@@ -6067,6 +6327,7 @@ export function CreateEventPage() {
                   location,
                   locationLat,
                   locationLng,
+                  showCoordinates,
                   startsAt,
                   endsAt,
                   timezone,
@@ -6095,6 +6356,9 @@ export function CreateEventPage() {
                   revealHint: revealHint || null,
                   dateRevealHint: dateRevealHint || null,
                   instantWaitlist,
+                  hideSignup: signupHidden,
+                  signupLabel: signupLabelText.trim() || null,
+                  signupCta: signupCtaText.trim() || null,
                   rsvpContent: ({ onClose }) => (
                     <RsvpForm
                       preview
@@ -6188,6 +6452,7 @@ export function CreateEventPage() {
             location={location}
             locationLat={locationLat}
             locationLng={locationLng}
+            showCoordinates={showCoordinates}
             startsAt={startsAt}
             endsAt={endsAt}
             timezone={timezone}
@@ -6209,6 +6474,9 @@ export function CreateEventPage() {
             ticketCurrency={ticketsArePaid ? ticketCurrency.toLowerCase() : null}
             sections={sections}
             design={brand?.design || null}
+            hideSignup={signupHidden}
+            signupLabel={signupLabelText.trim() || null}
+            signupCta={signupCtaText.trim() || null}
             rsvpContent={({ onClose }) => (
               <RsvpForm
                 preview

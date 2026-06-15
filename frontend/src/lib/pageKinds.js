@@ -43,8 +43,9 @@ export const PAGE_KINDS = {
     singleton: true,
     comingSoon: false,
     // same rail as an event, minus nothing at the rail level — the date/place/
-    // ticket SUB-fields are hidden via the flags below.
-    parts: ["cover", "theme", "content", "collect"],
+    // ticket SUB-fields are hidden via the flags below. Auto-DM is included:
+    // a comment can drive a community join (the DM links to /c/:slug).
+    parts: ["cover", "theme", "content", "collect", "autoDm"],
     hideDate: true,
     hideLocation: true,
     hideTickets: true,
@@ -57,9 +58,9 @@ export const PAGE_KINDS = {
     noun: "product",
     routePrefix: "/p",
     singleton: false,
-    // not buildable yet — surfaced as "coming soon" in the create picker
-    comingSoon: true,
-    parts: ["cover", "theme", "content", "price"],
+    comingSoon: false,
+    // Auto-DM included: a comment can drive a product buy (DM links to /p/:slug).
+    parts: ["cover", "theme", "content", "price", "autoDm"],
     hideDate: true,
     hideLocation: true,
     hideTickets: true,

@@ -1,6 +1,7 @@
 // Crawler detection + Open Graph share-page rendering (used by /share and /e/:slug).
 import { logger } from "../logger.js";
 import { getFrontendUrl, getBackendUrlFromReq } from "./urls.js";
+import { formatCoordinates } from "./coordinates.js";
 // ---------------------------
 // Helper: Detect if request is from a crawler/bot
 // ---------------------------
@@ -249,9 +250,18 @@ function generateOgHtml(event, queryString = "") {
   const when = hideDate
     ? (event?.dateRevealHint || "Date TBA")
     : realWhen;
-  const where = hideLocation
+  let where = hideLocation
     ? (event?.revealHint || "Location revealed later")
     : (event?.location ? String(event.location).trim() : "");
+  // "Show coordinates" mode: append the exact lat/lng so a shared link carries
+  // the precise pin, same as the page + emails. Honors hideLocation (above).
+  if (!hideLocation && event?.showCoordinates) {
+    const coords = formatCoordinates(
+      event?.locationLat ?? event?.location_lat,
+      event?.locationLng ?? event?.location_lng
+    );
+    if (coords) where = where ? `${where} (${coords})` : coords;
+  }
 
   // Format date for OG title: "Event Title — Wednesday, December 17 at 18:00"
   // Uses the event's timezone so the preview shows the correct local time

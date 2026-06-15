@@ -201,6 +201,9 @@ export async function mapEventFromDb(dbEvent) {
     adminTags: Array.isArray(dbEvent.admin_tags) ? dbEvent.admin_tags : [],
     formFields: dbEvent.form_fields || [],
     enrichmentQuestions: Array.isArray(dbEvent.enrichment_questions) ? dbEvent.enrichment_questions : [],
+    // Digital-product delivery config (mig 095). Full object for hosts; the
+    // public route replaces it with a sanitized `productDelivery` summary.
+    fulfillment: dbEvent.fulfillment || null,
     contactChannel: dbEvent.contact_channel || "email",
     requirePhone: dbEvent.require_phone || false,
     requireEmail: dbEvent.require_email !== false,
@@ -208,10 +211,19 @@ export async function mapEventFromDb(dbEvent) {
     collectPhone: dbEvent.collect_phone !== false,
     collectInstagram: dbEvent.collect_instagram !== false,
     hideLocation: dbEvent.hide_location || false,
+    // "Show exact coordinates" mode (mig 097). When true, every location surface
+    // surfaces the lat/lng pair next to the label. Coords themselves live in
+    // location_lat/location_lng; this only toggles their visibility.
+    showCoordinates: dbEvent.show_coordinates || false,
     hideDate: dbEvent.hide_date || false,
     instantWaitlist: dbEvent.instant_waitlist || false,
     revealHint: dbEvent.reveal_hint || null,
     dateRevealHint: dbEvent.date_reveal_hint || null,
+    // Host control over the on-page sign-up surface (mig 096). null = default
+    // (visible, kind-derived labels). { hidden, label, cta }.
+    signupSettings: dbEvent.signup_settings || null,
+    // Host-editable welcome shown to everyone who lands in the Room (mig 099).
+    roomWelcome: dbEvent.room_welcome || null,
   };
 }
 
@@ -328,6 +340,9 @@ function mapEventToDb(eventData) {
   // Host-authored free-text RSVP questions (mig 077). Identity stays the four
   // sacred anchors; these are enrichment, stored as [{id,label,required}].
   if (eventData.enrichmentQuestions !== undefined) dbData.enrichment_questions = eventData.enrichmentQuestions;
+  // Digital-product delivery config (mig 095). Stored as-is; the public route
+  // strips its secrets for non-hosts (see routes/events.js GET /events/:slug).
+  if (eventData.fulfillment !== undefined) dbData.fulfillment = eventData.fulfillment;
   if (eventData.contactChannel !== undefined) dbData.contact_channel = eventData.contactChannel;
   if (eventData.requirePhone !== undefined) dbData.require_phone = eventData.requirePhone;
   if (eventData.requireEmail !== undefined) dbData.require_email = eventData.requireEmail;
@@ -335,10 +350,13 @@ function mapEventToDb(eventData) {
   if (eventData.collectPhone !== undefined) dbData.collect_phone = eventData.collectPhone;
   if (eventData.collectInstagram !== undefined) dbData.collect_instagram = eventData.collectInstagram;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
+  if (eventData.showCoordinates !== undefined) dbData.show_coordinates = eventData.showCoordinates;
   if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
   if (eventData.instantWaitlist !== undefined) dbData.instant_waitlist = eventData.instantWaitlist;
   if (eventData.revealHint !== undefined) dbData.reveal_hint = eventData.revealHint;
   if (eventData.dateRevealHint !== undefined) dbData.date_reveal_hint = eventData.dateRevealHint;
+  if (eventData.signupSettings !== undefined) dbData.signup_settings = eventData.signupSettings;
+  if (eventData.roomWelcome !== undefined) dbData.room_welcome = eventData.roomWelcome;
   return dbData;
 }
 
@@ -367,10 +385,11 @@ export const EDITABLE_EVENT_FIELDS = [
   "cocktailCapacity", "foodCapacity", "totalCapacity",
   "mediaSettings", "titleSettings",
   "instagram", "spotify", "tiktok", "soundcloud",
-  "sections", "formFields", "enrichmentQuestions",
+  "sections", "formFields", "enrichmentQuestions", "fulfillment",
   "contactChannel",
   "requireEmail", "collectPhone", "requirePhone", "collectInstagram", "requireInstagram",
-  "hideLocation", "hideDate", "revealHint", "dateRevealHint",
+  "hideLocation", "showCoordinates", "hideDate", "revealHint", "dateRevealHint",
+  "signupSettings", "roomWelcome",
 ];
 
 // Pick only the editable fields a client is allowed to set — keeps mass-assign

@@ -9,6 +9,7 @@ export const EVENT_CTA_HEIGHT = 72;
 export function getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist } = {}) {
   // Non-event page kinds carry their own CTA (community → "Join", etc.).
   if (kind === "community") return "Join the community";
+  if (kind === "product") return "Buy now";
   if (isEventPast) return "Event has ended";
   if (isSoldOut) return "Sold out";
   if (instantWaitlist) return "Register interest";

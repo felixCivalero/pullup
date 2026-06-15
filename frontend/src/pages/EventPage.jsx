@@ -207,6 +207,13 @@ export function EventPage() {
             ? statusDetails.wantsDinner
             : rsvpData?.dinner?.enabled || rsvpData?.wantsDinner || false;
 
+        // A product purchase lands on its delivery, not the event success page.
+        if (currentEvent.kind === "product") {
+          const rsvpId = rsvpData?.id;
+          navigate(`/p/${currentEvent.slug}${rsvpId ? `?purchase=${rsvpId}` : ""}`);
+          return;
+        }
+
         navigate(`/e/${currentEvent.slug}/success`, {
           state: {
             booking: {
@@ -257,6 +264,12 @@ export function EventPage() {
       const statusDetails = currentPayment?.booking?.statusDetails || {};
       setPendingPayment(null);
       setShowRsvpForm(false);
+      // A product purchase lands on its delivery, not the event success page.
+      if (currentEvent.kind === "product") {
+        const rsvpId = rsvpData?.id;
+        navigate(`/p/${currentEvent.slug}${rsvpId ? `?purchase=${rsvpId}` : ""}`);
+        return;
+      }
       navigate(`/e/${currentEvent.slug}/success`, {
         state: {
           booking: {
@@ -1029,6 +1042,7 @@ export function EventPage() {
             location: event?.location,
             locationLat: event?.locationLat,
             locationLng: event?.locationLng,
+            showCoordinates: event?.showCoordinates,
             startsAt: event?.startsAt,
             endsAt: event?.endsAt,
             timezone: event?.timezone,
@@ -1056,6 +1070,14 @@ export function EventPage() {
             // Page kind — drives the CTA label (community → "Join"). Date/place
             // are already hidden via the row's hide_date/hide_location flags.
             kind: event?.kind || "event",
+            // Host control over the on-page sign-up surface (mig 096).
+            hideSignup: !!event?.signupSettings?.hidden,
+            signupLabel: event?.signupSettings?.label || null,
+            signupCta: event?.signupSettings?.cta || null,
+            // Product pages: sanitized delivery summary + the buyer's rsvpId
+            // (from ?purchase=, set by the success redirect / confirmation email).
+            productDelivery: event?.productDelivery || null,
+            purchaseRsvpId: searchParams.get("purchase") || null,
           };
 
           return isDesktop

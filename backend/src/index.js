@@ -36,6 +36,7 @@ import { registerPlannerRoutes } from "./routes/planner.js";
 import { registerCrmViewRoutes } from "./routes/crmViews.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
+import { registerProductDeliveryRoutes } from "./routes/productDelivery.js";
 import { registerBillingRoutes } from "./routes/billing.js";
 import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
 import { registerByoOauthRoutes } from "./routes/byoOauth.js";
@@ -279,6 +280,10 @@ registerPaymentRoutes(app);
 // Transaction layer (rail-agnostic checkout + metered-motion billing) — every
 // endpoint is inert until PAYMENTS_V2_ENABLED / BILLING_METERING_ENABLED flip.
 registerPaymentsV2Routes(app);
+
+// Digital-product delivery: host upload-URL minting + the gated buyer endpoint
+// that serves download/secret/unlock only after a product RSVP settles.
+registerProductDeliveryRoutes(app);
 
 registerBillingRoutes(app);
 
@@ -582,6 +587,7 @@ app.listen(PORT, HOST, async () => {
             location: event.location || "",
             locationLat: event.location_lat ?? null,
             locationLng: event.location_lng ?? null,
+            showCoordinates: event.show_coordinates ?? false,
             slug: event.slug || "",
             frontendUrl: frontendBase,
             unsubscribeUrl,

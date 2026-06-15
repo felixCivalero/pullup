@@ -123,7 +123,20 @@ export function registerEventRoutes(app) {
       const hostEventIds = userId ? await getUserEventIds(userId) : [];
       const isHost = hostEventIds.includes(event.id);
       const publicEvent = { ...event };
+      // Digital-product delivery: derive a SAFE summary (what forms exist, the
+      // public external link) and never leak the secrets (download path, secret
+      // value, protected body). Hosts keep the full `fulfillment` for the editor.
+      const f = event.fulfillment && typeof event.fulfillment === "object" ? event.fulfillment : null;
+      publicEvent.productDelivery = f
+        ? {
+            hasDownload: !!f.download?.enabled,
+            secretKind: f.secret?.enabled ? (f.secret.kind || "link") : null,
+            unlock: f.unlock?.enabled ? { title: f.unlock.title || "Members-only" } : null,
+            external: f.external?.enabled && f.external.url ? { url: f.external.url } : null,
+          }
+        : null;
       if (!isHost) {
+        delete publicEvent.fulfillment;
         if (publicEvent.hideLocation) {
           publicEvent.location = null;
           publicEvent.locationLat = null;
@@ -495,7 +508,7 @@ export function registerEventRoutes(app) {
     // the route sets explicitly.
     // sections/ticketType are read again below (hostedby logo upload + the
     // paid-tickets-paused rollback guard) — they must stay in this destructure.
-    const { title, startsAt, endsAt, hideDate, createdVia, status, sections, ticketType } = req.body;
+    const { title, startsAt, endsAt, hideDate, createdVia, status, sections, ticketType, kind } = req.body;
 
     if (!title || !startsAt) {
       return res.status(400).json({ error: "title and startsAt are required" });
@@ -520,6 +533,10 @@ export function registerEventRoutes(app) {
       event = await createEvent({
         hostId: req.user.id,
         ...pickEventFields(req.body),
+        // Page kind is route-controlled at creation only (never editable after —
+        // deliberately absent from EDITABLE_EVENT_FIELDS). createEvent validates
+        // it against the kind allowlist and defaults to "event".
+        ...(kind ? { kind } : {}),
         createdVia: createdVia || "legacy",
         status: status || "PUBLISHED",
       });

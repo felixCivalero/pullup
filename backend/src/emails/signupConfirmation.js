@@ -13,6 +13,8 @@
  * clean white version.
  */
 
+import { formatCoordinates } from "../lib/coordinates.js";
+
 const PULLUP_BG = "#05040a";
 const GOLD = "#f59e0b";
 const GOLD_LIGHT = "#fbbf24";
@@ -231,13 +233,21 @@ function googleMapsUrl(location, lat, lng) {
 }
 // Inner HTML for a "Where" cell: the location as a tappable Maps link, or plain
 // text when the location is hidden (reveal-later) or we have nothing to link.
-function locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, color) {
+// When showCoordinates is on (and the location isn't hidden), the exact lat/lng
+// pair is appended on its own line — email can't do a copy button, so it's a
+// tappable Maps link that drops the precise pin.
+function locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint, showCoordinates }, color) {
   const text = resolveLocationText({ location, hideLocation, revealHint });
   if (!text) return "";
   const url = hideLocation ? null : googleMapsUrl(location, locationLat, locationLng);
-  return url
+  const label = url
     ? `<a href="${url}" target="_blank" style="color:${color};text-decoration:underline;">${text}</a>`
     : text;
+  if (!showCoordinates || hideLocation) return label;
+  const coords = formatCoordinates(locationLat, locationLng);
+  if (!coords) return label;
+  const coordsUrl = `https://www.google.com/maps?q=${locationLat},${locationLng}`;
+  return `${label}<br><a href="${coordsUrl}" target="_blank" style="color:${color};text-decoration:none;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:13px;opacity:0.85;">${coords}</a>`;
 }
 
 /* ── Badge pill component ── */
@@ -330,6 +340,7 @@ export function signupConfirmationEmail({
   location = "",
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -342,6 +353,11 @@ export function signupConfirmationEmail({
   // signs the guest in and lands them INSIDE the event Room. Falls back to
   // the plain room URL (login wall) when minting failed.
   roomKeyUrl = "",
+  // Digital-product delivery (kind='product'): a link back to the gated
+  // /p/:slug?purchase=<rsvpId> page where the download/secret/unlock is served.
+  // When set, this email confirms a PURCHASE, not an event spot.
+  productDeliveryUrl = "",
+  productTitle = "",
   spotifyUrl = "",
   ticketPrice = 0,
   ticketCurrency = "",
@@ -408,7 +424,9 @@ ${imageUrl ? `<!-- Event Image -->
 <!-- Greeting -->
 <tr><td style="padding:8px 20px 0;text-align:center;">
   <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
-    ${isWaitlist
+    ${productDeliveryUrl
+      ? `Hi ${name}, your purchase is confirmed. Tap below to access it.`
+      : isWaitlist
       ? `Hi ${name}, you've been added to the waitlist. We'll notify you if a spot opens up.`
       : `Hi ${name}, your spot is confirmed! We look forward to seeing you.`}
   </p>
@@ -428,7 +446,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint, showCoordinates }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px ${ticketPrice ? "0" : "14px"};">
@@ -457,10 +475,12 @@ ${spotifyUrl ? `<!-- Spotify -->
 
 <!-- CTA Button -->
 <tr><td align="center" style="padding:20px 0 8px;">
-  ${ctaButton(eventUrl, "VIEW EVENT", b)}
+  ${productDeliveryUrl
+    ? ctaButton(productDeliveryUrl, "ACCESS YOUR PURCHASE", b)
+    : ctaButton(eventUrl, "VIEW EVENT", b)}
 </td></tr>
 
-${(!isWaitlist && roomUrl) ? `<!-- The room (anticipation; opens once they pull up at the door) -->
+${(!isWaitlist && !productDeliveryUrl && roomUrl) ? `<!-- The room (anticipation; opens once they pull up at the door) -->
 <tr><td align="center" style="padding:8px 20px 4px;">
   <p class="pu-muted" style="margin:0;font-size:13px;color:${b.muted};line-height:1.5;font-family:${b.fontStack};">
     <a href="${roomUrl}" target="_blank" style="color:${b.ink};text-decoration:underline;text-decoration-color:${rgbaFromHex(b.ink, 0.3)};">The room</a> is open now — step in to get ready. When the event starts, pull up at the door to stay in.
@@ -544,6 +564,7 @@ export function reminder24hEmail({
   location = "",
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   slug = "",
   frontendUrl = "https://pullup.se",
   // reveal-later flags
@@ -595,7 +616,7 @@ ${noteBlock(customNote, b)}
     <tr><td style="padding:14px 20px;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation">
         ${dateFormatted ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">When</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${dateFormatted}</td></tr>` : ""}
-        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td></tr>` : ""}
+        ${locationText ? `<tr><td style="padding:2px 10px 2px 0;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td><td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint, showCoordinates }, b.ink)}</td></tr>` : ""}
       </table>
     </td></tr>
   </table>
@@ -621,6 +642,7 @@ export function reservationEmail({
   location = "",
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -686,7 +708,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint, showCoordinates }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">
@@ -718,6 +740,7 @@ export function waitlistOfferEmail({
   location = "",
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt = "",
   endsAt = "",
   timezone = "",
@@ -796,7 +819,7 @@ ${noteBlock(customNote, b)}
     ${locationText ? `<tr><td style="padding:10px 20px 0;">
       <table border="0" cellpadding="0" cellspacing="0" role="presentation"><tr>
         <td style="padding-right:10px;vertical-align:top;font-size:14px;color:${b.muted};font-family:${b.fontStack};">Where</td>
-        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint }, b.ink)}</td>
+        <td style="font-size:14px;color:${b.ink};font-weight:600;font-family:${b.fontStack};">${locationLinkHtml({ location, locationLat, locationLng, hideLocation, revealHint, showCoordinates }, b.ink)}</td>
       </tr></table>
     </td></tr>` : ""}
     <tr><td style="padding:10px 20px 14px;">

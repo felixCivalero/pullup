@@ -652,6 +652,7 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
                 location: event.location || "",
                 locationLat: event.locationLat ?? null,
                 locationLng: event.locationLng ?? null,
+                showCoordinates: event.showCoordinates ?? false,
                 startsAt: event.startsAt || "",
                 endsAt: event.endsAt || "",
                 timezone: event.timezone || "",

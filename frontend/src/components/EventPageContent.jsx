@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventTime } from "../lib/dateUtils.js";
-import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
+import { formatLocationShort, getGoogleMapsUrl, formatCoordinates } from "../lib/urlUtils";
 import { fontStack, loadFont } from "../lib/brand.js";
+import { ProductDelivery } from "./ProductDelivery.jsx";
 
 // Each embed helper PARSES the URL and only emits an iframe src whose host
 // is one we explicitly trust. The previous string.includes() / replace()
@@ -65,6 +66,39 @@ function getYouTubeEmbedUrl(url) {
   return `https://www.youtube.com/embed/${videoId}`;
 }
 
+// The exact lat/lng pair, shown beside the location label when the host turns on
+// "show coordinates" (for spots an address can't pin precisely). Monospace, with
+// a copy button — clicks stop propagation so it never triggers the editor's
+// click-to-edit on the surrounding section.
+function CoordCopy({ lat, lng, color }) {
+  const [copied, setCopied] = useState(false);
+  const text = formatCoordinates(lat, lng);
+  if (!text) return null;
+  const onCopy = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — the text is still visible to copy by hand */
+    }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
+      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", color, opacity: 0.55, letterSpacing: "0.02em" }}>{text}</span>
+      <button
+        type="button"
+        onClick={onCopy}
+        style={{ background: "transparent", border: `1px solid ${color}`, color, opacity: 0.5, borderRadius: "6px", fontSize: "9.5px", fontWeight: 700, padding: "1px 7px", cursor: "pointer", lineHeight: 1.7, textTransform: "uppercase", letterSpacing: "0.05em" }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
 function formatDate(startsAt, timezone) {
   if (!startsAt) return "";
   const d = new Date(startsAt);
@@ -82,6 +116,7 @@ export function EventPageContent({
   location,
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt,
   timezone,
   sections = [],
@@ -94,6 +129,10 @@ export function EventPageContent({
   // the block on the preview and onEditSection(index) opens its editor. Absent
   // on the live public page, so nothing here changes for guests.
   onEditSection = null,
+  // Product pages (kind='product'): the sanitized delivery summary + the buyer's
+  // rsvpId (from ?purchase=). Drives the delivery/locked-content block below.
+  productDelivery = null,
+  purchaseRsvpId = null,
 }) {
   const editable = typeof onEditSection === "function";
   const [editHover, setEditHover] = useState(null);
@@ -134,10 +173,14 @@ export function EventPageContent({
       <>
         {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
         {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{locationNode({ color: "#fff" })}</div>}
+        {showCoordinates && !hideLocation && locationLat != null && locationLng != null && <div style={{ marginBottom: "4px" }}><CoordCopy lat={locationLat} lng={locationLng} color="#fff" /></div>}
         {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
         {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
         {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
         {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
+        {!editable && (productDelivery || purchaseRsvpId) && (
+          <ProductDelivery productDelivery={productDelivery} purchaseRsvpId={purchaseRsvpId} />
+        )}
       </>
     );
   }
@@ -177,7 +220,12 @@ export function EventPageContent({
           ) : section.type === "location" ? (
             hideLocation
               ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
-              : location ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "#fff" })}</div> : null
+              : (location || (showCoordinates && locationLat != null && locationLng != null)) ? (
+                  <>
+                    {location && <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "#fff" })}</div>}
+                    {showCoordinates && locationLat != null && locationLng != null && <CoordCopy lat={locationLat} lng={locationLng} color={sColor || "#fff"} />}
+                  </>
+                ) : null
 
           ) : section.type === "datetime" ? (
             hideDate
@@ -268,6 +316,9 @@ export function EventPageContent({
         </div>
         );
       })}
+      {!editable && (productDelivery || purchaseRsvpId) && (
+        <ProductDelivery productDelivery={productDelivery} purchaseRsvpId={purchaseRsvpId} />
+      )}
     </>
   );
 }

@@ -18,6 +18,7 @@ export function DesktopEventLayout({
   location,
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt,
   timezone,
   imagePreview,
@@ -41,6 +42,15 @@ export function DesktopEventLayout({
   activeStep,
   onFocusDrag,
   kind = "event",
+  // Host control over the on-page sign-up surface (mig 096). hideSignup
+  // suppresses BOTH the inline block and the pinned bottom bar; the two
+  // labels override the eyebrow ("Free to join") and the button text.
+  hideSignup = false,
+  signupLabel = null,
+  signupCta = null,
+  // Product pages: sanitized delivery summary + buyer's rsvpId (?purchase=).
+  productDelivery = null,
+  purchaseRsvpId = null,
 }) {
   const rightScrollRef = useRef(null);
   const rsvpSectionRef = useRef(null);
@@ -124,6 +134,14 @@ export function DesktopEventLayout({
     rsvpSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // External storefront link-out (product pages): "Buy now" opens the creator's
+  // own store; the inline RSVP/checkout is suppressed so there's one buy path.
+  const externalUrl = kind === "product" && productDelivery?.external?.url ? productDelivery.external.url : null;
+  const handleCta = () => {
+    if (externalUrl) { window.open(externalUrl, "_blank", "noopener"); return; }
+    scrollToRsvp();
+  };
+
   const buttonLabel = getCtaLabel({
     kind,
     ticketType,
@@ -155,6 +173,10 @@ export function DesktopEventLayout({
       : ticketType === "paid" && ticketPrice
         ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
         : "Free entry";
+
+  // Host overrides (mig 096) for the eyebrow + button; fall back to defaults.
+  const eyebrowLabel = signupLabel || priceLabel;
+  const ctaLabel = signupCta || buttonLabel;
 
   // Per-screen focus (drag-to-reposition) — desktop view reads from .desktop,
   // with graceful fallback to top-level fields (legacy events). The frame
@@ -322,6 +344,7 @@ export function DesktopEventLayout({
               location={location}
               locationLat={locationLat}
               locationLng={locationLng}
+              showCoordinates={showCoordinates}
               startsAt={startsAt}
               timezone={timezone}
               sections={sections}
@@ -330,10 +353,13 @@ export function DesktopEventLayout({
               hideDate={hideDate}
               revealHint={revealHint}
               dateRevealHint={dateRevealHint}
+              productDelivery={productDelivery}
+              purchaseRsvpId={purchaseRsvpId}
             />
 
-            {/* Inline RSVP — mirrors mobile, scrolled to from sticky CTA */}
-            {rsvpContent && (
+            {/* Inline RSVP — mirrors mobile, scrolled to from sticky CTA
+                (suppressed when the host has hidden the sign-up surface) */}
+            {rsvpContent && !externalUrl && !hideSignup && (
               <div
                 ref={rsvpSectionRef}
                 style={{
@@ -355,7 +381,7 @@ export function DesktopEventLayout({
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
-                      {priceLabel}
+                      {eyebrowLabel}
                     </div>
                     {formattedDate && (
                       <div
@@ -424,7 +450,7 @@ export function DesktopEventLayout({
           </div>
 
           {/* Pinned bottom CTA — at the foot of the right column */}
-          {rsvpContent && (
+          {(rsvpContent || externalUrl) && !hideSignup && (
             <div
               style={{
                 flexShrink: 0,
@@ -452,7 +478,7 @@ export function DesktopEventLayout({
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
-                    {priceLabel}
+                    {eyebrowLabel}
                   </div>
                   {formattedDate && (
                     <div
@@ -469,7 +495,7 @@ export function DesktopEventLayout({
                 </div>
                 <button
                   type="button"
-                  onClick={scrollToRsvp}
+                  onClick={handleCta}
                   style={{
                     padding: "10px 22px",
                     background: "var(--brand-primary, #fff)",
@@ -486,7 +512,7 @@ export function DesktopEventLayout({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {buttonLabel}
+                  {ctaLabel}
                 </button>
               </div>
             </div>

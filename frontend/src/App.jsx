@@ -11,10 +11,22 @@ function ManageRedirect() {
 // /p/:eventId retired — the pull-up threshold + persistent guest room collapsed
 // into the ONE event Room. Forward (carrying the QR's ?w=&s= params) so live
 // scans and any old links land in the canonical room.
+// /p/:slug is dual-purpose: a UUID is the LEGACY pull-up shorthand (forward into
+// the event Room, preserving QR ?w=&s=); a human slug is a kind='product' page,
+// rendered by the same engine as an event. UUID-shape disambiguates the two so
+// neither breaks.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function PullupRedirect() {
-  const { eventId } = useParams();
+  const { slug } = useParams();
   const { search } = useLocation();
-  return <Navigate to={`/events/${eventId}/room${search}`} replace />;
+  if (slug && UUID_RE.test(slug)) {
+    return <Navigate to={`/events/${slug}/room${search}`} replace />;
+  }
+  return (
+    <ErrorBoundary>
+      <EventPage />
+    </ErrorBoundary>
+  );
 }
 
 // The event Room is one public URL for everyone now. Old host-only
@@ -151,9 +163,9 @@ function App() {
             </ErrorBoundary>
           }
         />
-        {/* /p/:eventId retired → forwards into the one event Room (preserving
-            any QR ?w=&s= so scans still pull up). */}
-        <Route path="/p/:eventId" element={<PullupRedirect />} />
+        {/* /p/:slug — product page (kind='product') OR, for a UUID, the legacy
+            pull-up shorthand into the event Room. PullupRedirect disambiguates. */}
+        <Route path="/p/:slug" element={<PullupRedirect />} />
         {/* A node's profile — the room's public face, viewer-relative. */}
         <Route
           path="/r/:id"

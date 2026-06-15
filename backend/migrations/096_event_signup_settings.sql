@@ -1,0 +1,12 @@
+-- 096_event_signup_settings.sql
+-- Host control over the on-page sign-up surface (the inline "Free to join"
+-- block + the sticky bottom CTA bar, both rendered from one config).
+--
+-- Shape: { "hidden": bool, "label": text|null, "cta": text|null }
+--   hidden → suppress BOTH the inline sign-up block and the sticky CTA bar
+--   label  → override the eyebrow line ("Free to join" / price)
+--   cta    → override the button text ("Join the community" / "Sign-up")
+--
+-- NULL column = default behaviour (visible, kind-derived labels), so every
+-- existing event/community page renders byte-identically until a host edits it.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS signup_settings jsonb;

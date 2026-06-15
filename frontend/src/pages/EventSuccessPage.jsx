@@ -18,6 +18,7 @@ import {
   getEventShareUrl,
   getGoogleMapsUrl,
   formatLocationShort,
+  formatCoordinates,
   generateCalendarUrls,
 } from "../lib/urlUtils";
 import { formatReadableDateTime } from "../lib/dateUtils.js";
@@ -502,6 +503,25 @@ export function EventSuccessPage() {
                     }}
                   >
                     {formatLocationShort(event.location)}
+                  </a>
+                </div>
+              )}
+              {event.showCoordinates && event.locationLat != null && event.locationLng != null && (
+                <div
+                  style={{
+                    fontSize: "13px",
+                    opacity: 0.7,
+                    marginLeft: "26px",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  }}
+                >
+                  <a
+                    href={getGoogleMapsUrl(null, event.locationLat, event.locationLng)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: colors.text, textDecoration: "none" }}
+                  >
+                    {formatCoordinates(event.locationLat, event.locationLng)}
                   </a>
                 </div>
               )}

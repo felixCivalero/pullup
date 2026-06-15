@@ -19,6 +19,7 @@ export function EventPreview({
   location,
   locationLat = null,
   locationLng = null,
+  showCoordinates = false,
   startsAt,
   endsAt,
   imagePreview,
@@ -56,6 +57,15 @@ export function EventPreview({
   onHoverPart = null,
   // Page kind ('event' | 'community' | …) — drives the CTA label.
   kind = "event",
+  // Host control over the on-page sign-up surface (mig 096). hideSignup
+  // suppresses BOTH the inline block and the sticky bar; the two labels
+  // override the eyebrow ("Free to join") and the button text.
+  hideSignup = false,
+  signupLabel = null,
+  signupCta = null,
+  // Product pages: sanitized delivery summary + buyer's rsvpId (?purchase=).
+  productDelivery = null,
+  purchaseRsvpId = null,
 }) {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const scrollRef = useRef(null);
@@ -148,6 +158,15 @@ export function EventPreview({
     rsvpSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // External storefront link-out (product pages): "Buy now" hands off to the
+  // creator's own store instead of opening PullUp's checkout, and the inline
+  // RSVP/checkout section is suppressed so there's only one buy path.
+  const externalUrl = kind === "product" && productDelivery?.external?.url ? productDelivery.external.url : null;
+  const handleCta = useCallback(() => {
+    if (externalUrl) { window.open(externalUrl, "_blank", "noopener"); return; }
+    scrollToRsvp();
+  }, [externalUrl, scrollToRsvp]);
+
   // Scroll preview when switching between Media/Details
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -175,6 +194,15 @@ export function EventPreview({
   }, [hoveredSection]);
 
   const buttonLabel = getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut });
+  // Eyebrow + button labels with host overrides (mig 096); fall back to the
+  // kind-derived defaults when the host hasn't set custom text.
+  const defaultEyebrow = kind === "community"
+    ? "Free to join"
+    : ticketType === "paid" && ticketPrice
+      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+      : "Free entry";
+  const eyebrowLabel = signupLabel || defaultEyebrow;
+  const ctaLabel = signupCta || buttonLabel;
   const hasContent = description || (sections && sections.length > 0);
 
   return (
@@ -397,6 +425,7 @@ export function EventPreview({
               location={location}
               locationLat={locationLat}
               locationLng={locationLng}
+              showCoordinates={showCoordinates}
               startsAt={startsAt}
               timezone={timezone}
               sections={sections}
@@ -406,11 +435,14 @@ export function EventPreview({
               revealHint={revealHint}
               dateRevealHint={dateRevealHint}
               onEditSection={onEditPart ? (index) => onEditPart({ kind: "section", index }) : null}
+              productDelivery={productDelivery}
+              purchaseRsvpId={purchaseRsvpId}
             />
           </div>
 
-          {/* ─── INLINE RSVP SECTION ─── */}
-          {rsvpContent && (
+          {/* ─── INLINE RSVP SECTION ─── (suppressed when buying links out,
+              or when the host has hidden the sign-up surface) */}
+          {rsvpContent && !externalUrl && !hideSignup && (
             <div
               ref={rsvpSectionRef}
               onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "rsvp" }) : undefined}
@@ -448,11 +480,7 @@ export function EventPreview({
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
-                    {kind === "community"
-                      ? "Free to join"
-                      : ticketType === "paid" && ticketPrice
-                        ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                        : "Free entry"}
+                    {eyebrowLabel}
                   </div>
                   {formattedDate && (
                     <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brand-on-bg, #fff)", opacity: 0.7, marginTop: "1px" }}>
@@ -473,7 +501,7 @@ export function EventPreview({
         </div>
 
         {/* ─── FIXED CTA BAR — disappears when RSVP section is in view ─── */}
-        {!hideCta && (
+        {!hideCta && !hideSignup && (
           <div
             style={{
               position: "absolute",
@@ -498,11 +526,7 @@ export function EventPreview({
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
-                {kind === "community"
-                  ? "Free to join"
-                  : ticketType === "paid" && ticketPrice
-                    ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
-                    : "Free entry"}
+                {eyebrowLabel}
               </div>
               {formattedDate && (
                 <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
@@ -512,19 +536,19 @@ export function EventPreview({
             </div>
             <button
               type="button"
-              disabled={!rsvpContent}
-              onClick={rsvpContent ? scrollToRsvp : undefined}
+              disabled={!rsvpContent && !externalUrl}
+              onClick={(rsvpContent || externalUrl) ? handleCta : undefined}
               style={{
                 padding: "12px 24px",
                 background: "var(--brand-primary, #fff)", color: "var(--brand-ink-on-primary, #000)", border: "none", borderRadius: "4px",
                 fontFamily: "var(--brand-btn-font, inherit)",
                 fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
-                cursor: !rsvpContent ? "not-allowed" : "pointer",
-                opacity: !rsvpContent ? 0.5 : 1,
+                cursor: (!rsvpContent && !externalUrl) ? "not-allowed" : "pointer",
+                opacity: (!rsvpContent && !externalUrl) ? 0.5 : 1,
                 flexShrink: 0, whiteSpace: "nowrap",
               }}
             >
-              {buttonLabel}
+              {ctaLabel}
             </button>
           </div>
         )}

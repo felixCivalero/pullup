@@ -312,6 +312,21 @@ async function getMemberRooms(accountId, email = null) {
   }
 }
 
+// PostgREST rejects an oversized .in() filter (the ids go in the URL, which has
+// a length cap) — a host with hundreds+ of people made the people fetch fail with
+// "Bad Request", so the whole Room came back with ZERO people. Run id-filtered
+// reads in chunks and concatenate. fn(idsChunk) -> rows[].
+const IN_CHUNK = 150;
+async function chunkedByIds(ids, fn) {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  const out = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const rows = await fn(ids.slice(i, i + IN_CHUNK));
+    if (Array.isArray(rows)) out.push(...rows);
+  }
+  return out;
+}
+
 /**
  * Build the global Room payload for a host.
  * @param {string} hostId
@@ -358,9 +373,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   const personIds = [...byPerson.keys()];
 
   // 3. Fetch the people + their identities (reachable channels) in bulk.
-  const [{ data: people }, { data: idents }, { data: events }] = await Promise.all([
-    supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", personIds),
-    supabase.from("person_identities").select("person_id, kind").in("person_id", personIds),
+  // people + identities are global tables → must filter by personIds, so chunk
+  // the .in() (a big single .in() 400s). events is host-scoped (small), no chunk.
+  const [people, idents, { data: events }] = await Promise.all([
+    chunkedByIds(personIds, (ids) => supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", ids).then((r) => r.data || [])),
+    chunkedByIds(personIds, (ids) => supabase.from("person_identities").select("person_id, kind").in("person_id", ids).then((r) => r.data || [])),
     supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions, kind").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
@@ -380,8 +397,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const { data: threads } = await supabase
       .from("whatsapp_threads")
       .select("person_id, conversation_window_expires_at")
-      .eq("host_profile_id", hostId)
-      .in("person_id", personIds);
+      .eq("host_profile_id", hostId);
     const nowMs = Date.now();
     for (const t of threads || []) {
       const open = !!t.conversation_window_expires_at &&
@@ -402,8 +418,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const { data: igThreads } = await supabase
       .from("instagram_threads")
       .select("person_id, last_read_at, last_inbound_at")
-      .eq("host_profile_id", hostId)
-      .in("person_id", personIds);
+      .eq("host_profile_id", hostId);
     const nowMs = Date.now();
     const H24 = 24 * 3600 * 1000, D7 = 7 * 24 * 3600 * 1000;
     for (const t of igThreads || []) {
@@ -426,7 +441,6 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       .from("person_notes")
       .select("id, person_id, content, note_date, created_at")
       .eq("host_id", hostId)
-      .in("person_id", personIds)
       .order("note_date", { ascending: false })
       .order("created_at", { ascending: false });
     for (const n of noteRows || []) {
@@ -510,10 +524,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       if (qs.length) enrichByEvent.set(e.id, new Map(qs.map((q) => [q.id, q.label])));
     }
     if (enrichByEvent.size) {
+      // Bounded by the host's enrichment events (a small set) — the person_id
+      // filter was redundant and oversized; the event_id filter does the scoping.
       const { data: ansRows } = await supabase
         .from("rsvps")
         .select("person_id, event_id, custom_answers")
-        .in("person_id", personIds)
         .in("event_id", [...enrichByEvent.keys()]);
       for (const r of ansRows || []) {
         const qmap = enrichByEvent.get(r.event_id);
@@ -551,8 +566,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
         .from("rsvps")
         .select("person_id, event_id")
         .in("event_id", allHostEventIds)
-        .neq("status", "cancelled")
-        .in("person_id", personIds);
+        .neq("status", "cancelled");
       for (const r of rs || []) {
         if (!r.person_id) continue;
         if (communityEventIds.has(r.event_id)) communityMemberIds.add(r.person_id);

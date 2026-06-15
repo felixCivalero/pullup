@@ -88,14 +88,19 @@ export async function getForPersons(personIds = []) {
   const ids = (personIds || []).filter(Boolean);
   const out = new Map();
   if (!ids.length) return out;
-  const { data, error } = await supabase
-    .from("person_source_profiles")
-    .select("person_id, source, source_id, handle, display_name, avatar_url, data, last_refreshed_at")
-    .in("person_id", ids);
-  if (error) { logger?.warn?.("[sourceProfiles] getForPersons failed", { error: error.message }); return out; }
-  for (const r of data || []) {
-    if (!out.has(r.person_id)) out.set(r.person_id, []);
-    out.get(r.person_id).push(r);
+  // Chunk the .in() — an oversized id list 400s ("Bad Request") and the whole
+  // Room loses its source profiles (avatars/IG signals) for hundreds+ of people.
+  const CHUNK = 150;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await supabase
+      .from("person_source_profiles")
+      .select("person_id, source, source_id, handle, display_name, avatar_url, data, last_refreshed_at")
+      .in("person_id", ids.slice(i, i + CHUNK));
+    if (error) { logger?.warn?.("[sourceProfiles] getForPersons chunk failed", { error: error.message }); continue; }
+    for (const r of data || []) {
+      if (!out.has(r.person_id)) out.set(r.person_id, []);
+      out.get(r.person_id).push(r);
+    }
   }
   return out;
 }

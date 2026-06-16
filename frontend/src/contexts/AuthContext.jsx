@@ -228,13 +228,29 @@ export function AuthProvider({ children }) {
   // path. A name, if given, rides in user_metadata so the backend can seed the
   // person. NOTE: the Supabase email template must expose {{ .Token }} for the
   // code to appear (otherwise only the magic link is sent).
-  const sendEmailCode = async (email, name = null) => {
+  // `createUser:false` is the login-wall path — existing accounts only, so an
+  // unknown email is NOT minted (the BYO waitlist gate). Supabase refuses such a
+  // send with a signups-disallowed error; we map that to a soft { exists:false }
+  // so the caller can steer to the waitlist instead of showing a code screen for
+  // a mail that never arrives. Everything else is a real error.
+  const sendEmailCode = async (email, { name = null, createUser = true } = {}) => {
     const { error } = await supabase.auth.signInWithOtp({
       email: (email || "").trim().toLowerCase(),
-      options: { shouldCreateUser: true, ...(name ? { data: { name } } : {}) },
+      options: { shouldCreateUser: createUser, ...(name ? { data: { name } } : {}) },
     });
-    if (error) throw error;
-    return { ok: true };
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      const noAccount =
+        !createUser &&
+        (error.status === 422 ||
+          error.code === "otp_disabled" ||
+          msg.includes("sign") || // "Signups not allowed for otp"
+          msg.includes("not allowed") ||
+          msg.includes("not found"));
+      if (noAccount) return { ok: true, exists: false };
+      throw error;
+    }
+    return { ok: true, exists: true };
   };
   const verifyEmailCode = async (email, token) => {
     const { data, error } = await supabase.auth.verifyOtp({

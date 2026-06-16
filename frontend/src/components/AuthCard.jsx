@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
 import { trackEvent } from "../lib/analytics.js";
 import { colors } from "../theme/colors.js";
+import { useAuthOrder, whatsappLoginEnabled } from "../lib/useAuthOrder.js";
 import { FaWhatsapp } from "react-icons/fa6";
 import { Mail, ArrowLeft } from "lucide-react";
 
@@ -103,13 +103,6 @@ const optionButtonStyle = (t, { muted = false, disabled = false } = {}) => ({
   transition: "background 0.15s ease",
 });
 
-// WhatsApp login rides on the auth_whatsapp_otp template, which Meta hasn't
-// approved yet — so the OTP send hard-fails ("Couldn't send a WhatsApp code").
-// Keep the button visible but inert ("Coming soon") until then. Flip the env
-// flag to VITE_WHATSAPP_LOGIN_ENABLED=true the moment the template is approved.
-const WHATSAPP_LOGIN_ENABLED =
-  import.meta.env.VITE_WHATSAPP_LOGIN_ENABLED === "true";
-
 // grid-rows 0fr↔1fr gives a clean height collapse/expand with no JS
 // measuring. Paired with overflow:hidden on the inner wrapper.
 const collapsible = (open) => ({
@@ -154,25 +147,27 @@ const GoogleIcon = (
 );
 
 /**
- * AuthCard — method picker for sign-in / create-account.
+ * AuthCard — adaptive method picker for sign-in / create-account.
  * Used by the landing LoginPanel + OnboardingPanel.
  *
- * Default state shows three sibling buttons and nothing else:
- *   • Continue with Google   → OAuth redirect
- *   • Continue with WhatsApp → disabled ("Coming soon") for now
- *   • Continue with email    → expands in-place into the email form
+ * The method ORDER is not fixed — it adapts to who's arriving (useAuthOrder):
+ * a phone-first arrival (e.g. Nairobi, or off a WhatsApp link) leads with
+ * WhatsApp; a Western desktop visitor leads with Google. Methods that can't be
+ * delivered right now (WhatsApp before its template is approved) are dropped,
+ * not shown inert. Email is a typed 6-digit CODE everywhere now (no more magic
+ * link), matching the at-the-door DoorVerify so the experience is one door.
  *
- * Choosing email collapses the picker and reveals email + password + the
- * pink submit (the pink CTA only exists while the email form is open). A
- * "back" affordance returns to the three-button picker.
+ * Choosing email or WhatsApp collapses the picker and reveals that method's
+ * form. A "back" affordance returns to the picker.
  *
  * Props:
- *   onSuccess(method)   – after a successful email sign-in (Google redirects).
+ *   onSuccess(method)   – after a successful in-place sign-in (Google redirects).
+ *   onNoAccount(email)  – loginOnly: an unknown email has no account → waitlist.
+ *   loginOnly           – existing accounts only; unknown email is not minted.
  *   redirectTo          – path to land on after Google OAuth round-trip.
  *   submitLabel         – pink CTA label, e.g. "Log in" | "Create my account"
  *   trackingPrefix      – per-surface gtag tag, e.g. "onboarding" | "login"
  *   funnelTrack         – when true, also fire `auth_start` for the funnel.
- *   showForgotPassword  – render the "Forgot password?" link in the email form.
  *   theme               – "light" (default) | "dark"
  */
 export function AuthCard({
@@ -180,93 +175,114 @@ export function AuthCard({
   onNoAccount,
   loginOnly = false,
   redirectTo = "/room",
-  submitLabel = "Enter pullup",
   trackingPrefix = "auth",
   funnelTrack = false,
-  showForgotPassword = false,
   theme = "light",
 }) {
   const t = THEMES[theme] || THEMES.dark;
   const inputStyle = buildInputStyle(t);
-  const { signInWithGoogle, requestMagicLink, sendWhatsappCode, verifyWhatsappCode } = useAuth();
-  const [email, setEmail] = useState("");
+  const { signInWithGoogle, sendEmailCode, verifyEmailCode, sendWhatsappCode, verifyWhatsappCode } = useAuth();
+  // Order the rails for this arrival. WhatsApp is only offered when its template
+  // is live; otherwise the resolver drops it entirely (no inert "Coming soon").
+  const authOrder = useAuthOrder();
+  const waEnabled = whatsappLoginEnabled();
+
   const [signingIn, setSigningIn] = useState(false);
   const [formError, setFormError] = useState("");
-  // Which method the user has committed to. false = the three-button picker.
+
+  // Email = typed OTP code (two stages: enter email → enter the 6-digit code).
   const [emailOpen, setEmailOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [emailStage, setEmailStage] = useState("email"); // "email" | "code"
+  const [emailCode, setEmailCode] = useState("");
+  const emailRef = useRef(null);
+  const emailCodeRef = useRef(null);
+
   // WhatsApp login (native Supabase phone OTP, code delivered over WhatsApp).
   const [waOpen, setWaOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [waCode, setWaCode] = useState("");
   const [waStage, setWaStage] = useState("phone"); // "phone" | "code"
   const phoneRef = useRef(null);
-  // Passwordless: once we've sent the magic link, swap the form for a
-  // "check your inbox" confirmation. No password, no account-enumeration —
-  // "log in" and "sign up" are the same action (the backend find-or-creates).
-  const [linkSent, setLinkSent] = useState(false);
-  const emailRef = useRef(null);
 
   // Consent is implicit: clicking any "Continue" / submit button counts as
   // agreement (the fine-print below spells this out). We still hit
   // /auth/record-consent on success so the audit trail exists.
   const recordConsent = () =>
-    authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(
-      () => {},
-    );
+    authenticatedFetch("/auth/record-consent", { method: "POST" }).catch(() => {});
 
+  // ── Email (typed OTP code) ──────────────────────────────────────────────
   const openEmail = () => {
     if (signingIn) return;
     setFormError("");
     setEmailOpen(true);
+    setEmailStage("email");
     trackEvent(`${trackingPrefix}_email_open`);
-    // Focus once the expand transition has started.
     setTimeout(() => emailRef.current?.focus(), 80);
   };
-
   const closeEmail = () => {
     setEmailOpen(false);
-    setLinkSent(false);
+    setEmailStage("email");
+    setEmailCode("");
     setFormError("");
   };
 
-  // Passwordless: ask the backend to mint a Supabase magic link and email it.
-  // Same action for new + returning (find-or-create). On success we show the
-  // "check your inbox" state; tapping the link signs them in on this device and
-  // the session persists across all of PullUp.
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    if (signingIn || !emailOpen) return;
+  // Send the code. `createUser` is false on the login wall (loginOnly) so an
+  // unknown email is NOT minted — it resolves { exists:false } and we hand off
+  // to the waitlist instead of showing a code screen for a mail that never sends.
+  const handleEmailSend = async () => {
+    if (signingIn) return;
     const addr = email.trim();
-    if (!addr) {
-      setFormError("Enter your email.");
-      return;
-    }
+    if (!addr) { setFormError("Enter your email."); return; }
     setFormError("");
     trackEvent(`${trackingPrefix}_email_submit`);
-    if (funnelTrack) trackEvent("auth_start", { method: "email_link" });
+    if (funnelTrack) trackEvent("auth_start", { method: "email_code" });
     try {
       setSigningIn(true);
-      const r = await requestMagicLink(addr, { next: redirectTo, loginOnly });
-      // Login-only: no account for this email → hand off to the waitlist
-      // instead of showing a "check your inbox" for a mail that never sends.
+      const r = await sendEmailCode(addr, { createUser: !loginOnly });
       if (loginOnly && r?.exists === false) {
         trackEvent(`${trackingPrefix}_no_account`);
-        if (onNoAccount) {
-          onNoAccount(addr);
-          return;
-        }
+        if (onNoAccount) { onNoAccount(addr); return; }
+        setFormError("No account for that email yet.");
+        return;
       }
-      setLinkSent(true);
+      setEmailStage("code");
+      setTimeout(() => emailCodeRef.current?.focus(), 80);
     } catch (err) {
       const msg = (err?.message || "").toLowerCase();
       setFormError(
         msg.includes("invalid")
           ? "That email doesn't look right."
-          : "Couldn't send the link. Try again in a moment.",
+          : "Couldn't send the code. Try again in a moment.",
       );
     } finally {
       setSigningIn(false);
     }
+  };
+
+  const handleEmailVerify = async () => {
+    if (signingIn) return;
+    const token = emailCode.trim();
+    if (token.length < 6) { setFormError("Enter the 6-digit code we sent."); return; }
+    setFormError("");
+    try {
+      setSigningIn(true);
+      await verifyEmailCode(email.trim(), token);
+      recordConsent();
+      onSuccess?.("email");
+    } catch {
+      setFormError("That code didn't match. Check it and try again.");
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  // Form submit dispatches to the right email stage (Enter key support).
+  const onFormSubmit = (e) => {
+    e.preventDefault();
+    if (!emailOpen) return;
+    if (emailStage === "code") return handleEmailVerify();
+    return handleEmailSend();
   };
 
   const handleGoogle = async () => {
@@ -287,8 +303,8 @@ export function AuthCard({
 
   // ── WhatsApp login (native Supabase phone OTP; code arrives on WhatsApp) ──
   const normPhone = (p) => {
-    const t = (p || "").trim().replace(/[^\d+]/g, "");
-    return t.startsWith("+") ? t : `+${t}`;
+    const v = (p || "").trim().replace(/[^\d+]/g, "");
+    return v.startsWith("+") ? v : `+${v}`;
   };
   const openWa = () => {
     if (signingIn) return;
@@ -308,7 +324,7 @@ export function AuthCard({
     if (signingIn) return;
     const ph = normPhone(phone);
     if (ph.replace(/\D/g, "").length < 8) {
-      setFormError("Enter your number with country code, e.g. +46…");
+      setFormError("Enter your number with country code, e.g. +254…");
       return;
     }
     setFormError("");
@@ -335,6 +351,7 @@ export function AuthCard({
     try {
       setSigningIn(true);
       await verifyWhatsappCode(normPhone(phone), code);
+      recordConsent();
       onSuccess?.("whatsapp");
     } catch {
       setFormError("That code didn't match. Try again or resend.");
@@ -343,106 +360,104 @@ export function AuthCard({
     }
   };
 
-  return (
-    <form
-      onSubmit={handleEmailSubmit}
+  const hover = (e) => { e.currentTarget.style.background = t.optionHoverBg; };
+  const unhover = (e) => { e.currentTarget.style.background = t.optionBg; };
+
+  // One button per method, rendered in the adaptive order below.
+  const methodButton = (m) => {
+    if (m === "google") {
+      return (
+        <button
+          key="google"
+          type="button"
+          onClick={handleGoogle}
+          disabled={signingIn}
+          style={{ ...optionButtonStyle(t), cursor: signingIn ? "wait" : "pointer" }}
+          onMouseEnter={hover}
+          onMouseLeave={unhover}
+        >
+          {GoogleIcon}
+          <span>Continue with Google</span>
+        </button>
+      );
+    }
+    if (m === "whatsapp") {
+      if (!waEnabled) return null; // never offer an undeliverable rail
+      return (
+        <button
+          key="whatsapp"
+          type="button"
+          onClick={openWa}
+          disabled={signingIn}
+          style={optionButtonStyle(t)}
+          onMouseEnter={hover}
+          onMouseLeave={unhover}
+        >
+          <FaWhatsapp size={18} color="#25D366" />
+          <span>Continue with WhatsApp</span>
+        </button>
+      );
+    }
+    if (m === "email") {
+      return (
+        <button
+          key="email"
+          type="button"
+          onClick={openEmail}
+          disabled={signingIn}
+          style={optionButtonStyle(t)}
+          onMouseEnter={hover}
+          onMouseLeave={unhover}
+        >
+          <Mail size={18} />
+          <span>Continue with email</span>
+        </button>
+      );
+    }
+    return null;
+  };
+
+  const backButton = (onClick) => (
+    <button
+      type="button"
+      onClick={onClick}
       style={{
+        alignSelf: "flex-start",
         display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        width: "100%",
+        alignItems: "center",
+        gap: 6,
+        background: "transparent",
+        border: "none",
+        padding: "2px 0",
+        cursor: "pointer",
+        color: t.backColor,
+        fontSize: 13,
+        fontWeight: 500,
       }}
     >
-      {/* ── Method picker (Google / WhatsApp / email). Collapses when the
-          email form opens, handing its slot to the form below. ── */}
+      <ArrowLeft size={15} />
+      Other ways to sign in
+    </button>
+  );
+
+  return (
+    <form
+      onSubmit={onFormSubmit}
+      style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}
+    >
+      {/* ── Adaptive method picker. Collapses when a form opens. ── */}
       <div style={collapsible(!emailOpen && !waOpen)} aria-hidden={emailOpen || waOpen}>
         <div style={collapsibleInner}>
-          <button
-            type="button"
-            onClick={handleGoogle}
-            disabled={signingIn}
-            style={{ ...optionButtonStyle(t), cursor: signingIn ? "wait" : "pointer" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = t.optionHoverBg;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = t.optionBg;
-            }}
-          >
-            {GoogleIcon}
-            <span>Continue with Google</span>
-          </button>
-
-          {/* WhatsApp — native Supabase phone OTP, code delivered over WhatsApp.
-              Inert until Meta approves the auth template (see WHATSAPP_LOGIN_ENABLED). */}
-          <button
-            type="button"
-            onClick={WHATSAPP_LOGIN_ENABLED ? openWa : undefined}
-            disabled={signingIn || !WHATSAPP_LOGIN_ENABLED}
-            title={WHATSAPP_LOGIN_ENABLED ? undefined : "Coming soon"}
-            style={optionButtonStyle(t, {
-              muted: !WHATSAPP_LOGIN_ENABLED,
-              disabled: !WHATSAPP_LOGIN_ENABLED,
-            })}
-            onMouseEnter={(e) => {
-              if (!WHATSAPP_LOGIN_ENABLED) return;
-              e.currentTarget.style.background = t.optionHoverBg;
-            }}
-            onMouseLeave={(e) => {
-              if (!WHATSAPP_LOGIN_ENABLED) return;
-              e.currentTarget.style.background = t.optionBg;
-            }}
-          >
-            <FaWhatsapp size={18} color="#25D366" />
-            <span>
-              Continue with WhatsApp{WHATSAPP_LOGIN_ENABLED ? "" : " · Coming soon"}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={openEmail}
-            disabled={signingIn}
-            style={optionButtonStyle(t)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = t.optionHoverBg;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = t.optionBg;
-            }}
-          >
-            <Mail size={18} />
-            <span>Continue with email</span>
-          </button>
+          {authOrder.order.map((m) => methodButton(m)).filter(Boolean)}
         </div>
       </div>
 
-      {/* ── Email form. Expands into the picker's slot. The pink CTA only
-          exists while this is open. ── */}
+      {/* ── Email form — typed 6-digit code (enter email → enter code). ── */}
       <div style={collapsible(emailOpen)} aria-hidden={!emailOpen}>
         <div style={collapsibleInner}>
-          <button
-            type="button"
-            onClick={closeEmail}
-            style={{
-              alignSelf: "flex-start",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              padding: "2px 0",
-              cursor: "pointer",
-              color: t.backColor,
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            <ArrowLeft size={15} />
-            Other ways to sign in
-          </button>
+          {backButton(closeEmail)}
 
-          {!linkSent ? (
+          {emailStage === "email" ? (
             <>
               <input
                 ref={emailRef}
@@ -460,61 +475,54 @@ export function AuthCard({
                 disabled={signingIn}
                 tabIndex={emailOpen ? 0 : -1}
                 style={{
-                  width: "100%",
-                  padding: "14px 0",
-                  borderRadius: 999,
-                  border: "none",
-                  background: t.submitBg,
-                  color: t.submitColor,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: signingIn ? "wait" : "pointer",
-                  opacity: signingIn ? 0.7 : 1,
-                  marginTop: 2,
+                  width: "100%", padding: "14px 0", borderRadius: 999, border: "none",
+                  background: t.submitBg, color: t.submitColor, fontSize: 14, fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer", opacity: signingIn ? 0.7 : 1, marginTop: 2,
                 }}
               >
-                {signingIn ? "Sending…" : "Email me a sign-in link"}
+                {signingIn ? "Sending…" : "Email me a code"}
               </button>
               <p style={{ margin: "2px 0 0", fontSize: 12, lineHeight: 1.5, color: t.mutedColor, textAlign: "center" }}>
-                No password — we'll email a link that signs you in.
+                No password — we'll email a 6-digit code.
               </p>
             </>
           ) : (
-            <div
-              style={{
-                fontSize: 13,
-                color: t.createPanelText,
-                textAlign: "center",
-                padding: "16px 14px",
-                borderRadius: 12,
-                background: t.createPanelBg,
-                border: `1px solid ${t.createPanelBorder}`,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ fontWeight: 700, color: t.createPanelStrong, fontSize: 15 }}>Check your inbox</div>
-              <div>
-                We sent a sign-in link to{" "}
-                <strong style={{ color: t.createPanelStrong }}>{email.trim()}</strong>. Tap it to continue — no password needed.
-              </div>
+            <>
+              <input
+                ref={emailCodeRef}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="6-digit code"
+                tabIndex={emailOpen ? 0 : -1}
+                style={{ ...inputStyle, letterSpacing: "0.3em", fontSize: 18 }}
+              />
+              <button
+                type="submit"
+                disabled={signingIn}
+                tabIndex={emailOpen ? 0 : -1}
+                style={{
+                  width: "100%", padding: "14px 0", borderRadius: 999, border: "none",
+                  background: t.submitBg, color: t.submitColor, fontSize: 14, fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer", opacity: signingIn ? 0.7 : 1, marginTop: 2,
+                }}
+              >
+                {signingIn ? "Verifying…" : "Verify & sign in"}
+              </button>
               <button
                 type="button"
-                onClick={() => { setLinkSent(false); setTimeout(() => emailRef.current?.focus(), 50); }}
+                onClick={() => { setEmailStage("email"); setEmailCode(""); setFormError(""); setTimeout(() => emailRef.current?.focus(), 50); }}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: t.createSecondaryColor,
-                  fontSize: 12,
-                  padding: "4px 0",
-                  cursor: "pointer",
-                  textDecoration: "underline",
+                  background: "transparent", border: "none", color: t.createSecondaryColor,
+                  fontSize: 12, padding: "4px 0", cursor: "pointer", textDecoration: "underline",
                 }}
               >
                 Use a different email
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -522,26 +530,7 @@ export function AuthCard({
       {/* ── WhatsApp form — native phone OTP, code delivered over WhatsApp. ── */}
       <div style={collapsible(waOpen)} aria-hidden={!waOpen}>
         <div style={collapsibleInner}>
-          <button
-            type="button"
-            onClick={closeWa}
-            style={{
-              alignSelf: "flex-start",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              border: "none",
-              padding: "2px 0",
-              cursor: "pointer",
-              color: t.backColor,
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            <ArrowLeft size={15} />
-            Other ways to sign in
-          </button>
+          {backButton(closeWa)}
 
           {waStage === "phone" ? (
             <>
@@ -553,7 +542,7 @@ export function AuthCard({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSendWaCode(); } }}
-                placeholder="+46 70 123 45 67"
+                placeholder="+254 7… (with country code)"
                 tabIndex={waOpen ? 0 : -1}
                 style={inputStyle}
               />
@@ -563,17 +552,9 @@ export function AuthCard({
                 disabled={signingIn}
                 tabIndex={waOpen ? 0 : -1}
                 style={{
-                  width: "100%",
-                  padding: "14px 0",
-                  borderRadius: 999,
-                  border: "none",
-                  background: "#25D366",
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: signingIn ? "wait" : "pointer",
-                  opacity: signingIn ? 0.7 : 1,
-                  marginTop: 2,
+                  width: "100%", padding: "14px 0", borderRadius: 999, border: "none",
+                  background: "#25D366", color: "#fff", fontSize: 14, fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer", opacity: signingIn ? 0.7 : 1, marginTop: 2,
                 }}
               >
                 {signingIn ? "Sending…" : "Send WhatsApp code"}
@@ -601,17 +582,9 @@ export function AuthCard({
                 disabled={signingIn}
                 tabIndex={waOpen ? 0 : -1}
                 style={{
-                  width: "100%",
-                  padding: "14px 0",
-                  borderRadius: 999,
-                  border: "none",
-                  background: t.submitBg,
-                  color: t.submitColor,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: signingIn ? "wait" : "pointer",
-                  opacity: signingIn ? 0.7 : 1,
-                  marginTop: 2,
+                  width: "100%", padding: "14px 0", borderRadius: 999, border: "none",
+                  background: t.submitBg, color: t.submitColor, fontSize: 14, fontWeight: 700,
+                  cursor: signingIn ? "wait" : "pointer", opacity: signingIn ? 0.7 : 1, marginTop: 2,
                 }}
               >
                 {signingIn ? "Verifying…" : "Verify & sign in"}
@@ -620,13 +593,8 @@ export function AuthCard({
                 type="button"
                 onClick={() => { setWaStage("phone"); setWaCode(""); setFormError(""); }}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: t.createSecondaryColor,
-                  fontSize: 12,
-                  padding: "4px 0",
-                  cursor: "pointer",
-                  textDecoration: "underline",
+                  background: "transparent", border: "none", color: t.createSecondaryColor,
+                  fontSize: 12, padding: "4px 0", cursor: "pointer", textDecoration: "underline",
                 }}
               >
                 Use a different number
@@ -640,29 +608,16 @@ export function AuthCard({
           Matches the standard pattern (Google/Apple/Meta all do it this way). */}
       <p
         style={{
-          margin: "2px 0 0",
-          fontSize: 11.5,
-          lineHeight: 1.5,
-          color: t.legalText,
-          textAlign: "center",
+          margin: "2px 0 0", fontSize: 11.5, lineHeight: 1.5,
+          color: t.legalText, textAlign: "center",
         }}
       >
         By continuing, you agree to our{" "}
-        <a
-          href="/terms"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: t.legalLink, textDecoration: "underline" }}
-        >
+        <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: t.legalLink, textDecoration: "underline" }}>
           terms
         </a>{" "}
         and{" "}
-        <a
-          href="/privacy"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: t.legalLink, textDecoration: "underline" }}
-        >
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: t.legalLink, textDecoration: "underline" }}>
           privacy policy
         </a>
         .

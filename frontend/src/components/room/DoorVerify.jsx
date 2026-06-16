@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ArrowRight, ArrowLeft, Mail, Loader2 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useAuthOrder, whatsappLoginEnabled } from "../../lib/useAuthOrder.js";
 
 // ════════════════════════════════════════════════════════════════════════
 // DoorVerify — the light step-2 at the door.
@@ -26,7 +27,9 @@ const PINK = "#EC178F";
 const INK = "#0a0a0a";
 
 // Off until Meta clears the WhatsApp auth-OTP template — then flip the env flag.
-const WA_ENABLED = import.meta.env.VITE_DOOR_WHATSAPP_OTP === "true";
+// Single source of truth (honors both the door + wall flags) so WhatsApp lights
+// consistently the moment the template is approved.
+const WA_ENABLED = whatsappLoginEnabled();
 
 // Light E.164-ish tidy: keep a single leading +, digits only after.
 function normPhone(raw) {
@@ -37,7 +40,13 @@ function normPhone(raw) {
 
 export function DoorVerify({ eventTitle = null }) {
   const { sendEmailCode, verifyEmailCode, sendWhatsappCode, verifyWhatsappCode } = useAuth();
-  const [method, setMethod] = useState("email"); // "email" | "whatsapp"
+  // Adaptive default: a phone-first arrival (e.g. Nairobi, or off a WhatsApp
+  // link) lands on WhatsApp; everyone else on email. Only honored when WhatsApp
+  // is actually deliverable — otherwise the door stays email, never a dead method.
+  const authOrder = useAuthOrder();
+  const [method, setMethod] = useState(
+    WA_ENABLED && authOrder.primary === "whatsapp" ? "whatsapp" : "email",
+  ); // "email" | "whatsapp"
   const [stage, setStage] = useState("contact"); // "contact" | "code" | "in"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -73,7 +82,7 @@ export function DoorVerify({ eventTitle = null }) {
       return;
     }
     setError(""); setBusy(true);
-    try { await sendEmailCode(addr, name.trim() || null); setStage("code"); }
+    try { await sendEmailCode(addr, { name: name.trim() || null }); setStage("code"); }
     catch (err) { setError(err?.message || "Couldn't send the code. Try again."); }
     finally { setBusy(false); }
   };

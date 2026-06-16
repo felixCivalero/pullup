@@ -14,7 +14,9 @@ export function registerAdminMatchRoutes(app) {
       if (q) query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%`);
       const { data } = await query;
       res.json({
-        people: (data || []).map((p) => ({ id: p.id, name: p.name || p.email || "Someone", email: p.email, hasAccount: !!p.auth_user_id })),
+        // authUserId (the account behind the person) is what "Act as" needs to
+        // mint a session; person id stays for the room-lens navigate.
+        people: (data || []).map((p) => ({ id: p.id, name: p.name || p.email || "Someone", email: p.email, hasAccount: !!p.auth_user_id, authUserId: p.auth_user_id || null })),
       });
     } catch (err) {
       console.error("[admin-people-search] error:", err.message);

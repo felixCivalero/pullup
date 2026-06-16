@@ -12,6 +12,51 @@ function validateEmail(email) {
   return re.test(email);
 }
 
+// Shared terms/privacy agreement gate. One source of truth so it looks and
+// behaves identically everywhere it appears (paid + free RSVP, community join).
+// Designed to be unmissable: a bordered box that glows in the accent colour
+// while unticked, then visibly calms to a confirmed state once checked — so a
+// guest can always tell whether they've actually agreed.
+function TermsAgreement({ checked, onChange }) {
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        cursor: "pointer",
+        textAlign: "left",
+        margin: "14px 0 10px",
+        padding: "12px 14px",
+        minHeight: 52,
+        borderRadius: 12,
+        border: checked
+          ? "1.5px solid var(--brand-primary, #fbbf24)"
+          : "1.5px solid var(--brand-on-bg-soft, rgba(255,255,255,0.45))",
+        background: checked
+          ? "var(--brand-primary-soft, rgba(251,191,36,0.10))"
+          : "var(--brand-on-bg-faint-bg, rgba(255,255,255,0.04))",
+        transition: "border-color 120ms ease, background-color 120ms ease",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        onClick={(e) => e.stopPropagation()}
+        style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 22, height: 22, cursor: "pointer" }}
+      />
+      <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--brand-on-bg, #fff)", fontWeight: 500 }}>
+        I agree to the{" "}
+        <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-primary, #fbbf24)", textDecoration: "underline" }}>terms</a>
+        {" "}and{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-primary, #fbbf24)", textDecoration: "underline" }}>privacy policy</a>
+      </span>
+    </div>
+  );
+}
+
 export function RsvpForm({
   event,
   onSubmit,
@@ -870,15 +915,7 @@ export function RsvpForm({
           />
           {!pendingPayment && PaymentFormComponent && (
             <>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--brand-on-bg-soft, rgba(255,255,255,0.5))", cursor: "pointer", textAlign: "left", margin: "12px 0", padding: "0 2px", minHeight: 44 }}>
-                <input
-                  type="checkbox"
-                  checked={marketingOptIn}
-                  onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 18, height: 18 }}
-                />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>privacy policy</a></span>
-              </label>
+              <TermsAgreement checked={marketingOptIn} onChange={setMarketingOptIn} />
               <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.4))", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>
@@ -1030,15 +1067,7 @@ export function RsvpForm({
               free events, inside payment section for paid) */}
           {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
             <>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--brand-on-bg-soft, rgba(255,255,255,0.35))", cursor: "pointer", textAlign: "left", margin: "12px 0 6px", padding: 0, minHeight: 44 }}>
-                <input
-                  type="checkbox"
-                  checked={marketingOptIn}
-                  onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 18, height: 18 }}
-                />
-                <span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-on-bg, #fff)", textDecoration: "underline" }}>privacy policy</a></span>
-              </label>
+              <TermsAgreement checked={marketingOptIn} onChange={setMarketingOptIn} />
               <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.35))", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>

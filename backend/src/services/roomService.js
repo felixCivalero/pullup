@@ -26,6 +26,7 @@ import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
 // Chunked id-filtered reads (shared safe-query toolkit) — a single oversized
 // .in() 400s, which once emptied the whole Room. fn(idsChunk) -> rows[].
 import { inChunks as chunkedByIds } from "../db/safeQuery.js";
+import { listHostProducts } from "./productPlacement.js";
 
 // The host's own profile, shaped for the Room masthead — so the page reads as
 // "this is YOUR profile, these are YOUR people" (the social-dashboard framing).
@@ -332,6 +333,9 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // The host's community page (a kind='community' event), surfaced in the Room
   // so they can follow the signup journey. null when they haven't made one.
   const community = await getHostCommunitySummary(hostId);
+  // The host's product library (live + draft) with stats — the "Your products"
+  // card on the host home, mirroring the community card.
+  const products = await listHostProducts(hostId);
 
   // 1. All timeline events in this host's world, newest first.
   const { data: pe, error: peErr } = await supabase
@@ -727,6 +731,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     events: eventsOut,
     memberRooms,
     community,
+    products,
     signals,
     moments,
     people: peopleOut,

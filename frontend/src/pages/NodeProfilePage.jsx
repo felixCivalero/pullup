@@ -24,6 +24,8 @@ import { AppHeader } from "../components/AppHeader.jsx";
 import { OwnerConsole } from "./RoomPage.jsx";
 import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
 import { OwnerDataCorner } from "../components/OwnerDataCorner.jsx";
+import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
+import { useAuth } from "../contexts/AuthContext";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
@@ -83,6 +85,7 @@ export default function NodeProfilePage() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const asEmail = params.get("as");
   const [data, setData] = useState(null);
   const [err, setErr] = useState(false);
@@ -221,6 +224,17 @@ export default function NodeProfilePage() {
           </button>
         </div>
       )}
+
+      {/* The main-room storefront — this host's live products. Visitors buy
+          inline; the room's RSVP relationship is what got them in the door. */}
+      <RoomProductShowcase
+        products={data.products || []}
+        isHost={false}
+        theme="light"
+        scope="main"
+        heading={isOwner ? "Your products" : `${firstName(node.name)}'s shop`}
+        prefill={{ name: user?.user_metadata?.name || user?.user_metadata?.full_name || "", email: user?.email || "" }}
+      />
 
       {/* Branding — the eyes */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 44, color: colors.textFaded }}>

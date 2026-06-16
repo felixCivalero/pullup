@@ -37,6 +37,8 @@ import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown } from "lucide-react";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
+import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
+import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -481,8 +483,9 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent } = useEventRoomView(id);
+  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent, products: viewProducts } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
+  const [managingProducts, setManagingProducts] = useState(false); // event-room product manager
   const isHost = level === "host";
   // The scanned code/pass that proves this viewer is at the door. The presence
   // pass (minted server-side once a live code verifies) is stashed here so it
@@ -776,6 +779,23 @@ export default function EventRoomPage() {
           {/* The host's greeting — everyone who lands sees it; the host edits
               it inline. Sits between the event identity and the live feed. */}
           <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditEvent} editing={welcomeEditing} setEditing={setWelcomeEditing} cardRef={welcomeRef} onSavedChange={setWelcomeSaved} />
+
+          {/* The room storefront — products the host placed here. Visitors buy
+              inline; the host (room manager) gets the add/manage affordance. */}
+          {(canManageRoom || (viewProducts && viewProducts.length > 0)) && (
+            <RoomProductShowcase
+              products={viewProducts || []}
+              isHost={canManageRoom}
+              theme="light"
+              scope="event"
+              heading="Shop"
+              prefill={{ name: meName, email: user?.email || "" }}
+              onManage={() => setManagingProducts(true)}
+            />
+          )}
+          {managingProducts && (
+            <RoomProductManager scope="event" eventId={id} onClose={() => setManagingProducts(false)} onChanged={() => { /* refreshes on next room-view load */ }} />
+          )}
 
           <div ref={feedRef}>
             <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />

@@ -37,6 +37,7 @@ import { registerCrmViewRoutes } from "./routes/crmViews.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
 import { registerProductDeliveryRoutes } from "./routes/productDelivery.js";
+import { registerProductPlacementRoutes } from "./routes/productPlacement.js";
 import { registerBillingRoutes } from "./routes/billing.js";
 import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
 import { registerByoOauthRoutes } from "./routes/byoOauth.js";
@@ -285,6 +286,7 @@ registerPaymentsV2Routes(app);
 // Digital-product delivery: host upload-URL minting + the gated buyer endpoint
 // that serves download/secret/unlock only after a product RSVP settles.
 registerProductDeliveryRoutes(app);
+registerProductPlacementRoutes(app);
 
 registerBillingRoutes(app);
 

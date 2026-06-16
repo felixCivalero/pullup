@@ -30,6 +30,8 @@ import LookingBack from "../components/room/LookingBack.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { useRoomRealtime } from "../lib/useRoomRealtime.js";
 import MessageStatusTicks from "../components/room/MessageStatusTicks.jsx";
+import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
+import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -1433,6 +1435,7 @@ export function OwnerConsole({ room: roomProp }) {
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
   const [commLinkCopied, setCommLinkCopied] = useState(false); // community card: copy-link feedback
+  const [managingProducts, setManagingProducts] = useState(false); // main-room product manager
   // Local copy so ProfileSetup patches + event deletion update in place without
   // a refetch. Re-seed if the parent hands a fresh payload.
   const [room, setRoom] = useState(roomProp);
@@ -1444,6 +1447,7 @@ export function OwnerConsole({ room: roomProp }) {
   const MOMENTS = room?.moments || [];
   const PEOPLE = room?.people || [];
   const COMMUNITY = room?.community || null;
+  const PRODUCTS = room?.products || [];
 
   const lensEvent = EVENTS.find((e) => e.id === lensEventId) || null;
   const selected = PEOPLE.find((p) => p.id === selectedId) || null;
@@ -1572,6 +1576,25 @@ export function OwnerConsole({ room: roomProp }) {
           </div>
         );
       })()}
+
+      {/* Your products — the host's global product library. Live products show in
+          the main room automatically; this card is the manage anchor + storefront
+          preview (mirrors the community card above). */}
+      <RoomProductShowcase
+        products={PRODUCTS}
+        isHost
+        theme="light"
+        scope="main"
+        heading="Your products"
+        onManage={() => setManagingProducts(true)}
+      />
+      {managingProducts && (
+        <RoomProductManager
+          scope="main"
+          onClose={() => setManagingProducts(false)}
+          onChanged={() => { /* optimistic; payload refreshes on next load */ }}
+        />
+      )}
 
       {/* Your people — the CRM, surfaced. Each card is the full profile: contact
           sheet, where-you-met, message, and inline dated notes. No click-open. */}

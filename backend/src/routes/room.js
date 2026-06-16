@@ -435,12 +435,25 @@ export function registerRoomRoutes(app) {
         }
       }
 
+      // The MAIN-room product showcase — the host's live, non-hidden products.
+      // Owner sees manage fields + stats; visitors see live, buy-safe cards.
+      let products = [];
+      if (accountId) {
+        try {
+          const { listMainRoomProducts } = await import("../services/productPlacement.js");
+          products = await listMainRoomProducts(accountId, { forHost: effectiveOwner });
+        } catch (e) {
+          console.error("[node-profile] products build failed:", e.message);
+        }
+      }
+
       res.json({
         node: header,
         viewer: { known: !!viewer, inOrbit, isOwner: effectiveOwner },
         hosted: hosted.map(mapTile),
         pulledUp: pulledUpRows.map(mapTile),
         people: showPeople ? people : [],
+        products,
         console: consolePayload,
       });
     } catch (err) {

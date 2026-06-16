@@ -13,6 +13,7 @@ import {
   listSpaceMessages,
 } from "../services/pullupService.js";
 import { resolveCapabilities } from "../services/roomPermissions.js";
+import { listEventRoomProducts } from "../services/productPlacement.js";
 
 // The single access verdict for a viewer on an event — body of the old
 // GET /events/:id/access handler, moved verbatim so route + view share it.
@@ -123,7 +124,7 @@ export async function buildRosterPayload(eventId) {
 // The one-call first paint for the event Room page.
 export async function buildEventRoomView(req, eventId) {
   const access = await resolveAccessPayload(req, eventId);
-  const view = { access, roster: null, coPresent: [], channels: [], messages: null };
+  const view = { access, roster: null, coPresent: [], channels: [], messages: null, products: [] };
 
   const isHost = access.level === "host";
   const isGuest = ["guest_pullup", "guest_rsvp", "guest_waitlist"].includes(access.level);
@@ -132,6 +133,13 @@ export async function buildEventRoomView(req, eventId) {
   if (!isHost && !isGuest) return view; // gate view — access verdict is the payload
 
   const work = [];
+  // Product showcase for THIS event room — products the host assigned here.
+  // Host sees manage fields + stats (and drafts); guests see live, buy-safe cards.
+  work.push(
+    listEventRoomProducts(eventId, { forHost: isHost })
+      .then((p) => { view.products = p; })
+      .catch((e) => { console.error("[eventRoomView] products failed", e); }),
+  );
   if (canRead) {
     work.push(listChannels(eventId).then((c) => { view.channels = c; }));
     // Main feed (channelId null = Main) — matches what the page's first

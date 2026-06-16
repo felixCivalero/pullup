@@ -648,7 +648,14 @@ export function CreateEventPage() {
   // Page kind ('event' default). A loaded kind='community' row turns this editor
   // into the community page editor: no date/location, "Join" CTA. Set from the
   // loaded row (community pages are always edited, never freshly created here).
-  const [eventKind, setEventKind] = useState("event");
+  // Read the kind from the create picker (?kind=product) SYNCHRONOUSLY so the
+  // editor opens product-shaped on the first paint — no event-wizard flash. Edit
+  // mode overrides this from the loaded row.
+  const [eventKind, setEventKind] = useState(() => {
+    if (typeof window === "undefined") return "event";
+    const k = new URLSearchParams(window.location.search).get("kind");
+    return k && PAGE_KINDS[k] ? k : "event";
+  });
   const isCommunity = eventKind === "community";
   // A community has no room of its own — it IS the creator's main room. So
   // publishing/leaving the community editor lands in the main room, not an
@@ -3017,10 +3024,10 @@ export function CreateEventPage() {
 
   return (
     <>
-    {/* Guided first-run for a brand-new event. Sits over the editor (which stays
-        mounted underneath, so the live preview is already populated the moment
-        the wizard steps aside). */}
-    {wizardActive && (
+    {/* Guided first-run for a brand-new EVENT only (name/when/where/who). A
+        product has no date/place/guest-list, so it skips straight into the
+        product-shaped editor — never the event wizard. */}
+    {wizardActive && eventKind === "event" && (
       <CreateWizard
         title={title} setTitle={setTitle}
         startsAt={startsAt} setStartsAt={setStartsAt}

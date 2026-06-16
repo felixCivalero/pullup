@@ -22,6 +22,7 @@ export function useEventRoomView(eventId) {
     channels: null,
     messages: null,
     coPresent: null,
+    products: null,
   });
 
   useEffect(() => {
@@ -32,7 +33,7 @@ export function useEventRoomView(eventId) {
     let alive = true;
     const fail = () =>
       alive &&
-      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null });
+      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null, products: null });
 
     authenticatedFetch(`/events/${eventId}/room-view`)
       .then((r) => (r.ok ? r.json() : null))
@@ -54,6 +55,7 @@ export function useEventRoomView(eventId) {
           channels: Array.isArray(d.channels) ? d.channels : null,
           messages: Array.isArray(d.messages) ? d.messages : null,
           coPresent: Array.isArray(d.coPresent) ? d.coPresent : null,
+          products: Array.isArray(d.products) ? d.products : null,
         });
       })
       .catch(fail);

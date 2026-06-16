@@ -224,6 +224,9 @@ export async function mapEventFromDb(dbEvent) {
     signupSettings: dbEvent.signup_settings || null,
     // Host-editable welcome shown to everyone who lands in the Room (mig 099).
     roomWelcome: dbEvent.room_welcome || null,
+    // Product placement (mig 100): opt a LIVE product out of the host's
+    // main-room showcase. Only meaningful for kind='product' rows.
+    hideFromMainRoom: dbEvent.hide_from_main_room || false,
   };
 }
 
@@ -357,6 +360,8 @@ function mapEventToDb(eventData) {
   if (eventData.dateRevealHint !== undefined) dbData.date_reveal_hint = eventData.dateRevealHint;
   if (eventData.signupSettings !== undefined) dbData.signup_settings = eventData.signupSettings;
   if (eventData.roomWelcome !== undefined) dbData.room_welcome = eventData.roomWelcome;
+  // Product placement (mig 100): hide a live product from the main-room showcase.
+  if (eventData.hideFromMainRoom !== undefined) dbData.hide_from_main_room = !!eventData.hideFromMainRoom;
   return dbData;
 }
 
@@ -389,7 +394,7 @@ export const EDITABLE_EVENT_FIELDS = [
   "contactChannel",
   "requireEmail", "collectPhone", "requirePhone", "collectInstagram", "requireInstagram",
   "hideLocation", "showCoordinates", "hideDate", "revealHint", "dateRevealHint",
-  "signupSettings", "roomWelcome",
+  "signupSettings", "roomWelcome", "hideFromMainRoom",
 ];
 
 // Pick only the editable fields a client is allowed to set — keeps mass-assign

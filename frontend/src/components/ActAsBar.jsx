@@ -8,6 +8,7 @@
 // impersonated) profile's admin flag — so Exit is always reachable mid-session.
 import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "../lib/api.js";
+import { supabase } from "../lib/supabase";
 import { colors } from "../theme/colors.js";
 import { Users, X, LogOut } from "lucide-react";
 
@@ -51,21 +52,49 @@ export function ActAsBar({ isAdmin }) {
     return () => { cancelled = true; clearTimeout(t); };
   }, [pickerOpen, q]);
 
+  function clearActAs() {
+    try {
+      localStorage.removeItem("pullup_act_as");
+      localStorage.removeItem("pullup_act_as_name");
+      localStorage.removeItem("pullup_act_as_email");
+      localStorage.removeItem("pullup_act_as_log");
+      localStorage.removeItem("pullup_actas_return");
+    } catch {}
+  }
+
   const startActAs = useCallback(async (host) => {
     setBusy(true);
     try {
+      // 1. Mint the host's session + open the audit row (runs as the admin).
       const r = await authenticatedFetch("/admin/impersonation/start", {
         method: "POST",
         body: JSON.stringify({ targetUserId: host.id }),
       });
       if (!r.ok) throw new Error("start failed");
       const d = await r.json();
+      if (!d.tokenHash) throw new Error("no session minted");
+
+      // 2. Stash OUR (admin) session so Exit can restore it — survives reloads.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.refresh_token) {
+        localStorage.setItem("pullup_actas_return", JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }));
+      }
       localStorage.setItem("pullup_act_as", d.target.id);
       localStorage.setItem("pullup_act_as_name", d.target.name || "");
       localStorage.setItem("pullup_act_as_email", d.target.email || "");
       localStorage.setItem("pullup_act_as_log", d.logId || "");
-      window.location.href = "/room"; // hard reload — re-fetch everything as the host
+
+      // 3. Adopt the host's REAL session — from here we ARE the host end-to-end
+      //    (identity, Realtime, every API call). Nothing left scoped to the admin.
+      const { error } = await supabase.auth.verifyOtp({ token_hash: d.tokenHash, type: "magiclink" });
+      if (error) throw error;
+
+      window.location.href = "/room"; // hard reload — whole app re-resolves as the host
     } catch {
+      clearActAs(); // never strand a half-switch
       setBusy(false);
       alert("Couldn't start the session. Try again.");
     }
@@ -74,20 +103,36 @@ export function ActAsBar({ isAdmin }) {
   const exitActAs = useCallback(async () => {
     setBusy(true);
     const logId = active?.logId || "";
+
+    // 1. Restore OUR admin session from the stash (refresh_token survives an
+    //    expired access_token — Supabase re-mints on adoption).
+    let restored = false;
     try {
-      // Best-effort close of the audit window before we drop the header.
-      await authenticatedFetch("/admin/impersonation/stop", {
-        method: "POST",
-        body: JSON.stringify({ logId }),
-      }).catch(() => {});
-    } finally {
-      try {
-        localStorage.removeItem("pullup_act_as");
-        localStorage.removeItem("pullup_act_as_name");
-        localStorage.removeItem("pullup_act_as_email");
-        localStorage.removeItem("pullup_act_as_log");
-      } catch {}
+      const raw = localStorage.getItem("pullup_actas_return");
+      if (raw) {
+        const t = JSON.parse(raw);
+        const { error } = await supabase.auth.setSession({
+          access_token: t.access_token,
+          refresh_token: t.refresh_token,
+        });
+        restored = !error;
+      }
+    } catch { restored = false; }
+
+    // 2. Now back as the admin — close the audit window (best-effort).
+    await authenticatedFetch("/admin/impersonation/stop", {
+      method: "POST",
+      body: JSON.stringify({ logId }),
+    }).catch(() => {});
+
+    clearActAs();
+
+    if (restored) {
       window.location.href = "/room";
+    } else {
+      // Couldn't restore the admin session — safest exit is a clean re-login.
+      try { await supabase.auth.signOut({ scope: "local" }); } catch {}
+      window.location.href = "/";
     }
   }, [active]);
 

@@ -33,51 +33,6 @@ async function resolveBearer(token) {
   return { user: data.user, authType: "jwt" };
 }
 
-// Header a superuser sends to operate the platform AS another host. Carries the
-// TARGET's auth user id (= profiles.id). Distinct from the person-scoped
-// `x-pullup-view-as` room-preview header so the two never collide.
-const ACT_AS_HEADER = "x-pullup-act-as";
-
-// Admin "Act as" — full session-swap impersonation. If the REAL session is an
-// admin and an `x-pullup-act-as: <userId>` header is present, we swap req.user
-// to that host for the rest of the request, preserving the real admin as
-// req.realUser and flagging req.impersonating. Because every host route scopes
-// off req.user.id, this makes the WHOLE host experience (events, room, CRM,
-// comms, analytics) resolve as the target — zero per-route changes.
-//
-// SECURITY: admin status is re-verified server-side on the REAL user every
-// request. A forged header from a non-admin is silently ignored — it can never
-// be turned into access. The swapped (impersonated) identity is never treated
-// as admin (requireAdmin below authorises on req.realUser), so impersonating a
-// host can't escalate. No header ⇒ this returns before any await, so normal
-// traffic is completely untouched.
-async function applyActAs(req) {
-  const targetId = (req.headers?.[ACT_AS_HEADER] || "").toString().trim();
-  if (!targetId || !req.user?.id) return;
-  if (targetId === req.user.id) return; // acting as self = no-op
-
-  let profile;
-  try {
-    profile = await getUserProfile(req.user.id);
-  } catch {
-    return; // can't confirm admin ⇒ don't swap
-  }
-  if (!profile?.isAdmin) return;
-
-  const { data, error } = await supabase.auth.admin.getUserById(targetId);
-  if (error || !data?.user) return; // unknown target ⇒ stay yourself
-  const u = data.user;
-
-  req.realUser = req.user;
-  req.user = {
-    id: u.id,
-    email: u.email,
-    phone: u.phone || null,
-    ...u.user_metadata,
-  };
-  req.impersonating = true;
-}
-
 /**
  * Middleware to verify Supabase JWT token (or `pup_` PAT) and attach user to request
  * Sets req.user = { id, email, ... } if authenticated
@@ -114,9 +69,6 @@ export async function requireAuth(req, res, next) {
     };
     req.authType = authType;
 
-    // Admin "Act as": swap identity if a verified admin is impersonating a host.
-    await applyActAs(req);
-
     next();
   } catch (error) {
     console.error("Auth middleware error:", error);
@@ -144,9 +96,6 @@ export async function optionalAuth(req, res, next) {
           ...resolved.user.user_metadata,
         };
         req.authType = resolved.authType;
-        // Honour admin Act-as on optional-auth routes too (e.g. the public room
-        // resolves as the impersonated host), same server-side admin gate.
-        await applyActAs(req);
       }
     }
     next();
@@ -165,13 +114,7 @@ export async function requireAdmin(req, res, next) {
     // First ensure the user is authenticated
     await requireAuth(req, res, async () => {
       try {
-        // Authorise on the REAL user. requireAuth may have swapped req.user to a
-        // host via Act-as; admin rights belong to req.realUser. This also keeps
-        // admin surfaces (incl. ending impersonation) reachable while acting as
-        // someone, and stops an impersonated host identity from being treated
-        // as admin.
-        const adminId = req.realUser?.id || req.user.id;
-        const profile = await getUserProfile(adminId);
+        const profile = await getUserProfile(req.user.id);
         if (!profile?.isAdmin) {
           return res.status(403).json({
             error: "forbidden",

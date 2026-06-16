@@ -11,6 +11,7 @@ import { NotificationsBell } from "./NotificationsBell.jsx";
 import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
 import { PageTypePicker } from "./PageTypePicker.jsx";
+import { ActAsBar } from "./ActAsBar.jsx";
 import { colors } from "../theme/colors.js";
 import { LoadingScreen } from "./LoadingScreen.jsx";
 
@@ -1408,6 +1409,11 @@ function ProtectedLayoutInner() {
           <Outlet />
         )}
       </main>
+
+      {/* Admin "Act as" — launcher + persistent banner + host picker. Self-gates:
+          the banner shows whenever a session is live; the launcher only for an
+          admin. */}
+      <ActAsBar isAdmin={isAdmin} />
 
       {/* First-login-after-redesign walkthrough (desktop-only, once per browser) */}
       <WhatsNewModal />

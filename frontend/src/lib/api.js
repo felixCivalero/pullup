@@ -12,14 +12,22 @@ export function viewAsHeaders() {
   try {
     const va = localStorage.getItem("pullup_view_as");
     const fl = localStorage.getItem("pullup_force_level");
+    // Admin "Act as" — full session-swap impersonation of a host. Carries the
+    // target's auth user id; the backend re-verifies admin before honouring it.
+    const aa = localStorage.getItem("pullup_act_as");
     if (va) h["x-pullup-view-as"] = va;
     if (fl) h["x-pullup-force-level"] = fl;
+    if (aa) h["x-pullup-act-as"] = aa;
   } catch {}
   return h;
 }
 function viewAsActive() {
   try {
-    return !!(localStorage.getItem("pullup_view_as") || localStorage.getItem("pullup_force_level"));
+    return !!(
+      localStorage.getItem("pullup_view_as") ||
+      localStorage.getItem("pullup_force_level") ||
+      localStorage.getItem("pullup_act_as")
+    );
   } catch { return false; }
 }
 

@@ -1342,6 +1342,14 @@ function PeopleLayer({ people = [], events = [] }) {
     });
   }, [people, query, seg]);
 
+  // Don't dump everyone into the DOM — show 5, reveal 20 more on demand.
+  // If they're hunting for someone specific, search is the real tool.
+  const PAGE = 20;
+  const [visible, setVisible] = useState(5);
+  useEffect(() => { setVisible(5); }, [query, seg]);
+  const shown = filtered.slice(0, visible);
+  const remaining = filtered.length - shown.length;
+
   return (
     <div style={{ marginTop: "30px", fontFamily: SF }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -1393,11 +1401,26 @@ function PeopleLayer({ people = [], events = [] }) {
           {people.length ? "No one matches that." : "Your people show up here as they RSVP and pull up."}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px", alignItems: "start" }}>
-          {filtered.map((p) => (
-            <PeopleContactCard key={p.id} person={p} events={events} />
-          ))}
-        </div>
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px", alignItems: "start" }}>
+            {shown.map((p) => (
+              <PeopleContactCard key={p.id} person={p} events={events} />
+            ))}
+          </div>
+          {remaining > 0 && (
+            <button
+              type="button"
+              onClick={() => setVisible((v) => v + PAGE)}
+              style={{
+                marginTop: "16px", width: "100%", padding: "11px 16px", borderRadius: "12px",
+                border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted,
+                fontFamily: SF, fontSize: "13px", fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Load {Math.min(PAGE, remaining)} more · {remaining} left
+            </button>
+          )}
+        </>
       )}
     </div>
   );

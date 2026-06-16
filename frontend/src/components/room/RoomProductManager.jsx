@@ -10,16 +10,16 @@
 // a "+ New product" link opens the product editor.
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Plus, Check, ShoppingBag } from "lucide-react";
+import { X, Loader2, Plus, Check, ShoppingBag, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { authenticatedFetch } from "../../lib/api.js";
 import { colors } from "../../theme/colors.js";
+import { priceOrFree } from "../../lib/money.js";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 function priceLabel(p) {
-  if (p?.price == null) return "Free";
-  return `${(p.price / 100).toLocaleString()} ${(p.currency || "usd").toUpperCase()}`;
+  return priceOrFree(p?.price, p?.currency);
 }
 
 export function RoomProductManager({ scope = "main", eventId = null, onClose, onChanged }) {
@@ -99,6 +99,13 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
     }
   }
 
+  // A product is just an event with kind=product, so the normal event editor
+  // (with its live preview) edits it. This is the only way back into a draft.
+  const openEditor = (p) => {
+    onClose?.();
+    navigate(`/app/events/${p.id}/edit`);
+  };
+
   const pill = (active) => ({
     display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 800, fontFamily: SF,
     cursor: busyId ? "default" : "pointer", padding: "8px 14px", borderRadius: 999, border: "none",
@@ -107,16 +114,13 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
   });
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,10,0.4)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(10,10,10,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "100%", maxWidth: 520, maxHeight: "88vh", overflowY: "auto",
-        background: colors.background, color: colors.text, borderTopLeftRadius: 22, borderTopRightRadius: 22,
-        border: `1px solid ${colors.border}`, borderBottom: "none", padding: "8px 20px 28px", fontFamily: SF,
+        background: colors.background, color: colors.text, borderRadius: 22,
+        border: `1px solid ${colors.border}`, padding: "22px 20px 28px", fontFamily: SF,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
       }}>
-        <div style={{ display: "flex", justifyContent: "center", padding: "8px 0 14px" }}>
-          <div style={{ width: 38, height: 4, borderRadius: 2, background: colors.border }} />
-        </div>
-
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 17, fontWeight: 800 }}>{scope === "event" ? "Products in this room" : "Your products"}</div>
@@ -151,27 +155,41 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
                 const shownInMain = !p.hideFromMainRoom;
                 return (
                   <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface }}>
-                    {p.coverImageUrl ? (
-                      <img src={p.coverImageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flex: "0 0 auto" }} />
-                    ) : (
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: colors.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                        <ShoppingBag size={18} color={colors.accent} />
+                    {/* Tap the product itself to open its editor (the live-preview
+                        page) — works for drafts and live alike. */}
+                    <button
+                      type="button"
+                      onClick={() => openEditor(p)}
+                      title="Edit this product"
+                      style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: SF, color: colors.text }}
+                    >
+                      {p.coverImageUrl ? (
+                        <img src={p.coverImageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flex: "0 0 auto" }} />
+                      ) : (
+                        <div style={{ width: 44, height: 44, borderRadius: 10, background: colors.accentSoft, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                          <ShoppingBag size={18} color={colors.accent} />
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
+                          <Pencil size={12} color={colors.textSubtle} style={{ flex: "0 0 auto" }} />
+                        </div>
+                        <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 1 }}>
+                          {priceLabel(p)}
+                          {p.live === false && <span style={{ color: colors.textSubtle }}> · Draft</span>}
+                        </div>
                       </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
-                      <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 1 }}>
-                        {priceLabel(p)}
-                        {p.live === false && <span style={{ color: colors.textSubtle }}> · Draft</span>}
-                      </div>
-                    </div>
+                    </button>
 
                     {scope === "event" ? (
                       <button type="button" onClick={() => toggleEventAssign(p)} disabled={!!busyId} style={pill(assigned)}>
                         {busyId === p.id ? <Loader2 size={13} className="spin" /> : assigned ? <><Check size={13} /> Added</> : <><Plus size={13} /> Add</>}
                       </button>
                     ) : p.live === false ? (
-                      <span style={{ fontSize: 11.5, color: colors.textSubtle, textAlign: "right", maxWidth: 120 }}>Publish to show it here</span>
+                      <button type="button" onClick={() => openEditor(p)} style={pill(false)} title="Open the editor to finish and publish">
+                        <Pencil size={13} /> Edit
+                      </button>
                     ) : (
                       <button type="button" onClick={() => toggleMainHide(p)} disabled={!!busyId} style={pill(shownInMain)}>
                         {busyId === p.id ? <Loader2 size={13} className="spin" /> : shownInMain ? <><Check size={13} /> Shown</> : "Hidden"}

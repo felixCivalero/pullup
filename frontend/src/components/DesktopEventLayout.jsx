@@ -9,6 +9,7 @@ import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
 import { normalizeDesktopMode, heroFrameStyle, modeCrops, useMediaAspect } from "./mediaFormat";
+import { formatPrice } from "../lib/money.js";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -171,7 +172,7 @@ export function DesktopEventLayout({
     kind === "community"
       ? "Free to join"
       : ticketType === "paid" && ticketPrice
-        ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+        ? formatPrice(ticketPrice, ticketCurrency)
         : "Free entry";
 
   // Host overrides (mig 096) for the eyebrow + button; fall back to defaults.

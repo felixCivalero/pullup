@@ -14,6 +14,7 @@ import {
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { getEventShareUrl, generateCalendarUrls } from "../lib/urlUtils";
 import { formatEventTime, formatReadableDateTime } from "../lib/dateUtils.js";
+import { formatMoney } from "../lib/money.js";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
@@ -1288,10 +1289,6 @@ export function RsvpSuccessPage() {
                   {/* Payment Breakdown */}
                   {/* Calculate breakdown from payment amount if not provided */}
                   {(() => {
-                    const currencySymbol =
-                      { sek: "kr", usd: "$", eur: "\u20AC", gbp: "\u00A3" }[
-                        (payment.currency || "").toLowerCase()
-                      ] || payment.currency?.toUpperCase() || "$";
                     const totalAmount = payment.amount || 0;
 
                     // If we have paymentBreakdown from state, use it
@@ -1324,8 +1321,7 @@ export function RsvpSuccessPage() {
                               : ""}
                           </span>
                           <span style={{ fontWeight: 600 }}>
-                            {currencySymbol}
-                            {(ticketAmount / 100).toFixed(2)}
+                            {formatMoney(ticketAmount, payment.currency)}
                           </span>
                         </div>
                         {platformFeeAmount > 0 && (
@@ -1341,8 +1337,7 @@ export function RsvpSuccessPage() {
                           >
                             <span>Service fee</span>
                             <span style={{ fontWeight: 600 }}>
-                              {currencySymbol}
-                              {(platformFeeAmount / 100).toFixed(2)}
+                              {formatMoney(platformFeeAmount, payment.currency)}
                             </span>
                           </div>
                         )}
@@ -1360,8 +1355,7 @@ export function RsvpSuccessPage() {
                         >
                           <span>Total Paid</span>
                           <span>
-                            {currencySymbol}
-                            {(customerTotalAmount / 100).toFixed(2)}
+                            {formatMoney(customerTotalAmount, payment.currency)}
                           </span>
                         </div>
                       </div>

@@ -14,10 +14,11 @@ import { X, Loader2, ExternalLink } from "lucide-react";
 import { publicFetch } from "../../lib/api.js";
 import { V2CheckoutPanel } from "../V2CheckoutPanel.jsx";
 import { ProductDelivery } from "../ProductDelivery.jsx";
+import { formatPrice } from "../../lib/money.js";
 
 function priceLabel(product) {
   if (product?.price == null) return null;
-  return `${(product.price / 100).toLocaleString()} ${(product.currency || "usd").toUpperCase()}`;
+  return formatPrice(product.price, product.currency);
 }
 
 export function ProductPurchaseModal({ product, prefill = {}, onClose }) {

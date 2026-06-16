@@ -8,6 +8,7 @@ import { SceneFrame } from "./SceneFrame";
 import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
+import { formatPrice } from "../lib/money.js";
 import { transformedImageUrl } from "../lib/imageUtils";
 import { normalizePhoneMode, modeCrops, useMediaAspect } from "./mediaFormat";
 
@@ -199,7 +200,7 @@ export function EventPreview({
   const defaultEyebrow = kind === "community"
     ? "Free to join"
     : ticketType === "paid" && ticketPrice
-      ? `${(ticketPrice / 100).toLocaleString()} ${(ticketCurrency || "sek").toUpperCase()}`
+      ? formatPrice(ticketPrice, ticketCurrency)
       : "Free entry";
   const eyebrowLabel = signupLabel || defaultEyebrow;
   const ctaLabel = signupCta || buttonLabel;

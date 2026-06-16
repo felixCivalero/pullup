@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { ShoppingBag, Plus, Settings2, EyeOff } from "lucide-react";
 import { ProductPurchaseModal } from "./ProductPurchaseModal.jsx";
+import { priceOrFree } from "../../lib/money.js";
 
 function tokens(theme) {
   const dark = theme === "dark";
@@ -27,8 +28,7 @@ function tokens(theme) {
 }
 
 function priceLabel(p) {
-  if (p?.price == null) return "Free";
-  return `${(p.price / 100).toLocaleString()} ${(p.currency || "usd").toUpperCase()}`;
+  return priceOrFree(p?.price, p?.currency);
 }
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";

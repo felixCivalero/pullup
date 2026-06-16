@@ -13,6 +13,7 @@ import {
 import { Button } from "./ui/Button";
 import { useToast } from "./Toast";
 import { publicFetch } from "../lib/api.js";
+import { formatPrice } from "../lib/money.js";
 
 // Get Stripe publishable key from environment
 // In development: prefer TEST_ prefixed, fallback to regular
@@ -243,11 +244,9 @@ function PaymentFormInner({
     }
   };
 
-  const formatAmount = (cents, curr) => {
-    const amount = (cents / 100).toFixed(2);
-    const symbol = curr === "sek" ? "kr" : "$";
-    return `${symbol}${amount}`;
-  };
+  // Was SEK/$-only — KES (and everything else) fell through to "$". Now routes
+  // through the shared formatter so the button matches the room: "Pay 2,500 KES".
+  const formatAmount = (cents, curr) => formatPrice(cents, curr);
 
   // Don't use a form element since this is rendered inside RsvpForm's form
   // Only render PaymentElement when clientSecret is available

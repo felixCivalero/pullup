@@ -435,9 +435,10 @@ export function IdeaWidget() {
         )}
 
         {/* Trigger pill — "Messages" (your people) by default; "PullUp" sparkle in
-            AI-build mode. Hidden while the full-screen sheet is open (it has its
-            own close). */}
-        {!(open && fullScreen) && (
+            AI-build mode. Hidden whenever the dock is open (the panel has its own
+            close) — on desktop it used to stay visible and float over the panel's
+            footer "Write to N" button. */}
+        {!open && (
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { publicFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import { formatMoney } from "../lib/money.js";
 import { colors } from "../theme/colors.js";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { V2CheckoutPanel } from "./V2CheckoutPanel.jsx";
@@ -1175,8 +1176,6 @@ function stepperBtnStyle(disabled) {
 
 // ─── Payment Breakdown ───
 function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) {
-  const symbol = currency === "sek" ? "kr" : currency === "eur" ? "€" : currency === "gbp" ? "£" : "$";
-
   let breakdown;
   if (pendingPayment?.paymentBreakdown) {
     breakdown = pendingPayment.paymentBreakdown;
@@ -1195,7 +1194,7 @@ function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) 
     const total = pendingPayment?.amount ?? ticketPrice * partySize;
     return (
       <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "12px", color: colors.silverText }}>
-        Total: {symbol}{(total / 100).toFixed(2)}
+        Total: {formatMoney(total, currency)}
       </div>
     );
   }
@@ -1204,11 +1203,11 @@ function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) 
     <div style={{ marginBottom: "14px", fontSize: "13px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, marginBottom: "4px" }}>
         <span>Ticket{partySize > 1 ? `s (${partySize}x)` : ""}</span>
-        <span>{symbol}{(breakdown.ticketAmount / 100).toFixed(2)}</span>
+        <span>{formatMoney(breakdown.ticketAmount, currency)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", opacity: 0.6, marginBottom: "8px" }}>
         <span>Service fee</span>
-        <span>{symbol}{(breakdown.platformFeeAmount / 100).toFixed(2)}</span>
+        <span>{formatMoney(breakdown.platformFeeAmount, currency)}</span>
       </div>
       <div style={{
         display: "flex",
@@ -1220,7 +1219,7 @@ function PaymentBreakdown({ ticketPrice, partySize, currency, pendingPayment }) 
         borderTop: "1px solid rgba(255, 255, 255, 0.06)",
       }}>
         <span>Total</span>
-        <span>{symbol}{(breakdown.customerTotalAmount / 100).toFixed(2)}</span>
+        <span>{formatMoney(breakdown.customerTotalAmount, currency)}</span>
       </div>
     </div>
   );

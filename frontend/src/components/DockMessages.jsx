@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -693,7 +693,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
           <button onClick={() => { setDraft(""); setAttachments([]); setSmartOpen(false); setBroadcast(true); }}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
-            Message {selected.length} <Send size={14} />
+            Write to {selected.length} <ChevronRight size={15} />
           </button>
         </div>
       )}

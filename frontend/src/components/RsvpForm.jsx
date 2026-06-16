@@ -41,13 +41,38 @@ function TermsAgreement({ checked, onChange }) {
         transition: "border-color 120ms ease, background-color 120ms ease",
       }}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        onClick={(e) => e.stopPropagation()}
-        style={{ accentColor: "var(--brand-primary, #fbbf24)", flexShrink: 0, width: 22, height: 22, cursor: "pointer" }}
-      />
+      {/* Custom box, not a native checkbox: native `accentColor` only sets the
+          box fill and lets the BROWSER pick the tick color — which lands as a
+          clashing black/grey on a light brand colour. Here we draw the tick
+          ourselves in the brand's on-primary ink so it always contrasts. */}
+      <span style={{ position: "relative", flexShrink: 0, width: 22, height: 22, display: "inline-flex" }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="I agree to the terms and privacy policy"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
+        />
+        <span
+          aria-hidden="true"
+          style={{
+            width: 22, height: 22, borderRadius: 6, boxSizing: "border-box",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            border: checked
+              ? "1.5px solid var(--brand-primary, #fbbf24)"
+              : "1.5px solid var(--brand-on-bg-soft, rgba(255,255,255,0.55))",
+            background: checked ? "var(--brand-primary, #fbbf24)" : "transparent",
+            transition: "background-color 120ms ease, border-color 120ms ease",
+          }}
+        >
+          {checked && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-ink-on-primary, #1a1a1a)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </span>
+      </span>
       <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--brand-on-bg, #fff)", fontWeight: 500 }}>
         I agree to the{" "}
         <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-primary, #fbbf24)", textDecoration: "underline" }}>terms</a>

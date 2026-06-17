@@ -675,4 +675,20 @@ app.listen(PORT, HOST, async () => {
     }
   }
   setInterval(runDigestTick, DIGEST_INTERVAL_MS);
+
+  /* Storage-markup billing (Phase A): once a day, sync each live BYO creator's
+   * Supabase tier → storage_tier_cents and accrue the month's 30% markup into
+   * the ledger (deduped per host per month). Self-gated — a no-op unless BYO +
+   * metering are enabled, so it's inert until BYO graduates. Collection is
+   * Phase B. */
+  const STORAGE_BILLING_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
+  async function runStorageBillingTick() {
+    try {
+      const { runStorageBilling } = await import("./jobs/storageBillingRun.js");
+      await runStorageBilling();
+    } catch (err) {
+      console.error("[storageBilling] Unexpected error in tick:", err.message);
+    }
+  }
+  setInterval(runStorageBillingTick, STORAGE_BILLING_INTERVAL_MS);
 });

@@ -7,7 +7,7 @@
 // build a client.
 
 import { supabase } from "../supabase.js";
-import { encryptSecret } from "../utils/encryption.js";
+import { encryptSecret, decryptSecret } from "../utils/encryption.js";
 
 // Public-safe shape — deliberately omits encrypted_service_key so a key can
 // never leak through an API response or a log line.
@@ -37,6 +37,31 @@ export async function getCreatorDatabase(hostId) {
     .eq("host_id", hostId)
     .maybeSingle();
   return mapSafe(data);
+}
+
+// Billable BYO creators for the storage-markup job: connected enough to read
+// their tier, holding a management token + project ref. Returns the DECRYPTED
+// mgmt token — internal billing job only (like getCreatorDatabaseWithKey, never
+// surfaced through an API). Bounded set (one row per connected creator).
+export async function listBillableCreatorDatabases() {
+  const { data } = await supabase
+    .from("creator_databases")
+    .select("host_id, project_ref, encrypted_mgmt_token, status")
+    .in("status", ["connected", "provisioning", "mirroring", "live"]) // safe-query: ok — bounded literal status set
+    .not("encrypted_mgmt_token", "is", null)
+    .not("project_ref", "is", null);
+  if (!data) return [];
+  return data
+    .map((row) => {
+      let mgmtToken = null;
+      try {
+        mgmtToken = row.encrypted_mgmt_token ? decryptSecret(row.encrypted_mgmt_token) : null;
+      } catch {
+        mgmtToken = null;
+      }
+      return { hostId: row.host_id, projectRef: row.project_ref, status: row.status, mgmtToken };
+    })
+    .filter((c) => c.mgmtToken && c.projectRef);
 }
 
 // Internal read INCLUDING the encrypted key — only the router calls this, only

@@ -143,3 +143,28 @@ export async function meterTicketSale({
     console.error("[feeEngine] ticket metering failed (non-blocking):", e?.message);
   }
 }
+
+// The recurring storage-markup line: PullUp's % on top of the creator's own
+// Supabase tier. Metered once per host per month — the dedupe_key keys the run
+// so a daily scheduler tick only bills once. Accrual only (Phase A); collecting
+// it (a host subscription) is Phase B.
+export async function meterStorageFee({ hostId, storageTierCents, markupBps, currency = "usd", monthKey }) {
+  if (!meteringEnabled()) return { skipped: true };
+  if (!hostId || !monthKey) return { skipped: true, reason: "missing_key" };
+  const feeCents = computeStorageServiceFee(storageTierCents, markupBps);
+  if (feeCents <= 0) return { skipped: true, reason: "zero_fee" };
+  try {
+    return await meterMotion({
+      motion: "storage_service",
+      dedupeKey: `storage:${hostId}:${monthKey}`,
+      hostId,
+      amountCents: Number(storageTierCents) || 0, // the base (creator's Supabase bill)
+      feeCents, // PullUp's markup — the revenue line
+      currency,
+      metadata: { storageTierCents: Number(storageTierCents) || 0, markupBps: markupBps ?? 3000, monthKey },
+    });
+  } catch (e) {
+    console.error("[feeEngine] storage metering failed (non-blocking):", e?.message);
+    return { ok: false };
+  }
+}

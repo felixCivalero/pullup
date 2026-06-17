@@ -44,6 +44,21 @@ export async function getPlanForHost(hostId) {
   };
 }
 
+// Persist the creator's current monthly Supabase tier cost — the base the 30%
+// markup is taken on. Upsert so a brand-new BYO creator's plan row is created
+// with default knobs (ticket_fee_bps, markup_bps=3000) and just this field set.
+export async function updateStorageTierCents(hostId, cents) {
+  if (!hostId) return { ok: false, reason: "missing_host" };
+  const { error } = await supabase
+    .from("creator_billing_plans")
+    .upsert(
+      { host_id: hostId, storage_tier_cents: Math.max(0, Math.round(Number(cents) || 0)) },
+      { onConflict: "host_id" },
+    );
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true };
+}
+
 // Append one metered motion. Idempotent: a duplicate dedupe_key is swallowed
 // (unique-violation = the motion already landed) so webhook retries and
 // concurrent scans never double-meter.

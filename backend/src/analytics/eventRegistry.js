@@ -15,6 +15,8 @@ export const TRACKED_EVENTS = new Set([
   "onboarding_skip",      // { from }
   "auth_start",           // { method }
   "signed_in",            // { via }
+  "waitlist_submit",      // { role, surface } — pressed "Join the waitlist"
+  "waitlist_joined",      // { role, surface } — creator_waitlist row written (the conversion)
   "room_view",            // { role } + eventId/userId columns — identified room presence
 ]);
 

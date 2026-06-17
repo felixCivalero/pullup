@@ -148,27 +148,12 @@ export function registerEventRoutes(app) {
         }
       }
 
-      // Inline host brand for the event page in one round-trip.
-      //
-      // Theme tokens (color/background/font/logo) come from the EVENT's own
-      // snapshot (migration 047), taken at creation — NOT a live cascade from
-      // the profile. So existing events (brand=null) and any event the host
-      // didn't theme fall back to PullUp's standard theme on the frontend,
-      // and editing the host's default brand never re-themes past events.
-      //
-      // Identity (hostName / signature) is NOT a snapshot — it's the host's
-      // current name/voice — so it's still read live from the profile.
-      const eventBrand = event.brand && typeof event.brand === "object" ? event.brand : null;
-      let hostBrand = {
-        // Event-level theme snapshot (mig 047): page background + register
-        // button (color/text/font). null on a field → frontend default.
-        backgroundColor:  eventBrand?.backgroundColor || null,
-        buttonColor:      eventBrand?.buttonColor || null,
-        buttonTextColor:  eventBrand?.buttonTextColor || null,
-        buttonFontFamily: eventBrand?.buttonFontFamily || null,
-        hostName:         null,
-        signature:        null,
-      };
+      // Host identity for the event page in one round-trip. Host-customizable
+      // visual theming was removed — the only surviving custom visual is the
+      // generative AI hero `scene` (events.scene), exposed verbatim above via
+      // publicEvent. Identity (hostName / signature) is read live from the
+      // profile (the host's current name/voice, not a snapshot).
+      let hostIdentity = { hostName: null, signature: null };
       if (event.hostId) {
         try {
           // The GET handler never declared a supabase client (the `sb` at the top
@@ -182,20 +167,21 @@ export function registerEventRoutes(app) {
             .eq("id", event.hostId)
             .maybeSingle();
           if (hostProfile) {
-            hostBrand.hostName  = hostProfile.name || hostProfile.brand || null;
+            hostIdentity.hostName  = hostProfile.name || hostProfile.brand || null;
             // Voice carrier (already used elsewhere; exposed here too so
             // event-page hero can lead with "Hosted by …" naturally).
-            hostBrand.signature = hostProfile.whatsapp_signature || null;
+            hostIdentity.signature = hostProfile.whatsapp_signature || null;
           }
-        } catch (brandErr) {
+        } catch (identityErr) {
           // Identity lookup never blocks event rendering.
-          console.warn("[events/:slug] host identity lookup failed", brandErr?.message);
+          console.warn("[events/:slug] host identity lookup failed", identityErr?.message);
         }
       }
 
       res.json({
         ...publicEvent,
-        hostBrand,
+        hostName: hostIdentity.hostName,
+        signature: hostIdentity.signature,
         _attendance: {
           confirmed,
           waitlist,

@@ -3,6 +3,7 @@
 import {
   SES_FROM_EMAIL,
   EMAIL_WORKER_BATCH_SIZE,
+  formatSender,
 } from "./config.js";
 import { getActiveProvider } from "./providers/providerRouter.js";
 import {
@@ -65,6 +66,13 @@ export async function enqueueOutbox({
   if (!subject) {
     throw new Error("[email] enqueueOutbox: subject is required");
   }
+
+  // Stamp the sender display name ("PullUp") at enqueue time so the stored
+  // from_email already reads "PullUp" <…> — the inbox shows PullUp regardless
+  // of the box's bare SES_FROM_EMAIL env or whether the worker has the latest
+  // provider code. Idempotent: a from that already has a display name passes
+  // through untouched.
+  fromEmail = formatSender(fromEmail);
 
   const suppression = await isSuppressed(toEmail);
   if (suppression.suppressed) {

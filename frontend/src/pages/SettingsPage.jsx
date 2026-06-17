@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
-import { SettingsTab } from "../components/HomeSettingsTab.jsx";
+import { SettingsLayout } from "../components/SettingsLayout.jsx";
 import { colors } from "../theme/colors.js";
 
 export function SettingsPage() {
@@ -103,40 +103,12 @@ export function SettingsPage() {
         className="responsive-container responsive-container-wide"
         style={{ position: "relative", zIndex: 2 }}
       >
-        <div
-          className="responsive-card"
-          style={{
-            background: colors.backgroundCard,
-            border: `1px solid ${colors.border}`,
-            boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
-          }}
-        >
-          <h1
-            style={{
-              fontSize: "clamp(22px, 5vw, 28px)",
-              fontWeight: 700,
-              marginBottom: "4px",
-              color: colors.text,
-            }}
-          >
-            Settings
-          </h1>
-          <p
-            style={{
-              fontSize: "14px",
-              color: colors.textMuted,
-              marginBottom: "24px",
-            }}
-          >
-            Manage your profile, your channels, and your account — everything that makes the Room yours.
-          </p>
-          <SettingsTab
-            user={user}
-            setUser={setUser}
-            onSave={handleSaveProfile}
-            showToast={showToast}
-          />
-        </div>
+        <SettingsLayout
+          user={user}
+          setUser={setUser}
+          onSave={handleSaveProfile}
+          showToast={showToast}
+        />
       </div>
     </div>
   );

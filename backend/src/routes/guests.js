@@ -485,12 +485,6 @@ export function registerGuestRoutes(app) {
                   brandName: cancelHost?.brand || "",
                   brandWebsite: cancelHost?.brandWebsite || "",
                   contactEmail: cancelHost?.contactEmail || "",
-                  brand: event.brand
-                    ? {
-                        background:   event.brand.backgroundColor || null,
-                        primaryColor: event.brand.buttonColor || null,
-                      }
-                    : {},
                 }),
               },
               context: {
@@ -868,12 +862,6 @@ export function registerGuestRoutes(app) {
                   brandName: cancelHost?.brand || "",
                   brandWebsite: cancelHost?.brandWebsite || "",
                   contactEmail: cancelHost?.contactEmail || "",
-                  brand: event.brand
-                    ? {
-                        background:   event.brand.backgroundColor || null,
-                        primaryColor: event.brand.buttonColor || null,
-                      }
-                    : {},
                 }),
               },
               context: {

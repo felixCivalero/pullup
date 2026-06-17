@@ -38,21 +38,15 @@ const MOCK = {
   whenPhrase: "Saturday 19:00",
 };
 
-// Resolve the host's brand + voice bundle the same way the live send paths do.
+// Resolve the host's voice bundle the same way the live send paths do.
+// Host-customizable visual email branding was removed — emails always wear the
+// PullUp default look — so this no longer builds a visual brand token bundle.
+// brandName/brandWebsite/contactEmail remain (footer text + voice).
 export function buildHostComms(hostProfile = {}) {
-  const brand = {
-    primaryColor: hostProfile.brand_primary_color || hostProfile.brandPrimaryColor || null,
-    background:   hostProfile.brand_background   || hostProfile.brandBackground   || null,
-    textColor:    hostProfile.brand_text_color   || hostProfile.brandTextColor    || null,
-    fontFamily:   hostProfile.brand_font_family  || hostProfile.brandFontFamily   || null,
-    logoUrl:      hostProfile.brand_logo_url      || hostProfile.brandLogoUrl      || null,
-  };
-  const hasBrand = Object.values(brand).some(Boolean);
   const signature =
     hostProfile.whatsapp_signature || hostProfile.whatsappSignature ||
     (hostProfile.name ? `It's me, ${String(hostProfile.name).split(/\s+/)[0]}` : "PullUp");
   return {
-    brand: hasBrand ? brand : {},
     signature,
     brandName: hostProfile.brand || hostProfile.brandName || "",
     brandWebsite: hostProfile.brand_website || hostProfile.brandWebsite || "",
@@ -69,7 +63,6 @@ function catalog(b, frontendUrl) {
     startsAt: MOCK.startsAt, endsAt: MOCK.endsAt,
     timezone: MOCK.timezone, slug: MOCK.slug, eventId: MOCK.eventId, frontendUrl,
     brandName: b.brandName, brandWebsite: b.brandWebsite, contactEmail: b.contactEmail,
-    brand: b.brand,
   };
   const waSig = b.signature;
   return [

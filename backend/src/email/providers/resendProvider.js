@@ -1,7 +1,7 @@
 // backend/src/email/providers/resendProvider.js
 
 import { Resend } from "resend";
-import { SES_FROM_EMAIL } from "../config.js";
+import { SES_FROM_EMAIL, formatSender } from "../config.js";
 
 let resendClient = null;
 
@@ -25,11 +25,12 @@ export async function sendEmailViaResend({
   html,
   text,
   replyTo = null,
+  headers = null,
 }) {
   const client = getResendClient();
 
   const payload = {
-    from,
+    from: formatSender(from),
     to,
     subject,
   };
@@ -38,6 +39,9 @@ export async function sendEmailViaResend({
   if (html) payload.html = html;
   if (!payload.text && !payload.html) payload.html = "";
   if (replyTo) payload.replyTo = replyTo;
+  // Custom headers (List-Unsubscribe one-click, etc.) — Resend passes these
+  // through verbatim to the outgoing message.
+  if (headers && Object.keys(headers).length > 0) payload.headers = headers;
 
   const result = await client.emails.send(payload);
 

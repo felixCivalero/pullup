@@ -111,12 +111,6 @@ export async function settleByProviderRef({ provider, providerRef, outcome, rece
             productDeliveryUrl,
             productTitle: isProduct ? event.title : "",
             ...hostBrand,
-            brand: event.brand
-              ? {
-                  background: event.brand.backgroundColor || null,
-                  primaryColor: event.brand.buttonColor || null,
-                }
-              : {},
           }),
         });
       }

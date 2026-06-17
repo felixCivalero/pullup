@@ -50,18 +50,6 @@ function _hexToRgb(hex) {
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
-function _luminance(rgb) {
-  const lin = (c) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
-}
-function inkFor(bgHex) {
-  const rgb = _hexToRgb(bgHex);
-  if (!rgb) return "#0a0a0a";
-  return _luminance(rgb) > 0.5 ? "#0a0a0a" : "#ffffff";
-}
 function rgbaFromHex(hex, alpha) {
   const rgb = _hexToRgb(hex);
   if (!rgb) return `rgba(0,0,0,${alpha})`;
@@ -69,68 +57,31 @@ function rgbaFromHex(hex, alpha) {
 }
 
 /**
- * Build the email's token bundle from optional host-brand inputs. When
- * NOTHING was set, returns the legacy PullUp dark/gold theme + the
- * light-mode flip flag. When ANY field was set, returns the host's
- * brand resolved to all-tokens and disables the light-mode flip.
+ * The email's token bundle. Host-customizable email branding was removed —
+ * every transactional email now wears the PullUp default dark/gold look with
+ * the prefers-color-scheme: light flip (clean white in light inboxes). The
+ * `brand` argument is intentionally ignored; it remains in the signature only
+ * so the (now no-op) call sites don't need to change in lockstep.
  *
- * @param {object} brand   { primaryColor, background, textColor, fontFamily, logoUrl }
- * @returns {object}       { bg, ink, primary, primaryInk, primarySoft,
- *                           primarySoftBorder, muted, subtle, fontStack,
- *                           logoUrl, isCustom, lightModeFlip }
+ * @returns {object} { bg, ink, primary, primaryInk, primarySoft,
+ *                      primarySoftBorder, muted, subtle, fontStack,
+ *                      logoUrl, isCustom, lightModeFlip }
  */
-function resolveEmailBrand(brand = {}) {
-  const isCustom = !!(
-    brand?.primaryColor ||
-    brand?.background ||
-    brand?.textColor ||
-    brand?.fontFamily ||
-    brand?.logoUrl
-  );
-
-  if (!isCustom) {
-    return {
-      bg:                PULLUP_BG,
-      ink:               WHITE,
-      primary:           GOLD,
-      primaryLight:      GOLD_LIGHT,
-      primaryInk:        PULLUP_BG,
-      primarySoft:       "rgba(245,158,11,0.15)",
-      primarySoftBorder: "rgba(245,158,11,0.3)",
-      muted:             MUTED,
-      subtle:            SUBTLE,
-      fontStack:         DEFAULT_FONT_STACK,
-      logoUrl:           null,
-      isCustom:          false,
-      lightModeFlip:     true,
-    };
-  }
-
-  const bg          = brand.background    || "#ffffff";
-  const ink         = brand.textColor     || inkFor(bg);
-  const primary     = brand.primaryColor  || "#ec178f";
-  const primaryInk  = inkFor(primary);
-  const fontStack   = EMAIL_FONT_STACKS[brand.fontFamily] || DEFAULT_FONT_STACK;
-  // Derive muted/subtle from text color for legibility on the brand bg.
-  const muted       = rgbaFromHex(ink, 0.62);
-  const subtle      = rgbaFromHex(ink, 0.08);
-
+function resolveEmailBrand() {
   return {
-    bg,
-    ink,
-    primary,
-    primaryLight:      primary,
-    primaryInk,
-    primarySoft:       rgbaFromHex(primary, 0.14),
-    primarySoftBorder: rgbaFromHex(primary, 0.30),
-    muted,
-    subtle,
-    fontStack,
-    logoUrl:           brand.logoUrl || null,
-    isCustom:          true,
-    // Host-branded emails render the SAME in both light + dark inbox modes —
-    // their brand is the brand, no auto-flip.
-    lightModeFlip:     false,
+    bg:                PULLUP_BG,
+    ink:               WHITE,
+    primary:           GOLD,
+    primaryLight:      GOLD_LIGHT,
+    primaryInk:        PULLUP_BG,
+    primarySoft:       "rgba(245,158,11,0.15)",
+    primarySoftBorder: "rgba(245,158,11,0.3)",
+    muted:             MUTED,
+    subtle:            SUBTLE,
+    fontStack:         DEFAULT_FONT_STACK,
+    logoUrl:           null,
+    isCustom:          false,
+    lightModeFlip:     true,
   };
 }
 

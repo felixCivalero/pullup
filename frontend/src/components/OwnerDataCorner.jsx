@@ -1,9 +1,7 @@
-// The data-ownership corner — pinned top-right of the owner's room masthead.
-// Two directions of the same door:
-//   "All your data"     → GET /host/export, the whole slice as one file (out)
-//   "Bring your people" → the universal dump importer (in): any CSV, mapping
-//                          previewed and editable, deterministic validation,
-//                          idempotent commit, confetti.
+// Data-ownership primitives — the import (CSV "Bring your people") + export
+// ("All your data" → GET /host/export) doors. These now live in Settings →
+// Power & data (SettingsDataSection); they used to be pinned in the owner's
+// room masthead. ExportButton + ImportModal are exported for that section.
 import { useRef, useState } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
@@ -19,21 +17,7 @@ const pill = (fg, border, bg) => ({
   transition: "all 0.2s ease", whiteSpace: "nowrap",
 });
 
-export function OwnerDataCorner() {
-  const [importOpen, setImportOpen] = useState(false);
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-      <ExportButton />
-      <button onClick={() => setImportOpen(true)} style={pill(colors.secondary, colors.secondaryBorder, "#fff")}
-        title="Dump your data from any platform — we'll read it, you approve it, your room boots up warm.">
-        <Upload size={14} strokeWidth={2.4} /> Bring your people
-      </button>
-      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
-    </div>
-  );
-}
-
-function ExportButton() {
+export function ExportButton() {
   const [state, setState] = useState("idle");
   const run = async () => {
     if (state === "working") return;
@@ -77,7 +61,7 @@ const FIELD_LABELS = {
   linkedin: "LinkedIn", company: "Company", birthday: "Birthday", tags: "Tags",
 };
 
-function ImportModal({ onClose }) {
+export function ImportModal({ onClose }) {
   const [phase, setPhase] = useState("pick"); // pick | previewing | review | committing | done | error
   const [csvText, setCsvText] = useState(null);
   const [fileName, setFileName] = useState("");

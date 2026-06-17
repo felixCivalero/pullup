@@ -430,12 +430,6 @@ export function registerPaymentRoutes(app) {
                   currency: refund.currency || event.ticketCurrency || "usd",
                   isFullRefund,
                   ...hostBrand,
-                  brand: event.brand
-                    ? {
-                        background:   event.brand.backgroundColor || null,
-                        primaryColor: event.brand.buttonColor || null,
-                      }
-                    : {},
                 }),
               });
             }

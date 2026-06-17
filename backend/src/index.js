@@ -67,6 +67,7 @@ import { registerAdminEcosystemRoutes } from "./routes/adminEcosystem.js";
 import { registerAdminImpersonationRoutes } from "./routes/adminImpersonation.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
 import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
+import { registerNotificationRoutes } from "./routes/notifications.js";
 import { requestMetrics } from "./middleware/requestMetrics.js";
 import { captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
@@ -350,6 +351,9 @@ registerAdminIdeaRoutes(app);
 
 registerInternalMetricsRoutes(app);
 
+// Host notifications — opt-in, default-OFF, email-only daily digest prefs + test.
+registerNotificationRoutes(app);
+
 // ---------------------------
 // 404 + global error handlers
 // ---------------------------
@@ -503,7 +507,7 @@ app.listen(PORT, HOST, async () => {
       // 1. Find published events starting in the next 25 hours
       const { data: events, error: eventsErr } = await supabase
         .from("events")
-        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id, brand")
+        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id")
         .eq("status", "PUBLISHED")
         .gt("starts_at", now.toISOString())
         .lt("starts_at", windowEnd.toISOString());
@@ -604,12 +608,6 @@ app.listen(PORT, HOST, async () => {
             dateRevealHint: event.date_reveal_hint || "",
             revealHint: event.reveal_hint || "",
             ...hostBrand,
-            brand: event.brand
-              ? {
-                  background:   event.brand.backgroundColor || null,
-                  primaryColor: event.brand.buttonColor || null,
-                }
-              : {},
           });
           try {
             // Two-rail: a WhatsApp reminder for guests reachable + opted-in
@@ -659,4 +657,22 @@ app.listen(PORT, HOST, async () => {
   // The outbox idempotency key `reminder-24h-<eventId>-<personId>` dedupes BOTH
   // rails across the every-15-min ticks, so the recurring tick is safe.
   setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
+
+  /* ── Host daily digest ─────────────────────────────────────
+   * Opt-in, default-OFF, email-only. We tick HOURLY but each host's row
+   * carries last_sent_at; runDailyDigestTick only sends to hosts whose last
+   * send is NULL or older than ~20h, and only when there's real activity in
+   * the last 24h. So this is a near-no-op until a host opts in, and the 20h
+   * guard makes the hourly cadence safe (no double-send). One batched email
+   * per host per day, built from their own world. */
+  const DIGEST_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+  async function runDigestTick() {
+    try {
+      const { runDailyDigestTick } = await import("./services/notificationDigest.js");
+      await runDailyDigestTick();
+    } catch (err) {
+      console.error("[Digest] Unexpected error in runDigestTick:", err.message);
+    }
+  }
+  setInterval(runDigestTick, DIGEST_INTERVAL_MS);
 });

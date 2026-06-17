@@ -641,14 +641,6 @@ app.post(
                 dateRevealHint: event.dateRevealHint || "",
                 revealHint: event.revealHint || "",
                 ...hostBrand,
-                // Event's own brand snapshot (migration 047): backgroundColor →
-                // canvas, buttonColor → accent/button. {} → PullUp default.
-                brand: event.brand
-                  ? {
-                      background:   event.brand.backgroundColor || null,
-                      primaryColor: event.brand.buttonColor || null,
-                    }
-                  : {},
               }),
             },
             context: {
@@ -770,12 +762,6 @@ app.post(
               dateRevealHint: event.dateRevealHint || "",
               revealHint: event.revealHint || "",
               ...hostBrand,
-              brand: event.brand
-                ? {
-                    background:   event.brand.backgroundColor || null,
-                    primaryColor: event.brand.buttonColor || null,
-                  }
-                : {},
             }),
           },
           context: {

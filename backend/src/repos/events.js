@@ -159,10 +159,11 @@ export async function mapEventFromDb(dbEvent) {
     coverImageUrl: coverImageUrl || imageUrl,
     media,
     theme: dbEvent.theme,
-    // Per-event brand/theme snapshot (migration 047). NULL → frontend
-    // resolveBrand() falls back to the PullUp standard theme. Existing
-    // events created before this column have brand=null by design.
-    brand: dbEvent.brand || null,
+    // Generative AI hero scene (migration 104): { archetype, html, poster,
+    // params }. NULL → no custom hero (cover/standard look). This is the ONLY
+    // surviving piece of the old host "brand design" system; host-customizable
+    // visual theming was removed. `events.brand` is no longer read/written.
+    scene: dbEvent.scene || null,
     calendar: dbEvent.calendar_category,
     visibility: dbEvent.visibility,
     requireApproval: dbEvent.require_approval,
@@ -280,9 +281,9 @@ function mapEventToDb(eventData) {
   }
   if (eventData.kind !== undefined) dbData.kind = eventData.kind;
   if (eventData.theme !== undefined) dbData.theme = eventData.theme;
-  // Per-event brand snapshot (migration 047). A plain object of brand
-  // tokens, or null to clear back to the PullUp standard theme.
-  if (eventData.brand !== undefined) dbData.brand = eventData.brand;
+  // Generative AI hero scene (migration 104). { archetype, html, poster,
+  // params } or null. Replaces the old events.brand.design home for scenes.
+  if (eventData.scene !== undefined) dbData.scene = eventData.scene;
   if (eventData.calendar !== undefined)
     dbData.calendar_category = eventData.calendar;
   if (eventData.visibility !== undefined)
@@ -381,7 +382,7 @@ export const EDITABLE_EVENT_FIELDS = [
   "location", "locationLat", "locationLng", "locationPlaceId",
   "startsAt", "endsAt", "timezone",
   "maxAttendees", "waitlistEnabled", "instantWaitlist",
-  "imageUrl", "theme", "brand", "calendar", "visibility",
+  "imageUrl", "theme", "scene", "calendar", "visibility",
   "ticketType", "ticketPrice", "ticketCurrency", "requireApproval",
   "maxPlusOnesPerGuest",
   "dinnerEnabled", "dinnerStartTime", "dinnerEndTime", "dinnerSeatingIntervalHours",
@@ -425,8 +426,8 @@ export async function createEvent({
   waitlistEnabled = true,
   imageUrl = null,
   theme = "minimal",
-  // Per-event brand snapshot (migration 047). null = PullUp standard.
-  brand = null,
+  // Generative AI hero scene (migration 104). null = no custom hero.
+  scene = null,
   calendar = "personal",
   visibility = "public",
   ticketType = "free",
@@ -526,7 +527,7 @@ export async function createEvent({
     waitlistEnabled,
     imageUrl,
     theme,
-    brand: brand && typeof brand === "object" ? brand : null,
+    scene: scene && typeof scene === "object" ? scene : null,
     calendar,
     visibility,
     requireApproval,

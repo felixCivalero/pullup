@@ -100,90 +100,9 @@ const RsvpFieldInput = z.union([
   RsvpFieldSpecObject,
 ]);
 
-// Per-event theme snapshot (events.brand). Mirrors BrandThemeEditor: the page
-// canvas + the register button's color/text/font. Per-section fonts are edited
-// inside sections, not here. Omit for PullUp's standard dark theme; pass null to
-// clear an event back to standard.
-const BrandInput = z
-  .object({
-    backgroundColor: z
-      .string()
-      .optional()
-      .describe(
-        "Event page canvas color, hex (e.g. '#0a0617'). Omit for PullUp's standard dark (#05040a)."
-      ),
-    buttonColor: z
-      .string()
-      .optional()
-      .describe("Register/RSVP button background, hex (e.g. '#ec178f'). Default white."),
-    buttonTextColor: z
-      .string()
-      .optional()
-      .describe(
-        "Register button text color, hex. If omitted it's auto-set to black/white for contrast against buttonColor."
-      ),
-    buttonFontFamily: z
-      .string()
-      .optional()
-      .describe(
-        "Register button font — one of: Inter, DM Sans, Manrope, Space Grotesk, Outfit, Helvetica, Playfair Display, Lora, Cormorant Garamond, Georgia, Space Mono, IBM Plex Mono. Unknown names fall back to the default."
-      ),
-    design: z
-      .object({
-        archetype: z
-          .enum(["webgl"])
-          .optional()
-          .describe(
-            "Generative page-hero archetype. 'webgl' replaces the cover photo/video with a full-bleed ANIMATED shader background — use it when the host wants a bold, designed, 'crazy/3D/rave' look rather than a photo."
-          ),
-        params: z
-          .object({
-            colors: z
-              .array(z.string())
-              .optional()
-              .describe("2–3 hex colors driving the shader palette, e.g. ['#0a0617','#ec178f','#16e0c0']. Pull from the host's brand/vibe."),
-            intensity: z
-              .number()
-              .min(0)
-              .max(1)
-              .optional()
-              .describe("Motion/energy: 0 = calm drift, 1 = full rave. Default 0.6."),
-          })
-          .optional(),
-      })
-      .nullable()
-      .optional()
-      .describe(
-        "Generative design hero. Set archetype:'webgl' with a palette + intensity for an animated shader instead of a photo. NOTE: this whole `brand` object replaces the event's brand, so when setting design also include the existing brand colors/button fields from the current event state."
-      ),
-  })
-  .nullable()
-  .optional()
-  .describe(
-    "Per-event visual theme (colors + button font), snapshotted at save time. Pull the look from the host's IG/website — set the page background and the register button. Omit for PullUp's standard dark theme; pass null to clear back to standard."
-  );
-
-// Auto-contrast the button text if a button color was set without one, so the
-// MCP never produces a black-on-dark (unreadable) button. Mirrors the frontend's
-// pickTextColor (WCAG relative luminance).
-function hexLuminance(hex) {
-  const h = String(hex || "").trim().replace(/^#/, "");
-  const f = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-  if (!/^[0-9a-fA-F]{6}$/.test(f)) return null;
-  const ch = [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) / 255);
-  const lin = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  return 0.2126 * lin(ch[0]) + 0.7152 * lin(ch[1]) + 0.0722 * lin(ch[2]);
-}
-
-function normalizeBrand(brand) {
-  if (!brand || typeof brand !== "object") return brand;
-  const out = { ...brand };
-  if (out.buttonColor && !out.buttonTextColor) {
-    const lum = hexLuminance(out.buttonColor);
-    if (lum !== null) out.buttonTextColor = lum > 0.5 ? "#000000" : "#ffffff";
-  }
-  return out;
-}
+// (Brand-design theme input + helpers removed — host brand design is gone.
+//  The AI generative hero now lives in events.scene via the set_event_scene
+//  tool, not in a brand snapshot.)
 
 // ─── Event-page content: title typography + section blocks ────────────
 
@@ -356,7 +275,6 @@ const CreateEventInput = {
   theme: z.string().optional().describe(
     "Visual theme name (e.g. 'classic', 'minimal'). Affects the public page look."
   ),
-  brand: BrandInput,
   visibility: z.enum(["public", "private"]).optional().describe(
     "'public' = listed on the explore page; 'private' = link-only (host shares the URL). Default 'public'."
   ),
@@ -386,7 +304,7 @@ const UpdateEventInput = {
   startsAt: z.string().optional(),
 };
 
-// Generative hero scene (stored at events.brand.design, archetype "scene").
+// Generative hero scene (stored at events.scene, archetype "scene"; mig 104).
 const SceneInput = {
   slug: z.string().describe("The event's slug (from create_event or list_events)."),
   html: z
@@ -765,7 +683,6 @@ function buildHandlers(api, hostId) {
     if (extraRsvpFields !== undefined) {
       payload.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
-    if (payload.brand) payload.brand = normalizeBrand(payload.brand);
     if (Array.isArray(payload.sections)) payload.sections = normalizeSections(payload.sections);
     const event = await api("POST", "/events", { body: payload });
     const { completeness, performance, top } = await buildEventCoaching(event);
@@ -797,16 +714,8 @@ function buildHandlers(api, hostId) {
     if (extraRsvpFields !== undefined) {
       patch.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
-    if (patch.brand) {
-      // MERGE into the existing brand, don't replace it. The AI sends only the
-      // keys it's changing (e.g. vibe-matching colors/fonts to a freshly built
-      // hero), and a wholesale replace would wipe untouched keys — above all
-      // `design` (the generative scene set_event_scene just wrote). brand=null
-      // (falsy) still falls through and clears, which is intentional.
-      const full = await api("GET", `/host/events/${existing.id}`);
-      const current = (full && typeof full.brand === "object" && full.brand) || {};
-      patch.brand = normalizeBrand({ ...current, ...patch.brand });
-    }
+    // Host-customizable visual theming was removed; `brand` is no longer an
+    // editable field (the AI hero lives at events.scene via set_event_scene).
     const updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
 
     const newSlug = updated.slug || slug;
@@ -832,10 +741,11 @@ function buildHandlers(api, hostId) {
   }
 
   // Set a generative animated hero — the host's "go nuts" zone. Stores
-  // self-contained scene code (markup + <style>/<script>) at brand.design;
-  // the frontend renders it in a sandboxed iframe (it can look like anything
-  // but can't collect data or hit the network — see SceneFrame.jsx). Hero
-  // only; the rest of the page stays the trusted block/brand system.
+  // self-contained scene code (markup + <style>/<script>) at events.scene
+  // (migration 104; was events.brand.design); the frontend renders it in a
+  // sandboxed iframe (it can look like anything but can't collect data or hit
+  // the network — see SceneFrame.jsx). Hero only; the rest of the page stays
+  // the trusted block system.
   async function setEventScene(args) {
     const { slug, html, poster, palette } = args;
     if (!html || typeof html !== "string" || !html.trim()) {
@@ -845,24 +755,21 @@ function buildHandlers(api, hostId) {
       throw new Error("Scene is too large (>200KB). Keep the hero lean so it stays smooth on mobile.");
     }
     const existing = await resolveEventBySlug(slug);
-    // Merge into the brand snapshot so background/button stay intact.
+    // Read the prior scene so a palette-less re-author keeps the existing colors.
     const full = await api("GET", `/host/events/${existing.id}`);
-    const brand = (full && typeof full.brand === "object" && full.brand) || {};
-    // Palette (this call's, else whatever the previous design carried) drives
+    const priorScene = (full && typeof full.scene === "object" && full.scene) || {};
+    // Palette (this call's, else whatever the previous scene carried) drives
     // body vibe-matching + the still-fallback gradient.
     const colors = Array.isArray(palette) && palette.length
       ? palette.filter((c) => typeof c === "string").slice(0, 4)
-      : brand.design?.params?.colors || null;
-    const nextBrand = {
-      ...brand,
-      design: {
-        archetype: "scene",
-        html,
-        ...(poster ? { poster } : {}),
-        ...(colors ? { params: { colors } } : {}),
-      },
+      : priorScene.params?.colors || null;
+    const nextScene = {
+      archetype: "scene",
+      html,
+      ...(poster ? { poster } : {}),
+      ...(colors ? { params: { colors } } : {}),
     };
-    const updated = await api("PUT", `/host/events/${existing.id}`, { body: { brand: nextBrand } });
+    const updated = await api("PUT", `/host/events/${existing.id}`, { body: { scene: nextScene } });
     const status = updated.status || existing.status;
     return toolResultText(
       eventBanner({
@@ -2364,7 +2271,7 @@ export function buildTools(ctx) {
       name: "create_event",
       title: "Create a PullUp event",
       description:
-        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately. Build a rich page: `sections` for the styled body (text blocks, hosted-by credits, music embeds, per-block fonts/colors), `titleSettings` for title typography, and `brand` to theme the page (background + register-button color/text/font) — pull the look from the host's IG/website.",
+        "Creates a new event on PullUp. Defaults to DRAFT so the host can preview before going public. Returns the preview/share URLs. Pass status='PUBLISHED' to publish immediately. Build a rich page: `sections` for the styled body (text blocks, hosted-by credits, music embeds) and `titleSettings` for title typography. PullUp renders one clean default look — there is no per-event brand theming.",
       inputSchema: CreateEventInput,
       handler: h.createEvent,
     },
@@ -2372,7 +2279,7 @@ export function buildTools(ctx) {
       name: "update_event",
       title: "Update a PullUp event",
       description:
-        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `sections` to replace the page body (ordered content blocks), `titleSettings` for title typography, `brand` to re-theme (or brand=null to clear to PullUp standard). Note: `sections` REPLACES the whole body — pass the complete set of blocks you want, not just a delta. For tweaking one block on an existing rich page, the host's editor is better.",
+        "Updates fields on an existing event. Pass only the fields you want to change. Works on DRAFT and PUBLISHED events alike. Pass `sections` to replace the page body (ordered content blocks) and `titleSettings` for title typography. Note: `sections` REPLACES the whole body — pass the complete set of blocks you want, not just a delta. For tweaking one block on an existing rich page, the host's editor is better.",
       inputSchema: UpdateEventInput,
       handler: h.updateEvent,
     },

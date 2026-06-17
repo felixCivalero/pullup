@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { User, Tag, MapPin, PenLine, Sparkles, Camera, Instagram, Music2, Youtube, Linkedin, Twitter, Globe, Check, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { User, Tag, MapPin, PenLine, Sparkles, Camera, Instagram, Music2, Youtube, Linkedin, Twitter, Globe, X, Plus } from "lucide-react";
 import { colors } from "../theme/colors.js";
-import { authenticatedFetch } from "../lib/api.js";
 import { uploadProfileImage } from "../lib/imageUtils.js";
 import { PullupEyes } from "./PullupEyes.jsx";
 
@@ -59,17 +58,92 @@ function TextArea({ value, onChange, placeholder, rows = 3, maxLength }) {
   );
 }
 
-// One social link row — icon + a clean handle/url input.
-function SocialField({ icon: Icon, label, value, onChange, placeholder }) {
+const SOCIAL_DEFS = [
+  { key: "instagram", label: "Instagram", icon: Instagram, placeholder: "@yourhandle" },
+  { key: "tiktok", label: "TikTok", icon: Music2, placeholder: "@yourhandle" },
+  { key: "x", label: "X", icon: Twitter, placeholder: "@yourhandle" },
+  { key: "youtube", label: "YouTube", icon: Youtube, placeholder: "Channel URL" },
+  { key: "linkedin", label: "LinkedIn", icon: Linkedin, placeholder: "Profile URL" },
+  { key: "website", label: "Website", icon: Globe, placeholder: "yoursite.com" },
+];
+
+// Socials as add-on-demand rows + a dropdown to add more — keeps the profile
+// tight instead of always showing six mostly-empty fields. A row appears once
+// it has a value or the host explicitly adds it.
+function SocialLinks({ links, onChange }) {
+  const [added, setAdded] = useState([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const shown = SOCIAL_DEFS.filter(
+    (d) => (links?.[d.key] && String(links[d.key]).trim()) || added.includes(d.key),
+  );
+  const available = SOCIAL_DEFS.filter((d) => !shown.some((s) => s.key === d.key));
+
+  function add(key) { setAdded((a) => (a.includes(key) ? a : [...a, key])); setMenuOpen(false); }
+  function remove(key) { setAdded((a) => a.filter((k) => k !== key)); onChange(key, ""); }
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.surfaceMuted, color: colors.textMuted }}>
-        <Icon size={17} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: colors.textSubtle, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-        <TextField value={value} onChange={onChange} placeholder={placeholder} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {shown.map((d) => {
+        const Icon = d.icon;
+        return (
+          <div key={d.key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.surfaceMuted, color: colors.textMuted }}>
+              <Icon size={16} />
+            </div>
+            <input
+              value={links?.[d.key] || ""}
+              onChange={(e) => onChange(d.key, e.target.value)}
+              placeholder={`${d.label} — ${d.placeholder}`}
+              style={inputStyle}
+              onFocus={(e) => (e.target.style.borderColor = colors.accentBorder)}
+              onBlur={(e) => (e.target.style.borderColor = colors.borderStrong)}
+            />
+            <button
+              type="button"
+              onClick={() => remove(d.key)}
+              title={`Remove ${d.label}`}
+              style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textSubtle, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        );
+      })}
+
+      {available.length > 0 && (
+        <div style={{ position: "relative", alignSelf: "flex-start" }}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 999, border: `1px dashed ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+          >
+            <Plus size={14} /> Add a link
+          </button>
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 11, minWidth: 184, background: colors.backgroundCard, border: `1px solid ${colors.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(10,10,10,0.12)", padding: 6 }}>
+                {available.map((d) => {
+                  const Icon = d.icon;
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      onClick={() => add(d.key)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: "transparent", color: colors.text, fontSize: 13.5, fontWeight: 500, cursor: "pointer", textAlign: "left" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = colors.surfaceMuted)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <Icon size={15} style={{ color: colors.textSubtle }} /> {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -78,8 +152,7 @@ const cardStyle = {
   padding: 18,
   background: colors.surface,
   borderRadius: 14,
-  border: `1px solid ${colors.border}`,
-  boxShadow: "0 8px 30px rgba(10,10,10,0.06)",
+  border: `1px solid ${colors.borderFaint}`,
   display: "flex",
   flexDirection: "column",
   gap: 16,
@@ -90,19 +163,9 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [hoverPhoto, setHoverPhoto] = useState(false);
-  const [ig, setIg] = useState(null); // {connected, account} | null
   const fileRef = useRef(null);
 
   const links = user?.brandingLinks || {};
-
-  useEffect(() => {
-    let alive = true;
-    authenticatedFetch("/instagram/connection")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setIg(d); })
-      .catch(() => { if (alive) setIg(null); });
-    return () => { alive = false; };
-  }, []);
 
   function patch(updates) {
     setUser((prev) => ({ ...prev, ...updates }));
@@ -143,46 +206,11 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
     }
   }
 
-  async function connectInstagram() {
-    try {
-      const res = await authenticatedFetch("/instagram/connect-url");
-      if (!res.ok) { showToast?.("Instagram connect isn't available yet", "error"); return; }
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-      else showToast?.("Instagram connect isn't available yet", "error");
-    } catch {
-      showToast?.("Couldn't start Instagram connect", "error");
-    }
-  }
-
-  async function refreshIg() {
-    const d = await authenticatedFetch("/instagram/connection").then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    setIg(d);
-  }
-  async function setDefaultIg(id) {
-    await authenticatedFetch(`/instagram/connections/${id}/default`, { method: "POST" }).catch(() => {});
-    setIg((prev) => (prev ? { ...prev, accounts: (prev.accounts || []).map((a) => ({ ...a, isDefault: a.id === id })) } : prev));
-    showToast?.("Replies will send from this account", "success");
-  }
-  function saveIgLabel(id, label) {
-    const v = (label || "").trim();
-    authenticatedFetch(`/instagram/connections/${id}`, { method: "PATCH", body: JSON.stringify({ label: v }) }).catch(() => {});
-    setIg((prev) => (prev ? { ...prev, accounts: (prev.accounts || []).map((a) => (a.id === id ? { ...a, label: v } : a)) } : prev));
-  }
-  async function disconnectIg(id) {
-    if (!window.confirm("Disconnect this Instagram account?")) return;
-    await authenticatedFetch(`/instagram/connections/${id}`, { method: "DELETE" }).catch(() => {});
-    refreshIg();
-    showToast?.("Disconnected", "success");
-  }
-
   // Avatar inner — photo, else initials, else the eyes mark.
   const name = (user?.name || "").trim();
   const initials = name
     ? (name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("") || name.slice(0, 2)).toUpperCase()
     : null;
-
-  const igAccounts = ig?.accounts || [];
 
   return (
     <div>
@@ -198,52 +226,52 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
       <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} style={{ display: "none" }} />
 
       <div style={cardStyle}>
-        {/* Photo + name, side by side like a profile header */}
-        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            onMouseEnter={() => setHoverPhoto(true)}
-            onMouseLeave={() => setHoverPhoto(false)}
-            title="Change photo"
-            style={{ position: "relative", width: 84, height: 84, borderRadius: "50%", flexShrink: 0, border: "none", padding: 0, cursor: "pointer", overflow: "hidden", background: user?.profilePicture ? "transparent" : colors.text }}
-          >
-            {user?.profilePicture ? (
-              <img src={user.profilePicture} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : initials ? (
-              <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 28, fontWeight: 700 }}>{initials}</span>
-            ) : (
-              <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", background: colors.accentSoft }}>
-                <PullupEyes variant="small" style={{ width: 40, height: 32, display: "block" }} />
+        {/* Avatar + display name on one row */}
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              onMouseEnter={() => setHoverPhoto(true)}
+              onMouseLeave={() => setHoverPhoto(false)}
+              title="Change photo"
+              style={{ position: "relative", width: 72, height: 72, borderRadius: "50%", border: "none", padding: 0, cursor: "pointer", overflow: "hidden", background: user?.profilePicture ? "transparent" : colors.text }}
+            >
+              {user?.profilePicture ? (
+                <img src={user.profilePicture} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : initials ? (
+                <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 24, fontWeight: 700 }}>{initials}</span>
+              ) : (
+                <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", background: colors.accentSoft }}>
+                  <PullupEyes variant="small" style={{ width: 36, height: 28, display: "block" }} />
+                </span>
+              )}
+              <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", color: "#fff", opacity: hoverPhoto || uploadingPhoto ? 1 : 0, transition: "opacity 0.15s ease" }}>
+                <Camera size={18} />
               </span>
-            )}
-            <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", color: "#fff", opacity: hoverPhoto || uploadingPhoto ? 1 : 0, transition: "opacity 0.15s ease" }}>
-              <Camera size={20} />
-            </span>
-          </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: colors.text, marginBottom: 4 }}>
-              {uploadingPhoto ? "Uploading…" : "Profile photo"}
-            </div>
-            <div style={{ fontSize: 12.5, color: colors.textSubtle, lineHeight: 1.45 }}>
-              This is the face on your Room. A clear headshot or logo works best.
-            </div>
-            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ marginTop: 8, padding: "6px 14px", borderRadius: 999, border: `1px solid ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12.5, fontWeight: 600, cursor: uploadingPhoto ? "default" : "pointer" }}>
-              {user?.profilePicture ? "Change photo" : "Upload photo"}
+            </button>
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploadingPhoto} style={{ background: "none", border: "none", padding: 0, color: colors.textMuted, fontSize: 11.5, fontWeight: 600, cursor: uploadingPhoto ? "default" : "pointer" }}>
+              {uploadingPhoto ? "Uploading…" : user?.profilePicture ? "Change" : "Upload"}
             </button>
           </div>
+          <label style={{ flex: 1, minWidth: 0 }}>
+            <div style={labelStyle}><User size={12} style={{ color: colors.textSubtle }} /> Display name</div>
+            <TextField value={user?.name} onChange={(v) => patch({ name: v })} placeholder="Your name" />
+          </label>
         </div>
 
-        <label style={{ display: "block" }}>
-          <div style={labelStyle}><User size={12} style={{ color: colors.textSubtle }} /> Display name</div>
-          <TextField value={user?.name} onChange={(v) => patch({ name: v })} placeholder="Your name" />
-        </label>
-
-        <label style={{ display: "block" }}>
-          <div style={labelStyle}><PenLine size={12} style={{ color: colors.textSubtle }} /> Bio</div>
-          <TextArea value={user?.bio} onChange={(v) => patch({ bio: v })} rows={2} maxLength={160} placeholder="One line on who you are — e.g. I throw rooftop listening nights in Stockholm." />
-          <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 4, textAlign: "right" }}>{(user?.bio || "").length}/160</div>
-        </label>
+        {/* About you + What you host — side by side on desktop, stacked on mobile */}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <label style={{ display: "block", flex: "1 1 260px" }}>
+            <div style={labelStyle}><PenLine size={12} style={{ color: colors.textSubtle }} /> About you</div>
+            <TextArea value={user?.bio} onChange={(v) => patch({ bio: v })} rows={2} maxLength={240} placeholder="A line or two on who you are — e.g. I throw rooftop listening nights in Stockholm." />
+            <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 4, textAlign: "right" }}>{(user?.bio || "").length}/240</div>
+          </label>
+          <label style={{ display: "block", flex: "1 1 260px" }}>
+            <div style={labelStyle}><Sparkles size={12} style={{ color: colors.textSubtle }} /> What you host</div>
+            <TextArea value={user?.hostBrief} onChange={(v) => patch({ hostBrief: v })} rows={2} placeholder="What kinds of events, who they're for, where you want to take this. Tunes your PullUp coach." />
+          </label>
+        </div>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <label style={{ display: "block", flex: "1 1 200px" }}>
@@ -258,82 +286,15 @@ export function SettingsProfileSection({ user, setUser, onSave, showToast }) {
       </div>
 
       {/* WHERE PEOPLE FIND YOU — social links */}
-      <div style={{ marginTop: 24, marginBottom: 14 }}>
+      <div style={{ marginTop: 18, marginBottom: 12 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, color: colors.text }}>Where people find you</h3>
-        <p style={{ fontSize: 13, color: colors.textMuted }}>The links that show up on your event pages — the rooms next door to PullUp.</p>
+        <p style={{ fontSize: 13, color: colors.textMuted }}>Just links shown on your pages — your Instagram, site, and socials.</p>
       </div>
       <div style={cardStyle}>
-        <SocialField icon={Instagram} label="Instagram" value={links.instagram} onChange={(v) => patchLink("instagram", v)} placeholder="@yourhandle" />
-        <SocialField icon={Music2} label="TikTok" value={links.tiktok} onChange={(v) => patchLink("tiktok", v)} placeholder="@yourhandle" />
-        <SocialField icon={Twitter} label="X" value={links.x} onChange={(v) => patchLink("x", v)} placeholder="@yourhandle" />
-        <SocialField icon={Youtube} label="YouTube" value={links.youtube} onChange={(v) => patchLink("youtube", v)} placeholder="Channel URL" />
-        <SocialField icon={Linkedin} label="LinkedIn" value={links.linkedin} onChange={(v) => patchLink("linkedin", v)} placeholder="Profile URL" />
-        <SocialField icon={Globe} label="Website" value={links.website} onChange={(v) => patchLink("website", v)} placeholder="yoursite.com" />
+        <SocialLinks links={links} onChange={patchLink} />
       </div>
 
-      {/* CONNECTED — Instagram accounts (personal + business, pick reply-from) */}
-      <div style={{ marginTop: 24, marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, color: colors.text }}>Connected accounts</h3>
-        <p style={{ fontSize: 13, color: colors.textMuted }}>Connect Instagram to reach guests in their DMs from your Room. Add a personal and a business account, and choose which one your replies send from.</p>
-      </div>
-      <div style={{ ...cardStyle, padding: 0, gap: 0 }}>
-        {ig == null ? (
-          <div style={{ padding: 16, fontSize: 13, color: colors.textSubtle }}>Checking…</div>
-        ) : igAccounts.length === 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 16 }}>
-            <span style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.surfaceMuted, color: colors.textMuted }}><Instagram size={20} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: colors.text }}>Instagram</div>
-              <div style={{ fontSize: 12.5, color: colors.textMuted }}>Not connected yet</div>
-            </div>
-            <button type="button" onClick={connectInstagram} style={{ padding: "10px 20px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Connect</button>
-          </div>
-        ) : (
-          <>
-            {igAccounts.map((a, i) => (
-              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderTop: i ? `1px solid ${colors.borderFaint}` : "none" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.accentSoft, color: colors.accent }}><Instagram size={18} /></span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, fontWeight: 650, color: colors.text }}>@{a.ig_username || "account"}</span>
-                    {a.isDefault && <span style={{ fontSize: 10, fontWeight: 700, color: colors.accent, background: colors.accentSoft, padding: "2px 7px", borderRadius: 999 }}>Replies send from here</span>}
-                  </div>
-                  <input
-                    defaultValue={a.label || ""}
-                    placeholder="Label — e.g. Personal or Business"
-                    onBlur={(e) => saveIgLabel(a.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                    style={{ marginTop: 5, width: "100%", maxWidth: 260, boxSizing: "border-box", border: `1px solid ${colors.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12.5, color: colors.text, outline: "none" }}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  {!a.isDefault && (
-                    <button type="button" onClick={() => setDefaultIg(a.id)} style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Reply from this</button>
-                  )}
-                  <button type="button" onClick={() => disconnectIg(a.id)} title="Disconnect" style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={14} /></button>
-                </div>
-              </div>
-            ))}
-            <div style={{ padding: "12px 16px", borderTop: `1px solid ${colors.borderFaint}` }}>
-              <button type="button" onClick={connectInstagram} style={{ padding: "8px 14px", borderRadius: 999, border: `1px dashed ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>+ Connect another account</button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* WHAT YOU HOST — the coach brief */}
-      <div style={{ marginTop: 24, marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, color: colors.text }}>What you host</h3>
-        <p style={{ fontSize: 13, color: colors.textMuted }}>A few lines on your world. Your PullUp coach uses this to tune every suggestion to you.</p>
-      </div>
-      <div style={cardStyle}>
-        <label style={{ display: "block" }}>
-          <div style={labelStyle}><Sparkles size={12} style={{ color: colors.textSubtle }} /> Your brief</div>
-          <TextArea value={user?.hostBrief} onChange={(v) => patch({ hostBrief: v })} rows={4} placeholder="What kinds of events, who they're for, and where you want to take this." />
-        </label>
-      </div>
-
-      {/* One save bar for everything text-based (photo + IG connect save themselves) */}
+      {/* One save bar for everything text-based (photo saves itself) */}
       {dirty && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, position: "sticky", bottom: 12 }}>
           <button

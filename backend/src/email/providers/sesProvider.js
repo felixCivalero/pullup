@@ -7,6 +7,7 @@ import {
   SES_FROM_EMAIL,
   SES_CONFIGURATION_SET_NAME,
   SES_TEST_MODE,
+  formatSender,
 } from "../config.js";
 
 let sesClient = null;
@@ -34,6 +35,7 @@ export async function sendEmailViaSes({
   text,
   tags = {},
   replyTo = null,
+  headers = null,
 }) {
   if (!to) {
     throw new Error("[sesProvider] 'to' is required");
@@ -82,16 +84,27 @@ export async function sendEmailViaSes({
     body.Text = { Data: text ?? "", Charset: "UTF-8" };
   }
 
+  const simple = {
+    Subject: { Data: subject, Charset: "UTF-8" },
+    Body: body,
+  };
+
+  // Custom headers (e.g. List-Unsubscribe + List-Unsubscribe-Post for RFC 8058
+  // one-click). SESv2 carries these on Content.Simple.Headers.
+  if (headers && Object.keys(headers).length > 0) {
+    simple.Headers = Object.entries(headers).map(([Name, Value]) => ({
+      Name,
+      Value: String(Value),
+    }));
+  }
+
   const input = {
     Destination: {
       ToAddresses: [to],
     },
-    FromEmailAddress: from,
+    FromEmailAddress: formatSender(from),
     Content: {
-      Simple: {
-        Subject: { Data: subject, Charset: "UTF-8" },
-        Body: body,
-      },
+      Simple: simple,
     },
   };
 

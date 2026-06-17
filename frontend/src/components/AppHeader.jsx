@@ -137,11 +137,14 @@ export function AppHeader() {
           <button
             onClick={() => handleNav("/settings")}
             aria-label="Settings"
-            style={{ width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.2s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = colors.surfaceMuted; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            aria-current={isActive("/settings") ? "page" : undefined}
+            style={{ width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, borderRadius: "999px", border: `1px solid ${isActive("/settings") ? colors.accentBorder : colors.border}`, background: isActive("/settings") ? colors.accentSoft : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.2s, border-color 0.2s" }}
+            onMouseEnter={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = colors.surfaceMuted; }}
+            onMouseLeave={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = "transparent"; }}
           >
-            <SilverIcon as={Settings} size={isMobile ? 17 : 16} />
+            {isActive("/settings")
+              ? <Settings size={isMobile ? 17 : 16} color={colors.accent} />
+              : <SilverIcon as={Settings} size={isMobile ? 17 : 16} />}
           </button>
 
           {/* Mobile admin badge → a compact gold popover with the admin surfaces

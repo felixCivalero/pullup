@@ -1361,15 +1361,6 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
               dateRevealHint: result.event.dateRevealHint || "",
               revealHint: result.event.revealHint || "",
               ...hostBrand,
-              // Visual brand for the email = the EVENT's own snapshot
-              // (migration 047): backgroundColor → canvas, buttonColor →
-              // accent/button. {} → PullUp defaults.
-              brand: result.event.brand
-                ? {
-                    background:   result.event.brand.backgroundColor || null,
-                    primaryColor: result.event.brand.buttonColor || null,
-                  }
-                : {},
             }),
           },
           context: {
@@ -1457,12 +1448,6 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             dateRevealHint: result.event.dateRevealHint || "",
             revealHint: result.event.revealHint || "",
             ...hostBrand,
-            brand: result.event.brand
-              ? {
-                  background:   result.event.brand.backgroundColor || null,
-                  primaryColor: result.event.brand.buttonColor || null,
-                }
-              : {},
           }),
         });
       } catch (emailErr) {

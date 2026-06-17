@@ -226,7 +226,7 @@ export function EventPreview({
           maxWidth: "100%",
           height: "100%",
           overflow: "hidden",
-          background: "var(--brand-bg, #05040a)",
+          background: "#05040a",
           display: "flex",
           flexDirection: "column",
         }}
@@ -361,7 +361,7 @@ export function EventPreview({
               return (
                 <div style={{
                   position: "absolute", inset: 0, zIndex: 0,
-                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), var(--brand-bg, #05040a)",
+                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
                 }} />
               );
             })()}
@@ -381,7 +381,7 @@ export function EventPreview({
 
             <div style={{
               position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
-              background: "linear-gradient(to bottom, transparent 0%, rgba(5,4,10,0.6) 60%, var(--brand-bg, #05040a) 100%)",
+              background: "linear-gradient(to bottom, transparent 0%, rgba(5,4,10,0.6) 60%, #05040a 100%)",
               pointerEvents: "none", zIndex: 1,
             }} />
 
@@ -416,7 +416,7 @@ export function EventPreview({
             onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "section" }) : undefined}
             onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
             style={{
-            background: "var(--brand-bg, #05040a)",
+            background: "#05040a",
             padding: `28px 20px ${rsvpContent ? "8px" : `${CTA_BAR_HEIGHT}px`}`,
             minHeight: hasContent ? "40%" : undefined,
           }}>
@@ -450,7 +450,7 @@ export function EventPreview({
               onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
               style={{
                 position: "relative",
-                background: "var(--brand-bg, #05040a)",
+                background: "#05040a",
                 padding: `0 20px max(20px, env(safe-area-inset-bottom, 20px))`,
               }}
             >
@@ -477,14 +477,14 @@ export function EventPreview({
                 height: `${CTA_BAR_HEIGHT}px`,
                 boxSizing: "border-box",
                 padding: "12px 0",
-                borderTop: "1px solid var(--brand-hairline, rgba(255, 255, 255, 0.08))",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--brand-on-bg, #fff)" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
                     {eyebrowLabel}
                   </div>
                   {formattedDate && (
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brand-on-bg, #fff)", opacity: 0.7, marginTop: "1px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#fff", opacity: 0.7, marginTop: "1px" }}>
                       {formattedDate}
                     </div>
                   )}
@@ -492,9 +492,9 @@ export function EventPreview({
               </div>
 
               {/* Title/location + form */}
-              <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--brand-hairline, rgba(255,255,255,0.08))" }}>
-                {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--brand-on-bg, #fff)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
-                {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "var(--brand-on-bg, #fff)", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
+              <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+                {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "#fff", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
               </div>
               {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
             </div>
@@ -541,8 +541,8 @@ export function EventPreview({
               onClick={(rsvpContent || externalUrl) ? handleCta : undefined}
               style={{
                 padding: "12px 24px",
-                background: "var(--brand-primary, #fff)", color: "var(--brand-ink-on-primary, #000)", border: "none", borderRadius: "4px",
-                fontFamily: "var(--brand-btn-font, inherit)",
+                background: "#fff", color: "#000", border: "none", borderRadius: "4px",
+                fontFamily: "inherit",
                 fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
                 cursor: (!rsvpContent && !externalUrl) ? "not-allowed" : "pointer",
                 opacity: (!rsvpContent && !externalUrl) ? 0.5 : 1,

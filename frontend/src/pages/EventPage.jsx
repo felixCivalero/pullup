@@ -42,7 +42,6 @@ import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA"
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
-import { softColor, pickTextColor, fontStack, loadFont } from "../lib/brand.js";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
 
@@ -353,36 +352,8 @@ export function EventPage() {
     return spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 0;
   }, [event]);
 
-  // Per-event theme (migration 047), snapshotted on the event: the page
-  // background + the register button's color / text color / font. null →
-  // PullUp standard. Date & other text colors are per-section (read straight
-  // off each section). Surfaced as CSS vars so children read var(--brand-*).
-  const backgroundColor = event?.hostBrand?.backgroundColor || "#05040a";
-  const buttonColor = event?.hostBrand?.buttonColor || "#ffffff";
-  const buttonTextColor =
-    event?.hostBrand?.buttonTextColor ||
-    (event?.hostBrand?.buttonColor ? pickTextColor(event.hostBrand.buttonColor) : "#000000");
-  const buttonFont = event?.hostBrand?.buttonFontFamily || null;
-  useEffect(() => {
-    if (buttonFont) loadFont(buttonFont);
-  }, [buttonFont]);
-  const brandCssVars = useMemo(
-    () => ({
-      "--brand-bg":              backgroundColor,
-      "--brand-primary":         buttonColor,
-      "--brand-primary-soft":    softColor(buttonColor, 0.14),
-      "--brand-primary-border":  softColor(buttonColor, 0.30),
-      "--brand-ink-on-primary":  buttonTextColor,
-      "--brand-btn-font":        buttonFont ? (fontStack(buttonFont) || "inherit") : "inherit",
-      // Auto-contrast ink for chrome that sits directly on the background
-      // (recap strip + RSVP form), so it reads on any bg. Tiered via opacity.
-      "--brand-on-bg":           pickTextColor(backgroundColor),
-      "--brand-on-bg-soft":      softColor(pickTextColor(backgroundColor), 0.6),
-      "--brand-on-bg-faint":     softColor(pickTextColor(backgroundColor), 0.4),
-      "--brand-hairline":        softColor(pickTextColor(backgroundColor), 0.14),
-    }),
-    [backgroundColor, buttonColor, buttonTextColor, buttonFont],
-  );
+  // Standard PullUp dark guest theme.
+  const backgroundColor = "#05040a";
 
   // Detect mobile file-sharing support (for "Add to Story" button)
   useEffect(() => {
@@ -978,7 +949,6 @@ export function EventPage() {
           overflow: "hidden",
           background: backgroundColor,
           color: "#fff",
-          ...brandCssVars,
         }}
       >
         {(() => {
@@ -1059,7 +1029,7 @@ export function EventPage() {
             tiktok: event?.tiktok,
             soundcloud: event?.soundcloud,
             sections: event?.sections || [],
-            design: event?.brand?.design || null,
+            design: event?.scene || null,
             hideLocation: event?.hideLocation,
             hideDate: event?.hideDate,
             revealHint: event?.revealHint,

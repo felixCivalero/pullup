@@ -23,7 +23,6 @@ import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { AppHeader } from "../components/AppHeader.jsx";
 import { OwnerConsole } from "./RoomPage.jsx";
 import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
-import { OwnerDataCorner } from "../components/OwnerDataCorner.jsx";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -189,7 +188,7 @@ export default function NodeProfilePage() {
         <AppHeader />
         <div style={{ minHeight: "100dvh", background: colors.background, color: colors.text, fontFamily: SF }}>
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "calc(78px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px))" }}>
-            <Masthead node={node} onCount={setPopup} ownerAction={<OwnerDataCorner />} />
+            <Masthead node={node} onCount={setPopup} />
             <OwnerConsole room={data.console} />
           </div>
         </div>
@@ -203,7 +202,7 @@ export default function NodeProfilePage() {
     <Shell>
       {/* Only the host (owner) can tap the counts to open the people/events/
           pull-ups lists — visitors see the numbers, never the underlying lists. */}
-      <Masthead node={node} onCount={isOwner ? setPopup : undefined} ownerAction={isOwner && !asEmail ? <OwnerDataCorner /> : null} />
+      <Masthead node={node} onCount={isOwner ? setPopup : undefined} />
 
       {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
 

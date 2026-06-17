@@ -33,11 +33,11 @@ function TermsAgreement({ checked, onChange }) {
         minHeight: 52,
         borderRadius: 12,
         border: checked
-          ? "1.5px solid var(--brand-primary, #fbbf24)"
-          : "1.5px solid var(--brand-on-bg-soft, rgba(255,255,255,0.45))",
+          ? "1.5px solid #ec178f"
+          : "1.5px solid rgba(255,255,255,0.45)",
         background: checked
-          ? "var(--brand-primary-soft, rgba(251,191,36,0.10))"
-          : "var(--brand-on-bg-faint-bg, rgba(255,255,255,0.04))",
+          ? "rgba(236,23,143,0.10)"
+          : "rgba(255,255,255,0.04)",
         transition: "border-color 120ms ease, background-color 120ms ease",
       }}
     >
@@ -60,24 +60,24 @@ function TermsAgreement({ checked, onChange }) {
             width: 22, height: 22, borderRadius: 6, boxSizing: "border-box",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             border: checked
-              ? "1.5px solid var(--brand-primary, #fbbf24)"
-              : "1.5px solid var(--brand-on-bg-soft, rgba(255,255,255,0.55))",
-            background: checked ? "var(--brand-primary, #fbbf24)" : "transparent",
+              ? "1.5px solid #ec178f"
+              : "1.5px solid rgba(255,255,255,0.55)",
+            background: checked ? "#ec178f" : "transparent",
             transition: "background-color 120ms ease, border-color 120ms ease",
           }}
         >
           {checked && (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-ink-on-primary, #1a1a1a)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           )}
         </span>
       </span>
-      <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "var(--brand-on-bg, #fff)", fontWeight: 500 }}>
+      <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "#fff", fontWeight: 500 }}>
         I agree to the{" "}
-        <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-primary, #fbbf24)", textDecoration: "underline" }}>terms</a>
+        <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#ec178f", textDecoration: "underline" }}>terms</a>
         {" "}and{" "}
-        <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "var(--brand-primary, #fbbf24)", textDecoration: "underline" }}>privacy policy</a>
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#ec178f", textDecoration: "underline" }}>privacy policy</a>
       </span>
     </div>
   );
@@ -942,7 +942,7 @@ export function RsvpForm({
           {!pendingPayment && PaymentFormComponent && (
             <>
               <TermsAgreement checked={marketingOptIn} onChange={setMarketingOptIn} />
-              <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.4))", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "-4px 2px 10px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>
               <button
@@ -1094,7 +1094,7 @@ export function RsvpForm({
           {!(isPaidEvent && ticketPrice && !willGoToWaitlist) && (
             <>
               <TermsAgreement checked={marketingOptIn} onChange={setMarketingOptIn} />
-              <p style={{ fontSize: 11, color: "var(--brand-on-bg-faint, rgba(255,255,255,0.35))", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "0 2px 16px", lineHeight: 1.5, textAlign: "left" }}>
                 The organiser may occasionally email you about future events you might like — unsubscribe anytime. We never sell your details or share them with other organisers.
               </p>
             </>
@@ -1256,9 +1256,9 @@ const inputStyle = {
   padding: "12px 0",
   borderRadius: "0",
   border: "none",
-  borderBottom: "1px solid var(--brand-hairline, rgba(255, 255, 255, 0.12))",
+  borderBottom: "1px solid rgba(255,255,255,0.12)",
   background: "transparent",
-  color: "var(--brand-on-bg, #fff)",
+  color: "#fff",
   fontSize: "15px",
   outline: "none",
   boxSizing: "border-box",
@@ -1271,7 +1271,7 @@ const inputStyle = {
 const fieldLabelStyle = {
   fontSize: "11px",
   fontWeight: 600,
-  color: "var(--brand-on-bg-soft, rgba(255,255,255,0.55))",
+  color: "rgba(255,255,255,0.55)",
   textTransform: "uppercase",
   letterSpacing: "0.08em",
 };
@@ -1291,9 +1291,9 @@ function submitButtonStyle(disabled) {
     // set on the event-page container. Falls back to white/black/inherit.
     background: disabled
       ? "rgba(255, 255, 255, 0.08)"
-      : "var(--brand-primary, #fff)",
-    color: disabled ? "rgba(255, 255, 255, 0.4)" : "var(--brand-ink-on-primary, #000)",
-    fontFamily: "var(--brand-btn-font, inherit)",
+      : "#fff",
+    color: disabled ? "rgba(255, 255, 255, 0.4)" : "#000",
+    fontFamily: "inherit",
     fontSize: "14px",
     fontWeight: 800,
     letterSpacing: "0.06em",

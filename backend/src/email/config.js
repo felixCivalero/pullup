@@ -16,6 +16,16 @@ export const SES_REGION = process.env.SES_REGION || null;
 export const SES_FROM_EMAIL =
   process.env.SES_FROM_EMAIL || '"PullUp" <no-reply@pullup.se>';
 
+// The display name guests/hosts see as the sender. A bare from-address (e.g.
+// the box env is just "noreply@pullup.se") gets wrapped so the inbox shows
+// "PullUp", not the raw address. Pass-through if a display name is already set.
+export const SENDER_NAME = process.env.EMAIL_SENDER_NAME || "PullUp";
+export function formatSender(from) {
+  const v = (from || "").trim();
+  if (!v || v.includes("<")) return v || SES_FROM_EMAIL;
+  return `"${SENDER_NAME}" <${v}>`;
+}
+
 export const SES_CONFIGURATION_SET_NAME =
   process.env.SES_CONFIGURATION_SET_NAME || null;
 

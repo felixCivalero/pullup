@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl, formatCoordinates } from "../lib/urlUtils";
-import { fontStack, loadFont } from "../lib/brand.js";
 import { ProductDelivery } from "./ProductDelivery.jsx";
 
 // Each embed helper PARSES the URL and only emits an iframe src whose host
@@ -160,13 +159,6 @@ export function EventPageContent({
     );
   };
 
-  // Per-section theming (migration 047): each section may carry its own
-  // `fontFamily` (curated font name) + `fontColor`. Lazy-load any webfonts
-  // those sections reference so they render in the real face.
-  useEffect(() => {
-    sections.forEach((s) => { if (s?.fontFamily) loadFont(s.fontFamily); });
-  }, [sections]);
-
   // Fallback: no sections defined, show legacy layout
   if (!sections || sections.length === 0) {
     return (
@@ -189,9 +181,10 @@ export function EventPageContent({
     <>
       {sections.map((section, i) => {
         const isHovered = hoveredSection === i;
-        // Per-section overrides (migration 047). undefined → inherit/default.
-        const sFamily = section.fontFamily ? fontStack(section.fontFamily) : undefined;
-        const sColor = section.fontColor || null;
+        // Brand-design removed: sections wear the standard dark theme (white
+        // text, inherited font). Defaults below resolve to the page look.
+        const sFamily = undefined;
+        const sColor = null;
         const editLit = editable && editHover === i;
         return (
         <div

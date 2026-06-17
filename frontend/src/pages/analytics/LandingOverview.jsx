@@ -96,10 +96,11 @@ export function LandingOverview({ dateRange }) {
     [visitDays]
   );
 
-  const landingSignupsByDate = useMemo(() => {
+  // The real front-door conversion now: creators joining the waitlist.
+  const waitlistJoinsByDate = useMemo(() => {
     const map = {};
-    for (const row of data?.signupSeries || []) {
-      if (row.origin === "landing") map[row.day] = (map[row.day] || 0) + row.signups;
+    for (const row of data?.waitlistSeries || []) {
+      map[row.day] = (map[row.day] || 0) + Number(row.joins || 0);
     }
     return map;
   }, [data]);
@@ -138,7 +139,8 @@ export function LandingOverview({ dateRange }) {
   const k = data.kpis || {};
   const sessions = Number(k.sessions || 0);
   const bounceRate = sessions > 0 ? pct(Number(k.bouncedSessions || 0), sessions) : null;
-  const conversion = k.visitors ? ((k.landingSignups / k.visitors) * 100).toFixed(1) : "0.0";
+  const waitlistJoins = Number(k.waitlistJoins || 0);
+  const conversion = k.visitors ? ((waitlistJoins / k.visitors) * 100).toFixed(1) : "0.0";
   const matrix = data.originMatrix || {};
   const funnel = data.ctaFunnel || {};
   const device = data.deviceSplit || {};
@@ -157,8 +159,9 @@ export function LandingOverview({ dateRange }) {
             color={colors.textMuted}
             hint={sessions === 0 ? "collecting from the new tracker" : null}
           />
-          <Kpi value={Number(k.landingSignups || 0).toLocaleString()} label="host signups" color={colors.accent} change={pctChange(k.landingSignups, k.prevLandingSignups)} />
-          <Kpi value={`${conversion}%`} label="visit → host signup" color={colors.secondary} />
+          <Kpi value={waitlistJoins.toLocaleString()} label="waitlist joins" color={colors.accent} change={pctChange(waitlistJoins, k.prevWaitlistJoins)} />
+          <Kpi value={`${conversion}%`} label="visit → waitlist" color={colors.secondary} />
+          <Kpi value={Number(k.landingSignups || 0).toLocaleString()} label="host signups" color={colors.textMuted} change={pctChange(k.landingSignups, k.prevLandingSignups)} />
           {(device.mobile > 0 || device.desktop > 0) && (
             <DeviceDonut mobile={Number(device.mobile || 0)} desktop={Number(device.desktop || 0)} />
           )}
@@ -173,9 +176,9 @@ export function LandingOverview({ dateRange }) {
             daily={visitDays}
             allSources={allSources}
             lineOverlay={{
-              byDate: landingSignupsByDate,
+              byDate: waitlistJoinsByDate,
               color: colors.accent,
-              label: "host signups",
+              label: "waitlist joins",
             }}
           />
         </div>
@@ -189,7 +192,7 @@ export function LandingOverview({ dateRange }) {
 
       {/* ─── CTA funnel ─── */}
       <div style={{ marginBottom: 28 }}>
-        <SectionLabel>From visit to host</SectionLabel>
+        <SectionLabel>From visit to the waitlist</SectionLabel>
         <CtaFunnel funnel={funnel} locations={data.ctaLocations || []} />
       </div>
 
@@ -277,9 +280,8 @@ function ScrollStory({ sections, baseline }) {
 function CtaFunnel({ funnel, locations }) {
   const stages = [
     { key: "viewed", label: "Visited" },
-    { key: "ctaClicked", label: "Clicked a CTA" },
-    { key: "authStarted", label: "Started signup" },
-    { key: "signedIn", label: "Signed in" },
+    { key: "ctaClicked", label: "Clicked “Join”" },
+    { key: "waitlistJoined", label: "Joined waitlist" },
   ];
   const base = Number(funnel.viewed || 0) || 1;
   return (

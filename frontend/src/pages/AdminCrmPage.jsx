@@ -19,6 +19,7 @@ import {
   X,
   GitMerge,
   Send,
+  Upload,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { authenticatedFetch } from "../lib/api.js";
@@ -36,6 +37,7 @@ const ROLE_META = {
   guest: { label: "Guest", color: colors.secondary },
   pulledup: { label: "Pulled up", color: "#16a34a" },
   community: { label: "Community", color: "#2563eb" },
+  imported: { label: "Imported", color: "#64748b" },
 };
 
 // Segment chips / filters — the order the list offers. `all` is implicit.
@@ -47,6 +49,7 @@ const SEGMENTS = [
   { key: "guest", label: "Guests" },
   { key: "pulledup", label: "Pulled up" },
   { key: "community", label: "Community" },
+  { key: "imported", label: "Imported" },
 ];
 
 const PAGE_SIZE = 50;
@@ -152,6 +155,13 @@ function PersonSignal({ p }) {
     bits.push(
       <span key="w" style={sigStyle}>
         <Clock size={11} /> waitlist · {p.waitlist.status}
+      </span>,
+    );
+  }
+  if (p.imported) {
+    bits.push(
+      <span key="i" style={sigStyle}>
+        <Upload size={11} /> imported{typeof p.imported === "string" ? ` · ${p.imported}` : ""}
       </span>,
     );
   }
@@ -274,7 +284,7 @@ export function AdminCrmPage() {
             Ecosystem
           </h1>
           <p style={{ margin: "4px 0 0", fontSize: 13, color: colors.textSubtle }}>
-            Every human in PullUp's world — waitlist, hosts, guests, pull-ups and community, one person per row.
+            Every human in PullUp's world — waitlist, hosts, guests, pull-ups, community and imports, one person per row.
           </p>
         </div>
 
@@ -302,6 +312,7 @@ export function AdminCrmPage() {
                 { key: "pulledup", label: "Pulled up", value: funnel.audience.pulledUp, accent: ROLE_META.pulledup.color },
                 { key: "community", label: "Community", value: funnel.audience.community, accent: ROLE_META.community.color },
               ]}
+              extra={{ key: "imported", label: "Imported", value: funnel.audience.imported, accent: ROLE_META.imported.color, hint: "Added via contact import" }}
               segment={segment}
               onPick={setSegment}
             />

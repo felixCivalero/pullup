@@ -56,6 +56,7 @@ export async function getEcosystemFunnel() {
     eventHostsRes,
     leadsRes,
     peopleRes,
+    importedRes,
     rsvps,
     community,
   ] = await Promise.all([
@@ -64,6 +65,7 @@ export async function getEcosystemFunnel() {
     supabase.from("events").select("id, host_id, kind"),
     supabase.from("sales_leads").select("id, profile_id, status"),
     supabase.from("people").select("id", { count: "exact", head: true }),
+    supabase.from("people").select("id", { count: "exact", head: true }).not("import_source", "is", null),
     fetchAllPaged(() => supabase.from("rsvps").select("person_id, event_id, pulled_up, booking_status, status")),
     fetchAllPaged(() => supabase.from("community_members").select("person_id")),
   ]);
@@ -111,6 +113,7 @@ export async function getEcosystemFunnel() {
       guests: guestPeople.size,
       pulledUp: pulledUpPeople.size,
       community: communityPeople.size,
+      imported: importedRes.count || 0,
     },
   };
 }
@@ -129,7 +132,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
   const people = await fetchAllPaged(() => {
     let pq = supabase
       .from("people")
-      .select("id, name, email, phone_e164, instagram, ig_user_id, company, auth_user_id, acquisition_channel, created_at")
+      .select("id, name, email, phone_e164, instagram, ig_user_id, company, auth_user_id, acquisition_channel, import_source, created_at")
       .order("created_at", { ascending: true });
     if (s) pq = pq.or(`name.ilike.%${s}%,email.ilike.%${s}%,instagram.ilike.%${s}%,phone_e164.ilike.%${s}%`);
     return pq;
@@ -267,6 +270,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
     if (guest) roles.push("guest");
     if (guest && guest.pulledUpCount > 0) roles.push("pulledup");
     if (community) roles.push("community");
+    if (p.import_source) roles.push("imported");
 
     // The activity timestamp that drives the default sort.
     const lastActivity = [host?.lastEventAt, host?.lastLoginAt, guest?.lastRsvpAt, community?.joinedAt, p.created_at]
@@ -282,6 +286,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
       phone: p.phone_e164 || null,
       company: p.company || null,
       acquisition: p.acquisition_channel || null,
+      imported: p.import_source || null,
       createdAt: p.created_at,
       roles,
       isHost,
@@ -382,7 +387,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
 
   // 5. Segment counts across the (search-filtered) set — drives the chips.
   const counts = { all: items.length };
-  const SEGMENTS = ["waitlist", "host", "activated", "lead", "guest", "pulledup", "community"];
+  const SEGMENTS = ["waitlist", "host", "activated", "lead", "guest", "pulledup", "community", "imported"];
   for (const seg of SEGMENTS) counts[seg] = 0;
   for (const it of items) {
     for (const seg of SEGMENTS) if (it.roles.includes(seg)) counts[seg]++;
@@ -498,6 +503,7 @@ export async function getEcosystemPersonDetail(rawId) {
   if (attended.length) roles.push("guest");
   if (attended.some((a) => a.pulledUp)) roles.push("pulledup");
   if (communities.length) roles.push("community");
+  if (person.import_source) roles.push("imported");
 
   return {
     kind: "person",
@@ -506,6 +512,7 @@ export async function getEcosystemPersonDetail(rawId) {
       id: person.id, name: person.name || (person.email ? person.email.split("@")[0] : "Unknown"),
       email: person.email || null, instagram: person.instagram || null, phone: person.phone_e164 || null,
       company: person.company || null, acquisition: person.acquisition_channel || null,
+      imported: person.import_source || null,
       createdAt: person.created_at,
     },
     roles,

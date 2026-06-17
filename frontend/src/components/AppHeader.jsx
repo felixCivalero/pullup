@@ -144,14 +144,13 @@ export function AppHeader() {
               background: isActive("/settings") ? colors.accent : "transparent",
               boxShadow: isActive("/settings") ? colors.accentShadow : "none",
               display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0,
-              transition: "background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s",
-              transform: isActive("/settings") ? "rotate(45deg)" : "none",
+              transition: "background 0.2s, border-color 0.2s, box-shadow 0.2s",
             }}
             onMouseEnter={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = colors.surfaceMuted; }}
             onMouseLeave={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = "transparent"; }}
           >
             {isActive("/settings")
-              ? <Settings size={isMobile ? 17 : 16} color="#ffffff" />
+              ? <Settings size={isMobile ? 17 : 16} color="#ffffff" style={{ animation: "settings-gear-spin 9s linear infinite" }} />
               : <SilverIcon as={Settings} size={isMobile ? 17 : 16} />}
           </button>
 

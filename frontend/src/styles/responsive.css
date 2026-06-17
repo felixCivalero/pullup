@@ -2,6 +2,10 @@
    Responsive Base Layout
 ---------------------------- */
 
+/* The settings gear gently turns while you're inside Settings — a small "you're
+   in here" delight. */
+@keyframes settings-gear-spin { to { transform: rotate(360deg); } }
+
 /* Guest event page: form placeholders auto-contrast with the host's chosen
    background (migration 047). Scoped to .brand-scope so the light dashboard
    is untouched. Falls back to the dark-theme grey. */

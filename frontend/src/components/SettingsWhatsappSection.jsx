@@ -1,11 +1,10 @@
 // frontend/src/components/SettingsWhatsappSection.jsx
 //
-// Host's WhatsApp settings — the number to send as, verified with a one-tap
-// link, plus the on/off toggle for the channel. The phone lives HERE, not in
-// the profile: we only care about a number if it's synced with WhatsApp (a
-// host's RSVP phone is theirs to keep, not ours). Outbound message content
-// (signatures, copy, auto-flows) is edited per event/community/product page,
-// not globally — so it's intentionally not here.
+// Host's WhatsApp number — added and verified right here with a one-tap link.
+// The phone lives in Settings (not the profile, not per-event): we only keep a
+// number if it's WhatsApp-synced. There's no global "send via WhatsApp" toggle
+// and no outbound-message editing — channel routing and message content are
+// decided per event/community/product page.
 
 import { useState } from "react";
 import { Check, Phone, ShieldCheck } from "lucide-react";
@@ -13,37 +12,14 @@ import { FaWhatsapp } from "react-icons/fa6";
 import { colors } from "../theme/colors.js";
 import { API_BASE } from "../lib/env.js";
 
-export function SettingsWhatsappSection({ user, setUser, onSave, showToast }) {
-  const [enabled, setEnabled] = useState(
-    user?.whatsapp_enabled === undefined ? true : !!user.whatsapp_enabled,
-  );
+export function SettingsWhatsappSection({ user, showToast }) {
   const [phoneInput, setPhoneInput] = useState(user?.phone_e164 || "");
   const [editPhone, setEditPhone] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyPending, setVerifyPending] = useState(null);
 
   const phoneE164 = user?.phone_e164 || null;
   const phoneVerified = !!user?.phone_verified_at;
-
-  const toggleDirty =
-    enabled !== (user?.whatsapp_enabled === undefined ? true : !!user.whatsapp_enabled);
-
-  const handleSaveToggle = async () => {
-    if (saving || !toggleDirty) return;
-    setSaving(true);
-    try {
-      const ok = await onSave({ whatsapp_enabled: enabled });
-      if (ok) {
-        setUser((prev) => (prev ? { ...prev, whatsapp_enabled: enabled } : prev));
-        showToast?.("WhatsApp settings saved", "success");
-      }
-    } catch (err) {
-      showToast?.(err?.message || "Could not save", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleSendVerify = async () => {
     const phone = (phoneInput || "").trim();
@@ -83,9 +59,9 @@ export function SettingsWhatsappSection({ user, setUser, onSave, showToast }) {
           WhatsApp
         </h2>
         <p style={{ fontSize: "14px", color: colors.textMuted }}>
-          Reach your guests where they already live. PullUp sends RSVP confirms,
-          reminders, and your broadcasts as WhatsApp messages — they land in
-          the same thread as their friends, not their spam folder.
+          Add the number PullUp sends as on WhatsApp — so RSVP confirms, reminders,
+          and your messages land in the same thread as their friends, not their spam
+          folder. We only keep it once it's verified.
         </p>
       </div>
 
@@ -114,7 +90,7 @@ export function SettingsWhatsappSection({ user, setUser, onSave, showToast }) {
               <Phone size={15} color={colors.textMuted} /> Your WhatsApp number
             </label>
             <div style={{ fontSize: "12px", color: colors.textMuted, marginBottom: "10px", lineHeight: 1.5 }}>
-              We only use this to send as you on WhatsApp. Enter it, then tap the one-tap link we WhatsApp you to verify.
+              Enter it, then tap the one-tap link we WhatsApp you to verify.
             </div>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <input
@@ -156,41 +132,6 @@ export function SettingsWhatsappSection({ user, setUser, onSave, showToast }) {
                 </a>
               </>
             )}
-          </div>
-        )}
-
-        {/* Channel-enabled toggle */}
-        <label style={{ display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: "12px", cursor: phoneVerified ? "pointer" : "not-allowed", opacity: phoneVerified ? 1 : 0.55 }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            disabled={!phoneVerified}
-            onChange={(e) => setEnabled(e.target.checked)}
-            style={{ width: "18px", height: "18px", accentColor: colors.accent, flexShrink: 0, cursor: phoneVerified ? "pointer" : "not-allowed" }}
-          />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "14px", fontWeight: 600, color: colors.text, marginBottom: "2px" }}>
-              Send my broadcasts via WhatsApp
-            </div>
-            <div style={{ fontSize: "12px", color: colors.textMuted }}>
-              When on, broadcasts go via WhatsApp to guests who've opted in,
-              falling back to email otherwise. When off, everything goes via
-              email regardless of guest opt-in.
-            </div>
-          </div>
-        </label>
-
-        {/* Save — only when the toggle changed */}
-        {toggleDirty && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={handleSaveToggle}
-              disabled={saving}
-              style={{ padding: "10px 22px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: "13px", fontWeight: 700, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1, boxShadow: colors.accentShadow }}
-            >
-              {saving ? "Saving…" : "Save WhatsApp settings"}
-            </button>
           </div>
         )}
       </div>

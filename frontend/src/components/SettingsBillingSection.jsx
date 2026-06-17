@@ -46,13 +46,13 @@ export function SettingsBillingSection() {
     return () => { alive = false; };
   }, []);
 
-  // Real billing only — dormant until the transaction layer is live for this host.
-  if (!summary || (!summary.metering && !summary.paymentsV2)) return null;
-
-  const month = summary.month || {};
+  // Always render so the host can see exactly how their bill reads. `live` is
+  // true once the transaction layer is on for them; until then it's a preview.
+  const live = !!(summary && (summary.metering || summary.paymentsV2));
+  const month = summary?.month || {};
   const currencies = Object.entries(month.byCurrency || {});
-  const plan = summary.plan || {};
-  const storage = summary.storageService || { tierCents: 0, markupBps: 3000, feeCents: 0, currency: "usd" };
+  const plan = summary?.plan || {};
+  const storage = summary?.storageService || { tierCents: 0, markupBps: 3000, feeCents: 0, currency: "usd" };
   const markupPct = ((storage.markupBps ?? 3000) / 100).toFixed(0);
   const ticketFeePct = ((plan.ticketFeeBps ?? 250) / 100).toFixed(1);
   const ticketsSold = month.ticketSales ?? 0;
@@ -80,6 +80,11 @@ export function SettingsBillingSection() {
       </div>
 
       <div style={{ padding: "20px", background: colors.surface, borderRadius: "14px", border: `1px solid ${colors.borderFaint}` }}>
+        {!live && (
+          <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, fontSize: 12.5, color: colors.textMuted, lineHeight: 1.5 }}>
+            Preview — this is exactly how your bill will read. Nothing's charged until you start selling tickets or connect your own data.
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px" }}>
           <div style={{ fontSize: "15px", fontWeight: 700, color: colors.text, textTransform: "capitalize" }}>
             {plan.plan || "starter"} plan

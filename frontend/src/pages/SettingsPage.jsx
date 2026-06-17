@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../components/Toast";
 import { authenticatedFetch } from "../lib/api.js";
 import { SettingsLayout } from "../components/SettingsLayout.jsx";
+import { AppHeader } from "../components/AppHeader.jsx";
 import { colors } from "../theme/colors.js";
 
 export function SettingsPage() {
@@ -71,6 +72,7 @@ export function SettingsPage() {
           background: colors.background,
         }}
       >
+        <AppHeader />
         <div className="responsive-container responsive-container-wide">
           <div
             className="responsive-card"
@@ -99,6 +101,7 @@ export function SettingsPage() {
         paddingBottom: "clamp(20px, 5vw, 40px)",
       }}
     >
+      <AppHeader />
       <div
         className="responsive-container responsive-container-wide"
         style={{ position: "relative", zIndex: 2 }}

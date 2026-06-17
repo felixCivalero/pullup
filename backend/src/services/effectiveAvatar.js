@@ -13,8 +13,29 @@
 import { supabase } from "../supabase.js";
 import { getForPerson, resolveDisplay } from "./personSourceProfiles.js";
 
+// Turn a profile-pictures reference (a raw storage path OR an existing/expired
+// signed URL) into a FRESH usable URL. The uploaded pic is stored as a bucket
+// path, not a URL, so we must sign it — otherwise the <img> src is broken (the
+// pink-circle-with-no-image bug). An external http avatar that isn't ours is
+// returned untouched.
+async function signProfilePic(value) {
+  if (!value) return null;
+  try {
+    let path = value;
+    const m = value.match(/profile-pictures\/([^?]+)/);
+    if (m) path = m[1];
+    else if (/^https?:\/\//i.test(value)) return value; // external URL, not our bucket
+    const { data: signed } = await supabase.storage.from("profile-pictures").createSignedUrl(path, 3600);
+    if (signed?.signedUrl) return signed.signedUrl;
+    const { data: pub } = supabase.storage.from("profile-pictures").getPublicUrl(path);
+    return pub?.publicUrl || value;
+  } catch {
+    return value;
+  }
+}
+
 export async function resolveEffectiveAvatar({ uploaded = null, accountId = null, personId = null, brandLogo = null } = {}) {
-  if (uploaded) return uploaded; // an upload overrides everything
+  if (uploaded) return await signProfilePic(uploaded); // an upload overrides everything
 
   try {
     let pid = personId;

@@ -97,7 +97,7 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
     ];
     list.push({ key: "data", label: "Own your data", icon: Database, group: "Power & data", dot: byoConnected ? "done" : null, render: () => <SettingsOwnDataSection /> });
     list.push({ key: "dataio", label: "Import & export", icon: ArrowDownUp, group: "Power & data", dot: null, render: () => <SettingsDataSection /> });
-    if (byoConnected) list.push({ key: "billing", label: "Billing", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
+    list.push({ key: "billing", label: "Billing", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
 
     list.push({ key: "account", label: "Account", icon: UserCog, group: null, dot: null,
       render: () => <SettingsAccountSection showToast={showToast} /> });

@@ -1,8 +1,9 @@
 // Phase A of the storage-markup revenue model.
 //
-// Once a day: for every live BYO creator, read their Supabase tier via the
-// Management API, persist it as creator_billing_plans.storage_tier_cents, and
-// meter the month's 30% markup into transaction_ledger (accrual). The metering
+// Once a day: for every live BYO creator, read their real usage via their
+// Supabase Metrics API, price it into a continuous cost basis, persist it as
+// creator_billing_plans.storage_tier_cents, and meter the month's 30% markup
+// into transaction_ledger (accrual). The metering
 // dedupe_key is 'storage:<host>:<YYYY-MM>', so the daily tick keeps each tier
 // fresh for the billing UI but bills exactly once per month.
 //
@@ -13,8 +14,8 @@
 import { byoEnabled } from "../config/byo.js";
 import { meteringEnabled } from "../config/billing.js";
 import { listBillableCreatorDatabases } from "../repos/creatorDatabases.js";
-import { getProjectTier } from "../services/byo/managementApi.js";
-import { planToTierCents } from "../services/billing/storageTiers.js";
+import { getProjectUsage } from "../services/byo/projectUsage.js";
+import { usageToCostCents } from "../services/billing/storageTiers.js";
 import { meterStorageFee } from "../services/billing/feeEngine.js";
 import { getPlanForHost, updateStorageTierCents } from "../repos/billing.js";
 
@@ -41,10 +42,14 @@ export async function runStorageBilling({ now = new Date() } = {}) {
 
   for (const c of creators) {
     try {
-      // Read the creator's current Supabase tier (best-effort — null leaves the
-      // line at 0, never over-charges) and persist the base cost.
-      const tier = await getProjectTier(c.projectRef, c.mgmtToken);
-      const cents = planToTierCents(tier?.tier);
+      // Read the creator's real usage via their Metrics API (best-effort — a
+      // failure leaves the line at 0, never over-charges) → a continuous cost
+      // basis → persist it.
+      const usage = await getProjectUsage(c.projectRef, c.serviceKey);
+      const cents = usageToCostCents({
+        storedBytes: (usage?.dbBytes || 0) + (usage?.storageBytes || 0),
+        egressBytes: usage?.egressBytes || 0,
+      });
       await updateStorageTierCents(c.hostId, cents);
       synced++;
 

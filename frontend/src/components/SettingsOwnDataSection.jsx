@@ -303,18 +303,20 @@ function DormantExplainer() {
 // plus 30% on top of the host's own Supabase bill, with an interactive preview
 // of the storage line at each Supabase tier. Real numbers replace this (here and
 // in Billing) once a Supabase is connected. Mirrors backend storageTiers.js.
-const PREVIEW_PLANS = [
-  { key: "free", label: "Free", cents: 0 },
-  { key: "pro", label: "Pro", cents: 2500 },
-  { key: "team", label: "Team", cents: 59900 },
-];
+// $0.15 / GB-month — mirrors the backend rate card (services/billing/storageTiers).
+const STORAGE_RATE_CENTS_PER_GB = 15;
+const MARKUP = 0.3;
 function previewMoney(cents) {
-  return `$${(cents / 100).toFixed(2).replace(/\.00$/, "")}`;
+  return `$${(cents / 100).toFixed(2)}`;
+}
+function fmtData(gb) {
+  if (gb < 1) return `${Math.round(gb * 1000)} MB`;
+  return `${gb % 1 === 0 ? gb : gb.toFixed(1)} GB`;
 }
 function PricingPreview() {
-  const [plan, setPlan] = useState("pro");
-  const sel = PREVIEW_PLANS.find((p) => p.key === plan) || PREVIEW_PLANS[1];
-  const fee = Math.round(sel.cents * 0.3);
+  const [gb, setGb] = useState(10);
+  const costCents = STORAGE_RATE_CENTS_PER_GB * gb;
+  const feeCents = Math.round(costCents * MARKUP);
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ marginBottom: 12 }}>
@@ -322,39 +324,36 @@ function PricingPreview() {
           What PullUp costs when you own your data
         </h3>
         <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.5 }}>
-          Simple: <strong>30%</strong> on top of your own Supabase bill — nothing more. You pay Supabase directly;
-          PullUp is the service on top.
+          Simple: <strong>30%</strong> on top of what your data costs — metered from your real usage, smooth from zero
+          up. You pay Supabase directly; PullUp is the service on top.
         </p>
       </div>
       <div style={{ padding: 18, background: colors.surface, borderRadius: 14, border: `1px solid ${colors.borderFaint}` }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-          See it at your Supabase tier
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Drag to see it at your usage
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>{fmtData(gb)}</span>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {PREVIEW_PLANS.map((p) => {
-            const on = p.key === plan;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setPlan(p.key)}
-                style={{ flex: 1, padding: "8px 6px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? "transparent" : colors.border}`, background: on ? colors.accent : colors.backgroundCard, color: on ? "#fff" : colors.text, fontSize: 12.5, fontWeight: 600, transition: "all 0.15s" }}
-              >
-                {p.label}{p.cents ? ` · ${previewMoney(p.cents)}` : ""}
-              </button>
-            );
-          })}
-        </div>
+        <input
+          type="range"
+          min={0}
+          max={500}
+          step={1}
+          value={gb}
+          onChange={(e) => setGb(Number(e.target.value))}
+          style={{ width: "100%", accentColor: colors.accent, marginBottom: 16, cursor: "pointer" }}
+        />
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, color: colors.textMuted, marginBottom: 5 }}>
-          <span>Your Supabase ({sel.label})</span>
-          <span>{previewMoney(sel.cents)}/mo</span>
+          <span>Your data ({fmtData(gb)})</span>
+          <span>~{previewMoney(costCents)}/mo cost</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: colors.accent }}>
           <span>PullUp service (30%)</span>
-          <span>{previewMoney(fee)}/mo</span>
+          <span>{previewMoney(feeCents)}/mo</span>
         </div>
         <p style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5, margin: "12px 0 0" }}>
-          A preview — your real plan and bill appear here (and in Billing) once your Supabase is connected.
+          A preview — your real usage and bill appear here (and in Billing) once your Supabase is connected.
         </p>
       </div>
     </div>

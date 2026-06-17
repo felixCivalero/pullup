@@ -75,6 +75,32 @@ async function withTracking(row) {
   }
 }
 
+// Optional mailto target for List-Unsubscribe (RFC 2369). Only listed when the
+// mailbox actually exists/receives — leave unset to ship https one-click only.
+const UNSUBSCRIBE_MAILTO = process.env.UNSUBSCRIBE_MAILTO || null;
+
+// Build RFC 8058 one-click List-Unsubscribe headers from a send's HTML. We key
+// off the visible /u/<token> footer link, so ONLY mail that already offers an
+// unsubscribe (reminders, invites, anything marketing-ish) gets the header —
+// pure 1:1 transactional mail (magic links, RSVP confirmations) has no footer
+// link and correctly gets no header. The one-click POST must hit the backend
+// route directly (no browser/JS), so we resolve the token against the API base
+// (https://pullup.se/api/u/<token>), not the human-facing frontend page.
+// Mailbox providers (Gmail/Yahoo) require this header on bulk mail in 2024+.
+function unsubscribeHeadersFor(html) {
+  if (!html) return null;
+  const match = html.match(/\/u\/([A-Za-z0-9_-]{20,})/);
+  if (!match) return null;
+  const oneClickUrl = `${trackingBaseUrl()}/u/${match[1]}`;
+  const listValue = UNSUBSCRIBE_MAILTO
+    ? `<mailto:${UNSUBSCRIBE_MAILTO}?subject=unsubscribe>, <${oneClickUrl}>`
+    : `<${oneClickUrl}>`;
+  return {
+    "List-Unsubscribe": listValue,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 function isTransientError(error) {
   const status =
     error?.$metadata?.httpStatusCode || error?.statusCode || error?.status;
@@ -174,6 +200,7 @@ export async function processBatch({
 
       const htmlToSend = await withTracking(row);
       const replyTo = replyToFor(row);
+      const headers = unsubscribeHeadersFor(htmlToSend);
 
       const result = await sendEmailFn({
         from: row.from_email,
@@ -182,6 +209,7 @@ export async function processBatch({
         html: htmlToSend,
         text: row.text_body,
         replyTo,
+        headers,
         tags: {
           outbox_id: row.id,
           email_type: row.campaign_send_id ? "campaign" : "transactional",

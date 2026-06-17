@@ -1,0 +1,27 @@
+# Open deploy gates — manual prod steps that code alone can't satisfy.
+# The pre-push hook (.git/hooks/pre-push) prints every [ ] block before a push
+# to master, so these aren't forgotten. Tick a box to [x] once done; checked
+# gates stay quiet. This is a reminder, never a block.
+
+[x] Supabase email templates include {{ .Token }}  (added 2026-06-16, done 2026-06-16)
+    Why: BOTH email doors now use Supabase native email OTP — the QR door step
+    (DoorVerify) AND the standard wall (AuthCard, magic-link retired). Without
+    {{ .Token }} in the "Magic Link" AND "Confirm signup" templates, the email
+    sends only a link — no 6-digit code — and neither door can complete.
+    Where: Supabase Dashboard → Authentication → Email Templates.
+
+[ ] (optional) WhatsApp OTP login — flip VITE_DOOR_WHATSAPP_OTP=true once Meta
+    approves the auth-OTP template, then rebuild the FE. ONE flag now lights
+    BOTH surfaces: whatsappLoginEnabled() (lib/useAuthOrder.js) honors either
+    VITE_DOOR_WHATSAPP_OTP or VITE_WHATSAPP_LOGIN_ENABLED. Once lit, the adaptive
+    resolver auto-leads with WhatsApp for phone-first arrivals (Nairobi etc.);
+    until then it's correctly dropped (never an inert/failing option). Backend
+    phone-person linking already wired (ensurePersonLinkedByPhone).
+
+[ ] LIVE SMOKE TEST — loginOnly email-code path (do once, can't verify headless):
+    on the waitlist-gated login wall, AuthCard now sends the email OTP with
+    shouldCreateUser:false and maps Supabase's signups-disallowed error to
+    { exists:false } → waitlist handoff. Confirm with a real round-trip that
+    (a) a KNOWN email gets a code + signs in, and (b) an UNKNOWN email routes to
+    the waitlist (not a stuck code screen). Tighten the error match in
+    AuthContext.sendEmailCode if Supabase's actual error shape differs.

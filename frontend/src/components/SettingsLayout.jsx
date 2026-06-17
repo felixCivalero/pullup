@@ -31,7 +31,7 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
   // load regardless of which pane is open, then kept live via callbacks.
   const [stripe, setStripe] = useState(null);     // { connected, chargesEnabled }
   const [notifEnabled, setNotifEnabled] = useState(null);
-  const [byoOn, setByoOn] = useState(false);
+  const [byoConnected, setByoConnected] = useState(null);
   const [igConnected, setIgConnected] = useState(null);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
         setStripe({ connected: !!s.value.connected, chargesEnabled: !!s.value.accountDetails?.charges_enabled });
       }
       if (n.status === "fulfilled" && n.value) setNotifEnabled(!!n.value.enabled);
-      if (y.status === "fulfilled" && y.value) setByoOn(!!y.value.enabled);
+      if (y.status === "fulfilled" && y.value) setByoConnected(!!y.value.connected);
       if (i.status === "fulfilled" && i.value) setIgConnected((i.value.accounts || []).length > 0);
     });
     return () => { cancelled = true; };
@@ -95,15 +95,15 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
           </div>
         ) },
     ];
+    list.push({ key: "data", label: "Own your data", icon: Database, group: "Power & data", dot: byoConnected ? "done" : null, render: () => <SettingsOwnDataSection /> });
     list.push({ key: "dataio", label: "Import & export", icon: ArrowDownUp, group: "Power & data", dot: null, render: () => <SettingsDataSection /> });
-    list.push({ key: "billing", label: "Billing", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
-    if (byoOn) list.push({ key: "data", label: "Own your data", icon: Database, group: "Power & data", dot: null, render: () => <SettingsOwnDataSection /> });
+    if (byoConnected) list.push({ key: "billing", label: "Billing", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
 
     list.push({ key: "account", label: "Account", icon: UserCog, group: null, dot: null,
       render: () => <SettingsAccountSection showToast={showToast} /> });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, stripe, notifDot, paymentsDot, profileDone, whatsappDot, instagramDot, igConnected, byoOn]);
+  }, [user, stripe, notifDot, paymentsDot, profileDone, whatsappDot, instagramDot, igConnected, byoConnected]);
 
   // Active section — deep-linkable via hash (#notifications), survives refresh.
   const [active, setActive] = useState(() => {

@@ -193,11 +193,12 @@ export function SettingsOwnDataSection() {
     />
   ) : null;
 
-  // Dormant deployment → no surface (but a return-from-auth modal can still show).
-  if (!state || !state.enabled) return welcomeModal;
-
-  const db = state.db;
-  const connected = state.connected;
+  // Always render — even when BYO is dormant for this deployment the host sees
+  // the explainer + how the pricing works (so they understand it before it's
+  // switched on). The full connect flow appears once the deployment enables BYO.
+  const dormant = !state || !state.enabled;
+  const db = state?.db;
+  const connected = state?.connected;
 
   return (
     <div>
@@ -211,9 +212,11 @@ export function SettingsOwnDataSection() {
         </p>
       </div>
 
-      <div style={{ padding: "20px", background: colors.background, borderRadius: "12px", border: `1px solid ${colors.border}`, boxShadow: "0 8px 30px rgba(10,10,10,0.06)" }}>
+      <div style={{ padding: "20px", background: colors.surface, borderRadius: "14px", border: `1px solid ${colors.borderFaint}` }}>
         {notice && <div style={{ ...errStyle, marginTop: 0, marginBottom: "16px" }}>{notice}</div>}
-        {!connected ? (
+        {dormant ? (
+          <DormantExplainer />
+        ) : !connected ? (
           <>
             <p style={{ fontSize: "13px", color: colors.textMuted, marginBottom: "16px", lineHeight: 1.5 }}>
               Connect a Supabase project you own. We'll set up the structure and copy your world into it — events, people, RSVPs, your whole timeline.
@@ -269,6 +272,90 @@ export function SettingsOwnDataSection() {
             </button>
           </>
         )}
+      </div>
+
+      <PricingPreview />
+    </div>
+  );
+}
+
+// Shown when BYO is dormant for this deployment: the explainer + an inert
+// connect CTA, so the host sees how it'll work before it's switched on.
+function DormantExplainer() {
+  return (
+    <div>
+      <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 14px" }}>
+        Connect a Supabase project you own and PullUp sets up the structure and copies your whole world into it —
+        events, people, RSVPs, your timeline. Your data lives in <strong>your</strong> database; PullUp runs on top,
+        and you can revoke us anytime.
+      </p>
+      <button type="button" disabled style={{ ...primaryBtn, opacity: 0.5, cursor: "default" }}>
+        Connect with Supabase
+      </button>
+      <p style={{ fontSize: 12, color: colors.textFaded, margin: "10px 0 0", lineHeight: 1.5 }}>
+        Rolling out now — this lights up for your account shortly. Here's exactly how the pricing works:
+      </p>
+    </div>
+  );
+}
+
+// The revenue model, explained right under the connect: a small per-ticket fee
+// plus 30% on top of the host's own Supabase bill, with an interactive preview
+// of the storage line at each Supabase tier. Real numbers replace this (here and
+// in Billing) once a Supabase is connected. Mirrors backend storageTiers.js.
+const PREVIEW_PLANS = [
+  { key: "free", label: "Free", cents: 0 },
+  { key: "pro", label: "Pro", cents: 2500 },
+  { key: "team", label: "Team", cents: 59900 },
+];
+function previewMoney(cents) {
+  return `$${(cents / 100).toFixed(2).replace(/\.00$/, "")}`;
+}
+function PricingPreview() {
+  const [plan, setPlan] = useState("pro");
+  const sel = PREVIEW_PLANS.find((p) => p.key === plan) || PREVIEW_PLANS[1];
+  const fee = Math.round(sel.cents * 0.3);
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, color: colors.text }}>
+          What PullUp costs when you own your data
+        </h3>
+        <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.5 }}>
+          Simple: a small fee per paid ticket, plus <strong>30%</strong> on top of your own Supabase bill — nothing
+          more. You pay Supabase directly; PullUp is the service on top.
+        </p>
+      </div>
+      <div style={{ padding: 18, background: colors.surface, borderRadius: 14, border: `1px solid ${colors.borderFaint}` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+          See it at your Supabase tier
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {PREVIEW_PLANS.map((p) => {
+            const on = p.key === plan;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPlan(p.key)}
+                style={{ flex: 1, padding: "8px 6px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? "transparent" : colors.border}`, background: on ? colors.accent : colors.backgroundCard, color: on ? "#fff" : colors.text, fontSize: 12.5, fontWeight: 600, transition: "all 0.15s" }}
+              >
+                {p.label}{p.cents ? ` · ${previewMoney(p.cents)}` : ""}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, color: colors.textMuted, marginBottom: 5 }}>
+          <span>Your Supabase ({sel.label})</span>
+          <span>{previewMoney(sel.cents)}/mo</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: colors.accent }}>
+          <span>PullUp service (30%)</span>
+          <span>{previewMoney(fee)}/mo</span>
+        </div>
+        <p style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5, margin: "12px 0 0" }}>
+          A preview — your real plan and bill appear here (and in Billing) once your Supabase is connected.
+        </p>
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import { logger } from "../logger.js";
 import { getUserProfile } from "../data.js";
 import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
 import { getForPersons, resolveDisplay } from "./personSourceProfiles.js";
+import { resolveEffectiveAvatar } from "./effectiveAvatar.js";
 import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
 // Chunked id-filtered reads (shared safe-query toolkit) — a single oversized
 // .in() 400s, which once emptied the whole Room. fn(idsChunk) -> rows[].
@@ -79,10 +80,15 @@ async function buildHostProfile(hostId) {
     const role = (p?.bio || "").trim()
       || [p?.brand, p?.city].map((s) => (s || "").trim()).filter(Boolean).join(" · ")
       || null;
+    const avatar = await resolveEffectiveAvatar({
+      uploaded: p?.profilePicture,
+      accountId: hostId,
+      brandLogo: p?.brandLogoUrl || p?.brandLogo,
+    });
     base = {
       name: (p?.name || "").trim() || null,
       handle: igHandleFrom(p),
-      avatar: p?.profilePicture || p?.brandLogoUrl || p?.brandLogo || null,
+      avatar,
       role,
       // For the composer's "Quick access" — share your own profile / number.
       phone: p?.phone_e164 || null,

@@ -1,26 +1,38 @@
 // src/components/SettingsBillingSection.jsx
 //
-// The host's money mirror — the REAL billing surface. It activates only once
-// the host owns their data (a connected Supabase) and the transaction layer is
-// live; otherwise it stays hidden (the pricing MODEL + preview live under
-// Settings → Own your data, not here). Shows this month's motions, the storage
-// markup line, and fees owed.
+// The host's money mirror — the REAL billing surface. Activates only once the
+// transaction layer is live for this host; otherwise hidden (the pricing MODEL
+// + preview live under Settings → Own your data). It reflects the ONLY two
+// things PullUp ever charges for: a fee on ticket SALES (a transaction), and
+// DATA (the storage markup). RSVPs and pull-ups are always free, so they're
+// not shown here.
 
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
-
-const MOTION_LABELS = [
-  { key: "rsvps", label: "RSVPs" },
-  { key: "pullups", label: "Pull-ups" },
-  { key: "ticketSales", label: "Tickets sold" },
-];
 
 function money(cents, currency) {
   const v = (cents / 100).toFixed(2).replace(/\.00$/, "");
   const cur = (currency || "usd").toUpperCase();
   return cur === "SEK" ? `${v} kr` : cur === "KES" ? `KSh ${v}` : cur === "USD" ? `$${v}` : `${v} ${cur}`;
 }
+
+const sectionLabel = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: colors.textSubtle,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: 10,
+};
+const block = {
+  padding: "14px 16px",
+  marginBottom: 12,
+  background: colors.backgroundCard,
+  borderRadius: 12,
+  border: `1px solid ${colors.borderFaint}`,
+};
+const muted = { fontSize: 13, color: colors.textMuted, lineHeight: 1.5 };
 
 export function SettingsBillingSection() {
   const [summary, setSummary] = useState(null);
@@ -34,23 +46,36 @@ export function SettingsBillingSection() {
     return () => { alive = false; };
   }, []);
 
-  // Real billing only — dormant until the transaction layer is live for this
-  // host. (The pricing model + 30% preview live under Own your data.)
+  // Real billing only — dormant until the transaction layer is live for this host.
   if (!summary || (!summary.metering && !summary.paymentsV2)) return null;
 
   const month = summary.month || {};
   const currencies = Object.entries(month.byCurrency || {});
-  const totalFees = currencies.reduce((s, [, v]) => s + (v.feeCents || 0), 0);
   const plan = summary.plan || {};
   const storage = summary.storageService || { tierCents: 0, markupBps: 3000, feeCents: 0, currency: "usd" };
   const markupPct = ((storage.markupBps ?? 3000) / 100).toFixed(0);
+  const ticketFeePct = ((plan.ticketFeeBps ?? 250) / 100).toFixed(1);
+  const ticketsSold = month.ticketSales ?? 0;
+  const soldCurrencies = currencies.filter(([, v]) => (v.grossCents || 0) > 0 || (v.feeCents || 0) > 0);
+
+  // What's owed this month, by currency — ticket fees + the data markup.
+  const owed = {};
+  for (const [cur, v] of currencies) {
+    const k = (cur || "usd").toUpperCase();
+    owed[k] = (owed[k] || 0) + (v.feeCents || 0);
+  }
+  if ((storage.feeCents || 0) > 0) {
+    const k = (storage.currency || "usd").toUpperCase();
+    owed[k] = (owed[k] || 0) + storage.feeCents;
+  }
+  const owedEntries = Object.entries(owed).filter(([, c]) => c > 0);
 
   return (
     <div>
       <div style={{ marginBottom: "16px" }}>
         <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "4px", color: colors.text }}>Billing</h2>
         <p style={{ fontSize: "14px", color: colors.textMuted }}>
-          This month — what moved and what you owe. A fee per paid ticket, and {markupPct}% on top of your own Supabase bill.
+          The only things PullUp charges for: a {ticketFeePct}% fee on your ticket sales, and {markupPct}% on your data. RSVPs and pull-ups are always free.
         </p>
       </div>
 
@@ -60,45 +85,54 @@ export function SettingsBillingSection() {
             {plan.plan || "starter"} plan
           </div>
           <div style={{ fontSize: "12px", color: colors.textMuted }}>
-            {((plan.ticketFeeBps ?? 250) / 100).toFixed(1)}% per paid ticket · {markupPct}% on your storage
+            {ticketFeePct}% per ticket sold · {markupPct}% on data
           </div>
         </div>
 
-        {storage.tierCents > 0 && (
-          <div style={{ padding: "14px 16px", marginBottom: "16px", background: colors.backgroundCard, borderRadius: "12px", border: `1px solid ${colors.borderFaint}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13.5px", color: colors.textMuted, marginBottom: "5px" }}>
-              <span>Your Supabase storage</span>
-              <span>{money(storage.tierCents, storage.currency)}/mo</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, color: colors.text }}>
-              <span>PullUp service ({markupPct}%)</span>
-              <span>{money(storage.feeCents, storage.currency)}/mo</span>
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: "10px", marginBottom: currencies.length ? "16px" : 0 }}>
-          {MOTION_LABELS.map(({ key, label }) => (
-            <div key={key} style={{ flex: 1, padding: "12px", background: colors.backgroundCard, borderRadius: "10px", border: `1px solid ${colors.borderFaint}`, textAlign: "center" }}>
-              <div style={{ fontSize: "20px", fontWeight: 700, color: colors.text }}>{month[key] ?? 0}</div>
-              <div style={{ fontSize: "11px", color: colors.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: "2px" }}>{label}</div>
-            </div>
-          ))}
+        {/* Ticket sales — a fee only on money that actually moved */}
+        <div style={block}>
+          <div style={sectionLabel}>Ticket sales</div>
+          {soldCurrencies.length > 0 ? (
+            <>
+              {soldCurrencies.map(([cur, v]) => (
+                <div key={cur} style={{ display: "flex", justifyContent: "space-between", fontSize: "13.5px", marginBottom: 5 }}>
+                  <span style={{ color: colors.textMuted }}>Sold {money(v.grossCents || 0, cur)}</span>
+                  <span style={{ color: colors.text, fontWeight: 600 }}>PullUp fee {money(v.feeCents || 0, cur)}</span>
+                </div>
+              ))}
+              <div style={{ fontSize: 12, color: colors.textSubtle, marginTop: 4 }}>{ticketsSold} ticket{ticketsSold === 1 ? "" : "s"} sold this month</div>
+            </>
+          ) : (
+            <div style={muted}>No ticket sales this month — no fees.</div>
+          )}
         </div>
 
-        {currencies.length > 0 && (
-          <div style={{ borderTop: `1px solid ${colors.borderFaint}`, paddingTop: "12px" }}>
-            {currencies.map(([cur, v]) => (
-              <div key={cur} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: colors.textMuted, marginBottom: "4px" }}>
-                <span>Moved {money(v.grossCents || 0, cur)} this month</span>
-                <span>PullUp fee {money(v.feeCents || 0, cur)}</span>
+        {/* Data — the storage markup */}
+        <div style={block}>
+          <div style={sectionLabel}>Data</div>
+          {storage.tierCents > 0 ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13.5px", color: colors.textMuted, marginBottom: 5 }}>
+                <span>Your data usage</span>
+                <span>{money(storage.tierCents, storage.currency)}/mo</span>
               </div>
-            ))}
-            {totalFees === 0 && (
-              <div style={{ fontSize: "12px", color: colors.textFaded, marginTop: "4px" }}>Nothing owed this month.</div>
-            )}
-          </div>
-        )}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, color: colors.text }}>
+                <span>PullUp service ({markupPct}%)</span>
+                <span>{money(storage.feeCents, storage.currency)}/mo</span>
+              </div>
+            </>
+          ) : (
+            <div style={muted}>No data cost this month.</div>
+          )}
+        </div>
+
+        {/* What you owe */}
+        <div style={{ borderTop: `1px solid ${colors.borderFaint}`, paddingTop: "14px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>What you owe this month</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: owedEntries.length ? colors.accent : colors.textFaded }}>
+            {owedEntries.length ? owedEntries.map(([cur, c]) => money(c, cur)).join(" · ") : "Nothing"}
+          </span>
+        </div>
       </div>
     </div>
   );

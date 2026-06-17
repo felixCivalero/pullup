@@ -58,8 +58,10 @@ export async function resolveAccessPayload(req, eventId) {
   // their own home. roomId is the host's account id, which /r/:id resolves.
   let host = null;
   if (ev?.host_id) {
-    const { data: hp } = await supabase.from("profiles").select("name").eq("id", ev.host_id).maybeSingle();
-    host = { roomId: ev.host_id, name: hp?.name || null };
+    const { data: hp } = await supabase.from("profiles").select("name, profile_picture_url").eq("id", ev.host_id).maybeSingle();
+    const { resolveEffectiveAvatar } = await import("../services/effectiveAvatar.js");
+    const avatar = await resolveEffectiveAvatar({ uploaded: hp?.profile_picture_url, accountId: ev.host_id });
+    host = { roomId: ev.host_id, name: hp?.name || null, avatar };
   }
 
   // The viewer's REAL ownership of THIS event — computed from the actual DB

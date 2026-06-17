@@ -138,12 +138,20 @@ export function AppHeader() {
             onClick={() => handleNav("/settings")}
             aria-label="Settings"
             aria-current={isActive("/settings") ? "page" : undefined}
-            style={{ width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, borderRadius: "999px", border: `1px solid ${isActive("/settings") ? colors.accentBorder : colors.border}`, background: isActive("/settings") ? colors.accentSoft : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0, transition: "background 0.2s, border-color 0.2s" }}
+            style={{
+              width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, borderRadius: "999px",
+              border: `1px solid ${isActive("/settings") ? colors.accent : colors.border}`,
+              background: isActive("/settings") ? colors.accent : "transparent",
+              boxShadow: isActive("/settings") ? colors.accentShadow : "none",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0,
+              transition: "background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s",
+              transform: isActive("/settings") ? "rotate(45deg)" : "none",
+            }}
             onMouseEnter={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = colors.surfaceMuted; }}
             onMouseLeave={(e) => { if (!isActive("/settings")) e.currentTarget.style.background = "transparent"; }}
           >
             {isActive("/settings")
-              ? <Settings size={isMobile ? 17 : 16} color={colors.accent} />
+              ? <Settings size={isMobile ? 17 : 16} color="#ffffff" />
               : <SilverIcon as={Settings} size={isMobile ? 17 : 16} />}
           </button>
 

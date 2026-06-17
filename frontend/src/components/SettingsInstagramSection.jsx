@@ -1,7 +1,7 @@
-// Instagram — connect personal/business accounts for DMs and pick which one
-// replies send from. A reach channel (lives under "Get paid & reach"), moved
-// out of Profile. Auto-DM flows themselves are configured per event/community/
-// product page, not here. Logic moved verbatim from the old Profile block.
+// Instagram — connect ONE account for DMs. A reach channel (lives under "Get
+// paid & reach"), moved out of Profile. We accept a single account, never more:
+// no "reply from this" picker and no "connect another" — one Instagram, period.
+// Auto-DM flows themselves are configured per event/community/product page.
 
 import { useEffect, useState } from "react";
 import { Instagram, X } from "lucide-react";
@@ -44,38 +44,34 @@ export function SettingsInstagramSection({ showToast, onStatus }) {
     setIg(d);
     onStatus?.((d?.accounts || []).length > 0);
   }
-  async function setDefaultIg(id) {
-    await authenticatedFetch(`/instagram/connections/${id}/default`, { method: "POST" }).catch(() => {});
-    setIg((prev) => (prev ? { ...prev, accounts: (prev.accounts || []).map((a) => ({ ...a, isDefault: a.id === id })) } : prev));
-    showToast?.("Replies will send from this account", "success");
-  }
   function saveIgLabel(id, label) {
     const v = (label || "").trim();
     authenticatedFetch(`/instagram/connections/${id}`, { method: "PATCH", body: JSON.stringify({ label: v }) }).catch(() => {});
     setIg((prev) => (prev ? { ...prev, accounts: (prev.accounts || []).map((a) => (a.id === id ? { ...a, label: v } : a)) } : prev));
   }
   async function disconnectIg(id) {
-    if (!window.confirm("Disconnect this Instagram account?")) return;
+    if (!window.confirm("Disconnect your Instagram account?")) return;
     await authenticatedFetch(`/instagram/connections/${id}`, { method: "DELETE" }).catch(() => {});
     refreshIg();
     showToast?.("Disconnected", "success");
   }
 
-  const igAccounts = ig?.accounts || [];
+  // One account, never more — if somehow more exist, we only surface the first.
+  const account = (ig?.accounts || [])[0] || null;
 
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, color: colors.text }}>Instagram</h2>
         <p style={{ fontSize: 14, color: colors.textMuted }}>
-          Connect Instagram to reach guests in their DMs from your Room, and pick which account your replies send from. Auto-DM flows are set up per event, community, or product page.
+          Connect your Instagram to reach guests in their DMs from your Room. Auto-DM flows are set up per event, community, or product page.
         </p>
       </div>
 
       <div style={cardFlat}>
         {ig == null ? (
           <div style={{ padding: 16, fontSize: 13, color: colors.textSubtle }}>Checking…</div>
-        ) : igAccounts.length === 0 ? (
+        ) : !account ? (
           <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 16 }}>
             <span style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.surfaceMuted, color: colors.textMuted }}><Instagram size={20} /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -85,35 +81,20 @@ export function SettingsInstagramSection({ showToast, onStatus }) {
             <button type="button" onClick={connectInstagram} style={{ padding: "10px 20px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Connect</button>
           </div>
         ) : (
-          <>
-            {igAccounts.map((a, i) => (
-              <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderTop: i ? `1px solid ${colors.borderFaint}` : "none" }}>
-                <span style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.accentSoft, color: colors.accent }}><Instagram size={18} /></span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, fontWeight: 650, color: colors.text }}>@{a.ig_username || "account"}</span>
-                    {a.isDefault && <span style={{ fontSize: 10, fontWeight: 700, color: colors.accent, background: colors.accentSoft, padding: "2px 7px", borderRadius: 999 }}>Replies send from here</span>}
-                  </div>
-                  <input
-                    defaultValue={a.label || ""}
-                    placeholder="Label — e.g. Personal or Business"
-                    onBlur={(e) => saveIgLabel(a.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                    style={{ marginTop: 5, width: "100%", maxWidth: 260, boxSizing: "border-box", border: `1px solid ${colors.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12.5, color: colors.text, outline: "none" }}
-                  />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  {!a.isDefault && (
-                    <button type="button" onClick={() => setDefaultIg(a.id)} style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Reply from this</button>
-                  )}
-                  <button type="button" onClick={() => disconnectIg(a.id)} title="Disconnect" style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={14} /></button>
-                </div>
-              </div>
-            ))}
-            <div style={{ padding: "12px 16px", borderTop: `1px solid ${colors.borderFaint}` }}>
-              <button type="button" onClick={connectInstagram} style={{ padding: "8px 14px", borderRadius: 999, border: `1px dashed ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>+ Connect another account</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
+            <span style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.accentSoft, color: colors.accent }}><Instagram size={18} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 650, color: colors.text }}>@{account.ig_username || "account"}</div>
+              <input
+                defaultValue={account.label || ""}
+                placeholder="Label — e.g. Personal or Business"
+                onBlur={(e) => saveIgLabel(account.id, e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                style={{ marginTop: 5, width: "100%", maxWidth: 260, boxSizing: "border-box", border: `1px solid ${colors.border}`, borderRadius: 8, padding: "5px 9px", fontSize: 12.5, color: colors.text, outline: "none" }}
+              />
             </div>
-          </>
+            <button type="button" onClick={() => disconnectIg(account.id)} title="Disconnect" style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={14} /></button>
+          </div>
         )}
       </div>
     </div>

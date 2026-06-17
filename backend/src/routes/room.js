@@ -248,7 +248,12 @@ export function registerRoomRoutes(app) {
       // PUBLIC bio only — never the internal host_brief (that's the AI-coach's
       // strategy notes; showing it would leak sponsor plans to guests).
       const nodeBio = profile?.bio || null;
-      const nodeAvatar = profile?.profile_picture_url || null;
+      const { resolveEffectiveAvatar } = await import("../services/effectiveAvatar.js");
+      const nodeAvatar = await resolveEffectiveAvatar({
+        uploaded: profile?.profile_picture_url,
+        accountId,
+        personId: personRow?.id || null,
+      });
       const { buildSocials, resolveEventImage } = await import("../services/roomService.js");
       const nodeSocials = profile ? buildSocials(profile.branding_links) : [];
       const nodeRoomId = accountId || personRow.id;          // canonical room id

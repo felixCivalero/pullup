@@ -64,6 +64,19 @@ export async function listBillableCreatorDatabases() {
     .filter((c) => c.serviceKey && c.projectRef);
 }
 
+// Host ids of every connected creator (has a project ref + mgmt token), for the
+// daily schema-sync job. Just ids — syncOwnedSchema() re-reads the row + decrypts
+// the mgmt token itself. Bounded set (one row per connected creator).
+export async function listConnectedCreatorHostIds() {
+  const { data } = await supabase
+    .from("creator_databases")
+    .select("host_id")
+    .in("status", ["connected", "provisioning", "mirroring", "live"]) // safe-query: ok — bounded literal status set
+    .not("project_ref", "is", null)
+    .not("encrypted_mgmt_token", "is", null);
+  return (data || []).map((r) => r.host_id).filter(Boolean);
+}
+
 // Internal read INCLUDING the encrypted key — only the router calls this, only
 // to build an owned client. Kept separate from the sanitized read so the key
 // never travels by accident.

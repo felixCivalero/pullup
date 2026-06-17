@@ -691,4 +691,19 @@ app.listen(PORT, HOST, async () => {
     }
   }
   setInterval(runStorageBillingTick, STORAGE_BILLING_INTERVAL_MS);
+
+  /* Owned-schema sync (BYO): once a day, re-apply PullUp's current owned schema
+   * to every connected creator DB so schema changes (new tables/columns)
+   * propagate automatically (additive, idempotent, status-preserving).
+   * Self-gated on BYO_SUPABASE_ENABLED. */
+  const SCHEMA_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
+  async function runSchemaSyncTick() {
+    try {
+      const { runOwnedSchemaSync } = await import("./jobs/ownedSchemaSyncRun.js");
+      await runOwnedSchemaSync();
+    } catch (err) {
+      console.error("[schemaSync] Unexpected error in tick:", err.message);
+    }
+  }
+  setInterval(runSchemaSyncTick, SCHEMA_SYNC_INTERVAL_MS);
 });

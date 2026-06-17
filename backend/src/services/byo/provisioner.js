@@ -17,9 +17,11 @@ import {
   setCreatorDatabaseStatus,
 } from "../../repos/creatorDatabases.js";
 
-// Bump when the owned schema (the 8 tables / mig 087) changes — the signal the
-// fleet migrator keys off per project.
-export const OWNED_SCHEMA_VERSION = 87;
+// Bump when the owned schema changes — stamped per project on (re)provision /
+// sync. The DDL (mig 107) is self-evolving (CREATE IF NOT EXISTS + ALTER ADD
+// COLUMN IF NOT EXISTS), so the daily schema-sync re-applies it and new
+// tables/columns propagate to every connected project automatically.
+export const OWNED_SCHEMA_VERSION = 107;
 
 // A freshly-created Supabase project can reset the Management API connection
 // while it's still warming up — the DDL comes back as "...read ECONNRESET"
@@ -80,6 +82,40 @@ export async function provisionOwnedProject(hostId) {
     return { ok: true, schemaVersion: OWNED_SCHEMA_VERSION };
   } catch (e) {
     await setCreatorDatabaseStatus(hostId, "error", { last_error: e.message }).catch(() => {});
+    return { ok: false, reason: e.message };
+  }
+}
+
+// Re-apply the CURRENT owned schema to an already-connected project — the
+// additive sync (new tables + new columns via the ALTER ADD COLUMN IF NOT
+// EXISTS the DDL now emits). Unlike provision, it PRESERVES the project's
+// status (a 'live' project stays live) and never downgrades to 'error' on a
+// transient hiccup — it just records last_error for the next tick to retry.
+// The daily schema-sync job calls this for every connected creator so PullUp
+// schema changes propagate automatically.
+export async function syncOwnedSchema(hostId) {
+  const row = await getCreatorDatabaseWithKey(hostId);
+  if (!row || row.status === "revoked") return { ok: false, reason: "not_connected" };
+  if (!row.project_ref || !row.encrypted_mgmt_token) return { ok: false, reason: "no_creds" };
+
+  let mgmtToken;
+  try {
+    mgmtToken = decryptSecret(row.encrypted_mgmt_token);
+  } catch {
+    return { ok: false, reason: "mgmt_token_unreadable" };
+  }
+
+  try {
+    const ddl = await getOwnedSchemaDdl();
+    await runProjectSqlWithRetry(row.project_ref, mgmtToken, ddl);
+    await setCreatorDatabaseStatus(hostId, row.status, {
+      schema_version: OWNED_SCHEMA_VERSION,
+      last_error: null,
+      last_verified_at: new Date().toISOString(),
+    });
+    return { ok: true, schemaVersion: OWNED_SCHEMA_VERSION };
+  } catch (e) {
+    await setCreatorDatabaseStatus(hostId, row.status, { last_error: e.message }).catch(() => {});
     return { ok: false, reason: e.message };
   }
 }

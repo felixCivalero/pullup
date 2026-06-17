@@ -322,8 +322,8 @@ function PricingPreview() {
           What PullUp costs when you own your data
         </h3>
         <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.5 }}>
-          Simple: a small fee per paid ticket, plus <strong>30%</strong> on top of your own Supabase bill — nothing
-          more. You pay Supabase directly; PullUp is the service on top.
+          Simple: <strong>30%</strong> on top of your own Supabase bill — nothing more. You pay Supabase directly;
+          PullUp is the service on top.
         </p>
       </div>
       <div style={{ padding: 18, background: colors.surface, borderRadius: 14, border: `1px solid ${colors.borderFaint}` }}>

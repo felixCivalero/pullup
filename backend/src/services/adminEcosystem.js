@@ -61,10 +61,10 @@ export async function getEcosystemFunnel() {
   ] = await Promise.all([
     supabase.from("creator_waitlist").select("status"),
     supabase.from("profiles").select("id"),
-    supabase.from("events").select("host_id"),
+    supabase.from("events").select("id, host_id, kind"),
     supabase.from("sales_leads").select("id, profile_id, status"),
     supabase.from("people").select("id", { count: "exact", head: true }),
-    fetchAllPaged(() => supabase.from("rsvps").select("person_id, pulled_up, booking_status, status")),
+    fetchAllPaged(() => supabase.from("rsvps").select("person_id, event_id, pulled_up, booking_status, status")),
     fetchAllPaged(() => supabase.from("community_members").select("person_id")),
   ]);
 
@@ -73,16 +73,28 @@ export async function getEcosystemFunnel() {
   const events = eventHostsRes.data || [];
   const leads = leadsRes.data || [];
 
-  const activatedHosts = new Set(events.map((e) => e.host_id).filter(Boolean));
+  // A community page is an event of kind='community' (the Page-Editor model); an
+  // RSVP to one is a community JOIN, not a guest edge, and the page itself isn't
+  // a hosted event. Carve both out. We still UNION the legacy community_members
+  // table so the old join path is never lost. (The old `communities` table is
+  // effectively dead now — joins land here as RSVPs.)
+  const communityEventIds = new Set(events.filter((e) => e.kind === "community").map((e) => e.id));
+  const activatedHosts = new Set(
+    events.filter((e) => e.kind !== "community").map((e) => e.host_id).filter(Boolean),
+  );
 
   const guestPeople = new Set();
   const pulledUpPeople = new Set();
+  const communityPeople = new Set(community.map((c) => c.person_id).filter(Boolean));
   for (const r of rsvps) {
     if (!r.person_id) continue;
+    if (communityEventIds.has(r.event_id)) {
+      if (isLiveRsvp(r)) communityPeople.add(r.person_id);
+      continue;
+    }
     if (isLiveRsvp(r)) guestPeople.add(r.person_id);
     if (r.pulled_up) pulledUpPeople.add(r.person_id);
   }
-  const communityPeople = new Set(community.map((c) => c.person_id).filter(Boolean));
 
   const waitlistOpen = waitlist.filter((w) => w.status !== "joined").length;
 
@@ -129,7 +141,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
     supabase.from("profiles").select("id, name, brand, contact_email, created_at, last_login_at, login_count"),
     supabase.from("sales_leads").select("id, profile_id, name, email, company, phone, city, status, source, notes, priority, created_at"),
     supabase.from("creator_waitlist").select("id, email, name, role, handle, note, source, status, created_at"),
-    fetchAllPaged(() => supabase.from("events").select("id, host_id, title, starts_at")),
+    fetchAllPaged(() => supabase.from("events").select("id, host_id, title, starts_at, kind")),
     fetchAllPaged(() => supabase.from("rsvps").select("person_id, event_id, pulled_up, booking_status, status, total_guests, party_size, created_at")),
     fetchAllPaged(() => supabase.from("community_members").select("person_id, community_id, joined_at")),
   ]);
@@ -138,11 +150,15 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
   const leads = leadsRes.data || [];
   const waitlist = waitlistRes.data || [];
 
+  // Community pages (events kind='community') aren't hosted events, and RSVPs to
+  // them are community JOINS, not guest edges — carve them out of both facets.
+  const communityEventIds = new Set(events.filter((e) => e.kind === "community").map((e) => e.id));
+
   // Indexes.
   const profileById = new Map(profiles.map((p) => [p.id, p]));
   const eventsByHost = new Map();
   for (const e of events) {
-    if (!e.host_id) continue;
+    if (!e.host_id || e.kind === "community") continue;
     if (!eventsByHost.has(e.host_id)) eventsByHost.set(e.host_id, []);
     eventsByHost.get(e.host_id).push(e);
   }
@@ -205,8 +221,10 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
         sales: { leadId: lead.id, status: lead.status, priority: lead.priority || "normal", source: lead.source || null } };
     }
 
-    // Guest / pulled-up facet.
-    const myRsvps = (rsvpsByPerson.get(p.id) || []).filter(isLiveRsvp);
+    // Guest / pulled-up facet — community-page RSVPs are joins, not guest edges.
+    const liveRsvps = (rsvpsByPerson.get(p.id) || []).filter(isLiveRsvp);
+    const myRsvps = liveRsvps.filter((r) => !communityEventIds.has(r.event_id));
+    const myCommunityRsvps = liveRsvps.filter((r) => communityEventIds.has(r.event_id));
     let guest = null;
     if (myRsvps.length) {
       const confirmed = myRsvps.filter(
@@ -222,10 +240,15 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
       };
     }
 
-    // Community facet.
+    // Community facet — legacy community_members edge UNION community-page joins.
     const myComm = communityByPerson.get(p.id) || [];
-    const community = myComm.length
-      ? { count: myComm.length, joinedAt: myComm.map((c) => c.joined_at).sort().slice(-1)[0] || null }
+    const communityCount = myComm.length + myCommunityRsvps.length;
+    const communityDates = [
+      ...myComm.map((c) => c.joined_at),
+      ...myCommunityRsvps.map((r) => r.created_at),
+    ].filter(Boolean).sort();
+    const community = communityCount
+      ? { count: communityCount, joinedAt: communityDates.slice(-1)[0] || null }
       : null;
 
     // Waitlist facet (a person who is also on the creator waitlist).
@@ -421,8 +444,8 @@ export async function getEcosystemPersonDetail(rawId) {
     if (profile) {
       host = { profileId: profile.id, brand: profile.brand || null, lastLoginAt: profile.last_login_at || null, loginCount: profile.login_count || 0 };
       const { data: evs } = await supabase
-        .from("events").select("id, title, slug, starts_at, status").eq("host_id", profile.id).order("starts_at", { ascending: false });
-      hostEvents = await withConfirmedCounts(evs || []);
+        .from("events").select("id, title, slug, starts_at, status, kind").eq("host_id", profile.id).order("starts_at", { ascending: false });
+      hostEvents = await withConfirmedCounts((evs || []).filter((e) => e.kind !== "community"));
       sales = await fetchSales({ profileId: profile.id, email });
     }
   }
@@ -431,20 +454,27 @@ export async function getEcosystemPersonDetail(rawId) {
   // Guest facet — events they RSVP'd to, with titles.
   const rsvps = (rsvpsRes.data || []).filter(isLiveRsvp);
   const evIds = [...new Set(rsvps.map((r) => r.event_id).filter(Boolean))];
-  const evTitleById = new Map();
+  const evById = new Map();
   if (evIds.length) {
-    const { data: evs } = await supabase.from("events").select("id, title, slug, starts_at").in("id", evIds);
-    for (const e of evs || []) evTitleById.set(e.id, e);
+    const { data: evs } = await supabase.from("events").select("id, title, slug, starts_at, kind").in("id", evIds);
+    for (const e of evs || []) evById.set(e.id, e);
   }
-  const attended = rsvps.map((r) => {
-    const e = evTitleById.get(r.event_id) || {};
+  const isCommunityEvent = (id) => evById.get(id)?.kind === "community";
+  const attended = rsvps.filter((r) => !isCommunityEvent(r.event_id)).map((r) => {
+    const e = evById.get(r.event_id) || {};
     return {
       eventId: r.event_id, title: e.title || "Untitled", slug: e.slug || null, startsAt: e.starts_at || null,
       status: r.status || r.booking_status, pulledUp: !!r.pulled_up, createdAt: r.created_at,
     };
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  // Community memberships, with titles.
+  // RSVPs to a community-page event ARE community joins — surface them as such.
+  const communityEventJoins = rsvps.filter((r) => isCommunityEvent(r.event_id)).map((r) => {
+    const e = evById.get(r.event_id) || {};
+    return { id: r.event_id, title: e.title || "Community", joinedAt: r.created_at, source: "community_page" };
+  });
+
+  // Community memberships, with titles — legacy community_members UNION joins.
   const memberships = communityRes.data || [];
   let communities = [];
   if (memberships.length) {
@@ -456,6 +486,7 @@ export async function getEcosystemPersonDetail(rawId) {
       joinedAt: m.joined_at, source: m.source || null,
     }));
   }
+  communities = communities.concat(communityEventJoins);
 
   const waitlist = waitlistRes.data || null;
 
@@ -516,8 +547,8 @@ async function getSiloDetail(kind, id) {
   // profile:<id> — a host with no people row.
   const { data: pr } = await supabase.from("profiles").select("id, name, brand, contact_email, created_at, last_login_at, login_count").eq("id", id).maybeSingle();
   if (!pr) return null;
-  const { data: evs } = await supabase.from("events").select("id, title, slug, starts_at, status").eq("host_id", pr.id).order("starts_at", { ascending: false });
-  const hostEvents = await withConfirmedCounts(evs || []);
+  const { data: evs } = await supabase.from("events").select("id, title, slug, starts_at, status, kind").eq("host_id", pr.id).order("starts_at", { ascending: false });
+  const hostEvents = await withConfirmedCounts((evs || []).filter((e) => e.kind !== "community"));
   const sales = await fetchSales({ profileId: pr.id, email: lc(pr.contact_email) });
   const roles = ["host"];
   if (hostEvents.length) roles.push("activated");

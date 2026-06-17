@@ -31,7 +31,6 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
   // load regardless of which pane is open, then kept live via callbacks.
   const [stripe, setStripe] = useState(null);     // { connected, chargesEnabled }
   const [notifEnabled, setNotifEnabled] = useState(null);
-  const [billingOn, setBillingOn] = useState(false);
   const [byoOn, setByoOn] = useState(false);
   const [igConnected, setIgConnected] = useState(null);
 
@@ -40,16 +39,14 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
     Promise.allSettled([
       authenticatedFetch("/host/stripe/connect/status").then((r) => (r.ok ? r.json() : null)),
       authenticatedFetch("/host/notifications").then((r) => (r.ok ? r.json() : null)),
-      authenticatedFetch("/host/billing/summary").then((r) => (r.ok ? r.json() : null)),
       authenticatedFetch("/host/byo/status").then((r) => (r.ok ? r.json() : null)),
       authenticatedFetch("/instagram/connection").then((r) => (r.ok ? r.json() : null)),
-    ]).then(([s, n, b, y, i]) => {
+    ]).then(([s, n, y, i]) => {
       if (cancelled) return;
       if (s.status === "fulfilled" && s.value) {
         setStripe({ connected: !!s.value.connected, chargesEnabled: !!s.value.accountDetails?.charges_enabled });
       }
       if (n.status === "fulfilled" && n.value) setNotifEnabled(!!n.value.enabled);
-      if (b.status === "fulfilled" && b.value) setBillingOn(!!(b.value.metering || b.value.paymentsV2));
       if (y.status === "fulfilled" && y.value) setByoOn(!!y.value.enabled);
       if (i.status === "fulfilled" && i.value) setIgConnected((i.value.accounts || []).length > 0);
     });
@@ -99,14 +96,14 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
         ) },
     ];
     list.push({ key: "dataio", label: "Import & export", icon: ArrowDownUp, group: "Power & data", dot: null, render: () => <SettingsDataSection /> });
-    if (billingOn) list.push({ key: "plan", label: "Plan & usage", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
+    list.push({ key: "billing", label: "Billing", icon: BarChart3, group: "Power & data", dot: null, render: () => <SettingsBillingSection /> });
     if (byoOn) list.push({ key: "data", label: "Own your data", icon: Database, group: "Power & data", dot: null, render: () => <SettingsOwnDataSection /> });
 
     list.push({ key: "account", label: "Account", icon: UserCog, group: null, dot: null,
       render: () => <SettingsAccountSection showToast={showToast} /> });
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, stripe, notifDot, paymentsDot, profileDone, whatsappDot, instagramDot, igConnected, billingOn, byoOn]);
+  }, [user, stripe, notifDot, paymentsDot, profileDone, whatsappDot, instagramDot, igConnected, byoOn]);
 
   // Active section — deep-linkable via hash (#notifications), survives refresh.
   const [active, setActive] = useState(() => {

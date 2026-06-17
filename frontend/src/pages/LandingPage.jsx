@@ -4,6 +4,7 @@ import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download, Database,
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
 import { WaitlistForm } from "../components/auth/WaitlistForm.jsx";
 import { supabase } from "../lib/supabase.js";
+import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -948,24 +949,33 @@ export function LandingPage() {
   // The ONE auth check in the whole landing — and only on the login action.
   // The marketing page itself never reads auth (it always offers Log in / Get
   // started). When someone taps Log in and already has a stored session, we
-  // validate it server-side (getUser, the same check the backend runs) and:
-  //   • valid  → drop them straight into their room, no re-login.
-  //   • dead   → clear it locally so the login form shows cleanly. This is the
-  //              graceful catch for a session revoked elsewhere by a global
-  //              "log out everywhere".
+  // validate it server-side (resolveStoredSession → getUser, the same check the
+  // backend runs) and:
+  //   • valid    → drop them straight into their room, no re-login.
+  //   • dead     → clear it locally so the login form shows cleanly. This is the
+  //                graceful catch for a session revoked elsewhere by a global
+  //                "log out everywhere".
+  //   • unknown  → a transient network error; leave the session untouched (a
+  //                blip must not log a valid user out — same bug we fixed in
+  //                authenticatedFetch). resolveStoredSession refreshes once
+  //                before ever calling a session "dead".
   // Onboarding (/start) is intentionally excluded — AuthGate owns that flow
   // (it flushes the name+brand draft before forwarding).
   useEffect(() => {
     if (view !== "login") return;
     let cancelled = false;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (cancelled || !session) return;
-      const { data: { user: validUser }, error } = await supabase.auth.getUser();
+      const { status } = await resolveStoredSession({
+        auth: {
+          getSession: () => supabase.auth.getSession(),
+          getUser: () => supabase.auth.getUser(),
+          refreshSession: () => supabase.auth.refreshSession(),
+        },
+      });
       if (cancelled) return;
-      if (validUser) {
+      if (status === "valid") {
         navigate(resolveNext(searchParams), { replace: true });
-      } else if (error && (error.status === 401 || error.status === 403)) {
+      } else if (status === "dead") {
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
       }
     })();

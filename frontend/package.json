@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node src/lib/authFetchCore.test.mjs && node src/lib/validateStoredSession.test.mjs",
     "preview": "vite preview",
     "deadfiles": "node scripts/find-dead-files.mjs"
   },

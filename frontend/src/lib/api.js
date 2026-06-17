@@ -3,6 +3,7 @@
 
 import { supabase } from "./supabase.js";
 import { API_BASE } from "./env.js";
+import { fetchWithSessionRecovery } from "./authFetchCore.mjs";
 
 // Admin "View as" — when an admin has an active view-as, every request carries
 // these headers so the backend (after re-verifying admin) resolves as that user
@@ -49,37 +50,41 @@ function clearDeadSession() {
  * Automatically adds Authorization header with JWT token
  */
 export async function authenticatedFetch(url, options = {}) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...viewAsHeaders(),
-    ...options.headers,
+  // Perform the request with the given access token. Rebuilt per attempt so a
+  // refreshed token (and current view-as headers) are picked up on retry.
+  const doFetch = (accessToken) => {
+    const headers = {
+      "Content-Type": "application/json",
+      ...viewAsHeaders(),
+      ...options.headers,
+    };
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+    return fetch(`${API_BASE}${url}`, { ...options, headers });
   };
 
-  // Add auth token if available
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
-  }
-
-  const response = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers,
+  // A 401 no longer means "session is dead." A momentary network blip during
+  // token rotation makes getSession() return null while the refresh token is
+  // still valid — the old code wiped that session and logged the user out
+  // (rampant on mobile / in-app browsers). fetchWithSessionRecovery refreshes
+  // once and retries before giving up, and only clears the session when the
+  // refresh itself genuinely fails (revoked/expired refresh token).
+  //
+  // On a truly dead session we clear LOCALLY (scope:'local') — the stored token
+  // is already invalid server-side, so there's nothing to revoke remotely, and
+  // we avoid the 403-logout storm a global signOut with a dead token caused.
+  // React then routes back to "/" via ProtectedLayout's auth guard (no
+  // hard-redirect — that ping-ponged with LandingPage's auto-redirect to /room
+  // when best-effort background calls flapped).
+  return fetchWithSessionRecovery({
+    auth: {
+      getSession: () => supabase.auth.getSession(),
+      refreshSession: () => supabase.auth.refreshSession(),
+    },
+    doFetch,
+    onDeadSession: clearDeadSession,
   });
-
-  // Handle 401 Unauthorized: clear the Supabase session and let React route
-  // the user back to "/" via ProtectedLayout's auth guard. We deliberately do
-  // NOT hard-redirect with window.location.href — that caused a ping-pong
-  // loop with LandingPage's auto-redirect to /room when best-effort
-  // background calls (e.g. /auth/record-consent on every mount) flapped.
-  if (response.status === 401) {
-    await clearDeadSession();
-    throw new Error("Unauthorized - please sign in");
-  }
-
-  return response;
 }
 
 /**

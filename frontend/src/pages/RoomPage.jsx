@@ -324,7 +324,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
   const [uploading, setUploading] = useState(false);
   const [eventId, setEventId] = useState(null); // optionally include an event
   const fileRef = useRef(null);
-  const taRef = useRef(null); // textarea — for Quick-access caret insertion
+  const taRef = useRef(null); // textarea — for Quick-access caret insertion + auto-grow
   // Which IG account replies send from — only matters when the host connected
   // more than one (personal + business). Defaults to their chosen default.
   const defaultIg = igAccounts.find((a) => a.isDefault) || igAccounts[0] || null;
@@ -349,6 +349,15 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
   }, [person.thread, sentMsgs, liveMsgs]);
 
   useEffect(() => { setDraft(""); setRail(person.channel); setIgFrom(defaultIg?.id || null); setSentMsgs([]); setLiveMsgs([]); sentKeysRef.current = new Set(); setAttachments([]); setEventId(null); }, [person.id, person.channel, defaultIg?.id]);
+
+  // The composer grows with the message so longer notes — real emails — are
+  // comfortable to write, then scrolls past a generous cap.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 44), 260)}px`;
+  }, [draft]);
 
   // ── Live: this person's inbound replies + delivery-status ticks stream in. ──
   useRoomRealtime({
@@ -591,7 +600,7 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
         <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" disabled={rail === "instagram"} style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: rail !== "instagram" ? colors.textMuted : colors.textFaded, cursor: rail !== "instagram" ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
-          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
+          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={rail === "whatsapp" && person.windowOpen === false ? "Window closed — sends as a WhatsApp template" : `Message ${person.name.split(" ")[0]} on ${c.label}…`} rows={2} style={{ flex: 1, minWidth: 0, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none", maxHeight: "260px", overflowY: "auto", lineHeight: 1.45 }} />
           <button onClick={handleSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content" }}>{sending ? "Sending…" : "Send"}</button>
         </div>
       </div>
@@ -609,15 +618,24 @@ function ThreadPanel({ person, onClose, igAccounts = [], events = [], host = {} 
 function BulkPanel({ people, events = [], lensEvent = null, host = {}, onClose, onClear }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState("");
+  const [subject, setSubject] = useState(""); // email subject for the email recipients
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [eventId, setEventId] = useState(lensEvent?.id || null); // optionally include an event
   const fileRef = useRef(null);
-  const taRef = useRef(null); // textarea — for Quick-access caret insertion
+  const taRef = useRef(null); // textarea — for Quick-access caret insertion + auto-grow
   const move = people[0]?.move;
   // Start blank — the host writes in their own voice (no pre-filled suggestion).
-  useEffect(() => { setDraft(""); setEventId(lensEvent?.id || null); }, [people, lensEvent?.id]);
+  useEffect(() => { setDraft(""); setSubject(""); setEventId(lensEvent?.id || null); }, [people, lensEvent?.id]);
+
+  // Grow the composer with the message so longer notes are comfortable to write.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 60), 260)}px`;
+  }, [draft]);
 
   function insertAtCaret(text) {
     const el = taRef.current;
@@ -667,7 +685,7 @@ function BulkPanel({ people, events = [], lensEvent = null, host = {}, onClose, 
     try {
       const res = await authenticatedFetch("/host/room/message/bulk", {
         method: "POST",
-        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, attachments, eventId }),
+        body: JSON.stringify({ personIds: people.map((p) => p.id), channel: "whatsapp", text, subject: subject.trim() || undefined, attachments, eventId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
@@ -755,10 +773,21 @@ function BulkPanel({ people, events = [], lensEvent = null, host = {}, onClose, 
             {uploading && <span style={{ fontSize: "11.5px", color: colors.textSubtle, alignSelf: "center" }}>Uploading…</span>}
           </div>
         )}
+        {/* Subject — shown when anyone in the batch lands over email. Optional;
+            falls back to "A note from {host}". */}
+        {emCount > 0 && (
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder={`Subject for the ${emCount} on email (optional)`}
+            style={{ width: "100%", boxSizing: "border-box", marginBottom: "8px", border: `1px solid ${colors.border}`, borderRadius: "10px", padding: "9px 12px", fontSize: "13px", fontWeight: 600, fontFamily: SF, color: colors.text, outline: "none" }}
+          />
+        )}
+
         <input ref={fileRef} type="file" multiple onChange={onAttach} style={{ display: "none" }} />
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={() => fileRef.current?.click()} title="Attach a file or image" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: "10px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Paperclip size={16} /></button>
-          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none" }} />
+          <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Write to all ${people.length}…`} rows={3} style={{ flex: 1, minWidth: 0, resize: "none", border: `1px solid ${colors.border}`, borderRadius: "12px", padding: "10px 12px", fontSize: "13.5px", fontFamily: SF, color: colors.text, outline: "none", maxHeight: "260px", overflowY: "auto", lineHeight: 1.45 }} />
           <button onClick={handleBulkSend} disabled={(!draft.trim() && !attachments.length && !eventId) || sending} style={{ padding: "10px 16px", borderRadius: "999px", border: "none", background: (draft.trim() || attachments.length || eventId) && !sending ? colors.accent : colors.surfaceMuted, color: (draft.trim() || attachments.length || eventId) && !sending ? "#fff" : colors.textFaded, fontWeight: 700, fontSize: "13px", cursor: (draft.trim() || attachments.length || eventId) && !sending ? "pointer" : "default", flexShrink: 0, height: "fit-content", whiteSpace: "nowrap" }}>
             {sending ? "Sending…" : `Send to ${people.length}`}
           </button>

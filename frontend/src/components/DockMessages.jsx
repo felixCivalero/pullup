@@ -97,16 +97,17 @@ function chanOpen(p, c) {
 // The channel a send will ACTUALLY go out on: the host's pick if it's still
 // open, else their preferred rail if open, else the best open rail. Never lands
 // on a closed rail — that's the whole point.
-// Messages-list order — a real inbox. Tier 0 = unread (their message is the last
-// one, awaiting your reply), tier 1 = any message history, tier 2 = action-only
-// (no messages — ranked by their latest action). Newest-first inside each tier,
-// so an rsvp/attended log can never sit above a written message.
+// Messages-list order — like Instagram: the newest activity is always on top,
+// unread or not. Tier 0 = any message thread (ranked purely by recency, so a
+// reply you just sent jumps to the top even when older unreads exist); tier 1 =
+// action-only (no messages yet — ranked by their latest action). The two tiers
+// keep an rsvp/attended log from ever sitting above a written message. The
+// unread dot still marks what's awaiting you — it just no longer reorders.
 function msgRank(p) {
   const msgMs = p.lastMessageAt ? new Date(p.lastMessageAt).getTime() : 0;
-  if (p.awaitingReply && msgMs) return [0, msgMs];
-  if (msgMs) return [1, msgMs];
+  if (msgMs) return [0, msgMs];
   const actMs = p.lastActivityAt ? new Date(p.lastActivityAt).getTime() : 0;
-  return [2, actMs || (p.warmth || 0)];
+  return [1, actMs || (p.warmth || 0)];
 }
 
 function resolveActiveCh(p, picked) {
@@ -152,12 +153,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [openId, setOpenId] = useState(null);
   const [sendChannel, setSendChannel] = useState(null); // chosen send channel for the open thread (null = the person's preferred)
   const [draft, setDraft] = useState("");
+  const [subject, setSubject] = useState(""); // email subject — broadcast only
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const scroller = useRef(null);
   const fileRef = useRef(null);
+  const taRef = useRef(null); // composer textarea — for auto-grow
   // Keys (clientId + server id) of bubbles WE created this session, so a realtime
   // echo of our own send doesn't double-render alongside its optimistic copy.
   const sentKeysRef = useRef(new Set());
@@ -245,6 +248,16 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   }, [open, sent]);
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [thread.length, openId]);
   useEffect(() => { setDraft(""); setAttachments([]); setSmartOpen(false); setSendChannel(null); }, [openId]);
+
+  // The composer grows with the message so longer notes — real emails — are
+  // comfortable to write, then scrolls past a sensible cap. (Enter is a line
+  // break now; sending is the button only.)
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 20), 160)}px`;
+  }, [draft, openId]);
 
   async function onPickFile(e) {
     const file = e.target.files?.[0]; e.target.value = "";
@@ -388,7 +401,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     await runPool(recips, async ({ p, ch }) => {
       let ok = false;
       try {
-        const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: ch, text, attachments: atts, eventId: evId, location: loc }) });
+        const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: ch, text, subject: subject.trim() || undefined, attachments: atts, eventId: evId, location: loc }) });
         const data = await res.json().catch(() => ({}));
         ok = res.ok && data.ok !== false;
       } catch { ok = false; }
@@ -404,7 +417,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   }
   // Leave the broadcast flow after a send — back to the message list, cleared.
   function finishBroadcast() {
-    setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
+    setDraft(""); setSubject(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
     exitSelect();
   }
 
@@ -420,7 +433,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
       {label}
     </button>
   );
-  const renderComposer = (onSubmit, placeholder) => (
+  const renderComposer = (onSubmit, placeholder, opts = {}) => (
     <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${D.line}`, position: "relative" }}>
       {smartOpen && smartEvent && (
         <div style={{ position: "absolute", left: 12, right: 12, bottom: "calc(100% - 4px)", background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 14px 36px rgba(10,10,10,0.16)", padding: 11, zIndex: 30 }}>
@@ -471,18 +484,26 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           </span>
         </div>
       )}
-      <form onSubmit={onSubmit} autoComplete="off" style={{ display: "flex", gap: 8, alignItems: "center", background: D.raise, borderRadius: 999, padding: "5px 6px 5px 8px" }}>
+      {/* Subject — broadcast with ≥1 email recipient. Optional; falls back to
+          "A note from {host}". */}
+      {opts.showSubject && (
+        <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject (optional)"
+          name="pullup-subject" autoComplete="off" autoCorrect="off" data-lpignore="true" data-1p-ignore data-form-type="other"
+          style={{ width: "100%", boxSizing: "border-box", marginBottom: 8, background: D.raise, border: `1px solid ${D.line}`, borderRadius: 12, padding: "8px 12px", fontSize: 13, fontWeight: 600, color: D.ink, outline: "none" }} />
+      )}
+      <form onSubmit={onSubmit} autoComplete="off" style={{ display: "flex", gap: 8, alignItems: "flex-end", background: D.raise, borderRadius: 20, padding: "5px 6px 5px 8px" }}>
         <button type="button" onClick={() => setSmartOpen((v) => !v)} disabled={!smartEvent} title="Insert event details"
-          style={{ ...iconBtn, color: smartOpen ? D.pink : (smartEvent ? D.muted : D.faint) }}><CalendarClock size={18} /></button>
-        {/* It's a chat box, not a payment field — stop Chrome's credit-card /
-            password-manager autofill from popping over it. */}
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder}
+          style={{ ...iconBtn, color: smartOpen ? D.pink : (smartEvent ? D.muted : D.faint), flexShrink: 0 }}><CalendarClock size={18} /></button>
+        {/* A chat box that grows into a real note. Enter is a line break — sending
+            is the button only (safer for longer emails). Autofill off: it's a
+            message field, not a password/credit-card one. */}
+        <textarea ref={taRef} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} rows={1}
           name="pullup-message" autoComplete="off" autoCorrect="off" data-lpignore="true" data-1p-ignore data-form-type="other"
-          style={{ flex: 1, background: "none", border: "none", outline: "none", color: D.ink, fontSize: 13.5 }} />
+          style={{ flex: 1, minWidth: 0, alignSelf: "stretch", background: "none", border: "none", outline: "none", resize: "none", color: D.ink, fontSize: 13.5, lineHeight: 1.4, fontFamily: "inherit", padding: "6px 0", maxHeight: 160, overflowY: "auto" }} />
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: "none" }} />
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted }} aria-label="Attach"><Paperclip size={17} /></button>
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...iconBtn, color: uploading ? D.faint : D.muted, flexShrink: 0 }} aria-label="Attach"><Paperclip size={17} /></button>
         <button type="submit" disabled={sending || (!draft.trim() && !attachments.length && !attachedEventId && !attachedLocation)} aria-label="Send"
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%", border: "none", background: (draft.trim() || attachments.length) ? D.youGrad : D.them, color: (draft.trim() || attachments.length) ? "#fff" : D.faint, cursor: "pointer" }}><Send size={15} /></button>
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, flexShrink: 0, borderRadius: "50%", border: "none", background: (draft.trim() || attachments.length) ? D.youGrad : D.them, color: (draft.trim() || attachments.length) ? "#fff" : D.faint, cursor: "pointer" }}><Send size={15} /></button>
       </form>
     </div>
   );
@@ -694,7 +715,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
               <div style={{ fontSize: 12.5, color: D.faint, textAlign: "center", lineHeight: 1.5 }}>One message, delivered to each person individually on their own channel — not a group thread. Replies come back to their own thread in your inbox.</div>
             </div>
-            {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`)}
+            {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`, { broadcast: true, showSubject: selectedPeople.some((p) => resolveActiveCh(p, null) === "email") })}
           </>
         )}
 
@@ -899,7 +920,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
       {selecting && selected.length > 0 && (
         <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
-          <button onClick={() => { setDraft(""); setAttachments([]); setSmartOpen(false); setSendProgress(null); setBroadcast(true); }}
+          <button onClick={() => { setDraft(""); setSubject(""); setAttachments([]); setSmartOpen(false); setSendProgress(null); setBroadcast(true); }}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
             Write to {selected.length} <ChevronRight size={15} />
           </button>

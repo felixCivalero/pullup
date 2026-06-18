@@ -130,11 +130,24 @@ export function AutoDmPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authenticatedFetch("/host/comment-triggers");
-      if (!res.ok) throw new Error("load failed");
-      const data = await res.json();
-      setIgConnected(!!data.igConnected);
-      setAccount(data.account || null);
+      // The connect-vs-create gate is the account-global Instagram connection
+      // (same source as Settings) — read it independently so this page never
+      // demands a re-connect when one already exists. The triggers fetch only
+      // supplies the list, never the gate.
+      const [cRes, res] = await Promise.allSettled([
+        authenticatedFetch("/instagram/connection"),
+        authenticatedFetch("/host/comment-triggers"),
+      ]);
+      const cData =
+        cRes.status === "fulfilled" && cRes.value.ok ? await cRes.value.json() : {};
+      if (!(res.status === "fulfilled" && res.value.ok)) throw new Error("load failed");
+      const data = await res.value.json();
+      const accts = Array.isArray(cData.accounts) ? cData.accounts : [];
+      const acct = accts.find((a) => a.isDefault) || accts[0] || null;
+      setIgConnected(!!(cData.connected || data.igConnected));
+      setAccount(
+        acct ? { username: acct.ig_username, ...acct } : data.account || null
+      );
       // This page manages comment→DM keyword triggers only; RSVP→DM triggers
       // (no keyword) are managed in the event editor's Instagram panel.
       setTriggers((data.triggers || []).filter((t) => (t.triggerType || "comment") === "comment"));

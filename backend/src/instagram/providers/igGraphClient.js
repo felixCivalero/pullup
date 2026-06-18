@@ -25,6 +25,24 @@ import {
 } from "../config.js";
 import { logger } from "../../logger.js";
 
+// Strip secrets (access_token, client_secret, code) out of a URL before it
+// ever lands in an error message or log. Without this, the token rides along in
+// the thrown string → Sentry's data scrubber flags the whole value as a secret
+// and replaces it with "[Filtered]", so the REAL Meta error becomes invisible
+// (exactly what hid the Instagram connect failures). Redacting keeps the Meta
+// status + message readable and stops us leaking live tokens into logs.
+function redactUrl(url) {
+  try {
+    const u = new URL(url);
+    for (const k of ["access_token", "client_secret", "code"]) {
+      if (u.searchParams.has(k)) u.searchParams.set(k, "REDACTED");
+    }
+    return u.toString();
+  } catch {
+    return String(url).replace(/(access_token|client_secret|code)=[^&]+/gi, "$1=REDACTED");
+  }
+}
+
 async function postForm(url, params) {
   const res = await fetch(url, {
     method: "POST",
@@ -34,7 +52,7 @@ async function postForm(url, params) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      `[igGraphClient] ${url} → ${res.status} ${json?.error_message || json?.error?.message || ""}`,
+      `[igGraphClient] POST ${redactUrl(url)} → ${res.status} ${json?.error_message || json?.error?.message || ""}`.trim(),
     );
   }
   return json;
@@ -45,7 +63,7 @@ async function getJson(url) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      `[igGraphClient] GET ${url} → ${res.status} ${json?.error?.message || ""}`,
+      `[igGraphClient] GET ${redactUrl(url)} → ${res.status} ${json?.error?.message || json?.error_message || ""}`.trim(),
     );
   }
   return json;

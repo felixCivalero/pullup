@@ -163,15 +163,25 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode, kind = "eve
     }
     setLoading(true);
     try {
-      const [tRes, cRes] = await Promise.all([
-        authenticatedFetch("/host/comment-triggers"),
+      // The Instagram connection is account-global (keyed by host, same source
+      // as Settings). It is the SOLE thing that gates "connect vs create a
+      // trigger" — so read it independently and never let a failure in the
+      // per-event triggers fetch mask a real connection (that was the bug that
+      // made community/product pages demand a re-connect after Settings already
+      // had one). A connection found anywhere lets you go straight to the flow.
+      const [cRes, tRes] = await Promise.allSettled([
         authenticatedFetch("/instagram/connection"),
+        authenticatedFetch("/host/comment-triggers"),
       ]);
-      if (!tRes.ok) throw new Error();
-      const tData = await tRes.json();
-      const cData = cRes.ok ? await cRes.json() : {};
+
+      const cData =
+        cRes.status === "fulfilled" && cRes.value.ok ? await cRes.value.json() : {};
       const accts = Array.isArray(cData.accounts) ? cData.accounts : [];
       const acct = accts.find((a) => a.isDefault) || accts[0] || null;
+
+      const tData =
+        tRes.status === "fulfilled" && tRes.value.ok ? await tRes.value.json() : {};
+
       setIgConnected(!!(cData.connected || tData.igConnected));
       setAccount(acct);
       const mine = (tData.triggers || []).filter((t) => t.eventId === eventId);

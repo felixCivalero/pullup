@@ -268,7 +268,16 @@ export async function instagramConnectCallback(req, res) {
     });
     res.redirect(landingUrl(returnTo, "connected"));
   } catch (err) {
-    logger?.error?.("[instagram/oauth] callback failed", { err: err.message });
+    // Pass the real Error (not just .message) so the tracker keeps the stack and
+    // the actual Meta/Graph reason — the previous { err: err.message } string
+    // both lost the stack and, when it carried a tokened URL, got scrubbed to
+    // "[Filtered]". The Graph client now redacts tokens, so this message is the
+    // genuine cause (e.g. account-not-professional or scope-not-granted).
+    logger?.error?.("[instagram/oauth] callback failed", {
+      error: err,
+      hostProfileId: payload.hostProfileId,
+      reason: err?.message,
+    });
     res.redirect(landingUrl(returnTo, "error"));
   }
 }

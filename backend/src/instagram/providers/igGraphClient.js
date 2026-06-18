@@ -92,8 +92,25 @@ export async function exchangeCodeForToken(code) {
     redirect_uri: IG_OAUTH_REDIRECT_URI,
     code,
   });
-  const igUserId = String(short.user_id ?? short.user_id);
-  const shortToken = short.access_token;
+  // Instagram Login returns the short-lived token EITHER flat
+  // ({ access_token, user_id }) OR wrapped in a data[] array
+  // ({ data: [{ access_token, user_id }] }) depending on the app/API rollout.
+  // Reading only the flat shape left shortToken undefined for wrapped
+  // responses → step 2 was sent a blank access_token → Meta 400 "Unsupported
+  // request - method type: get". Accept both shapes.
+  const tokenNode =
+    short.access_token ? short : (Array.isArray(short.data) ? short.data[0] : null) || short;
+  const shortToken = tokenNode?.access_token;
+  const igUserId = String(tokenNode?.user_id ?? short.user_id ?? "");
+
+  if (!shortToken) {
+    // Surface WHICH keys came back (never the values) so a future shape change
+    // is diagnosable from one log line instead of a blind 400 downstream.
+    throw new Error(
+      `[igGraphClient] short-lived token missing in response; keys=${Object.keys(short).join(",")}` +
+        (Array.isArray(short.data) ? ` data[0].keys=${Object.keys(short.data[0] || {}).join(",")}` : ""),
+    );
+  }
 
   // 2. short → long-lived (60 days)
   const longUrl =

@@ -50,6 +50,10 @@ export function RoomProductShowcase({
 
   const single = products.length === 1;
 
+  // Image keeps a tight footprint: a short wide banner for a lone product, a
+  // compact 4:3 thumb in the grid. Never the page-eating squares we had before.
+  const imgBox = single ? { width: "100%", height: 160 } : { width: "100%", aspectRatio: "4 / 3" };
+
   const card = (p) => {
     const draft = isHost && p.live === false;
     return (
@@ -58,8 +62,7 @@ export function RoomProductShowcase({
         type="button"
         onClick={() => (isHost ? onManage?.(p) : setBuying(p))}
         style={{
-          flex: single ? "1 1 auto" : "0 0 auto",
-          width: single ? "100%" : 190,
+          width: "100%",
           display: "flex", flexDirection: "column", textAlign: "left",
           background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16,
           overflow: "hidden", cursor: "pointer", fontFamily: SF, color: t.text,
@@ -67,13 +70,13 @@ export function RoomProductShowcase({
         }}
       >
         {p.coverImageUrl ? (
-          <div style={{ width: "100%", aspectRatio: single ? "16 / 9" : "1 / 1", background: `url(${p.coverImageUrl}) center/cover` }} />
+          <div style={{ ...imgBox, background: `url(${p.coverImageUrl}) center/cover` }} />
         ) : (
-          <div style={{ width: "100%", aspectRatio: single ? "16 / 9" : "1 / 1", background: t.accent + "14", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <ShoppingBag size={28} color={t.accent} />
+          <div style={{ ...imgBox, background: t.accent + "14", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ShoppingBag size={26} color={t.accent} />
           </div>
         )}
-        <div style={{ padding: "12px 13px 14px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ padding: "11px 12px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
             {draft && (
@@ -140,7 +143,9 @@ export function RoomProductShowcase({
       ) : single ? (
         card(products[0])
       ) : (
-        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+        // Many products → a clean responsive grid that fills the row, instead of
+        // a horizontal scroll. Small cards auto-fit; the row wraps as needed.
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 12 }}>
           {products.map(card)}
         </div>
       )}

@@ -1135,6 +1135,93 @@ function ProfileMasthead({ host, loading, onStat }) {
 }
 
 // ─── The global Room ────────────────────────────────────────────────
+// Your community — the front door to THIS room. Self-contained so it can sit in
+// its own column beside "Rooms you're in". No outer margin; the caller spaces it.
+function CommunityCard({ community }) {
+  const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+  const c = community;
+  const live = !!c?.live;
+  const members = c?.memberCount || 0;
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://pullup.se";
+  const shareUrl = c?.slug ? `${origin}/c/${c.slug}` : null;
+  const copyLink = async (e) => {
+    e.stopPropagation();
+    if (!shareUrl) return;
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
+  };
+  const ghostPill = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, fontFamily: SF, cursor: "pointer", padding: "7px 11px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted };
+  return (
+    // Fills its column so it stands the same height as the "Rooms you're in"
+    // cards beside it — the two read as one tidy grid row.
+    <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your community</span>
+        {c && (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
+            padding: "3px 9px", borderRadius: 999,
+            color: live ? "#16a34a" : colors.textMuted,
+            background: live ? "rgba(34,197,94,0.12)" : colors.surfaceMuted,
+            border: `1px solid ${live ? "rgba(34,197,94,0.35)" : colors.border}`,
+          }}>
+            {live ? "● Live" : "Draft"}
+          </span>
+        )}
+      </div>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate("/community")}
+        onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
+        style={{
+          display: "flex", alignItems: "center", gap: 13, width: "100%", flex: 1, boxSizing: "border-box",
+          padding: "15px 16px", borderRadius: 16, cursor: "pointer",
+          textAlign: "left", fontFamily: SF, boxSizing: "border-box",
+          border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
+          background: live
+            ? `linear-gradient(180deg, rgba(34,197,94,0.06), ${colors.surface} 70%)`
+            : `linear-gradient(180deg, ${colors.accent}12, ${colors.surface} 70%)`,
+          color: colors.text,
+        }}
+      >
+        <span style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
+          <DoorOpen size={20} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
+            {live ? (c.title || "Your community") : !c ? "Create your community signup page" : "Finish your community signup page"}
+          </span>
+          <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
+            {!c
+              ? "One link — everyone who wants in lands in your room."
+              : !live
+                ? "It's a draft — publish it to open the doors."
+                : <><strong style={{ color: colors.text, fontWeight: 800 }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} <span style={{ color: colors.textFaded }}>· everyone who joined through your link</span></>}
+          </span>
+        </span>
+        {live && shareUrl ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+            <button type="button" onClick={copyLink} style={{ ...ghostPill, color: copied ? "#16a34a" : colors.textMuted, borderColor: copied ? "rgba(34,197,94,0.4)" : colors.border }}>
+              {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
+            </button>
+            <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+               style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "7px 11px", borderRadius: 999, background: `${colors.accent}12` }}>
+              View <ExternalLink size={13} />
+            </a>
+          </div>
+        ) : (
+          // Not live → one clear CTA pill (create or finish/publish).
+          <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 800, color: "#fff", background: colors.accent, padding: "7px 13px", borderRadius: 999 }}>
+            {!c ? <><Plus size={13} /> Create</> : "Publish"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Rooms you're in — the events you belong to but don't own: ones you co-host,
 // and ones you attend as a guest (RSVP'd / pulled up). Every card opens the one
 // shared Room. This is what makes the home work for a pure guest, who otherwise
@@ -1146,7 +1233,7 @@ function MemberRoomsRail({ rooms, onOpen }) {
     r.isHost ? { label: "Co-host", c: colors.accent, bg: colors.accentSoft, b: colors.accentBorder }
              : { label: "Guest", c: colors.textMuted, bg: colors.surfaceMuted, b: colors.border };
   return (
-    <div style={{ marginTop: "26px", marginBottom: "8px" }}>
+    <div>
       {/* Same small-caps section label + horizontal strip as "Your events", so
           the two rails read as siblings — only the headline tells them apart. */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -1457,7 +1544,6 @@ export function OwnerConsole({ room: roomProp }) {
   const [selectedId, setSelectedId] = useState(null);
   const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
-  const [commLinkCopied, setCommLinkCopied] = useState(false); // community card: copy-link feedback
   const [managingProducts, setManagingProducts] = useState(false); // main-room product manager
   // Local copy so ProfileSetup patches + event deletion update in place without
   // a refetch. Re-seed if the parent hands a fresh payload.
@@ -1514,95 +1600,23 @@ export function OwnerConsole({ room: roomProp }) {
         onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
       />
 
-      {/* Rooms you're in — events you co-host or attend as a guest. */}
-      <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
-
-      {/* Your community — the front door to THIS room. When it's live, follow the
-          signup journey right here (between the rooms you're in and your people). */}
-      {(() => {
-        const c = COMMUNITY;
-        const live = !!c?.live;
-        const members = c?.memberCount || 0;
-        const origin = typeof window !== "undefined" ? window.location.origin : "https://pullup.se";
-        const shareUrl = c?.slug ? `${origin}/c/${c.slug}` : null;
-        const copyLink = async (e) => {
-          e.stopPropagation();
-          if (!shareUrl) return;
-          try { await navigator.clipboard.writeText(shareUrl); setCommLinkCopied(true); setTimeout(() => setCommLinkCopied(false), 1800); } catch { /* clipboard blocked */ }
-        };
-        const ghostPill = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, fontFamily: SF, cursor: "pointer", padding: "7px 11px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted };
-        return (
-          <div style={{ marginTop: 30 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your community</span>
-              {c && (
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-                  padding: "3px 9px", borderRadius: 999,
-                  color: live ? "#16a34a" : colors.textMuted,
-                  background: live ? "rgba(34,197,94,0.12)" : colors.surfaceMuted,
-                  border: `1px solid ${live ? "rgba(34,197,94,0.35)" : colors.border}`,
-                }}>
-                  {live ? "● Live" : "Draft"}
-                </span>
-              )}
-            </div>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate("/community")}
-              onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 13, width: "100%",
-                padding: "15px 16px", borderRadius: 16, cursor: "pointer",
-                textAlign: "left", fontFamily: SF, boxSizing: "border-box",
-                border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
-                background: live
-                  ? `linear-gradient(180deg, rgba(34,197,94,0.06), ${colors.surface} 70%)`
-                  : `linear-gradient(180deg, ${colors.accent}12, ${colors.surface} 70%)`,
-                color: colors.text,
-              }}
-            >
-              <span style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
-                <DoorOpen size={20} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
-                  {live ? (c.title || "Your community") : !c ? "Create your community signup page" : "Finish your community signup page"}
-                </span>
-                <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
-                  {!c
-                    ? "One link — everyone who wants in lands in your room."
-                    : !live
-                      ? "It's a draft — publish it to open the doors."
-                      : <><strong style={{ color: colors.text, fontWeight: 800 }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} <span style={{ color: colors.textFaded }}>· everyone who joined through your link</span></>}
-                </span>
-              </span>
-              {live && shareUrl ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
-                  <button type="button" onClick={copyLink} style={{ ...ghostPill, color: commLinkCopied ? "#16a34a" : colors.textMuted, borderColor: commLinkCopied ? "rgba(34,197,94,0.4)" : colors.border }}>
-                    {commLinkCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
-                  </button>
-                  <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                     style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "7px 11px", borderRadius: 999, background: `${colors.accent}12` }}>
-                    View <ExternalLink size={13} />
-                  </a>
-                </div>
-              ) : (
-                // Not live → one clear CTA pill (create or finish/publish).
-                <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 800, color: "#fff", background: colors.accent, padding: "7px 13px", borderRadius: 999 }}>
-                  {!c ? <><Plus size={13} /> Create</> : "Publish"}
-                </span>
-              )}
-            </div>
+      {/* Community + Rooms you're in — two sibling worlds sharing one row, sized
+          to match so they read as a clean grid. They stack on phones; when you're
+          in no other rooms, community takes the full width. */}
+      <div style={{ marginTop: 30, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "stretch" }}>
+        <div style={{ flex: MEMBER_ROOMS.length ? "1 1 0" : "1 1 100%", minWidth: 0, display: "flex" }}>
+          <CommunityCard community={COMMUNITY} />
+        </div>
+        {MEMBER_ROOMS.length > 0 && (
+          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+            <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
           </div>
-        );
-      })()}
+        )}
+      </div>
 
-      {/* Your products — the host's global product library. Live products show in
-          the main room automatically; this card is the manage anchor + storefront
-          preview (mirrors the community card above). */}
+      {/* Your products — under the community/rooms grid. The host's global product
+          library: a tight banner for one, a clean grid for many. Live products
+          show in the main room automatically; this is the manage anchor. */}
       <RoomProductShowcase
         products={PRODUCTS}
         isHost
@@ -1751,7 +1765,10 @@ function ActionsSkeleton() {
 // (the banner shouldn't shout). A create tile is always the last card.
 function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onMessageAll, onDeleted }) {
   const isMobile = useIsMobile();
-  const [showDrafts, setShowDrafts] = useState(false);
+  // Drafts are shown by default now — they sit first in the strip with a Draft
+  // badge so a growing pile is impossible to miss (and easy to finish or bin),
+  // instead of hiding behind a toggle that let drafts quietly stack up.
+  const [showDrafts, setShowDrafts] = useState(true);
   // One unified panel opens below the strip when you open a card. It holds the
   // SAME action bar for every event (Manage · Team · VIP · Share · delete) so
   // nothing behaves inconsistently — only "Manage" navigates; the rest swap
@@ -1836,8 +1853,12 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
           Your events
         </span>
         {drafts.length > 0 && (
-          <button onClick={() => setShowDrafts((v) => !v)} style={{ fontSize: "11px", fontWeight: 600, color: showDrafts ? colors.accent : colors.textSubtle, background: "transparent", border: "none", cursor: "pointer", fontFamily: SF, padding: 0 }}>
-            {showDrafts ? "Hide drafts" : `Drafts (${drafts.length})`}
+          <button
+            onClick={() => setShowDrafts((v) => !v)}
+            title={showDrafts ? "Hide drafts" : "Show drafts"}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "10.5px", fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: showDrafts ? "#b45309" : colors.textMuted, background: showDrafts ? "rgba(180,83,9,0.12)" : colors.surfaceMuted, border: `1px solid ${showDrafts ? "rgba(180,83,9,0.32)" : colors.border}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", fontFamily: SF }}
+          >
+            {drafts.length} draft{drafts.length === 1 ? "" : "s"} {showDrafts ? "· hide" : "· show"}
           </button>
         )}
         {lensEventId && (

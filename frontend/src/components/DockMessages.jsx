@@ -72,6 +72,18 @@ function chanOpen(p, c) {
 // The channel a send will ACTUALLY go out on: the host's pick if it's still
 // open, else their preferred rail if open, else the best open rail. Never lands
 // on a closed rail — that's the whole point.
+// Messages-list order — a real inbox. Tier 0 = unread (their message is the last
+// one, awaiting your reply), tier 1 = any message history, tier 2 = action-only
+// (no messages — ranked by their latest action). Newest-first inside each tier,
+// so an rsvp/attended log can never sit above a written message.
+function msgRank(p) {
+  const msgMs = p.lastMessageAt ? new Date(p.lastMessageAt).getTime() : 0;
+  if (p.awaitingReply && msgMs) return [0, msgMs];
+  if (msgMs) return [1, msgMs];
+  const actMs = p.lastActivityAt ? new Date(p.lastActivityAt).getTime() : 0;
+  return [2, actMs || (p.warmth || 0)];
+}
+
 function resolveActiveCh(p, picked) {
   if (!p) return "email";
   const reach = reachOf(p);
@@ -104,7 +116,6 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState("all");
   const [channel, setChannel] = useState("all");
   const [eventFilter, setEventFilter] = useState("all");
   const [openId, setOpenId] = useState(null);
@@ -164,7 +175,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           ...p,
           thread: [...(p.thread || []), { ...row, time: "now" }],
           lastMessage: { from: row.from, text: row.text || "", time: "now" },
-          needsYou: !mine ? true : p.needsYou,
+          // Float them up the list live: a new message resets recency, and an
+          // inbound one (not ours) is now awaiting our reply ("unread").
+          lastMessageAt: new Date().toISOString(),
+          lastActivityAt: new Date().toISOString(),
+          awaitingReply: !mine,
         };
       }));
     },
@@ -174,16 +189,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // A notification (via IdeaWidget) can target a specific person's thread. Set
   // the id; the thread resolves as soon as `people` loads.
   useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
-  const needsCount = (people || []).filter((p) => p.needsYou).length;
 
   const list = useMemo(() => {
     let ps = [...(people || [])];
-    if (filter === "needs") ps = ps.filter((p) => p.needsYou);
     if (channel !== "all") ps = ps.filter((p) => reachOf(p).includes(channel));
     if (eventFilter !== "all") ps = ps.filter((p) => (p.events || []).includes(eventFilter));
     if (q.trim()) { const s = q.trim().toLowerCase(); ps = ps.filter((p) => (p.name || "").toLowerCase().includes(s)); }
-    return ps.sort((a, b) => (a.needsYou === b.needsYou ? (b.warmth || 0) - (a.warmth || 0) : a.needsYou ? -1 : 1));
-  }, [people, filter, channel, eventFilter, q]);
+    return ps.sort((a, b) => { const ra = msgRank(a), rb = msgRank(b); return ra[0] !== rb[0] ? ra[0] - rb[0] : rb[1] - ra[1]; });
+  }, [people, channel, eventFilter, q]);
 
   const thread = useMemo(() => {
     if (!open) return [];
@@ -257,6 +270,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     sentKeysRef.current.add(clientId);
     // Show the bubble INSTANTLY, then clear the composer — the send happens behind it.
     setSent((s) => [...s, { clientId, personId: open.id, from: "you", text, atts, event: ev, location: loc, at: new Date().toISOString(), time: "now", channel: ch, status: "sending", _send: { personId: open.id, ch, text, atts, ev, loc } }]);
+    // Replying clears the unread flag and bumps recency, so the thread re-sorts
+    // out of the "awaiting reply" tier the moment you hit send.
+    setPeople((ps) => ps && ps.map((p) => (p.id !== open.id ? p : { ...p, awaitingReply: false, lastMessageAt: new Date().toISOString(), lastActivityAt: new Date().toISOString() })));
     setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
     setSending(true);
     try { await doSend({ clientId, personId: open.id, ch, text, atts, ev, loc }); }
@@ -341,15 +357,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const iconBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: D.muted, padding: 6 };
   const pill = (on, col) => ({ padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? "transparent" : D.line}`, background: on ? D.pink : "transparent", color: on ? "#fff" : (col || D.muted) });
 
-  // Composer shared by single threads + the broadcast view. `suggest` shows the
-  // needs-you nudge (single only); the sparkle opens the event smart-insert.
+  // Composer shared by single threads + the broadcast view. The sparkle opens
+  // the event smart-insert (name/time/place/maps → draft).
   const smartChip = (label, onClick, primary) => (
     <button type="button" key={label} onClick={onClick}
       style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${primary ? "transparent" : D.line}`, background: primary ? D.pink : D.raise, color: primary ? "#fff" : D.ink }}>
       {label}
     </button>
   );
-  const renderComposer = (onSubmit, placeholder, suggest) => (
+  const renderComposer = (onSubmit, placeholder) => (
     <div style={{ padding: "10px 12px 12px", borderTop: `1px solid ${D.line}`, position: "relative" }}>
       {smartOpen && smartEvent && (
         <div style={{ position: "absolute", left: 12, right: 12, bottom: "calc(100% - 4px)", background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 14px 36px rgba(10,10,10,0.16)", padding: 11, zIndex: 30 }}>
@@ -373,12 +389,6 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             {smartChip("Attach event card", () => { setAttachedEventId(smartEvent.id); setSmartOpen(false); }, true)}
           </div>
         </div>
-      )}
-      {suggest && open && open.needsYou && open.move && !draft && attachments.length === 0 && (
-        <button type="button" onClick={() => setDraft(`Hey ${(open.name || "").split(" ")[0]}! `)}
-          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", textAlign: "left", marginBottom: 9, fontSize: 12, color: D.pink, background: "rgba(236,23,143,0.10)", border: "1px solid rgba(236,23,143,0.30)", borderRadius: 12, padding: "8px 11px", cursor: "pointer", lineHeight: 1.4 }}>
-          <Sparkles size={12} style={{ flexShrink: 0 }} /><span><b>Suggested:</b> {open.move}</span>
-        </button>
       )}
       {attachments.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
@@ -553,7 +563,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           {thread.length === 0 && !open.read && <div style={{ fontSize: 13, color: D.faint, textAlign: "center", marginTop: 20 }}>No history yet. Say hi.</div>}
         </div>
 
-        {renderComposer(send, `Message on ${ch.label}…`, true)}
+        {renderComposer(send, `Message on ${ch.label}…`)}
       </div>
     );
   };
@@ -592,7 +602,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           <div style={{ fontSize: 12, color: D.faint, marginTop: 4 }}>One message, sent to each person individually — not a group thread.</div>
         </div>
 
-        {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`, false)}
+        {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`)}
       </div>
     );
   };
@@ -615,9 +625,6 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={() => setFilter("needs")} style={pill(filter === "needs")}>Needs you{needsCount ? ` · ${needsCount}` : ""}</button>
-          <button onClick={() => setFilter("all")} style={pill(filter === "all")}>All</button>
-          <span style={{ width: 1, background: D.line, margin: "2px 2px" }} />
           {["all", "whatsapp", "instagram", "email"].map((c) => {
             const Icon = CH_ICON[c];
             return (
@@ -653,9 +660,9 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
       <div style={{ flex: 1, overflowY: "auto", padding: "2px 6px 8px" }}>
         {people === null && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>Loading…</div>}
-        {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>{filter === "needs" ? "Nobody's waiting on you." : "No one here yet."}</div>}
+        {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>No one here yet.</div>}
         {list.map((p) => {
-          const line = p.needsYou && p.move ? p.move : (p.relationship || "");
+          const line = p.lastMessage?.text || p.relationship || "";
           const sel = selected.includes(p.id);
           const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
           return (
@@ -665,7 +672,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>
-                  {p.needsYou && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
+                  {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
                 </div>
                 <div style={{ fontSize: 12.5, color: D.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{line}</div>
               </div>

@@ -2,9 +2,23 @@
 // 1:1 send, small bulk send, and email attachment upload.
 
 import { requireAuth } from "../middleware/auth.js";
-import { getRoomForHost } from "../services/roomService.js";
+import { getRoomForHost, getNotificationsFeed } from "../services/roomService.js";
 
 export function registerHostRoomRoutes(app) {
+  // The notifications bell's feed — notable events (RSVP / waitlist / message /
+  // attended) over a short window, newest first, each with an absolute `at` so
+  // the bell can split Live vs History and merge realtime inserts in order.
+  app.get("/host/notifications/feed", requireAuth, async (req, res) => {
+    try {
+      const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 48));
+      const feed = await getNotificationsFeed(req.user.id, { hours });
+      res.json(feed);
+    } catch (error) {
+      console.error("Error building notifications feed:", error);
+      res.status(500).json({ items: [], windowHours: 48 });
+    }
+  });
+
   // The Room — global relationship home, read from the spine (person_events +
   // identities). Returns { host, events, signals, people } in the shape the
   // RoomPage expects. host_id on person_events scopes it to this host's world.

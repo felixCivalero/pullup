@@ -45,9 +45,16 @@ function igHandleFrom(profile) {
 // the right icon and links to the right place. value may be a bare @handle or a
 // full URL; we accept both.
 function ensureUrl(v) {
-  const s = String(v || "").trim();
+  // Strip a leading @ — people type "@handle" out of habit (the settings
+  // placeholders even invite it), which would otherwise yield https://@handle.
+  const s = String(v || "").trim().replace(/^@+/, "");
   if (!s) return null;
   return /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, "")}`;
+}
+// Instagram / X don't use @ in their profile paths, so a pasted
+// instagram.com/@handle 404s. Collapse a stray /@ right after the host.
+function stripPathAt(url, hostPattern) {
+  return String(url).replace(new RegExp(`(${hostPattern}\\/)@+`, "i"), "$1");
 }
 function handleFrom(v, hostPattern) {
   const s = String(v || "").trim();
@@ -55,21 +62,47 @@ function handleFrom(v, hostPattern) {
   const h = (m ? m[1] : s).replace(/^@/, "").replace(/\/+$/, "").trim();
   return h || null;
 }
+// YouTube can be a vanity handle (/@name), legacy /c/ /user/ paths, or a raw
+// /channel/UC… id. We surface a friendly @handle / name, but never the opaque
+// channel id (falls back to the channel label instead).
+function youtubeDisplay(v) {
+  const s = String(v || "").trim();
+  const at = s.match(/youtube\.com\/@([^/?#]+)/i);
+  if (at) return at[1];
+  const named = s.match(/youtube\.com\/(?:c|user)\/([^/?#]+)/i);
+  if (named) return named[1];
+  if (!/^https?:|youtube\.com|youtu\.be/i.test(s)) return s.replace(/^@/, "").trim() || null;
+  return null;
+}
+// LinkedIn: /in/<person> or /company/<name>. Show the slug, prettified.
+function linkedinDisplay(v) {
+  const s = String(v || "").trim();
+  const m = s.match(/linkedin\.com\/(?:in|company|pub|school)\/([^/?#]+)/i);
+  if (m) return decodeURIComponent(m[1]).replace(/\/+$/, "");
+  if (!/^https?:|linkedin\.com/i.test(s)) return s.replace(/^@/, "").trim() || null;
+  return null;
+}
+// Website: show the bare domain (felixcivalero.com), dropping scheme/www/path.
+function websiteDisplay(v) {
+  const s = String(v || "").trim().replace(/^@+/, "");
+  const m = s.match(/^(?:https?:\/\/)?(?:www\.)?([^/?#]+)/i);
+  return m ? m[1].replace(/\/+$/, "") : null;
+}
 export function buildSocials(links = {}) {
   const L = links || {};
   const out = [];
   const ig = (L.instagram || "").trim();
-  if (ig) { const h = handleFrom(ig, "instagram\\.com"); out.push({ channel: "instagram", label: "Instagram", handle: h ? `@${h}` : null, url: /^https?:/i.test(ig) ? ig : `https://instagram.com/${h}` }); }
+  if (ig) { const h = handleFrom(ig, "instagram\\.com"); out.push({ channel: "instagram", label: "Instagram", handle: h || null, url: /^https?:/i.test(ig) ? stripPathAt(ig, "instagram\\.com") : `https://instagram.com/${h}` }); }
   const tt = (L.tiktok || "").trim();
-  if (tt) { const h = handleFrom(tt, "tiktok\\.com"); out.push({ channel: "tiktok", label: "TikTok", handle: h ? `@${h}` : null, url: /^https?:/i.test(tt) ? tt : `https://www.tiktok.com/@${h}` }); }
+  if (tt) { const h = handleFrom(tt, "tiktok\\.com"); out.push({ channel: "tiktok", label: "TikTok", handle: h || null, url: /^https?:/i.test(tt) ? tt : `https://www.tiktok.com/@${h}` }); }
   const x = (L.x || "").trim();
-  if (x) { const h = handleFrom(x, "(?:x|twitter)\\.com"); out.push({ channel: "x", label: "X", handle: h ? `@${h}` : null, url: /^https?:/i.test(x) ? x : `https://x.com/${h}` }); }
+  if (x) { const h = handleFrom(x, "(?:x|twitter)\\.com"); out.push({ channel: "x", label: "X", handle: h || null, url: /^https?:/i.test(x) ? stripPathAt(x, "(?:x|twitter)\\.com") : `https://x.com/${h}` }); }
   const yt = (L.youtube || "").trim();
-  if (yt) { out.push({ channel: "youtube", label: "YouTube", handle: null, url: ensureUrl(yt) }); }
+  if (yt) { out.push({ channel: "youtube", label: "YouTube", handle: youtubeDisplay(yt), url: ensureUrl(yt) }); }
   const li = (L.linkedin || "").trim();
-  if (li) { out.push({ channel: "linkedin", label: "LinkedIn", handle: null, url: ensureUrl(li) }); }
+  if (li) { out.push({ channel: "linkedin", label: "LinkedIn", handle: linkedinDisplay(li), url: ensureUrl(li) }); }
   const web = (L.website || "").trim();
-  if (web) { out.push({ channel: "website", label: "Website", handle: null, url: ensureUrl(web) }); }
+  if (web) { out.push({ channel: "website", label: "Website", handle: websiteDisplay(web), url: ensureUrl(web) }); }
   return out;
 }
 async function buildHostProfile(hostId) {
@@ -191,15 +224,21 @@ const TYPE_VERB = {
   host_logged: "You logged", acquired: "Found you", identity_linked: "Linked identity", note: "Note",
 };
 
+// The events table is now shared substrate for several page kinds (event /
+// community / product / waitlist / widget). The Room's event surfaces — the
+// "Your events" strip, the events counter, "Rooms you're in" — must show ONLY
+// real events. Legacy rows predate the column, so a null kind counts as event.
+function isEventKind(k) { return k == null || k === "event"; }
+
 // The host's own events as banner cards. Pulled out so the home renders them
 // even before any timeline activity exists (a brand-new host who just created
 // their first event still sees it — the per-person timeline can be empty).
 async function getHostedEventCards(hostId) {
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, ticket_type, ticket_price, ticket_currency, location")
+    .select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, ticket_type, ticket_price, ticket_currency, location, kind")
     .eq("host_id", hostId);
-  const list = events || [];
+  const list = (events || []).filter((e) => isEventKind(e.kind));
   if (!list.length) return [];
   const comingByEvent = new Map();
   const { data: rsvpRows } = await supabase.from("rsvps").select("event_id, status").in("event_id", list.map((e) => e.id));
@@ -285,10 +324,11 @@ async function getMemberRooms(accountId, email = null) {
     if (!ids.length) return [];
     const { data: evs } = await supabase
       .from("events")
-      .select("id, title, slug, starts_at, status, cover_image_url, image_url, location")
+      .select("id, title, slug, starts_at, status, cover_image_url, image_url, location, kind")
       .in("id", ids);
     const now = Date.now();
     return (evs || [])
+      .filter((e) => isEventKind(e.kind)) // real events only — not community/product pages joined via RSVP
       .map((e) => {
         const published = (e.status || "").toUpperCase() === "PUBLISHED";
         const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
@@ -487,8 +527,9 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   }
   const now = Date.now();
   const eventsOut = (events || [])
-    // The community PAGE is a kind='community' event — it's not an event card.
-    .filter((e) => e.kind !== "community")
+    // ONLY real events become cards / the events count. Community, product,
+    // waitlist and widget pages share this table but aren't events.
+    .filter((e) => isEventKind(e.kind))
     .map((e) => {
       const published = (e.status || "").toUpperCase() === "PUBLISHED";
       const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
@@ -645,6 +686,12 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       ...(rsvpEventsByPerson.get(pid) || []),
     ])];
     const lastAt = evs[0]?.occurred_at;
+    // Messaging recency — the spine of the messages-list order. evs is newest
+    // first, so the first message-typed event is the latest written message;
+    // if that's inbound, the host still owes them a reply ("unread").
+    const lastMsgEv = evs.find((e) => MESSAGE_EVENT_TYPES.has(e.type));
+    const lastMessageAt = lastMsgEv?.occurred_at || null;
+    const awaitingReply = lastMsgEv?.type === "message_in";
 
     // The two edges + derived segment for this person.
     const isCommunityMember = communityMemberIds.has(pid);
@@ -691,6 +738,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       ],
       needsYou,
       move,
+      // Messages-list ordering signals (newest written message first; unread —
+      // awaiting your reply — floats to the top; action-only people fall below).
+      lastMessageAt,
+      awaitingReply,
+      lastActivityAt: lastAt || null,
       lastMessage: lastMessageFrom(evs, eventTitleById),
       thread: buildThread(evs, eventTitleById, igReadByPerson.get(pid) || null),
       // Host-private manual notes (newest first) — rendered on the people card.
@@ -842,7 +894,12 @@ function buildMoments({ byPerson, peopleById, eventsOut }) {
 
 function channelsFromIdentities(kinds, person) {
   const out = [];
-  if (kinds.has("ig_user_id") || kinds.has("ig_handle") || person.ig_user_id || person.instagram) out.push("instagram");
+  // Instagram is only honestly reachable once we hold an IG-SCOPED user id — the
+  // id we get when they've actually messaged us (auto-DM reply, DM, comment→DM).
+  // A typed @handle (person.instagram / an ig_handle identity) is a soft claim we
+  // can link on, NOT a send address: dispatch()/attemptInstagram bails with
+  // "no ig_user_id" without it. So don't offer a rail we can't send on.
+  if (kinds.has("ig_user_id") || person.ig_user_id) out.push("instagram");
   // WhatsApp is only honestly reachable once the phone is verified — that's the
   // gate dispatch()/sendText enforce too, so don't offer a rail we can't use.
   if ((kinds.has("phone") || person.phone_e164) && person.phone_verified_at) out.push("whatsapp");
@@ -881,6 +938,11 @@ function describeRelationship({ attended, rsvps, eventsTouched, waitlisted, last
   if (rsvps === 1) return "RSVP'd — first time in your world.";
   return "In your world — hasn't committed to an event yet.";
 }
+
+// The timeline types that count as a written message (as opposed to a logged
+// action like rsvp/attended). Drives the messages-list ordering: a thread sorts
+// by its latest message, and "awaiting reply" = that latest message is inbound.
+const MESSAGE_EVENT_TYPES = new Set(["message_in", "message_out", "auto_dm_sent"]);
 
 function suggestMove({ waitlisted, attended, lastAt, rsvps }) {
   const days = lastAt ? (Date.now() - new Date(lastAt).getTime()) / 86400000 : 999;
@@ -1016,9 +1078,23 @@ function lineFor(e, eventTitleById) {
   return title ? `${verb} — ${title}` : verb;
 }
 
+// The notable timeline types that become notifications/nudges, and the one
+// place that turns a raw event + resolved name/title into a signal — shared by
+// the Room payload (buildSignals) and the bell's feed (getNotificationsFeed) so
+// the wording never drifts between them.
+const NOTABLE_TYPES = ["message_in", "waitlist_join", "rsvp", "attended"];
+function signalFromEvent(e, name, title) {
+  let kind = "plain", text;
+  if (e.type === "message_in") { kind = "urgent"; text = `${name} messaged you — reply while it's fresh.`; }
+  else if (e.type === "waitlist_join") { kind = "urgent"; text = `${name} joined the waitlist${title ? ` for ${title}` : ""}.`; }
+  else if (e.type === "attended") { kind = "warm"; text = `${name} came to ${title || "your event"} — worth a thank-you.`; }
+  else { text = `${name} RSVP'd${title ? ` to ${title}` : ""}.`; }
+  return { id: e.id, type: e.type, kind, text, personId: e.person_id, eventId: e.event_id || undefined, at: e.occurred_at, time: relTime(e.occurred_at) };
+}
+
 function buildSignals(timeline, peopleById, eventTitleById) {
   // Surface the most recent meaningful events as nudges.
-  const NOTABLE = new Set(["message_in", "waitlist_join", "rsvp", "attended"]);
+  const NOTABLE = new Set(NOTABLE_TYPES);
   const out = [];
   for (const e of timeline) {
     if (out.length >= 6) break;
@@ -1027,12 +1103,46 @@ function buildSignals(timeline, peopleById, eventTitleById) {
     if (!p) continue;
     const name = p.name || (p.email ? p.email.split("@")[0] : "Someone");
     const title = e.event_id ? eventTitleById.get(e.event_id) : null;
-    let kind = "plain", text;
-    if (e.type === "message_in") { kind = "urgent"; text = `${name} messaged you — reply while it's fresh.`; }
-    else if (e.type === "waitlist_join") { kind = "urgent"; text = `${name} joined the waitlist${title ? ` for ${title}` : ""}.`; }
-    else if (e.type === "attended") { kind = "warm"; text = `${name} came to ${title || "your event"} — worth a thank-you.`; }
-    else { text = `${name} RSVP'd${title ? ` to ${title}` : ""}.`; }
-    out.push({ id: e.id, type: e.type, kind, text, personId: e.person_id, eventId: e.event_id || undefined, time: relTime(e.occurred_at) });
+    out.push(signalFromEvent(e, name, title));
   }
   return out;
+}
+
+// The bell's own feed — notable events over a short window (default 48h),
+// resolved to names + titles, newest first. Light and standalone so the bell
+// loads + live-refreshes independently of the heavy full-room read. The client
+// splits these into "Live" (recent) and a scrollable "History" tab.
+const NOTIF_WINDOW_HOURS = 48;
+export async function getNotificationsFeed(hostId, { hours = NOTIF_WINDOW_HOURS } = {}) {
+  if (!hostId) return { items: [], windowHours: hours };
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data: rows, error } = await supabase
+    .from("person_events")
+    .select("id, person_id, event_id, type, occurred_at")
+    .eq("host_id", hostId)
+    .in("type", NOTABLE_TYPES)
+    .gte("occurred_at", since)
+    .order("occurred_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    logger?.warn?.("[roomService] notifications feed read failed", { error: error.message });
+    return { items: [], windowHours: hours };
+  }
+  const evs = (rows || []).filter((e) => e.person_id);
+  const personIds = [...new Set(evs.map((e) => e.person_id))];
+  const eventIds = [...new Set(evs.map((e) => e.event_id).filter(Boolean))];
+
+  const nameById = new Map();
+  const people = await chunkedByIds(personIds, (ids) =>
+    supabase.from("people").select("id, name, email").in("id", ids).then((r) => r.data || []));
+  for (const p of people) nameById.set(p.id, p.name || (p.email ? p.email.split("@")[0] : "Someone"));
+
+  const titleById = new Map();
+  const events = await chunkedByIds(eventIds, (ids) =>
+    supabase.from("events").select("id, title").in("id", ids).then((r) => r.data || []));
+  for (const ev of events) titleById.set(ev.id, ev.title);
+
+  const items = evs.map((e) =>
+    signalFromEvent(e, nameById.get(e.person_id) || "Someone", e.event_id ? titleById.get(e.event_id) : null));
+  return { items, windowHours: hours };
 }

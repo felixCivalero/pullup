@@ -48,6 +48,78 @@ export function defaultCategories() {
   return { rsvps: true, messages: true, waitlist: true, community: true, pullups: true };
 }
 
+// Default send time when a host has no prefs row yet (08:00 in their tz). The
+// frontend captures the real IANA timezone from the browser; 'UTC' is only the
+// pre-capture fallback.
+export const DEFAULT_SEND_HOUR = 8;
+export const DEFAULT_SEND_MINUTE = 0;
+export const DEFAULT_TIMEZONE = "UTC";
+
+// ── Timezone-aware scheduling (PURE — Intl only, no I/O, unit-tested) ───────
+// The host picks a local send time + we store their IANA timezone *name* (not
+// an offset), so DST is handled for free. These two helpers are the whole of
+// the "when do we send" decision, kept pure so tests pin the tz math without a
+// clock or a DB.
+
+// Wall-clock parts for an instant `date` as seen in IANA `timeZone`. Falls back
+// to UTC on a bad/unknown zone rather than throwing (a corrupt pref must never
+// wedge the tick). Returns { dateStr 'YYYY-MM-DD', minutesOfDay 0..1439, ... }.
+export function zonedParts(date, timeZone) {
+  const make = (tz) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    });
+  let fmt;
+  try { fmt = make(timeZone || DEFAULT_TIMEZONE); }
+  catch { fmt = make("UTC"); }
+  const p = Object.fromEntries(fmt.formatToParts(date instanceof Date ? date : new Date(date)).map((x) => [x.type, x.value]));
+  const hour = Number(p.hour) % 24;        // h23 gives 00..23; guard the rare "24"
+  const minute = Number(p.minute);
+  return {
+    dateStr: `${p.year}-${p.month}-${p.day}`,
+    hour,
+    minute,
+    minutesOfDay: hour * 60 + minute,
+  };
+}
+
+// Is a host due for their daily digest right now? True when, in THEIR timezone,
+// the local clock is at/past their chosen send time AND no digest has gone out
+// for their local calendar day yet.
+//
+// The "at/past" (rather than "exactly equal") makes the tick self-healing: a
+// missed tick simply catches up on the next one. The local-date guard means it
+// still can't double-send — once today's digest is stamped, `lastSentAt`'s
+// local date equals today's and the gate closes until tomorrow.
+export function isDigestDue({ now = new Date(), timezone = DEFAULT_TIMEZONE, sendHour = DEFAULT_SEND_HOUR, sendMinute = DEFAULT_SEND_MINUTE, lastSentAt = null } = {}) {
+  const local = zonedParts(now, timezone);
+  const sendMins = (Number(sendHour) || 0) * 60 + (Number(sendMinute) || 0);
+  if (local.minutesOfDay < sendMins) return false;     // not yet their send time today
+  if (!lastSentAt) return true;                         // never sent → due once we pass the slot
+  const last = zonedParts(lastSentAt, timezone);
+  return last.dateStr < local.dateStr;                  // already sent on this local day?
+}
+
+// Normalize a requested send time → { sendHour 0–23, sendMinute snapped to 30 }.
+function normalizeSendTime(hour, minute, fallbackHour = DEFAULT_SEND_HOUR, fallbackMinute = DEFAULT_SEND_MINUTE) {
+  let h = Number.isInteger(hour) ? hour : (typeof hour === "number" ? Math.floor(hour) : fallbackHour);
+  if (!(h >= 0 && h <= 23)) h = fallbackHour;
+  let m = typeof minute === "number" ? minute : fallbackMinute;
+  m = m >= 45 ? 30 : m >= 15 ? 30 : 0;                  // snap to :00 / :30 (UI granularity)
+  // (45+ would round to next hour; we clamp to :30 to keep it within the hour)
+  return { sendHour: h, sendMinute: m };
+}
+
+// Is a string a usable IANA timezone? Probe via Intl; reject anything it can't
+// resolve so we never persist a zone the tick can't read.
+function isValidTimezone(tz) {
+  if (!tz || typeof tz !== "string") return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; }
+  catch { return false; }
+}
+
 // ── PURE shaper ──────────────────────────────────────────────────────────
 // raw = { rsvps:[item], messages:[item], waitlist:[item], community:[item],
 //         pullups:[item] } where each item is already { title, subtitle }.
@@ -253,6 +325,9 @@ export function defaultPrefs(email = "") {
     channel: "email",
     email: email || "",
     categories: defaultCategories(),
+    sendHour: DEFAULT_SEND_HOUR,
+    sendMinute: DEFAULT_SEND_MINUTE,
+    timezone: DEFAULT_TIMEZONE,
     lastSentAt: null,
   };
 }
@@ -273,6 +348,9 @@ function rowToPrefs(row, email = "") {
       community: cats.community !== false,
       pullups:   cats.pullups   !== false,
     },
+    sendHour:   Number.isInteger(row.send_hour) ? row.send_hour : DEFAULT_SEND_HOUR,
+    sendMinute: Number.isInteger(row.send_minute) ? row.send_minute : DEFAULT_SEND_MINUTE,
+    timezone:   row.timezone || DEFAULT_TIMEZONE,
     lastSentAt: row.last_sent_at || null,
   };
 }
@@ -293,7 +371,7 @@ export async function getHostPrefs(hostId, { authEmail = "", supabaseClient } = 
   const email = await resolveHostEmail(hostId, authEmail);
   const { data: row } = await supabase
     .from("host_notification_prefs")
-    .select("enabled, frequency, categories, last_sent_at")
+    .select("enabled, frequency, categories, send_hour, send_minute, timezone, last_sent_at")
     .eq("host_id", hostId)
     .maybeSingle();
   return rowToPrefs(row, email);
@@ -307,7 +385,7 @@ export async function putHostPrefs(hostId, body = {}, { authEmail = "", supabase
 
   const { data: existing } = await supabase
     .from("host_notification_prefs")
-    .select("enabled, frequency, categories, last_sent_at")
+    .select("enabled, frequency, categories, send_hour, send_minute, timezone, last_sent_at")
     .eq("host_id", hostId)
     .maybeSingle();
 
@@ -324,11 +402,41 @@ export async function putHostPrefs(hostId, body = {}, { authEmail = "", supabase
     }
   }
 
+  // Send time + timezone. Fall back to the existing row, then to the defaults.
+  const { sendHour, sendMinute } = normalizeSendTime(
+    body.sendHour,
+    body.sendMinute,
+    Number.isInteger(existing?.send_hour) ? existing.send_hour : DEFAULT_SEND_HOUR,
+    Number.isInteger(existing?.send_minute) ? existing.send_minute : DEFAULT_SEND_MINUTE,
+  );
+  const timezone = isValidTimezone(body.timezone)
+    ? body.timezone
+    : (existing?.timezone || DEFAULT_TIMEZONE);
+
+  // last_sent_at: usually carried over untouched. But on the off→on transition
+  // we may stamp it so the host doesn't get a surprise digest the instant they
+  // enable late in their day. Rule: if it's already PAST today's send time in
+  // their timezone, mark today as "handled" (first real digest = tomorrow at
+  // their time); if it's still BEFORE today's slot, leave it so today's digest
+  // lands on schedule. Toggling off→on with an already-set last_sent_at keeps
+  // whatever was there.
+  let lastSentAt = existing?.last_sent_at || null;
+  const turningOn = enabled && !existing?.enabled;
+  if (turningOn && !lastSentAt) {
+    const local = zonedParts(new Date(), timezone);
+    const sendMins = sendHour * 60 + sendMinute;
+    if (local.minutesOfDay >= sendMins) lastSentAt = new Date().toISOString();
+  }
+
   const patch = {
     host_id: hostId,
     enabled,
     frequency,
     categories: merged,
+    send_hour: sendHour,
+    send_minute: sendMinute,
+    timezone,
+    last_sent_at: lastSentAt,
     updated_at: new Date().toISOString(),
   };
 
@@ -337,7 +445,7 @@ export async function putHostPrefs(hostId, body = {}, { authEmail = "", supabase
     .upsert(patch, { onConflict: "host_id" });
   if (error) throw error;
 
-  return rowToPrefs({ ...patch, last_sent_at: existing?.last_sent_at || null }, email);
+  return rowToPrefs(patch, email);
 }
 
 // Sample data for the PREVIEW (test) email — one+ believable item per
@@ -408,10 +516,12 @@ export async function sendHostDigest(hostId, { sinceTs, untilTs, force = false, 
   });
   const subject = dailyDigestSubject();
 
-  // Idempotency key buckets by host + UTC day so the recurring tick can't
-  // double-send the same day's digest even if it fires more than once. Test
-  // sends append a timestamp so they're never deduped against the daily one.
-  const dayKey = until.toISOString().slice(0, 10);
+  // Idempotency key buckets by host + their LOCAL day so the recurring tick
+  // can't double-send the same day's digest even if it fires more than once.
+  // Local (not UTC) day keeps it aligned with the host's chosen send time near
+  // midnight boundaries. Test sends append a timestamp so they're never deduped
+  // against the daily one.
+  const dayKey = zonedParts(until, prefs.timezone).dateStr;
   const idempotencyKey = force
     ? `host-digest-test-${hostId}-${Date.now()}`
     : `host-digest-${hostId}-${dayKey}`;
@@ -438,32 +548,40 @@ export async function markDigestSent(hostId, { supabaseClient } = {}) {
     .eq("host_id", hostId);
 }
 
-// The daily tick body: send to every opted-in host due for a digest (NULL or
-// older than ~20h last_sent_at), only when there's activity. Idempotent + safe
-// to run hourly. Exported so the scheduler in index.js can call it.
-export async function runDailyDigestTick({ supabaseClient } = {}) {
+// The recurring tick body: send each opted-in host their digest at THEIR chosen
+// local time, only when there's activity, once per local day. Idempotent + safe
+// to run every 15 min. Exported so the scheduler in index.js can call it.
+//
+// We fetch all enabled hosts (small, opt-in set; partial index covers it) and
+// decide due-ness per host with the pure isDigestDue() — so the whole timezone
+// schedule is unit-tested without a clock. `now` is injectable for tests.
+export async function runDailyDigestTick({ supabaseClient, now = new Date() } = {}) {
   const supabase = supabaseClient || (await import("../supabase.js")).supabase;
-  const now = new Date();
-  const dueBefore = new Date(now.getTime() - 20 * 60 * 60 * 1000).toISOString();
 
-  // Hosts enabled and either never sent, or last sent > ~20h ago.
-  const { data: dueHosts, error } = await supabase
+  const { data: hosts, error } = await supabase
     .from("host_notification_prefs")
-    .select("host_id, last_sent_at")
-    .eq("enabled", true)
-    .or(`last_sent_at.is.null,last_sent_at.lt.${dueBefore}`);
+    .select("host_id, last_sent_at, send_hour, send_minute, timezone")
+    .eq("enabled", true);
   if (error) {
-    console.error("[Digest] Error fetching due hosts:", error.message);
+    console.error("[Digest] Error fetching enabled hosts:", error.message);
     return { sent: 0, skipped: 0, errors: 0 };
   }
 
   let sent = 0, skipped = 0, errors = 0;
-  for (const h of dueHosts || []) {
+  for (const h of hosts || []) {
+    const due = isDigestDue({
+      now,
+      timezone: h.timezone,
+      sendHour: h.send_hour,
+      sendMinute: h.send_minute,
+      lastSentAt: h.last_sent_at,
+    });
+    if (!due) continue;
     try {
       const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const r = await sendHostDigest(h.host_id, { sinceTs: since, untilTs: now, force: false, supabaseClient: supabase });
-      // Stamp last_sent_at regardless of whether there was activity, so a quiet
-      // host isn't re-evaluated every hour for the rest of the day.
+      // Stamp last_sent_at whether or not there was activity, so a quiet host's
+      // slot is consumed for the day and they aren't re-evaluated every tick.
       await markDigestSent(h.host_id, { supabaseClient: supabase });
       if (r.skipped) skipped += 1; else sent += 1;
     } catch (e) {

@@ -7,6 +7,8 @@ import {
   defaultCategories,
   MAX_ITEMS_PER_SECTION,
   CATEGORY_KEYS,
+  zonedParts,
+  isDigestDue,
 } from "../src/services/notificationDigest.js";
 import { dailyDigestSubject } from "../src/emails/dailyDigest.js";
 
@@ -107,6 +109,108 @@ console.log("🧪 shapeDigest: tolerates missing/odd item fields");
   const d = shapeDigest({ rsvps: [{}, { title: 123 }, { title: "ok", subtitle: null }] }, defaultCategories());
   assert(d.sections[0].count === 3, "counts all rows regardless of shape");
   assert(typeof d.sections[0].items[0].title === "string", "title coerced to string");
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// TIMEZONE-AWARE SCHEDULING — the pure due-check. No clock, no DB; we feed
+// `now` explicitly so the tz math is pinned deterministically.
+// ════════════════════════════════════════════════════════════════════════
+
+// ── zonedParts: same instant, different local wall-clock per zone ──
+console.log("🧪 zonedParts: one instant maps to each zone's local clock");
+{
+  // 2026-06-18T23:30:00Z — late evening UTC.
+  const t = new Date("2026-06-18T23:30:00Z");
+  const sthlm = zonedParts(t, "Europe/Stockholm"); // UTC+2 (summer) → 01:30 next day
+  assert(sthlm.dateStr === "2026-06-19" && sthlm.hour === 1 && sthlm.minute === 30, `Stockholm 01:30 next day (got ${sthlm.dateStr} ${sthlm.hour}:${sthlm.minute})`);
+  const la = zonedParts(t, "America/Los_Angeles"); // UTC-7 (summer) → 16:30 same day
+  assert(la.dateStr === "2026-06-18" && la.hour === 16, `LA 16:30 same day (got ${la.dateStr} ${la.hour}:${la.minute})`);
+  const nbo = zonedParts(t, "Africa/Nairobi"); // UTC+3 → 02:30 next day
+  assert(nbo.dateStr === "2026-06-19" && nbo.hour === 2, `Nairobi 02:30 next day (got ${nbo.dateStr} ${nbo.hour})`);
+}
+
+console.log("🧪 zonedParts: bad timezone falls back to UTC (never throws)");
+{
+  const t = new Date("2026-06-18T09:00:00Z");
+  const p = zonedParts(t, "Not/AZone");
+  assert(p.dateStr === "2026-06-18" && p.hour === 9, `fallback UTC 09:00 (got ${p.dateStr} ${p.hour})`);
+}
+
+// ── isDigestDue: before the local send time → not due ──
+console.log("🧪 isDigestDue: before send time is not due");
+{
+  // 06:00Z = 08:00 in Stockholm (summer). Send time 09:00 → not yet.
+  const due = isDigestDue({ now: new Date("2026-06-18T06:00:00Z"), timezone: "Europe/Stockholm", sendHour: 9, sendMinute: 0, lastSentAt: null });
+  assert(due === false, `08:00 local < 09:00 send → not due (got ${due})`);
+}
+
+// ── at/after the local send time, never sent → due ──
+console.log("🧪 isDigestDue: at/after send time and never sent is due");
+{
+  // 07:00Z = 09:00 Stockholm. Send 09:00, never sent → due.
+  const due = isDigestDue({ now: new Date("2026-06-18T07:00:00Z"), timezone: "Europe/Stockholm", sendHour: 9, sendMinute: 0, lastSentAt: null });
+  assert(due === true, `09:00 local == 09:00 send, never sent → due (got ${due})`);
+}
+
+// ── :30 granularity respected ──
+console.log("🧪 isDigestDue: half-hour send time");
+{
+  const base = { timezone: "Europe/Stockholm", sendHour: 9, sendMinute: 30, lastSentAt: null };
+  // 07:15Z = 09:15 Stockholm → before 09:30 → not due.
+  assert(isDigestDue({ ...base, now: new Date("2026-06-18T07:15:00Z") }) === false, "09:15 < 09:30 → not due");
+  // 07:30Z = 09:30 Stockholm → due.
+  assert(isDigestDue({ ...base, now: new Date("2026-06-18T07:30:00Z") }) === true, "09:30 == 09:30 → due");
+}
+
+// ── already sent on this local day → not due (double-send guard) ──
+console.log("🧪 isDigestDue: not due again the same local day");
+{
+  // now 09:30 Stockholm; last sent earlier today (08:00 local = 06:00Z).
+  const due = isDigestDue({
+    now: new Date("2026-06-18T07:30:00Z"),
+    timezone: "Europe/Stockholm",
+    sendHour: 9, sendMinute: 0,
+    lastSentAt: new Date("2026-06-18T06:00:00Z"),
+  });
+  assert(due === false, `sent already today → not due (got ${due})`);
+}
+
+// ── sent yesterday, now past today's slot → due again ──
+console.log("🧪 isDigestDue: due again the next local day");
+{
+  const due = isDigestDue({
+    now: new Date("2026-06-18T07:30:00Z"),          // 09:30 Stockholm, 2026-06-18
+    timezone: "Europe/Stockholm",
+    sendHour: 9, sendMinute: 0,
+    lastSentAt: new Date("2026-06-17T07:30:00Z"),   // 09:30 Stockholm, 2026-06-17
+  });
+  assert(due === true, `last send was yesterday local → due (got ${due})`);
+}
+
+// ── the SAME instant is due in one zone but not another ──
+console.log("🧪 isDigestDue: timezone changes the verdict for one instant");
+{
+  // 06:05Z, send time 08:00 local, never sent.
+  const t = new Date("2026-06-18T06:05:00Z");
+  // Stockholm (UTC+2) → 08:05 local ≥ 08:00 → due.
+  assert(isDigestDue({ now: t, timezone: "Europe/Stockholm", sendHour: 8, sendMinute: 0, lastSentAt: null }) === true, "Stockholm 08:05 → due");
+  // London (UTC+1 summer) → 07:05 local < 08:00 → not due.
+  assert(isDigestDue({ now: t, timezone: "Europe/London", sendHour: 8, sendMinute: 0, lastSentAt: null }) === false, "London 07:05 → not due");
+}
+
+// ── last-sent guard is evaluated in the host's zone, not UTC ──
+console.log("🧪 isDigestDue: midnight boundary handled in host zone");
+{
+  // now 2026-06-18T23:30Z; in Nairobi (UTC+3) that's 02:30 on 2026-06-19.
+  // Send time 02:00, last sent 2026-06-18T22:00Z = 01:00 local 2026-06-19...
+  // i.e. already sent today (local) → not due.
+  const sameDay = isDigestDue({
+    now: new Date("2026-06-18T23:30:00Z"),
+    timezone: "Africa/Nairobi",
+    sendHour: 2, sendMinute: 0,
+    lastSentAt: new Date("2026-06-18T22:00:00Z"), // 01:00 local 06-19
+  });
+  assert(sameDay === false, `Nairobi: sent earlier same local day → not due (got ${sameDay})`);
 }
 
 if (failures) { console.error(`\n${failures} assertion(s) failed`); process.exit(1); }

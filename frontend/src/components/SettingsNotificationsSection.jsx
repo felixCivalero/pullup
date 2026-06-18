@@ -11,7 +11,7 @@
 //   POST /host/notifications/test   → emails a preview to the host now
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Mail, Send } from "lucide-react";
+import { Bell, Mail, Send, Clock, Globe } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 
@@ -25,6 +25,47 @@ const CATEGORIES = [
 
 const DEFAULT_CATEGORIES = { rsvps: true, messages: true, waitlist: true, community: true, pullups: true };
 
+// The host's IANA timezone, straight from the browser (e.g. "Europe/Stockholm").
+// This is the whole "timezone automation" — we never make them pick from a list.
+function browserTimezone() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && tz !== "UTC" ? tz : "";
+  } catch {
+    return "";
+  }
+}
+
+// 48 half-hour options across the day → value "H:M" (24h), label "8:00 AM".
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = i % 2 === 0 ? 0 : 30;
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  const ampm = hour < 12 ? "AM" : "PM";
+  return {
+    value: `${hour}:${minute}`,
+    hour,
+    minute,
+    label: `${h12}:${minute === 0 ? "00" : "30"} ${ampm}`,
+  };
+});
+
+// Pretty-print a stored time for the schedule line.
+function formatSendTime(hour, minute) {
+  const h = Number.isInteger(hour) ? hour : 8;
+  const m = minute === 30 ? 30 : 0;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const ampm = h < 12 ? "AM" : "PM";
+  return `${h12}:${m === 0 ? "00" : "30"} ${ampm}`;
+}
+
+// Drop the "Continent/" prefix and tidy underscores for display: "Europe/Stockholm" → "Stockholm".
+function prettyZone(tz) {
+  if (!tz) return "";
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
+
 export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
   const [prefs, setPrefs] = useState(null); // null = loading
   const [saved, setSaved] = useState(false);
@@ -34,16 +75,31 @@ export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
 
   useEffect(() => {
     let cancelled = false;
+    const fallback = { enabled: false, frequency: "daily", channel: "email", email: "", categories: DEFAULT_CATEGORIES, sendHour: 8, sendMinute: 0, timezone: "UTC", lastSentAt: null };
     authenticatedFetch("/host/notifications")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled) return;
-        const next = data || { enabled: false, frequency: "daily", channel: "email", email: "", categories: DEFAULT_CATEGORIES, lastSentAt: null };
+        const next = data || fallback;
         next.categories = { ...DEFAULT_CATEGORIES, ...(next.categories || {}) };
-        setPrefs(next);
-        onEnabledChange?.(!!next.enabled);
+        if (!Number.isInteger(next.sendHour)) next.sendHour = 8;
+        next.sendMinute = next.sendMinute === 30 ? 30 : 0;
+
+        // Timezone automation: if the server has no real zone yet (the pre-capture
+        // 'UTC' default), silently adopt the browser's IANA zone and persist it —
+        // so it's correct for the host with zero action on their part. Once a real
+        // zone is stored we leave it (they may have picked it deliberately).
+        const browserTz = browserTimezone();
+        if ((!next.timezone || next.timezone === "UTC") && browserTz) {
+          next.timezone = browserTz;
+          persist(next, { silent: true });
+        } else {
+          if (!next.timezone) next.timezone = "UTC";
+          setPrefs(next);
+          onEnabledChange?.(!!next.enabled);
+        }
       })
-      .catch(() => { if (!cancelled) setPrefs({ enabled: false, frequency: "daily", channel: "email", email: "", categories: DEFAULT_CATEGORIES, lastSentAt: null }); });
+      .catch(() => { if (!cancelled) setPrefs(fallback); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -54,8 +110,9 @@ export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
   }, []);
 
   // Persist (debounced) whenever the host changes something. Optimistic UI;
-  // the backend upserts. A subtle "Saved" flag confirms it.
-  function persist(next) {
+  // the backend upserts. A subtle "Saved" flag confirms it. `silent` skips the
+  // "Saved" flash — used for the one-time timezone auto-adopt on first load.
+  function persist(next, { silent = false } = {}) {
     setPrefs(next);
     onEnabledChange?.(!!next.enabled);
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -64,16 +121,31 @@ export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
         const res = await authenticatedFetch("/host/notifications", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: next.enabled, frequency: next.frequency, categories: next.categories }),
+          body: JSON.stringify({
+            enabled: next.enabled,
+            frequency: next.frequency,
+            categories: next.categories,
+            sendHour: next.sendHour,
+            sendMinute: next.sendMinute,
+            timezone: next.timezone,
+          }),
         });
         if (!res.ok) throw new Error("save failed");
         const data = await res.json().catch(() => null);
-        if (data) { data.categories = { ...DEFAULT_CATEGORIES, ...(data.categories || {}) }; setPrefs(data); }
-        setSaved(true);
-        if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaved(false), 1800);
+        if (data) {
+          data.categories = { ...DEFAULT_CATEGORIES, ...(data.categories || {}) };
+          if (!Number.isInteger(data.sendHour)) data.sendHour = 8;
+          data.sendMinute = data.sendMinute === 30 ? 30 : 0;
+          if (!data.timezone) data.timezone = "UTC";
+          setPrefs(data);
+        }
+        if (!silent) {
+          setSaved(true);
+          if (savedTimer.current) clearTimeout(savedTimer.current);
+          savedTimer.current = setTimeout(() => setSaved(false), 1800);
+        }
       } catch {
-        showToast?.("Couldn't save your notification settings. Try again.", "error");
+        if (!silent) showToast?.("Couldn't save your notification settings. Try again.", "error");
       }
     }, 500);
   }
@@ -81,6 +153,14 @@ export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
   const toggleMaster = () => persist({ ...prefs, enabled: !prefs.enabled });
   const toggleCategory = (key) =>
     persist({ ...prefs, categories: { ...prefs.categories, [key]: !prefs.categories[key] } });
+  const changeTime = (value) => {
+    const opt = TIME_OPTIONS.find((o) => o.value === value);
+    if (opt) persist({ ...prefs, sendHour: opt.hour, sendMinute: opt.minute });
+  };
+  const adoptBrowserTz = () => {
+    const tz = browserTimezone();
+    if (tz) persist({ ...prefs, timezone: tz });
+  };
 
   async function sendTest() {
     if (sendingTest) return;
@@ -151,6 +231,60 @@ export function SettingsNotificationsSection({ showToast, onEnabledChange }) {
               <span>
                 Delivered by email{prefs.email ? <> to <span style={{ color: colors.text, fontWeight: 600 }}>{prefs.email}</span></> : ""}
               </span>
+            </div>
+
+            {/* When — host picks a local time; the timezone is auto-detected. */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
+                When it arrives
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: colors.surfaceMuted, color: colors.textSubtle,
+                  }}
+                >
+                  <Clock size={16} />
+                </div>
+                <span style={{ fontSize: 14, color: colors.textMuted }}>Send my summary at</span>
+                <select
+                  value={`${prefs.sendHour ?? 8}:${prefs.sendMinute === 30 ? 30 : 0}`}
+                  onChange={(e) => changeTime(e.target.value)}
+                  style={{
+                    appearance: "none", padding: "8px 14px", borderRadius: 10,
+                    border: `1px solid ${colors.borderStrong}`, background: colors.surface,
+                    color: colors.text, fontSize: 14, fontWeight: 600, cursor: "pointer", font: "inherit",
+                  }}
+                >
+                  {TIME_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Timezone — detected, not chosen. Only surface a switch if the
+                  browser now reports a different zone (they've travelled). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: colors.textSubtle, marginTop: 10, paddingLeft: 2 }}>
+                <Globe size={13} />
+                <span>
+                  {formatSendTime(prefs.sendHour, prefs.sendMinute)} in your timezone
+                  {prefs.timezone && prefs.timezone !== "UTC" ? <> · <span style={{ color: colors.textMuted, fontWeight: 600 }}>{prettyZone(prefs.timezone)}</span></> : ""}
+                </span>
+                {browserTimezone() && browserTimezone() !== prefs.timezone && (
+                  <button
+                    type="button"
+                    onClick={adoptBrowserTz}
+                    style={{
+                      marginLeft: 4, padding: 0, border: "none", background: "transparent",
+                      color: colors.accent, fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit",
+                    }}
+                  >
+                    Switch to {prettyZone(browserTimezone())}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Categories */}

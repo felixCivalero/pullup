@@ -659,13 +659,15 @@ app.listen(PORT, HOST, async () => {
   setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 
   /* ── Host daily digest ─────────────────────────────────────
-   * Opt-in, default-OFF, email-only. We tick HOURLY but each host's row
-   * carries last_sent_at; runDailyDigestTick only sends to hosts whose last
-   * send is NULL or older than ~20h, and only when there's real activity in
-   * the last 24h. So this is a near-no-op until a host opts in, and the 20h
-   * guard makes the hourly cadence safe (no double-send). One batched email
-   * per host per day, built from their own world. */
-  const DIGEST_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+   * Opt-in, default-OFF, email-only. Each host chooses a local send time +
+   * carries their IANA timezone; runDailyDigestTick sends only to hosts whose
+   * local clock is at/past their send time and who haven't been sent yet on
+   * their local day, and only when there's real activity in the last 24h. So
+   * this is a near-no-op until a host opts in, and the per-local-day guard
+   * makes the frequent cadence safe (no double-send). We tick every 15 min so
+   * a :00/:30 send time lands within ~15 min of the host's chosen moment. One
+   * batched email per host per day, built from their own world. */
+  const DIGEST_INTERVAL_MS = 15 * 60 * 1000; // 15 min
   async function runDigestTick() {
     try {
       const { runDailyDigestTick } = await import("./services/notificationDigest.js");

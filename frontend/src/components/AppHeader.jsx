@@ -76,8 +76,8 @@ export function AppHeader() {
     navigate(path);
   }
 
+  // The Room is reached by tapping the PullUp logo, so it's not a nav pill.
   const navItems = [
-    { label: "The Room", path: "/room" },
     { label: "Settings", path: "/settings" },
   ];
   const adminNavItems = [

@@ -7,14 +7,24 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown, Loader2, CheckCircle2 } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
 import { useRoomRealtime } from "../lib/useRoomRealtime.js";
+import { useAudienceFilter } from "../lib/useAudienceFilter.js";
 import MessageStatusTicks from "./room/MessageStatusTicks.jsx";
 
 const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+
+// Run async work with bounded concurrency — a steady, server-friendly drip for
+// bulk sends (so 171 messages don't fire as 171 simultaneous requests) and so
+// the per-channel progress fills gradually instead of all at once.
+async function runPool(items, worker, concurrency = 6) {
+  let i = 0;
+  const run = async () => { while (i < items.length) { const idx = i++; await worker(items[idx], idx); } };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
+}
 
 // Light PullUp palette — white canvas, near-black ink, the one pink accent.
 const D = {
@@ -55,6 +65,21 @@ function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean)
 // The channels one person is reachable on — one human, several linked accounts.
 // Falls back to their preferred channel when the room didn't enumerate reach.
 function reachOf(p) { return p?.reachable?.length ? p.reachable : [p?.channel || "email"]; }
+
+// Compact "how long ago" for the list rows (Instagram-style: now, 5m, 3h, 2d,
+// 1w, then a short date). Computed client-side off the ISO so it stays accurate.
+function relTimeShort(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 45) return "now";
+  const m = s / 60; if (m < 60) return `${Math.round(m)}m`;
+  const h = m / 60; if (h < 24) return `${Math.round(h)}h`;
+  const d = h / 24; if (d < 7) return `${Math.round(d)}d`;
+  const w = d / 7; if (w < 5) return `${Math.round(w)}w`;
+  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return `${Math.round(d)}d`; }
+}
 
 // Can we send a normal free-text message ON this channel RIGHT NOW? Email always.
 // WhatsApp/Instagram only inside their open window — so the composer can lock a
@@ -115,12 +140,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const { showToast } = useToast();
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
-  const [q, setQ] = useState("");
-  // Audience builder — stackable filters, AND across dimensions, OR within one.
-  const [channels, setChannels] = useState([]);   // [] = any channel
-  const [eventIds, setEventIds] = useState([]);    // [] = any event
-  const [attendance, setAttendance] = useState("all"); // all | going | waitlist (only when events picked)
-  const [segment, setSegment] = useState("all");   // all | community | guests | customers | pulledup
+  // Audience builder — shared verbatim with the Room's "Your people" view.
+  const af = useAudienceFilter(people || [], roomEvents);
+  const { channels, eventIds, attendance, segment, q, setAttendance, setSegment, setQ,
+    toggleChannel, clearChannels, toggleEvent, clearEvents } = af;
+  const activeFilterCount = af.activeCount;
+  const filterSummary = af.summary;
+  const clearFilters = af.clear;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [openId, setOpenId] = useState(null);
@@ -195,47 +221,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // the id; the thread resolves as soon as `people` loads.
   useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
 
-  const list = useMemo(() => {
-    let ps = [...(people || [])];
-    // Channel: reachable on ANY of the picked rails (event + instagram works because
-    // this ANDs with the event filter below).
-    if (channels.length) ps = ps.filter((p) => reachOf(p).some((c) => channels.includes(c)));
-    // People lens: a single relationship/status edge.
-    if (segment === "community") ps = ps.filter((p) => p.isCommunityMember);
-    else if (segment === "guests") ps = ps.filter((p) => p.hasEventRsvp);
-    else if (segment === "customers") ps = ps.filter((p) => p.hasPurchased);
-    else if (segment === "pulledup") ps = ps.filter((p) => p.pulledUp);
-    // Events (OR within) + attendance state. "going" = confirmed or attended (not
-    // waitlisted); "waitlist" = still waiting; "all" = anyone who RSVP'd.
-    if (eventIds.length) ps = ps.filter((p) => eventIds.some((eid) => {
-      const st = (p.eventStatus || {})[eid];
-      if (!st) return false;
-      if (attendance === "going") return st !== "waitlist";
-      if (attendance === "waitlist") return st === "waitlist";
-      return true;
-    }));
-    if (q.trim()) { const s = q.trim().toLowerCase(); ps = ps.filter((p) => (p.name || "").toLowerCase().includes(s)); }
-    return ps.sort((a, b) => { const ra = msgRank(a), rb = msgRank(b); return ra[0] !== rb[0] ? ra[0] - rb[0] : rb[1] - ra[1]; });
-  }, [people, channels, segment, eventIds, attendance, q]);
-
-  // Filter affordances: an active count for the toggle badge, a plain-language
-  // summary for the always-visible bar, and a one-tap reset.
-  const activeFilterCount = (channels.length ? 1 : 0) + (eventIds.length ? 1 : 0) + (segment !== "all" ? 1 : 0) + (eventIds.length && attendance !== "all" ? 1 : 0);
-  const filterSummary = useMemo(() => {
-    const parts = [];
-    if (eventIds.length) {
-      const titles = eventIds.map((id) => roomEvents.find((e) => e.id === id)?.title).filter(Boolean);
-      parts.push(titles.length <= 2 ? titles.join(" + ") : `${titles.length} events`);
-      if (attendance === "going") parts.push("Going");
-      else if (attendance === "waitlist") parts.push("Waitlist");
-    }
-    const segLabel = { community: "Community", guests: "Event guests", customers: "Customers", pulledup: "Pulled up" }[segment];
-    if (segLabel) parts.push(segLabel);
-    if (channels.length) parts.push(channels.map((c) => CH[c]?.label || c).join(" / "));
-    return parts;
-  }, [eventIds, attendance, segment, channels, roomEvents]);
-  function clearFilters() { setChannels([]); setEventIds([]); setAttendance("all"); setSegment("all"); }
-  const toggleIn = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+  // The dock orders the filtered audience like an inbox (unread → recency).
+  const list = useMemo(() => [...af.list].sort((a, b) => {
+    const ra = msgRank(a), rb = msgRank(b);
+    return ra[0] !== rb[0] ? ra[0] - rb[0] : rb[1] - ra[1];
+  }), [af.list]);
 
   const thread = useMemo(() => {
     if (!open) return [];
@@ -365,16 +355,17 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   function fmtWhen(e) { if (!e?.startsAt) return ""; try { return new Date(e.startsAt).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; } }
   // Always Google Maps, exact pin when the event carries coords (else address search).
   function mapsLink(e) { if (!(e?.location || "").trim()) return ""; return getGoogleMapsUrl(e.location, e.locationLat, e.locationLng) || ""; }
-  function smartBlock(e) { const parts = []; if (e?.title) parts.push(e.title); const w = fmtWhen(e); if (w) parts.push(w); if (e?.location) parts.push(e.location); const ml = mapsLink(e); if (ml) parts.push(ml); return parts.join("\n"); }
   function appendDraft(txt) { if (!txt) return; setDraft((d) => (d && !/\s$/.test(d) ? d + " " : d) + txt); }
 
   // ── Multi-select → message several people at once ──
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState([]);
   const [broadcast, setBroadcast] = useState(false);
+  // Live bulk-send status: { groups: {channel:{total,done,failed}}, total, done, failed, complete }.
+  const [sendProgress, setSendProgress] = useState(null);
   const selectedPeople = useMemo(() => (people || []).filter((p) => selected.includes(p.id)), [people, selected]);
   function toggleSel(id) { setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); }
-  function exitSelect() { setSelecting(false); setSelected([]); setBroadcast(false); }
+  function exitSelect() { setSelecting(false); setSelected([]); setBroadcast(false); setSendProgress(null); }
   // Select-all over the currently-filtered list (event/channel/search aware).
   const allVisibleSelected = list.length > 0 && list.every((p) => selected.includes(p.id));
   function toggleSelectAll() {
@@ -384,13 +375,37 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   async function sendBroadcast(e) {
     e.preventDefault();
     const text = draft.trim(); const atts = attachments;
-    if ((!text && !atts.length && !attachedEventId && !attachedLocation) || !selectedPeople.length) return;
+    const evId = attachedEventId || undefined; const loc = attachedLocation || undefined;
+    if ((!text && !atts.length && !evId && !loc) || !selectedPeople.length || sendProgress) return;
+    // One-to-many, not a group thread: send each individually on the rail they'll
+    // actually receive on, and surface honest per-channel progress so the host can
+    // watch it land — no wondering "did they get it?".
+    const recips = selectedPeople.map((p) => ({ p, ch: resolveActiveCh(p, null) }));
+    const groups = {};
+    for (const { ch } of recips) (groups[ch] = groups[ch] || { total: 0, done: 0, failed: 0 }).total++;
+    setSendProgress({ groups, total: recips.length, done: 0, failed: 0, complete: false });
     setSending(true);
-    try {
-      await Promise.all(selectedPeople.map((p) => authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: p.channel || "email", text, attachments: atts, eventId: attachedEventId || undefined, location: attachedLocation || undefined }) }).catch(() => null)));
-    } finally {
-      setSending(false); setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false); exitSelect();
-    }
+    await runPool(recips, async ({ p, ch }) => {
+      let ok = false;
+      try {
+        const res = await authenticatedFetch("/host/room/message", { method: "POST", body: JSON.stringify({ personId: p.id, channel: ch, text, attachments: atts, eventId: evId, location: loc }) });
+        const data = await res.json().catch(() => ({}));
+        ok = res.ok && data.ok !== false;
+      } catch { ok = false; }
+      setSendProgress((s) => {
+        if (!s) return s;
+        const prev = s.groups[ch] || { total: 0, done: 0, failed: 0 };
+        const g = { ...prev, done: prev.done + 1, failed: prev.failed + (ok ? 0 : 1) };
+        return { ...s, groups: { ...s.groups, [ch]: g }, done: s.done + 1, failed: s.failed + (ok ? 0 : 1) };
+      });
+    }, 6);
+    setSending(false);
+    setSendProgress((s) => (s ? { ...s, complete: true } : s));
+  }
+  // Leave the broadcast flow after a send — back to the message list, cleared.
+  function finishBroadcast() {
+    setDraft(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
+    exitSelect();
   }
 
   const iconBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: D.muted, padding: 6 };
@@ -611,12 +626,39 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     );
   };
 
-  // ── Broadcast view — compose once, send to everyone selected ──────────────
+  // ── Broadcast view — compose once, send one-to-many, watch it land ────────
   const broadcastView = (split = false) => {
+    const sp = sendProgress;
+    // Per-channel progress rows — the "did they get it?" answer. Each rail fills
+    // pending → sent on its own bar, with a tick when its group completes.
+    const channelRows = (s) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+        {Object.entries(s.groups).map(([c, g]) => {
+          const meta = CH[c] || CH.email; const Icon = CH_ICON[c] || MessageCircle;
+          const pct = g.total ? Math.round((g.done / g.total) * 100) : 100;
+          const done = g.done >= g.total;
+          return (
+            <div key={c}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <Icon size={15} color={meta.color} strokeWidth={2.25} />
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{meta.label}</span>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: D.muted }}>{g.done}/{g.total}</span>
+                {done ? <Check size={14} color={D.green} strokeWidth={3} /> : <Loader2 size={13} color={meta.color} style={{ animation: "spin 0.9s linear infinite" }} />}
+              </div>
+              <div style={{ height: 6, borderRadius: 999, background: D.raise, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: meta.color, borderRadius: 999, transition: "width 0.35s ease" }} />
+              </div>
+              {g.failed > 0 && <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>{g.failed} couldn’t send — they’ll have no open rail</div>}
+            </div>
+          );
+        })}
+      </div>
+    );
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
-          <button onClick={() => setBroadcast(false)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>
+          {!sp && <button onClick={() => setBroadcast(false)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>}
           <div style={{ display: "flex" }}>
             {selectedPeople.slice(0, 5).map((p, i) => (
               <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -9, borderRadius: "50%", boxShadow: `0 0 0 2px ${D.bg}` }}><Avatar name={p.name} src={p.avatarUrl} size={30} /></div>
@@ -624,28 +666,67 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{selectedPeople.length} {selectedPeople.length === 1 ? "person" : "people"}</div>
-            <div style={{ fontSize: 11, color: D.muted }}>each gets it on their channel</div>
+            <div style={{ fontSize: 11, color: D.muted }}>{sp?.complete ? "sent" : sp ? "sending…" : "each gets it on their own channel"}</div>
           </div>
           {!split && onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={18} /></button>}
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 8, alignContent: "flex-start" }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {/* Recipients — a compact scrollable bar so the message area breathes. */}
+        {!sp?.complete && (
+          <div style={{ flexShrink: 0, display: "flex", gap: 6, overflowX: "auto", padding: "9px 12px", borderBottom: `1px solid ${D.line}`, whiteSpace: "nowrap" }}>
             {selectedPeople.map((p) => {
-              const pch = CH[p.channel] || CH.email;
+              const pch = CH[resolveActiveCh(p, null)] || CH.email;
               return (
-                <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 10px 5px 6px", borderRadius: 999, background: D.raise, color: D.ink }}>
+                <span key={p.id} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 9px 5px 5px", borderRadius: 999, background: D.raise, color: D.ink }}>
                   <Avatar name={p.name} src={p.avatarUrl} size={20} />{(p.name || "").split(" ")[0]}
                   <span style={{ fontSize: 9.5, fontWeight: 700, color: pch.color }}>{pch.label.slice(0, 2).toUpperCase()}</span>
-                  <button type="button" onClick={() => toggleSel(p.id)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>
+                  {!sp && <button type="button" onClick={() => toggleSel(p.id)} style={{ ...iconBtn, padding: 0, color: D.faint }}><X size={12} /></button>}
                 </span>
               );
             })}
           </div>
-          <div style={{ fontSize: 12, color: D.faint, marginTop: 4 }}>One message, sent to each person individually — not a group thread.</div>
-        </div>
+        )}
 
-        {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`)}
+        {/* Composing → a roomy message area; sending → live per-channel progress;
+            done → "Send complete" + a clear way back (there's no group thread). */}
+        {!sp && (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+              <div style={{ fontSize: 12.5, color: D.faint, textAlign: "center", lineHeight: 1.5 }}>One message, delivered to each person individually on their own channel — not a group thread. Replies come back to their own thread in your inbox.</div>
+            </div>
+            {renderComposer(sendBroadcast, `Message ${selectedPeople.length} ${selectedPeople.length === 1 ? "person" : "people"}…`)}
+          </>
+        )}
+
+        {sp && !sp.complete && (
+          <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+              <Loader2 size={16} color={D.pink} style={{ animation: "spin 0.9s linear infinite" }} />
+              <span style={{ fontSize: 14, fontWeight: 700 }}>Sending to {sp.total}…</span>
+              <span style={{ marginLeft: "auto", fontSize: 12.5, color: D.muted }}>{sp.done}/{sp.total}</span>
+            </div>
+            {channelRows(sp)}
+          </div>
+        )}
+
+        {sp?.complete && (
+          <div style={{ flex: 1, overflowY: "auto", padding: "22px 18px 18px", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 20 }}>
+              <CheckCircle2 size={46} color={D.green} strokeWidth={2} />
+              <div style={{ fontSize: 17, fontWeight: 800, marginTop: 10 }}>Send complete</div>
+              <div style={{ fontSize: 13, color: D.muted, marginTop: 4 }}>
+                {sp.done - sp.failed} of {sp.total} delivered{sp.failed > 0 ? ` · ${sp.failed} couldn’t send` : ""}
+              </div>
+            </div>
+            {channelRows(sp)}
+            <div style={{ flex: 1, minHeight: 16 }} />
+            <button onClick={finishBroadcast}
+              style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              Back to messages <ChevronRight size={16} />
+            </button>
+            <div style={{ fontSize: 11.5, color: D.faint, textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>Each reply lands in that person’s own thread in your inbox.</div>
+          </div>
+        )}
       </div>
     );
   };
@@ -678,11 +759,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
               <div style={fLabel}>Channel</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                <button onClick={() => setChannels([])} style={{ ...pill(channels.length === 0, D.muted), padding: "5px 11px" }}>Any</button>
+                <button onClick={clearChannels} style={{ ...pill(channels.length === 0, D.muted), padding: "5px 11px" }}>Any</button>
                 {["whatsapp", "instagram", "email"].map((c) => {
                   const Icon = CH_ICON[c];
                   return (
-                    <button key={c} onClick={() => setChannels((s) => toggleIn(s, c))} title={CH[c].label} aria-label={CH[c].label}
+                    <button key={c} onClick={() => toggleChannel(c)} title={CH[c].label} aria-label={CH[c].label}
                       style={{ ...pill(channels.includes(c), CH[c].color), display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px" }}>
                       <Icon size={14} strokeWidth={2.25} />
                     </button>
@@ -710,12 +791,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                   {eventPickerOpen && (
                     <div style={{ marginTop: 6, border: `1px solid ${D.line}`, borderRadius: 10, maxHeight: 176, overflowY: "auto", background: D.raise }}>
                       {eventIds.length > 0 && (
-                        <button onClick={() => setEventIds([])} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 11px", border: "none", borderBottom: `1px solid ${D.line}`, background: "none", color: D.muted, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Clear selection</button>
+                        <button onClick={clearEvents} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 11px", border: "none", borderBottom: `1px solid ${D.line}`, background: "none", color: D.muted, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Clear selection</button>
                       )}
                       {roomEvents.map((ev) => {
                         const on = eventIds.includes(ev.id);
                         return (
-                          <button key={ev.id} onClick={() => setEventIds((s) => toggleIn(s, ev.id))}
+                          <button key={ev.id} onClick={() => toggleEvent(ev.id)}
                             style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", padding: "8px 11px", border: "none", background: on ? D.hover : "none", color: D.ink, fontSize: 12.5, cursor: "pointer" }}>
                             <span style={{ width: 17, height: 17, flexShrink: 0, borderRadius: 5, border: `2px solid ${on ? D.pink : D.line}`, background: on ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <Check size={11} color="#fff" strokeWidth={3.5} />}</span>
                             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
@@ -790,7 +871,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                   <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>
                   {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
                 </div>
-                <div style={{ fontSize: 12.5, color: D.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{line}</div>
+                {/* Preview · time — inline, Instagram-style: the preview truncates, the time stays. */}
+                <div style={{ display: "flex", alignItems: "baseline", fontSize: 12.5, color: D.muted, minWidth: 0 }}>
+                  <span style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</span>
+                  {relTimeShort(p.lastActivityAt) && <span style={{ flexShrink: 0, color: p.awaitingReply ? D.pink : D.faint, fontWeight: p.awaitingReply ? 600 : 400 }}>{line ? " · " : ""}{relTimeShort(p.lastActivityAt)}</span>}
+                </div>
               </div>
               {selecting ? (
                 <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? D.pink : D.line}`, background: sel ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -814,7 +899,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
       {selecting && selected.length > 0 && (
         <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
-          <button onClick={() => { setDraft(""); setAttachments([]); setSmartOpen(false); setBroadcast(true); }}
+          <button onClick={() => { setDraft(""); setAttachments([]); setSmartOpen(false); setSendProgress(null); setBroadcast(true); }}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
             Write to {selected.length} <ChevronRight size={15} />
           </button>

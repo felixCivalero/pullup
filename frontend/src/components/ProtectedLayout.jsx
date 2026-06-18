@@ -211,10 +211,9 @@ function ProtectedLayoutInner() {
   // and their routes still exist (reachable by URL) — this is a deliberate
   // de-emphasis, not a deletion, so we can restore or migrate them as the new
   // shape settles.
-  // The Room leads — it's the home of PullUp now (the global relationship
-  // surface). Events are content that pours into it; Settings holds the rest.
+  // The Room is the home of PullUp, reached by tapping the PullUp logo — so it's
+  // no longer a nav pill (cleaner). Settings holds the rest (gear icon + drawer).
   const navItems = [
-    { label: "The Room", path: "/room" },
     { label: "Settings", path: "/settings" },
   ];
 

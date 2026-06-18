@@ -18,7 +18,7 @@
 
 import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, Copy, Mail, Phone, Plus, Send, ExternalLink } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, ChevronDown, Copy, Mail, Phone, Plus, Send, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -29,6 +29,7 @@ import ProfileSetup from "../components/room/ProfileSetup.jsx";
 import LookingBack from "../components/room/LookingBack.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { useRoomRealtime } from "../lib/useRoomRealtime.js";
+import { useAudienceFilter, PEOPLE_LENSES, ATTENDANCE, CHANNEL_KEYS, CHANNEL_LABELS } from "../lib/useAudienceFilter.js";
 import MessageStatusTicks from "../components/room/MessageStatusTicks.jsx";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
@@ -1395,84 +1396,47 @@ function PeopleContactCard({ person, events }) {
   );
 }
 
-// The 3-way audience segment, on the relationship edges the backend computes
-// per person (roomService): joined the community, RSVP'd to an event, or both.
-const SEGMENTS = [
-  { key: "all", label: "All", match: () => true },
-  { key: "community_only", label: "Community only", match: (p) => p.segment === "community_only" },
-  { key: "community_plus_events", label: "Community + events", match: (p) => p.segment === "community_plus_events" },
-  { key: "events_only", label: "Events only", match: (p) => p.segment === "events_only" },
-];
-
 function PeopleLayer({ people = [], events = [] }) {
-  const [q, setQ] = useState("");
-  const [seg, setSeg] = useState("all");
-  const query = q.trim().toLowerCase();
-
-  // Only worth showing the segment filter once a community exists in this world
-  // (otherwise everyone is "events only" and the chips are noise).
-  const hasCommunity = useMemo(() => people.some((p) => p.isCommunityMember), [people]);
-  const segCounts = useMemo(() => {
-    const m = Object.fromEntries(SEGMENTS.map((s) => [s.key, 0]));
-    for (const p of people) for (const s of SEGMENTS) if (s.match(p)) m[s.key]++;
-    return m;
-  }, [people]);
-
-  const filtered = useMemo(() => {
-    const segFn = (SEGMENTS.find((s) => s.key === seg) || SEGMENTS[0]).match;
-    return people.filter((p) => {
-      if (!segFn(p)) return false;
-      if (!query) return true;
-      const hay = [p.name, p.email, p.phone || p.phone_e164, p.instagram, p.relationship]
-        .filter(Boolean).join(" ").toLowerCase();
-      return hay.includes(query);
-    });
-  }, [people, query, seg]);
+  // The SAME audience builder as the Messages dock (shared hook), so the Room's
+  // people view and the messaging picker filter identically off one payload.
+  const af = useAudienceFilter(people, events);
+  const { channels, eventIds, attendance, segment, q, setAttendance, setSegment, setQ,
+    toggleChannel, clearChannels, toggleEvent, clearEvents } = af;
+  const filtered = af.list;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
 
   // Don't dump everyone into the DOM — show 5, reveal 20 more on demand.
-  // If they're hunting for someone specific, search is the real tool.
   const PAGE = 20;
   const [visible, setVisible] = useState(5);
-  useEffect(() => { setVisible(5); }, [query, seg]);
+  useEffect(() => { setVisible(5); }, [q, segment, channels, eventIds, attendance]);
   const shown = filtered.slice(0, visible);
   const remaining = filtered.length - shown.length;
+
+  const pill = (on) => ({
+    display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 999, cursor: "pointer",
+    fontFamily: SF, fontSize: "12.5px", fontWeight: 600,
+    border: `1px solid ${on ? colors.accent : colors.border}`, background: on ? colors.accent : colors.surface,
+    color: on ? "#fff" : colors.textMuted, transition: "background 0.15s, border-color 0.15s, color 0.15s",
+  });
+  const lbl = { fontSize: "10.5px", fontWeight: 800, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", margin: "14px 2px 7px" };
 
   return (
     <div style={{ marginTop: "30px", fontFamily: SF }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your people</span>
         {people.length > 0 && <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· {people.length}</span>}
+        <div style={{ flex: 1 }} />
+        {people.length > 0 && (
+          <button type="button" onClick={() => setFiltersOpen((o) => !o)} style={pill(filtersOpen || af.activeCount > 0)}>
+            <SlidersHorizontal size={14} strokeWidth={2.2} />
+            Filters{af.activeCount > 0 ? ` · ${af.activeCount}` : ""}
+          </button>
+        )}
       </div>
 
-      {hasCommunity && people.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-          {SEGMENTS.map((s) => {
-            const on = seg === s.key;
-            return (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setSeg(s.key)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "7px 13px", borderRadius: 999, cursor: "pointer",
-                  fontFamily: SF, fontSize: "12.5px", fontWeight: 600,
-                  border: `1px solid ${on ? colors.accent : colors.border}`,
-                  background: on ? colors.accent : colors.surface,
-                  color: on ? "#fff" : colors.textMuted,
-                  transition: "background 0.15s, border-color 0.15s, color 0.15s",
-                }}
-              >
-                {s.label}
-                <span style={{ fontSize: "11px", opacity: on ? 0.85 : 0.6 }}>{segCounts[s.key]}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {people.length > 0 && (
-        <div style={{ position: "relative", marginBottom: "14px" }}>
+        <div style={{ position: "relative", marginBottom: "12px" }}>
           <Search size={15} color={colors.textFaded} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
           <input
             value={q}
@@ -1480,6 +1444,72 @@ function PeopleLayer({ people = [], events = [] }) {
             placeholder="Search your people — name, email, @handle…"
             style={{ width: "100%", padding: "10px 12px 10px 34px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: "14px", outline: "none", fontFamily: SF, boxSizing: "border-box" }}
           />
+        </div>
+      )}
+
+      {/* Plain-language summary of the audience being built. */}
+      {af.summary.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: "12px", fontSize: "13px", color: colors.textMuted }}>
+          <span style={{ color: colors.text, fontWeight: 700 }}>{filtered.length} {filtered.length === 1 ? "person" : "people"}</span>
+          <span style={{ color: colors.textFaded }}>·</span>
+          <span>{af.summary.join(" · ")}</span>
+          <button type="button" onClick={af.clear} style={{ border: "none", background: "none", cursor: "pointer", color: colors.accent, fontWeight: 700, fontSize: "12.5px", fontFamily: SF }}>Clear</button>
+        </div>
+      )}
+
+      {/* The audience builder — identical capabilities to the Messages dock. */}
+      {filtersOpen && people.length > 0 && (
+        <div style={{ marginBottom: "16px", padding: "2px 16px 16px", border: `1px solid ${colors.border}`, borderRadius: "16px", background: colors.surface }}>
+          <div style={lbl}>Channel</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={clearChannels} style={pill(channels.length === 0)}>Any</button>
+            {CHANNEL_KEYS.map((c) => <button key={c} type="button" onClick={() => toggleChannel(c)} style={pill(channels.includes(c))}>{CHANNEL_LABELS[c]}</button>)}
+          </div>
+
+          <div style={lbl}>People</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {PEOPLE_LENSES.map(([v, label]) => <button key={v} type="button" onClick={() => setSegment(v)} style={pill(segment === v)}>{label}</button>)}
+          </div>
+
+          {events.length > 0 && (
+            <>
+              <div style={lbl}>Events</div>
+              <button type="button" onClick={() => setEventPickerOpen((o) => !o)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", boxSizing: "border-box", padding: "10px 13px", borderRadius: "12px", border: `1px solid ${eventIds.length ? colors.accent : colors.border}`, background: colors.surface, color: eventIds.length ? colors.accent : colors.text, fontWeight: eventIds.length ? 700 : 500, fontSize: "13px", fontFamily: SF, cursor: "pointer" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {eventIds.length === 0 ? "All events" : eventIds.length === 1 ? (events.find((e) => e.id === eventIds[0])?.title || "1 event") : `${eventIds.length} events selected`}
+                </span>
+                <ChevronDown size={16} style={{ flexShrink: 0, transform: eventPickerOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
+              {eventPickerOpen && (
+                <div style={{ marginTop: 6, border: `1px solid ${colors.border}`, borderRadius: "12px", maxHeight: 220, overflowY: "auto", background: colors.surface }}>
+                  {eventIds.length > 0 && (
+                    <button type="button" onClick={clearEvents} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 13px", border: "none", borderBottom: `1px solid ${colors.border}`, background: "none", color: colors.textMuted, fontSize: "12px", fontWeight: 700, fontFamily: SF, cursor: "pointer" }}>Clear selection</button>
+                  )}
+                  {events.map((ev) => {
+                    const on = eventIds.includes(ev.id);
+                    return (
+                      <button key={ev.id} type="button" onClick={() => toggleEvent(ev.id)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 13px", border: "none", background: on ? colors.surfaceAlt || "rgba(0,0,0,0.03)" : "none", color: colors.text, fontSize: "13px", fontFamily: SF, cursor: "pointer" }}>
+                        <span style={{ width: 18, height: 18, flexShrink: 0, borderRadius: 6, border: `2px solid ${on ? colors.accent : colors.border}`, background: on ? colors.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <Check size={12} color="#fff" strokeWidth={3.5} />}</span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                        <span style={{ fontSize: "11px", color: colors.textFaded, textTransform: "capitalize", flexShrink: 0 }}>{ev.status}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {eventIds.length > 0 && (
+                <>
+                  <div style={lbl}>Attendance</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {ATTENDANCE.map(([v, label]) => <button key={v} type="button" onClick={() => setAttendance(v)} style={pill(attendance === v)}>{label}</button>)}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 

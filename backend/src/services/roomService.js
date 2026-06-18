@@ -613,8 +613,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // community page = a member; an RSVP to a real event = an attendee.
   const communityMemberIds = new Set();
   const rsvpPersonIds = new Set();
-  // RSVPs to a kind='product' page = purchases (a product sale is a paid RSVP).
+  // RSVPs to a kind='product' page = product purchases (a sale is a paid RSVP).
   const purchaserIds = new Set();
+  // Paid RSVP to a real event = a ticket buyer (distinct from a product buyer).
+  const ticketBuyerIds = new Set();
   // person_id -> Set(event_id) of the REAL events they RSVP'd to. Authoritative
   // for event-filtering (the message picker filters people by event), so it
   // works for everyone — even people whose RSVP is older than the recent timeline.
@@ -629,7 +631,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     if (allHostEventIds.length) {
       const { data: rs } = await supabase
         .from("rsvps")
-        .select("person_id, event_id, status, booking_status, pulled_up")
+        .select("person_id, event_id, status, booking_status, pulled_up, payment_status")
         .in("event_id", allHostEventIds)
         .neq("status", "cancelled");
       for (const r of rs || []) {
@@ -639,6 +641,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
         if (kind === "product") { purchaserIds.add(r.person_id); continue; }
         if (!isEventKind(kind)) continue; // waitlist/widget pages aren't an audience edge
         rsvpPersonIds.add(r.person_id);
+        if (r.payment_status === "paid") ticketBuyerIds.add(r.person_id); // paid an event ticket
         if (!rsvpEventsByPerson.has(r.person_id)) rsvpEventsByPerson.set(r.person_id, new Set());
         rsvpEventsByPerson.get(r.person_id).add(r.event_id);
         // Waitlist lives in either status or the dinner/cocktails booking_status.
@@ -750,7 +753,8 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       // (Going / Waitlist / All) filter. { eventId: "going"|"waitlist"|"attended" }.
       eventStatus: Object.fromEntries(eventStatusByPerson.get(pid) || []),
       // Audience lenses the picker filters on (beyond community/guest):
-      hasPurchased: purchaserIds.has(pid),                                  // bought a product
+      hasTicket: ticketBuyerIds.has(pid),                                   // paid for an event ticket
+      hasPurchased: purchaserIds.has(pid),                                  // bought a product page
       pulledUp: attended > 0 || [...(eventStatusByPerson.get(pid)?.values() || [])].includes("attended"), // showed up to an event
       signals: [
         ...buildPersonSignals({ attended, eventsTouched: eventsTouched.length, kinds }),

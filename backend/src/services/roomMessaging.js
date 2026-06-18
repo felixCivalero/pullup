@@ -54,7 +54,10 @@ function escapeAttr(s) {
 // A personal note reads best plain — a light wrapper, no banners or buttons.
 // Images embed inline; other files ride as a clean download link.
 function textToHtml(text, attachments = []) {
-  const safe = escapeHtml(text).replace(/\n/g, "<br>");
+  // Render the note exactly as the host typed it — every line break becomes a
+  // <br>. Normalize all newline forms (\r\n, lone \r, \n) so a CRLF source
+  // (some API/MCP callers, pasted text) can't leave a stray carriage return.
+  const safe = escapeHtml(text).replace(/\r\n?|\n/g, "<br>");
   let html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">${safe}</div>`;
   html += attachmentsHtml(attachments);
   return html;

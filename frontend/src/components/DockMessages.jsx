@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -116,8 +116,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const [people, setPeople] = useState(null);
   const [roomEvents, setRoomEvents] = useState([]);
   const [q, setQ] = useState("");
-  const [channel, setChannel] = useState("all");
-  const [eventFilter, setEventFilter] = useState("all");
+  // Audience builder — stackable filters, AND across dimensions, OR within one.
+  const [channels, setChannels] = useState([]);   // [] = any channel
+  const [eventIds, setEventIds] = useState([]);    // [] = any event
+  const [attendance, setAttendance] = useState("all"); // all | going | waitlist (only when events picked)
+  const [segment, setSegment] = useState("all");   // all | community | guests | customers | pulledup
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [sendChannel, setSendChannel] = useState(null); // chosen send channel for the open thread (null = the person's preferred)
   const [draft, setDraft] = useState("");
@@ -192,11 +197,45 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
   const list = useMemo(() => {
     let ps = [...(people || [])];
-    if (channel !== "all") ps = ps.filter((p) => reachOf(p).includes(channel));
-    if (eventFilter !== "all") ps = ps.filter((p) => (p.events || []).includes(eventFilter));
+    // Channel: reachable on ANY of the picked rails (event + instagram works because
+    // this ANDs with the event filter below).
+    if (channels.length) ps = ps.filter((p) => reachOf(p).some((c) => channels.includes(c)));
+    // People lens: a single relationship/status edge.
+    if (segment === "community") ps = ps.filter((p) => p.isCommunityMember);
+    else if (segment === "guests") ps = ps.filter((p) => p.hasEventRsvp);
+    else if (segment === "customers") ps = ps.filter((p) => p.hasPurchased);
+    else if (segment === "pulledup") ps = ps.filter((p) => p.pulledUp);
+    // Events (OR within) + attendance state. "going" = confirmed or attended (not
+    // waitlisted); "waitlist" = still waiting; "all" = anyone who RSVP'd.
+    if (eventIds.length) ps = ps.filter((p) => eventIds.some((eid) => {
+      const st = (p.eventStatus || {})[eid];
+      if (!st) return false;
+      if (attendance === "going") return st !== "waitlist";
+      if (attendance === "waitlist") return st === "waitlist";
+      return true;
+    }));
     if (q.trim()) { const s = q.trim().toLowerCase(); ps = ps.filter((p) => (p.name || "").toLowerCase().includes(s)); }
     return ps.sort((a, b) => { const ra = msgRank(a), rb = msgRank(b); return ra[0] !== rb[0] ? ra[0] - rb[0] : rb[1] - ra[1]; });
-  }, [people, channel, eventFilter, q]);
+  }, [people, channels, segment, eventIds, attendance, q]);
+
+  // Filter affordances: an active count for the toggle badge, a plain-language
+  // summary for the always-visible bar, and a one-tap reset.
+  const activeFilterCount = (channels.length ? 1 : 0) + (eventIds.length ? 1 : 0) + (segment !== "all" ? 1 : 0) + (eventIds.length && attendance !== "all" ? 1 : 0);
+  const filterSummary = useMemo(() => {
+    const parts = [];
+    if (eventIds.length) {
+      const titles = eventIds.map((id) => roomEvents.find((e) => e.id === id)?.title).filter(Boolean);
+      parts.push(titles.length <= 2 ? titles.join(" + ") : `${titles.length} events`);
+      if (attendance === "going") parts.push("Going");
+      else if (attendance === "waitlist") parts.push("Waitlist");
+    }
+    const segLabel = { community: "Community", guests: "Event guests", customers: "Customers", pulledup: "Pulled up" }[segment];
+    if (segLabel) parts.push(segLabel);
+    if (channels.length) parts.push(channels.map((c) => CH[c]?.label || c).join(" / "));
+    return parts;
+  }, [eventIds, attendance, segment, channels, roomEvents]);
+  function clearFilters() { setChannels([]); setEventIds([]); setAttendance("all"); setSegment("all"); }
+  const toggleIn = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
   const thread = useMemo(() => {
     if (!open) return [];
@@ -356,6 +395,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
   const iconBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: D.muted, padding: 6 };
   const pill = (on, col) => ({ padding: "5px 11px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", border: `1px solid ${on ? "transparent" : D.line}`, background: on ? D.pink : "transparent", color: on ? "#fff" : (col || D.muted) });
+  const fLabel = { fontSize: 10.5, fontWeight: 800, color: D.faint, textTransform: "uppercase", letterSpacing: "0.05em", margin: "11px 2px 6px" };
 
   // Composer shared by single threads + the broadcast view. The sparkle opens
   // the event smart-insert (name/time/place/maps → draft).
@@ -437,7 +477,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     const reach = reachOf(open);
     const activeCh = resolveActiveCh(open, sendChannel);
     const ch = CH[activeCh] || CH.email;
-    const others = reach.filter((c) => c !== activeCh);
+    // Subtitle = their real contact details (the rails themselves are the row of
+    // icons below, so repeating "also on …" there is dead weight). Show what we
+    // actually hold: @handle, email, phone — whichever exist.
+    const igHandle = open.instagram || open.external?.instagram?.username || null;
+    const contactBits = [igHandle ? `@${igHandle}` : null, open.email || null, open.phone || null].filter(Boolean);
     // The active rail is normally open (resolveActiveCh prefers an open one); it's
     // only closed when EVERY reachable rail is closed and none can carry a DM now.
     const activeClosed = !chanOpen(open, activeCh);
@@ -449,9 +493,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             <Avatar name={open.name} src={open.avatarUrl} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
-              <div style={{ fontSize: 11, color: ch.color, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {ch.label}{activeClosed ? " · window closed" : ""}
-                {others.length > 0 && <span style={{ color: D.faint, fontWeight: 500 }}> · also on {others.map((c) => `${CH[c]?.label || c}${chanOpen(open, c) ? "" : " (closed)"}`).join(", ")}</span>}
+              <div style={{ fontSize: 11.5, color: D.muted, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {contactBits.length > 0 ? contactBits.join("  ·  ") : (open.relationship || "Tap to open their room")}
               </div>
             </div>
           </button>
@@ -610,50 +653,123 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // ── List view ───────────────────────────────────────────────────────────
   const listView = (split = false) => (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 12px 11px 16px", borderBottom: `1px solid ${D.line}` }}>
-        <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", flex: 1 }}>Messages</div>
-        <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
-        {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>}
-        {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={19} /></button>}
+      {/* Header + the audience-builder dropdown that floats down over the search. */}
+      <div style={{ position: "relative", zIndex: 20 }}>
+        <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 6, padding: "13px 12px 11px 16px", borderBottom: `1px solid ${D.line}`, background: D.bg }}>
+          <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", flex: 1 }}>Messages</div>
+          <button onClick={() => setFiltersOpen((o) => !o)}
+            style={{ ...pill(filtersOpen || activeFilterCount > 0), display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px" }}>
+            <SlidersHorizontal size={13} strokeWidth={2.4} />
+            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ""}
+          </button>
+          <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
+          {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>}
+          {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={19} /></button>}
+        </div>
+
+        {filtersOpen && (
+          <>
+            <div onClick={() => setFiltersOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1 }} />
+            <div style={{ position: "absolute", top: "100%", left: 8, right: 8, zIndex: 2, background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 18px 44px rgba(10,10,10,0.18)", padding: "10px 14px 14px", maxHeight: 470, overflowY: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800 }}>Audience</div>
+                {activeFilterCount > 0 && <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 12, fontWeight: 700, color: D.pink, padding: "2px 4px" }}>Reset</button>}
+              </div>
+
+              <div style={fLabel}>Channel</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <button onClick={() => setChannels([])} style={{ ...pill(channels.length === 0, D.muted), padding: "5px 11px" }}>Any</button>
+                {["whatsapp", "instagram", "email"].map((c) => {
+                  const Icon = CH_ICON[c];
+                  return (
+                    <button key={c} onClick={() => setChannels((s) => toggleIn(s, c))} title={CH[c].label} aria-label={CH[c].label}
+                      style={{ ...pill(channels.includes(c), CH[c].color), display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px" }}>
+                      <Icon size={14} strokeWidth={2.25} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={fLabel}>People</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[["all", "Everyone"], ["community", "Community"], ["guests", "Event guests"], ["customers", "Customers"], ["pulledup", "Pulled up"]].map(([v, label]) => (
+                  <button key={v} onClick={() => setSegment(v)} style={pill(segment === v)}>{label}</button>
+                ))}
+              </div>
+
+              {roomEvents.length > 0 && (
+                <>
+                  <div style={fLabel}>Events</div>
+                  <button onClick={() => setEventPickerOpen((o) => !o)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", boxSizing: "border-box", padding: "8px 11px", borderRadius: 10, border: `1px solid ${eventIds.length ? D.pink : D.line}`, background: D.raise, color: eventIds.length ? D.pink : D.ink, fontWeight: eventIds.length ? 700 : 500, fontSize: 12.5, cursor: "pointer" }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {eventIds.length === 0 ? "All events" : eventIds.length === 1 ? (roomEvents.find((e) => e.id === eventIds[0])?.title || "1 event") : `${eventIds.length} events selected`}
+                    </span>
+                    <ChevronDown size={15} style={{ flexShrink: 0, transform: eventPickerOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                  </button>
+                  {eventPickerOpen && (
+                    <div style={{ marginTop: 6, border: `1px solid ${D.line}`, borderRadius: 10, maxHeight: 176, overflowY: "auto", background: D.raise }}>
+                      {eventIds.length > 0 && (
+                        <button onClick={() => setEventIds([])} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 11px", border: "none", borderBottom: `1px solid ${D.line}`, background: "none", color: D.muted, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>Clear selection</button>
+                      )}
+                      {roomEvents.map((ev) => {
+                        const on = eventIds.includes(ev.id);
+                        return (
+                          <button key={ev.id} onClick={() => setEventIds((s) => toggleIn(s, ev.id))}
+                            style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", padding: "8px 11px", border: "none", background: on ? D.hover : "none", color: D.ink, fontSize: 12.5, cursor: "pointer" }}>
+                            <span style={{ width: 17, height: 17, flexShrink: 0, borderRadius: 5, border: `2px solid ${on ? D.pink : D.line}`, background: on ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{on && <Check size={11} color="#fff" strokeWidth={3.5} />}</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</span>
+                            <span style={{ fontSize: 10.5, color: D.faint, textTransform: "capitalize", flexShrink: 0 }}>{ev.status}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {eventIds.length > 0 && (
+                    <>
+                      <div style={fLabel}>Attendance</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {[["all", "All"], ["going", "Going"], ["waitlist", "Waitlist"]].map(([v, label]) => (
+                          <button key={v} onClick={() => setAttendance(v)} style={pill(attendance === v)}>{label}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ padding: "10px 12px 8px" }}>
-        <div style={{ position: "relative", marginBottom: 9 }}>
+        <div style={{ position: "relative", marginBottom: filterSummary.length || selecting ? 9 : 0 }}>
           <Search size={14} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: D.faint }} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" type="search"
             name="pullup-search" autoComplete="off" data-lpignore="true" data-1p-ignore data-form-type="other"
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {["all", "whatsapp", "instagram", "email"].map((c) => {
-            const Icon = CH_ICON[c];
-            return (
-              <button key={c} onClick={() => setChannel(c)} title={c === "all" ? "Any channel" : CH[c].label} aria-label={c === "all" ? "Any channel" : CH[c].label}
-                style={{ ...pill(channel === c, c === "all" ? D.muted : CH[c].color), display: "inline-flex", alignItems: "center", justifyContent: "center", padding: c === "all" ? "5px 11px" : "6px 10px" }}>
-                {c === "all" ? "Any" : <Icon size={15} strokeWidth={2.25} />}
-              </button>
-            );
-          })}
-        </div>
-        {roomEvents.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-            <select value={eventFilter} onChange={(e) => setEventFilter(e.target.value)}
-              style={{ flex: 1, minWidth: 0, padding: "7px 10px", borderRadius: 10, border: `1px solid ${eventFilter !== "all" ? D.pink : D.line}`, background: D.raise, color: eventFilter !== "all" ? D.pink : D.ink, fontWeight: eventFilter !== "all" ? 700 : 500, fontSize: 12.5, outline: "none" }}>
-              <option value="all">All events</option>
-              {roomEvents.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-            </select>
-            {selecting && (
-              <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px", whiteSpace: "nowrap" }}>
-                {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
-              </button>
-            )}
+
+        {/* Always-visible plain-language summary of the audience being built. */}
+        {filterSummary.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: D.muted, flexWrap: "wrap" }}>
+            <Users size={13} color={D.pink} style={{ flexShrink: 0 }} />
+            <span style={{ color: D.ink, fontWeight: 700 }}>{list.length} {list.length === 1 ? "person" : "people"}</span>
+            <span style={{ color: D.faint }}>·</span>
+            <span>{filterSummary.join(" · ")}</span>
+            <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
           </div>
         )}
-        {selecting && roomEvents.length === 0 && (
-          <div style={{ marginTop: 8 }}>
-            <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px" }}>
+
+        {/* Select-all over the filtered set when in selection mode. */}
+        {selecting && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: filterSummary.length ? 7 : 0 }}>
+            <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px", whiteSpace: "nowrap" }}>
               {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
             </button>
+            <div style={{ flex: 1 }} />
+            {selected.length > 0 && <span style={{ fontSize: 12, color: D.muted }}>{selected.length} selected</span>}
           </div>
         )}
       </div>

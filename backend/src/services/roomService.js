@@ -613,27 +613,41 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   // community page = a member; an RSVP to a real event = an attendee.
   const communityMemberIds = new Set();
   const rsvpPersonIds = new Set();
+  // RSVPs to a kind='product' page = purchases (a product sale is a paid RSVP).
+  const purchaserIds = new Set();
   // person_id -> Set(event_id) of the REAL events they RSVP'd to. Authoritative
   // for event-filtering (the message picker filters people by event), so it
   // works for everyone — even people whose RSVP is older than the recent timeline.
   const rsvpEventsByPerson = new Map();
+  // person_id -> Map(event_id -> "attended" | "waitlist" | "going") for REAL
+  // events. Lets the message picker include/exclude the waitlist per event and
+  // target "a spot just opened" blasts at exactly the people still waiting.
+  const eventStatusByPerson = new Map();
   try {
-    const communityEventIds = new Set((events || []).filter((e) => e.kind === "community").map((e) => e.id));
+    const kindById = new Map((events || []).map((e) => [e.id, e.kind]));
     const allHostEventIds = (events || []).map((e) => e.id);
     if (allHostEventIds.length) {
       const { data: rs } = await supabase
         .from("rsvps")
-        .select("person_id, event_id")
+        .select("person_id, event_id, status, booking_status, pulled_up")
         .in("event_id", allHostEventIds)
         .neq("status", "cancelled");
       for (const r of rs || []) {
         if (!r.person_id) continue;
-        if (communityEventIds.has(r.event_id)) communityMemberIds.add(r.person_id);
-        else {
-          rsvpPersonIds.add(r.person_id);
-          if (!rsvpEventsByPerson.has(r.person_id)) rsvpEventsByPerson.set(r.person_id, new Set());
-          rsvpEventsByPerson.get(r.person_id).add(r.event_id);
-        }
+        const kind = kindById.get(r.event_id);
+        if (kind === "community") { communityMemberIds.add(r.person_id); continue; }
+        if (kind === "product") { purchaserIds.add(r.person_id); continue; }
+        if (!isEventKind(kind)) continue; // waitlist/widget pages aren't an audience edge
+        rsvpPersonIds.add(r.person_id);
+        if (!rsvpEventsByPerson.has(r.person_id)) rsvpEventsByPerson.set(r.person_id, new Set());
+        rsvpEventsByPerson.get(r.person_id).add(r.event_id);
+        // Waitlist lives in either status or the dinner/cocktails booking_status.
+        const waitlisted = r.status === "waitlist" || r.booking_status === "WAITLIST";
+        const st = r.pulled_up ? "attended" : waitlisted ? "waitlist" : "going";
+        if (!eventStatusByPerson.has(r.person_id)) eventStatusByPerson.set(r.person_id, new Map());
+        // A confirmed/attended row wins over a stray waitlist row for the event.
+        const cur = eventStatusByPerson.get(r.person_id).get(r.event_id);
+        if (!cur || cur === "waitlist") eventStatusByPerson.get(r.person_id).set(r.event_id, st);
       }
     }
   } catch (err) {
@@ -732,6 +746,12 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       relationship,
       external, // { instagram: { username, followerCount, followsYou, youFollow, verified } }
       events: eventsTouched,
+      // Per-event RSVP status (real events) → the picker's event + attendance
+      // (Going / Waitlist / All) filter. { eventId: "going"|"waitlist"|"attended" }.
+      eventStatus: Object.fromEntries(eventStatusByPerson.get(pid) || []),
+      // Audience lenses the picker filters on (beyond community/guest):
+      hasPurchased: purchaserIds.has(pid),                                  // bought a product
+      pulledUp: attended > 0 || [...(eventStatusByPerson.get(pid)?.values() || [])].includes("attended"), // showed up to an event
       signals: [
         ...buildPersonSignals({ attended, eventsTouched: eventsTouched.length, kinds }),
         ...externalSignals(external),

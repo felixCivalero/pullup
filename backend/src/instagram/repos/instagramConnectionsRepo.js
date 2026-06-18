@@ -215,6 +215,50 @@ export async function setCommentRules(hostProfileId, rules) {
   if (error) throw error;
 }
 
+/**
+ * Connected accounts whose long-lived token expires within `withinDays` and
+ * hasn't already expired — the auto-refresh job's work-list. Includes the
+ * ENCRYPTED token + ig_user_id so the caller can refresh it in place. (We
+ * exclude already-expired tokens: Instagram can't refresh a dead token, so
+ * those need a reconnect, handled by the send-path 190 marker, not here.)
+ */
+export async function getConnectionsDueForRefresh(withinDays = 10, nowMs = Date.now()) {
+  const horizon = new Date(nowMs + withinDays * 24 * 60 * 60 * 1000).toISOString();
+  const floor = new Date(nowMs).toISOString();
+  const { data } = await supabase
+    .from("instagram_connections")
+    .select("id, ig_user_id, access_token, token_expires_at")
+    .eq("status", "connected")
+    .not("access_token", "is", null)
+    .not("token_expires_at", "is", null)
+    .gt("token_expires_at", floor)
+    .lte("token_expires_at", horizon);
+  return data || [];
+}
+
+/**
+ * Persist a freshly-refreshed long-lived token (re-encrypted) + its new expiry.
+ * Keyed by ig_user_id, like the other write paths.
+ */
+export async function updateConnectionToken(igUserId, accessToken, expiresInSeconds) {
+  const token_expires_at = expiresInSeconds
+    ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
+    : null;
+  const { error } = await supabase
+    .from("instagram_connections")
+    .update({
+      access_token: encryptSecret(accessToken),
+      token_expires_at,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("ig_user_id", String(igUserId));
+  if (error) {
+    logger?.error?.("[instagramConnectionsRepo] token refresh write failed", { error: error.message });
+    throw error;
+  }
+}
+
 /** Mark a connection expired/revoked (e.g. on a 190 token error). */
 export async function markConnectionStatus(igUserId, status) {
   await supabase

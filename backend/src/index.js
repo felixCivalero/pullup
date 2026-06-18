@@ -708,4 +708,19 @@ app.listen(PORT, HOST, async () => {
     }
   }
   setInterval(runSchemaSyncTick, SCHEMA_SYNC_INTERVAL_MS);
+
+  /* Instagram token refresh: once a day, refresh long-lived IG tokens nearing
+   * their 60-day expiry so connections don't silently die (and force a
+   * reconnect). No-op until a host connects Instagram. Inbound-driven sends
+   * already mark genuinely-dead tokens; this keeps live ones alive. */
+  const IG_TOKEN_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
+  async function runIgTokenRefreshTick() {
+    try {
+      const { runInstagramTokenRefreshTick } = await import("./instagram/tokenRefresh.js");
+      await runInstagramTokenRefreshTick();
+    } catch (err) {
+      console.error("[ig-token-refresh] Unexpected error in tick:", err.message);
+    }
+  }
+  setInterval(runIgTokenRefreshTick, IG_TOKEN_REFRESH_INTERVAL_MS);
 });

@@ -23,6 +23,9 @@ export function useEventRoomView(eventId) {
     messages: null,
     coPresent: null,
     products: null,
+    content: null,
+    contentCan: null,
+    pages: null,
   });
 
   useEffect(() => {
@@ -33,7 +36,7 @@ export function useEventRoomView(eventId) {
     let alive = true;
     const fail = () =>
       alive &&
-      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null, products: null });
+      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null, products: null, content: null, contentCan: null, pages: null });
 
     authenticatedFetch(`/events/${eventId}/room-view`)
       .then((r) => (r.ok ? r.json() : null))
@@ -56,6 +59,9 @@ export function useEventRoomView(eventId) {
           messages: Array.isArray(d.messages) ? d.messages : null,
           coPresent: Array.isArray(d.coPresent) ? d.coPresent : null,
           products: Array.isArray(d.products) ? d.products : null,
+          content: Array.isArray(d.content) ? d.content : null,
+          contentCan: d.contentCan || null,
+          pages: a.pages || null,
         });
       })
       .catch(fail);

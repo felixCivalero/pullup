@@ -29,6 +29,7 @@ import { registerCommsRoutes } from "./routes/comms.js";
 import { registerCheckinAccessRoutes } from "./routes/checkinAccess.js";
 import { registerAdminMatchRoutes } from "./routes/adminMatches.js";
 import { registerRoomRoutes } from "./routes/room.js";
+import { registerRoomContentRoutes } from "./routes/roomContent.js";
 import { registerHostSpaceRoutes } from "./routes/hostSpace.js";
 import { registerGuestRoutes } from "./routes/guests.js";
 import { registerCrmPeopleRoutes } from "./routes/crmPeople.js";
@@ -268,6 +269,8 @@ registerCheckinAccessRoutes(app);
 registerAdminMatchRoutes(app);
 
 registerRoomRoutes(app);
+
+registerRoomContentRoutes(app);
 
 registerHostSpaceRoutes(app);
 

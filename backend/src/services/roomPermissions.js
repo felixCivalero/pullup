@@ -71,3 +71,26 @@ export function resolveGrid(event) {
     pulledup: resolveCapabilities(event, "pulledup"),
   };
 }
+
+// ── PAGES (tabs) — a sibling layout concern, kept out of the capability grid.
+// The Wall is the hero and ALWAYS on; the host only toggles Chat and Shop. A
+// guest never sees a tab turned off here (Shop additionally self-hides for
+// guests when empty — that's a frontend call, not stored).
+export const ROOM_PAGE_KEYS = ["chat", "shop"];
+export const DEFAULT_ROOM_PAGES = { chat: true, shop: true };
+
+export function resolveRoomPages(event) {
+  const cfg = event?.room_pages && typeof event.room_pages === "object" ? event.room_pages : {};
+  return {
+    wall: true, // the hero — never toggleable
+    chat: typeof cfg.chat === "boolean" ? cfg.chat : DEFAULT_ROOM_PAGES.chat,
+    shop: typeof cfg.shop === "boolean" ? cfg.shop : DEFAULT_ROOM_PAGES.shop,
+  };
+}
+
+// Clean host input into the stored shape (the two toggles only; wall is implied).
+export function sanitizeRoomPages(input = {}) {
+  const out = {};
+  for (const k of ROOM_PAGE_KEYS) out[k] = input?.[k] !== false; // default ON
+  return out;
+}

@@ -12,8 +12,9 @@ import {
   listChannels,
   listSpaceMessages,
 } from "../services/pullupService.js";
-import { resolveCapabilities } from "../services/roomPermissions.js";
+import { resolveCapabilities, resolveRoomPages } from "../services/roomPermissions.js";
 import { listEventRoomProducts } from "../services/productPlacement.js";
+import { listRoomContent } from "../services/roomContentService.js";
 
 // The single access verdict for a viewer on an event — body of the old
 // GET /events/:id/access handler, moved verbatim so route + view share it.
@@ -45,7 +46,7 @@ export async function resolveAccessPayload(req, eventId) {
   }
   const { data: ev } = await supabase
     .from("events")
-    .select("title, slug, starts_at, ends_at, status, location, cover_image_url, image_url, host_id, room_welcome")
+    .select("title, slug, starts_at, ends_at, status, location, cover_image_url, image_url, host_id, room_welcome, room_pages")
     .eq("id", eventId)
     .maybeSingle();
   let cover = ev?.cover_image_url || ev?.image_url || null;
@@ -90,6 +91,8 @@ export async function resolveAccessPayload(req, eventId) {
     event: ev
       ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, status: ev.status, location: ev.location, cover, host, roomWelcome: ev.room_welcome || null }
       : null,
+    // Which tabs the room shows (Wall always on; Chat/Shop host toggles).
+    pages: resolveRoomPages(ev || {}),
     // Admin View-as context (so the UI banner can show it). Null for everyone else.
     viewingAs: viewer.impersonating ? { id: viewer.person?.id, name: viewer.person?.name || null } : null,
     forced: forced || null,
@@ -126,11 +129,14 @@ export async function buildRosterPayload(eventId) {
 // The one-call first paint for the event Room page.
 export async function buildEventRoomView(req, eventId) {
   const access = await resolveAccessPayload(req, eventId);
-  const view = { access, roster: null, coPresent: [], channels: [], messages: null, products: [] };
+  const view = { access, roster: null, coPresent: [], channels: [], messages: null, products: [], content: [] };
 
   const isHost = access.level === "host";
   const isGuest = ["guest_pullup", "guest_rsvp", "guest_waitlist"].includes(access.level);
   const canRead = isHost || access.permissions?.read === true;
+  // Capability flags the content wall needs (the wall is the room's hero).
+  const canDownload = isHost || access.permissions?.download === true;
+  const canUpload = isHost || access.permissions?.upload === true;
 
   if (!isHost && !isGuest) return view; // gate view — access verdict is the payload
 
@@ -147,6 +153,15 @@ export async function buildEventRoomView(req, eventId) {
     // Main feed (channelId null = Main) — matches what the page's first
     // loadMessages(mainChannelId) would fetch, so the client can seed from it.
     work.push(listSpaceMessages(eventId, { channelId: null }).then((m) => { view.messages = m; }));
+    // The content wall — the room's hero. Seed it for first paint, with each
+    // tile annotated for THIS viewer (mine = tag/own; canDelete = mine or host).
+    view.contentCan = { upload: canUpload, download: canDownload };
+    work.push(listRoomContent(eventId).then((items) => {
+      view.content = items.map((it) => {
+        const mine = !!(access.personId && it.uploader?.personId && it.uploader.personId === access.personId);
+        return { ...it, mine, canDelete: isHost || mine };
+      });
+    }).catch((e) => { console.error("[eventRoomView] content failed", e); }));
   }
   if (isHost) {
     work.push(buildRosterPayload(eventId).then((r) => { view.roster = r; }));

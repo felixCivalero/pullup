@@ -35,10 +35,12 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag } from "lucide-react";
+import { RoomPagesSettings } from "../components/RoomPagesSettings.jsx";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
+import RoomContentWall from "../components/room/RoomContentWall.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -393,7 +395,7 @@ const EVENT_ADMIN_ROLES = ["owner", "admin"];
 // textarea → save). Empty + host = a gentle "add a welcome" prompt; empty +
 // guest = nothing. Saves through the focused PUT /host/events/:id/room-welcome,
 // so a one-line edit never runs the full event-update path.
-function RoomWelcomeCard({ eventId, initial, canEdit, editing, setEditing, cardRef, onSavedChange }) {
+function RoomWelcomeCard({ eventId, initial, canEdit, editing, setEditing, cardRef, onSavedChange, host }) {
   const [welcome, setWelcome] = useState(initial || "");
   const [draft, setDraft] = useState(initial || "");
   const [saving, setSaving] = useState(false);
@@ -423,15 +425,15 @@ function RoomWelcomeCard({ eventId, initial, canEdit, editing, setEditing, cardR
     return (
       <div ref={cardRef} style={{ marginBottom: 22, padding: "16px 18px", borderRadius: 16, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.accentText, marginBottom: 8, display: "flex", alignItems: "center", gap: 7 }}>
-          <Sparkles size={15} color={colors.accent} strokeWidth={2.3} /> Welcome message
+          <Sparkles size={15} color={colors.accent} strokeWidth={2.3} /> Your welcome — a personal hello
         </div>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           autoFocus
-          rows={4}
-          maxLength={2000}
-          placeholder="Say hi. Tell them what this room is for, what to expect, how to reach you…"
+          rows={3}
+          maxLength={600}
+          placeholder="Greet them like you would at the door — short and warm. “So glad you’re here. Tag your shots and grab anyone’s.”"
           style={{ width: "100%", boxSizing: "border-box", resize: "vertical", padding: "12px 14px", borderRadius: 12, border: `1px solid ${colors.border}`, background: "#fff", color: colors.text, fontSize: 14.5, lineHeight: 1.5, fontFamily: SF, outline: "none" }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
@@ -452,24 +454,35 @@ function RoomWelcomeCard({ eventId, initial, canEdit, editing, setEditing, cardR
         style={{ width: "100%", textAlign: "left", marginBottom: 22, padding: "14px 16px", borderRadius: 16, background: colors.surface, border: `1px dashed ${colors.border}`, color: colors.textMuted, fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: SF, display: "flex", alignItems: "center", gap: 9 }}
       >
         <Sparkles size={16} color={colors.accent} strokeWidth={2.2} />
-        Add a welcome message your guests land on
+        Write a personal hello your guests land on
       </button>
     );
   }
 
-  // Set: everyone sees the greeting; the host gets a quiet pencil to edit it.
+  // Set: a personal note from the HOST. Their face + name make it feel like a
+  // greeting at the door, and the message reads as a headline, not body copy.
+  const hostName = host?.name || "Your host";
   return (
-    <div ref={cardRef} style={{ marginBottom: 22, padding: "16px 18px", borderRadius: 16, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, position: "relative" }}>
+    <div ref={cardRef} style={{ marginBottom: 22, padding: "20px 22px", borderRadius: 18, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, position: "relative" }}>
       {canEdit && (
         <button
           onClick={startEdit}
           aria-label="Edit welcome message"
-          style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: 999, border: `1px solid ${colors.accentBorder}`, background: "#fff", color: colors.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          style={{ position: "absolute", top: 14, right: 14, width: 28, height: 28, borderRadius: 999, border: `1px solid ${colors.accentBorder}`, background: "#fff", color: colors.accent, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
         >
           <Pencil size={13} strokeWidth={2.3} />
         </button>
       )}
-      <div style={{ fontSize: 14.5, lineHeight: 1.55, color: colors.text, whiteSpace: "pre-wrap", fontFamily: SF, paddingRight: canEdit ? 30 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        {host?.avatar
+          ? <img src={host.avatar} alt={hostName} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `1px solid ${colors.accentBorder}` }} />
+          : <FaceAvatar name={hostName} size={36} />}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 750, color: colors.text, fontFamily: SF, lineHeight: 1.1 }}>{hostName}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: colors.accentText, fontFamily: SF }}>your host</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 22, lineHeight: 1.25, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, whiteSpace: "pre-wrap", fontFamily: SF, paddingRight: canEdit ? 24 : 0 }}>
         {welcome}
       </div>
     </div>
@@ -483,7 +496,7 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent, products: viewProducts } = useEventRoomView(id);
+  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent, products: viewProducts, content: viewContent, contentCan: viewContentCan, pages: viewPages } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
   const [managingProducts, setManagingProducts] = useState(false); // event-room product manager
   const isHost = level === "host";
@@ -537,13 +550,18 @@ export default function EventRoomPage() {
   const scrollRef = useRef(null);
   const welcomeRef = useRef(null);
   const feedRef = useRef(null);
+  // The room is now tabbed (Wall · Chat · Shop). Wall is the hero + default;
+  // which others appear is the host's Pages config (live-overridable on save).
+  const [activeTab, setActiveTab] = useState("wall");
+  const [pagesOverride, setPagesOverride] = useState(null);
   const openWelcomeEditor = () => {
     setWelcomeEditing(true);
     setTimeout(() => welcomeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
   };
   const goPost = () => {
     setAckedPost(true);
-    setTimeout(() => feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    setActiveTab("chat"); // posting lives in the Chat tab now
+    setTimeout(() => feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
   const openTeam = () => {
     setTeamOpen(true);
@@ -668,7 +686,7 @@ export default function EventRoomPage() {
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "calc(58px + env(safe-area-inset-top, 0px))", boxSizing: "border-box" }}>
       <div ref={scrollRef} style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
-        <div style={{ maxWidth: "720px", margin: "0 auto", padding: "28px 20px 60px" }}>
+        <div style={{ maxWidth: "1040px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* Top actions — sit ABOVE the event so they read as a toolbar of
               things you DO to it, not part of the event content. Quick CTAs
               (Room access rides along as a host-only fold-down) + partner shelf. */}
@@ -682,6 +700,7 @@ export default function EventRoomPage() {
               trailing={canManageRoom ? (
                 <>
                   <RoomAccessSettings eventId={id} />
+                  <RoomPagesSettings eventId={id} pages={pagesOverride || viewPages} onChange={setPagesOverride} />
                   {canEditEvent && <RoomTeamSettings eventId={id} open={teamOpen} setOpen={setTeamOpen} />}
                 </>
               ) : null}
@@ -776,30 +795,88 @@ export default function EventRoomPage() {
             ) : null}
           </div>
 
-          {/* The host's greeting — everyone who lands sees it; the host edits
-              it inline. Sits between the event identity and the live feed. */}
-          <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditEvent} editing={welcomeEditing} setEditing={setWelcomeEditing} cardRef={welcomeRef} onSavedChange={setWelcomeSaved} />
-
-          {/* The room storefront — products the host placed here. Visitors buy
-              inline; the host (room manager) gets the add/manage affordance. */}
-          {(canManageRoom || (viewProducts && viewProducts.length > 0)) && (
-            <RoomProductShowcase
-              products={viewProducts || []}
-              isHost={canManageRoom}
-              theme="light"
-              scope="event"
-              heading="Shop"
-              prefill={{ name: meName, email: user?.email || "" }}
-              onManage={() => setManagingProducts(true)}
-            />
-          )}
-          {managingProducts && (
-            <RoomProductManager scope="event" eventId={id} onClose={() => setManagingProducts(false)} onChanged={() => { /* refreshes on next room-view load */ }} />
-          )}
-
-          <div ref={feedRef}>
-            <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
+          {/* The host's greeting — sits right under the banner, ABOVE the page
+              tabs (it's the room's hello, not one of the pages). Everyone who
+              lands sees it; the host edits it inline. */}
+          <div ref={welcomeRef}>
+            <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditEvent} editing={welcomeEditing} setEditing={setWelcomeEditing} onSavedChange={setWelcomeSaved} host={event?.host} />
           </div>
+
+          {/* ── PAGE TABS — jump between the room's surfaces. The Wall is the hero
+              and the default; Chat & Shop appear per the host's Pages config (the
+              Shop tab also self-hides for guests when there's nothing in it). The
+              wall fills the page; chat/shop sit at a readable measure. ── */}
+          {(() => {
+            const pg = pagesOverride || viewPages || { wall: true, chat: true, shop: true };
+            const productCount = (viewProducts || []).length;
+            const showChat = pg.chat && (isHost || permissions?.read !== false);
+            const showShop = pg.shop && (canManageRoom || productCount > 0);
+            const tabs = [
+              { key: "wall", label: "Wall", Icon: Images },
+              ...(showChat ? [{ key: "chat", label: "Chat", Icon: MessageSquare }] : []),
+              ...(showShop ? [{ key: "shop", label: "Shop", Icon: ShoppingBag }] : []),
+            ];
+            const tab = tabs.some((t) => t.key === activeTab) ? activeTab : "wall";
+            return (
+              <>
+                {tabs.length > 1 && (
+                  <div style={{ display: "flex", gap: 7, marginBottom: 22, flexWrap: "wrap" }}>
+                    {tabs.map(({ key, label, Icon }) => {
+                      const on = key === tab;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setActiveTab(key)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: `1px solid ${on ? colors.accent : colors.border}`, background: on ? colors.accent : colors.background, color: on ? "#fff" : colors.text, fontSize: 13.5, fontWeight: on ? 750 : 600, fontFamily: SF, cursor: "pointer", transition: "background 0.12s, border-color 0.12s" }}
+                        >
+                          <Icon size={15} strokeWidth={2.2} /> {label}
+                          {key === "wall" && viewContent?.length ? (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(255,255,255,0.22)" : colors.surfaceMuted, color: on ? "#fff" : colors.textMuted }}>{viewContent.length}</span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* WALL — the hero, full page width */}
+                {tab === "wall" && (
+                  <RoomContentWall
+                    eventId={id}
+                    initial={viewContent || []}
+                    can={viewContentCan || { upload: isHost || permissions?.upload === true, download: isHost || permissions?.download === true }}
+                    meName={meName}
+                    isHost={isHost}
+                  />
+                )}
+
+                {/* CHAT — the live conversation, at a readable measure */}
+                {tab === "chat" && showChat && (
+                  <div ref={feedRef} style={{ maxWidth: 760, margin: "0 auto" }}>
+                    <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
+                  </div>
+                )}
+
+                {/* SHOP — products placed in the room; host gets the manage affordance */}
+                {tab === "shop" && showShop && (
+                  <div style={{ maxWidth: 760, margin: "0 auto" }}>
+                    <RoomProductShowcase
+                      products={viewProducts || []}
+                      isHost={canManageRoom}
+                      theme="light"
+                      scope="event"
+                      heading="Shop"
+                      prefill={{ name: meName, email: user?.email || "" }}
+                      onManage={() => setManagingProducts(true)}
+                    />
+                    {managingProducts && (
+                      <RoomProductManager scope="event" eventId={id} onClose={() => setManagingProducts(false)} onChanged={() => { /* refreshes on next room-view load */ }} />
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
       {/* Install nudge — same room, role-aware copy. Only renders if the visitor

@@ -198,6 +198,37 @@ export function registerHostSpaceRoutes(app) {
     }
   });
 
+  // Which pages (tabs) the room shows — Wall always on, Chat + Shop host toggles.
+  app.get("/host/events/:id/room-pages", requireAuth, async (req, res) => {
+    try {
+      const { isHost } = await hostGateForReq(req, req.params.id);
+      if (!isHost) return res.status(403).json({ error: "Forbidden" });
+      const { supabase } = await import("../supabase.js");
+      const { resolveRoomPages } = await import("../services/roomPermissions.js");
+      const { data: ev } = await supabase.from("events").select("room_pages").eq("id", req.params.id).maybeSingle();
+      res.json({ pages: resolveRoomPages(ev || {}) });
+    } catch (err) {
+      console.error("[room-pages:get] error:", err.message);
+      res.status(500).json({ error: "failed" });
+    }
+  });
+
+  app.put("/host/events/:id/room-pages", requireAuth, async (req, res) => {
+    try {
+      const { isHost } = await isUserEventHost(req.user.id, req.params.id);
+      if (!isHost) return res.status(403).json({ error: "Forbidden" });
+      const { supabase } = await import("../supabase.js");
+      const { sanitizeRoomPages, resolveRoomPages } = await import("../services/roomPermissions.js");
+      const clean = sanitizeRoomPages(req.body?.pages || {});
+      const { error } = await supabase.from("events").update({ room_pages: clean }).eq("id", req.params.id);
+      if (error) throw error;
+      res.json({ ok: true, pages: resolveRoomPages({ room_pages: clean }) });
+    } catch (err) {
+      console.error("[room-pages:put] error:", err.message);
+      res.status(500).json({ ok: false, error: "failed" });
+    }
+  });
+
   // The host-editable welcome the whole room lands on (mig 099). A focused
   // one-field save so the host can edit it inline in the Room — no need to run
   // the full event-update path (date validation, Stripe, lifecycle) for a line

@@ -123,16 +123,17 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
     return it.url;
   }, [eventId, bumpCount]);
 
-  // ONE → straight to the browser's downloads, instantly. Fetching to a blob and
-  // saving that means the file lands on disk even cross-origin (no new tab).
+  // ONE → hand the forced ?download= URL straight to the browser's native
+  // download manager. The backend appends ?download=<name>, so Supabase sets
+  // Content-Disposition: attachment and the filename is honoured even
+  // cross-origin — no need to buffer the whole file into a blob first. This
+  // streams to disk with a real progress bar (vital for large videos, which
+  // otherwise sat on a spinner while the entire file loaded into memory).
   const downloadOne = useCallback(async (it) => {
     setBusy(it.id, true);
     try {
       const url = await tallyAndUrl(it);
-      const blob = await fetch(url).then((r) => r.blob());
-      downloadBlob(blob, fileNameFor(it, null));
-    } catch {
-      anchorFallback(it.url); // CORS blocked the fetch — last resort
+      anchorFallback(url);
     } finally {
       setBusy(it.id, false);
     }
@@ -236,7 +237,7 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
       ) : (
         <div
           style={{
-            columnGap: 14,
+            columnGap: 6,
             columns: "auto",
             // responsive column width via inline media isn't possible; we lean on
             // column-width so the browser packs as many ~220px columns as fit.
@@ -317,8 +318,8 @@ function Tile({ it, selecting, selected, busy, canDownload, onOpen, onToggle, on
       onMouseLeave={() => setHover(false)}
       onClick={onOpen}
       style={{
-        breakInside: "avoid", WebkitColumnBreakInside: "avoid", marginBottom: 14,
-        position: "relative", borderRadius: 16, overflow: "hidden", cursor: "pointer",
+        breakInside: "avoid", WebkitColumnBreakInside: "avoid", marginBottom: 6,
+        position: "relative", borderRadius: 0, overflow: "hidden", cursor: "pointer",
         background: colors.surfaceMuted, border: `1px solid ${selected ? colors.accent : colors.borderFaint}`,
         boxShadow: selected ? `0 0 0 2px ${colors.accent}` : (hover ? "0 10px 26px rgba(10,10,10,0.14)" : "0 1px 2px rgba(10,10,10,0.05)"),
         transition: "box-shadow 0.18s ease, border-color 0.15s ease",

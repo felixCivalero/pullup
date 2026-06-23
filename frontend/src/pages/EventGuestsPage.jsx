@@ -942,7 +942,7 @@ export function EventGuestsPage() {
     event?.myRole && ["owner", "admin", "editor"].includes(event.myRole);
   const canCheckIn =
     event?.myRole &&
-    ["owner", "admin", "editor", "reception"].includes(event.myRole);
+    ["owner", "admin", "editor", "reception", "room_curator"].includes(event.myRole);
 
   // Sorting function
   const handleSort = (column) => {

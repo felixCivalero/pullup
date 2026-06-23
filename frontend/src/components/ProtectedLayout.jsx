@@ -231,8 +231,10 @@ function ProtectedLayoutInner() {
   // editor / reception / analytics (plus legacy "host" = full).
   const myRole = eventNav?.myRole;
   const isAnalyticsOnly = myRole === "analytics";
-  const isReception = myRole === "reception";
-  const MANAGE_ROLES = ["host", "owner", "admin", "co_host", "editor", "reception", "analytics"];
+  // Room curator runs the room + does door duty (guest list), like reception —
+  // same two-tab menu (Room + Guests).
+  const isReception = myRole === "reception" || myRole === "room_curator";
+  const MANAGE_ROLES = ["host", "owner", "admin", "co_host", "editor", "reception", "analytics", "room_curator"];
   const canManageEvent = MANAGE_ROLES.includes(myRole);
 
   // SUPER STRICT: the event MENU (title + Guests/Insights/Edit tabs + the live

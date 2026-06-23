@@ -212,6 +212,7 @@ app.post("/host/events/:id/hosts", requireAuth, async (req, res) => {
     const allowedRoles = [
       HOST_ROLES.ADMIN,
       HOST_ROLES.EDITOR,
+      HOST_ROLES.ROOM_CURATOR,
       HOST_ROLES.RECEPTION,
       HOST_ROLES.ANALYTICS,
       HOST_ROLES.VIEWER,
@@ -479,6 +480,7 @@ app.patch(
       const allowedRoles = [
         HOST_ROLES.ADMIN,
         HOST_ROLES.EDITOR,
+        HOST_ROLES.ROOM_CURATOR,
         HOST_ROLES.RECEPTION,
         HOST_ROLES.ANALYTICS,
         HOST_ROLES.VIEWER,
@@ -486,7 +488,7 @@ app.patch(
       if (!role || !allowedRoles.includes(role)) {
         return res.status(400).json({
           error: "Invalid role",
-          message: "Role must be one of: admin, editor, reception, analytics, viewer",
+          message: "Role must be one of: admin, editor, room_curator, reception, analytics, viewer",
         });
       }
 

@@ -13,9 +13,11 @@ import {
   getUserProfile,
   isUserEventHost,
   canEditGuests,
+  canCheckIn,
   getEventHostRole,
   findPersonById,
 } from "../data.js";
+import { isCheckinOnlyUpdate } from "./checkinFields.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateRsvpUpdateData } from "../middleware/validation.js";
 import { getFrontendUrl } from "../lib/urls.js";
@@ -293,9 +295,15 @@ export function registerGuestRoutes(app) {
         const event = await findEventById(eventId);
         if (!event) return res.status(404).json({ error: "Event not found" });
 
-        // Only owner, admin, or editor can update RSVPs (guest list edits)
-        const canEdit = await canEditGuests(req.user.id, event.id);
-        if (!canEdit) {
+        // A check-in (pull-up counts only) needs the lighter canCheckIn so
+        // reception / room curators can pull people up; any field that edits the
+        // guest record (rename, move, cancel, party size, answers) still needs
+        // full canEditGuests rights.
+        const checkinOnly = isCheckinOnlyUpdate(req.body);
+        const allowed = checkinOnly
+          ? await canCheckIn(req.user.id, event.id)
+          : await canEditGuests(req.user.id, event.id);
+        if (!allowed) {
           return res.status(403).json({
             error: "Forbidden",
             message: "You don't have permission to edit guests for this event.",

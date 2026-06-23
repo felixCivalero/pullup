@@ -93,10 +93,23 @@ export const HOST_ROLES = Object.freeze({
   RECEPTION: "reception",
   ANALYTICS: "analytics",
   VIEWER: "viewer",
+  // Runs the ROOM: pulls people up + sees the guest list, gets into the room
+  // regardless of their own status, and controls the room's access grid + pages.
+  // Deliberately NOT event details, pricing, or host management.
+  ROOM_CURATOR: "room_curator",
 });
 const MANAGER_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN];
 const GUEST_EDIT_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR];
-const CHECKIN_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR, HOST_ROLES.RECEPTION];
+const CHECKIN_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR, HOST_ROLES.RECEPTION, HOST_ROLES.ROOM_CURATOR];
+// Can configure the room: the access/capability grid + which pages (tabs) show.
+// A deliberate capability — NOT "any host role" (a viewer/analytics/reception
+// teammate must not be able to change who gets in the door). Editor kept: the
+// Room UI already surfaces these controls to editors.
+const ROOM_EDIT_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.EDITOR, HOST_ROLES.ROOM_CURATOR];
+// The room welcome card is front-door copy — tighter than the access grid.
+// Owner/admin (event-content rights) + room curator. Editors run the room but
+// don't reshape the welcome (mirrors the existing frontend gate).
+const ROOM_WELCOME_ROLES = [HOST_ROLES.OWNER, HOST_ROLES.ADMIN, HOST_ROLES.ROOM_CURATOR];
 
 function roleIn(role, allowed) {
   return role && allowed.includes(role);
@@ -139,11 +152,29 @@ export async function canEditGuests(userId, eventId) {
 }
 
 /**
- * Can check in guests (mark arrived, pulled up). Owner, admin, editor, or reception.
+ * Can check in guests (mark arrived, pulled up). Owner, admin, editor, reception, or room curator.
  */
 export async function canCheckIn(userId, eventId) {
   const role = await getEventHostRole(userId, eventId);
   return roleIn(role, CHECKIN_ROLES);
+}
+
+/**
+ * Can configure the room: access/capability grid + room pages (tabs).
+ * Owner, admin, editor, or room curator. NOT every host role — changing who gets
+ * in the door is a deliberate capability, not a side effect of being any host.
+ */
+export async function canEditRoom(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, ROOM_EDIT_ROLES);
+}
+
+/**
+ * Can edit the room welcome card (front-door copy). Owner, admin, or room curator.
+ */
+export async function canEditRoomWelcome(userId, eventId) {
+  const role = await getEventHostRole(userId, eventId);
+  return roleIn(role, ROOM_WELCOME_ROLES);
 }
 
 /**

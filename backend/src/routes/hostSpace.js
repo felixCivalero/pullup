@@ -3,7 +3,7 @@
 
 import { requireAuth } from "../middleware/auth.js";
 import { validate, spaceMessageSchema } from "../middleware/validate.js";
-import { isUserEventHost, getUserProfile } from "../data.js";
+import { isUserEventHost, getUserProfile, canEditRoom, canEditRoomWelcome } from "../data.js";
 import { buildRosterPayload } from "../views/eventRoomView.js";
 import { hostGateForReq, signRoomUpload, sanitizeRoomMedia, giphySearch } from "./roomShared.js";
 
@@ -184,8 +184,7 @@ export function registerHostSpaceRoutes(app) {
 
   app.put("/host/events/:id/room-permissions", requireAuth, async (req, res) => {
     try {
-      const { isHost } = await isUserEventHost(req.user.id, req.params.id);
-      if (!isHost) return res.status(403).json({ error: "Forbidden" });
+      if (!(await canEditRoom(req.user.id, req.params.id))) return res.status(403).json({ error: "Forbidden" });
       const { supabase } = await import("../supabase.js");
       const { sanitizePermissions, resolveGrid } = await import("../services/roomPermissions.js");
       const clean = sanitizePermissions(req.body?.permissions || {});
@@ -215,8 +214,7 @@ export function registerHostSpaceRoutes(app) {
 
   app.put("/host/events/:id/room-pages", requireAuth, async (req, res) => {
     try {
-      const { isHost } = await isUserEventHost(req.user.id, req.params.id);
-      if (!isHost) return res.status(403).json({ error: "Forbidden" });
+      if (!(await canEditRoom(req.user.id, req.params.id))) return res.status(403).json({ error: "Forbidden" });
       const { supabase } = await import("../supabase.js");
       const { sanitizeRoomPages, resolveRoomPages } = await import("../services/roomPermissions.js");
       const clean = sanitizeRoomPages(req.body?.pages || {});
@@ -232,12 +230,11 @@ export function registerHostSpaceRoutes(app) {
   // The host-editable welcome the whole room lands on (mig 099). A focused
   // one-field save so the host can edit it inline in the Room — no need to run
   // the full event-update path (date validation, Stripe, lifecycle) for a line
-  // of copy. Owner/admin only, matching event-content edit rights. Empty string
+  // of copy. Room-config rights (owner/admin/room curator). Empty string
   // clears it (guests then see no card; the host still sees the "add" prompt).
   app.put("/host/events/:id/room-welcome", requireAuth, async (req, res) => {
     try {
-      const { canEditEvent } = await import("../repos/eventAccess.js");
-      if (!(await canEditEvent(req.user.id, req.params.id))) {
+      if (!(await canEditRoomWelcome(req.user.id, req.params.id))) {
         return res.status(403).json({ error: "Forbidden" });
       }
       const raw = req.body?.roomWelcome;

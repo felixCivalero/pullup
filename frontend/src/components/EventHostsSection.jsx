@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "./Toast";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -28,6 +28,14 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
   const [newHostEmail, setNewHostEmail] = useState("");
   const [newHostRole, setNewHostRole] = useState("editor");
   const [adding, setAdding] = useState(false);
+  // Typeahead over the host's people (name / email / number).
+  const [people, setPeople] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showSug, setShowSug] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const searchReq = useRef(0);
+  const blurTimer = useRef(null);
+  useEffect(() => () => clearTimeout(blurTimer.current), []);
 
   const applyHostsResponse = (data) => {
     const list = (data.hosts || []).sort((a, b) =>
@@ -97,6 +105,58 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
     } finally {
       setAdding(false);
     }
+  };
+
+  // Search the host's people (across all their events + IG/WA world) by name,
+  // email or number as they type. Debounced; stale responses are dropped so the
+  // dropdown always reflects the latest query.
+  useEffect(() => {
+    const q = newHostEmail.trim();
+    if (!canManageHosts || q.length < 2) {
+      setPeople([]);
+      setSearching(false);
+      return;
+    }
+    const myReq = ++searchReq.current;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await authenticatedFetch(
+          `/host/crm/people?search=${encodeURIComponent(q)}&limit=8`,
+        );
+        const data = res.ok ? await res.json() : null;
+        if (myReq !== searchReq.current) return;
+        setPeople((data?.people || []).slice(0, 8));
+      } catch {
+        if (myReq === searchReq.current) setPeople([]);
+      } finally {
+        if (myReq === searchReq.current) setSearching(false);
+      }
+    }, 260);
+    return () => clearTimeout(t);
+  }, [newHostEmail, canManageHosts]);
+
+  // Adding a teammate is email-keyed (the backend matches an account or sends an
+  // email invite), so a person needs an email on file to be picked.
+  const pickPerson = (p) => {
+    const email = (p?.email || "").trim();
+    if (!email) {
+      showToast("That person has no email on file — type an email to invite them.", "error");
+      return;
+    }
+    setNewHostEmail(email);
+    setPeople([]);
+    setShowSug(false);
+    setActiveIdx(-1);
+  };
+
+  // The line under a suggestion's name: email · number · @instagram.
+  const personSub = (p) => {
+    const bits = [];
+    if (p.email) bits.push(p.email);
+    if (p.phoneE164 || p.phone) bits.push(p.phoneE164 || p.phone);
+    if (p.instagram) bits.push("@" + String(p.instagram).replace(/^@/, ""));
+    return bits.join("  ·  ");
   };
 
   const handleRemoveHost = async (hostToRemove) => {
@@ -307,6 +367,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                   >
                     <option value="admin">Admin</option>
                     <option value="editor">Editor</option>
+                    <option value="room_curator">Room Curator</option>
                     <option value="reception">Reception</option>
                     <option value="analytics">Analytics</option>
                     <option value="viewer">Viewer</option>
@@ -325,7 +386,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                       fontWeight: 600,
                     }}
                   >
-                    {host.role}
+                    {String(host.role || "").replace(/_/g, " ")}
                   </span>
                 )}
                 {canManageHosts && host.role !== "owner" && (
@@ -493,25 +554,119 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
               marginTop: "4px",
             }}
           >
-            <input
-              type="text"
-              placeholder="Email address..."
-              value={newHostEmail}
-              onChange={(e) => setNewHostEmail(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddHost();
-                }
-              }}
-              style={{
-                ...cInputStyle,
-                minHeight: "36px",
-                fontSize: "13px",
-                flex: "1 1 200px",
-              }}
-              aria-label="Email of person to add as arranger"
-            />
+            <div style={{ position: "relative", flex: "1 1 200px" }}>
+              <input
+                type="text"
+                placeholder="Search by name, email or number…"
+                value={newHostEmail}
+                onChange={(e) => {
+                  setNewHostEmail(e.target.value);
+                  setShowSug(true);
+                  setActiveIdx(-1);
+                }}
+                onFocus={() => setShowSug(true)}
+                onBlur={() => {
+                  blurTimer.current = setTimeout(() => setShowSug(false), 150);
+                }}
+                onKeyDown={(e) => {
+                  if (showSug && people.length > 0) {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setActiveIdx((i) => Math.min(i + 1, people.length - 1));
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setActiveIdx((i) => Math.max(i - 1, -1));
+                      return;
+                    }
+                    if (e.key === "Enter" && activeIdx >= 0) {
+                      e.preventDefault();
+                      pickPerson(people[activeIdx]);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      setShowSug(false);
+                      return;
+                    }
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddHost();
+                  }
+                }}
+                style={{
+                  ...cInputStyle,
+                  minHeight: "36px",
+                  fontSize: "13px",
+                  width: "100%",
+                }}
+                role="combobox"
+                aria-expanded={showSug}
+                aria-autocomplete="list"
+                aria-label="Search people to add as arranger by name, email or number"
+              />
+              {showSug && (searching || people.length > 0) && (
+                <div
+                  // preventDefault keeps the input focused so the click lands as a
+                  // pick before the input's blur closes the dropdown.
+                  onMouseDown={(e) => e.preventDefault()}
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: colors.surface,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "10px",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    maxHeight: "260px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {people.length === 0 && searching ? (
+                    <div style={{ padding: "10px 12px", fontSize: "12px", color: colors.textMuted }}>
+                      Searching…
+                    </div>
+                  ) : (
+                    people.map((p, idx) => {
+                      const hasEmail = !!(p.email && p.email.trim());
+                      return (
+                        <div
+                          key={p.id || idx}
+                          onClick={() => pickPerson(p)}
+                          onMouseEnter={() => setActiveIdx(idx)}
+                          style={{
+                            padding: "8px 12px",
+                            cursor: hasEmail ? "pointer" : "default",
+                            background: idx === activeIdx ? colors.accentSoft : "transparent",
+                            opacity: hasEmail ? 1 : 0.55,
+                            borderBottom: idx < people.length - 1 ? `1px solid ${colors.border}` : "none",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 600, color: colors.text }}>
+                              {p.name || p.email || "Unnamed"}
+                            </span>
+                            {!hasEmail && (
+                              <span style={{ fontSize: "10px", color: colors.textMuted }}>
+                                no email
+                              </span>
+                            )}
+                          </div>
+                          {personSub(p) && (
+                            <div style={{ fontSize: "11px", color: colors.textMuted, marginTop: "1px" }}>
+                              {personSub(p)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <select
                 id="new-host-role"
@@ -528,6 +683,7 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
               >
                 <option value="admin">Admin</option>
                 <option value="editor">Editor</option>
+                <option value="room_curator">Room Curator</option>
                 <option value="reception">Reception</option>
                 <option value="analytics">Analytics</option>
                 <option value="viewer">Viewer</option>
@@ -568,6 +724,8 @@ export function EventHostsSection({ eventId, canManageHosts = false, compact = f
                   return "Admin: Full control. Can add/remove hosts, edit event details, and manage all aspects of the event.";
                 case "editor":
                   return "Editor: Can edit event details and assist with managing the event, but cannot add or remove other hosts.";
+                case "room_curator":
+                  return "Room Curator: Runs the room. Can pull people up, see the guest list, get into the room regardless of their own status, and edit room access + room pages. Cannot edit event details, pricing, or hosts.";
                 case "reception":
                   return "Reception: Can help greet/check in guests and manage attendee information but cannot edit event details or hosts.";
                 case "analytics":

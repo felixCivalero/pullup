@@ -384,11 +384,15 @@ function RoomTeamSettings({ eventId, open, setOpen }) {
 
 // Host sub-roles that actually RUN the room (get the chief-of-staff view +
 // edit the room's access config). reception works the door; analytics only
-// reads Insights — neither manages the room itself.
-const ROOM_MANAGER_ROLES = ["owner", "admin", "co_host", "editor"];
-// Who can edit event-level content (the welcome) and assign other hosts:
-// owner/admin only — mirrors the backend canEditEvent / canManageHosts gates.
+// reads Insights — neither manages the room itself. room_curator is the role
+// built to run the room: access grid, pages, welcome.
+const ROOM_MANAGER_ROLES = ["owner", "admin", "co_host", "editor", "room_curator"];
+// Who can assign other hosts: owner/admin only — mirrors backend canManageHosts.
 const EVENT_ADMIN_ROLES = ["owner", "admin"];
+// Who can edit the room welcome (front-door copy): owner/admin + room_curator —
+// mirrors the backend canEditRoomWelcome gate. Editors run the room but don't
+// reshape the welcome.
+const WELCOME_EDIT_ROLES = ["owner", "admin", "room_curator"];
 
 // The room's welcome — the host's greeting that everyone lands on. Shown to
 // guests as a soft card under the cover; the host edits it inline (pencil →
@@ -520,10 +524,11 @@ export default function EventRoomPage() {
     track("room_view", { role: level }, { page: "room", eventId: id, userId: user?.id });
   }, [level, id, user]);
   const canManageRoom = ROOM_MANAGER_ROLES.includes(role);
-  // Owner/admin can edit the welcome and assign other hosts (mirrors backend
-  // canEditEvent / canManageHosts). Editors run the room but don't reshape the
-  // team or the event's front-door copy.
+  // Owner/admin assign other hosts (mirrors backend canManageHosts). Editors run
+  // the room but don't reshape the team or the front-door copy.
   const canEditEvent = EVENT_ADMIN_ROLES.includes(role);
+  // The welcome card: owner/admin + room curator (mirrors canEditRoomWelcome).
+  const canEditWelcome = WELCOME_EDIT_ROLES.includes(role);
   // One-time intro banner explaining what the Room is, in the Room's own accent
   // so the identity is unmistakable. Dismissible; stays gone once seen.
   const [showRoomIntro, setShowRoomIntro] = useState(() => {
@@ -799,7 +804,7 @@ export default function EventRoomPage() {
               tabs (it's the room's hello, not one of the pages). Everyone who
               lands sees it; the host edits it inline. */}
           <div ref={welcomeRef}>
-            <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditEvent} editing={welcomeEditing} setEditing={setWelcomeEditing} onSavedChange={setWelcomeSaved} host={event?.host} />
+            <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditWelcome} editing={welcomeEditing} setEditing={setWelcomeEditing} onSavedChange={setWelcomeSaved} host={event?.host} />
           </div>
 
           {/* ── PAGE TABS — jump between the room's surfaces. The Wall is the hero

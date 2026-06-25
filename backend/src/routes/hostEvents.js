@@ -158,6 +158,67 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
 });
 
 // ---------------------------
+// PROTECTED: Per-event communication config (the editor's "Communication" rail
+// panel) — the host's control over the three automatic sends: signup info,
+// the reminder, and the post-event note. Stored in events.comms_config (jsonb).
+// ---------------------------
+app.get("/host/events/:id/comms", requireAuth, async (req, res) => {
+  try {
+    const event = await findEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost) return res.status(403).json({ error: "Forbidden" });
+    const { getEventCommsConfig } = await import("../services/eventComms.js");
+    const config = await getEventCommsConfig(event.id);
+    // A sample resolution context so the editor's preview shows THIS event's
+    // real details where the tokens land (links resolve per-recipient at send
+    // time, so the preview labels those — see the FE).
+    let time = "";
+    try {
+      time = event.startsAt
+        ? new Date(event.startsAt).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: event.timezone || undefined })
+        : "";
+    } catch { time = ""; }
+    const hasCoords = event.locationLat != null && event.locationLng != null;
+    const sample = {
+      eventName: event.title || "your event",
+      time,
+      location: event.location || "",
+      coordinates: hasCoords ? `${Number(event.locationLat).toFixed(5)}, ${Number(event.locationLng).toFixed(5)}` : "",
+    };
+    res.json({ ok: true, config, sample });
+  } catch (e) {
+    console.error("[host/events/:id/comms:get]", e.message);
+    res.status(500).json({ error: "Failed to load communication settings" });
+  }
+});
+
+app.put("/host/events/:id/comms", requireAuth, async (req, res) => {
+  try {
+    const event = await findEventById(req.params.id);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+    // Editing communication is an edit right (owner/admin/editor/room curator),
+    // mirroring who can edit the room/pages — not viewers/reception/analytics.
+    const { isHost } = await isUserEventHost(req.user.id, event.id);
+    if (!isHost || !(await canEditEvent(req.user.id, event.id))) {
+      return res.status(403).json({ ok: false, error: "Forbidden" });
+    }
+    const { normalizeCommsConfig } = await import("../services/eventComms.js");
+    const config = normalizeCommsConfig(req.body?.config);
+    const { supabase } = await import("../supabase.js");
+    const { error } = await supabase
+      .from("events")
+      .update({ comms_config: config, updated_at: new Date().toISOString() })
+      .eq("id", event.id);
+    if (error) throw error;
+    res.json({ ok: true, config });
+  } catch (e) {
+    console.error("[host/events/:id/comms:put]", e.message);
+    res.status(500).json({ ok: false, error: "Failed to save communication settings" });
+  }
+});
+
+// ---------------------------
 // PROTECTED: Manage event hosts (arrangers)
 // ---------------------------
 

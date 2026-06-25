@@ -58,6 +58,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { CreateWizard } from "../components/CreateWizard.jsx";
 import { EventAutoDmPanel } from "../components/EventAutoDmPanel.jsx";
+import { EventCommunicationPanel } from "../components/EventCommunicationPanel.jsx";
 import { ProductPricePanel } from "../components/ProductPricePanel.jsx";
 import { SilverIcon } from "../components/ui/SilverIcon.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -611,6 +612,14 @@ const RAIL_GROUPS = [
       // currency + the four delivery forms. Shares step 3, own panel via
       // activePartId === "price".
       { id: "price", label: "Price & delivery", icon: Tag, step: 3 },
+    ],
+  },
+  {
+    group: "Communicate",
+    items: [
+      // Everything guests hear about this event (sign-up info / reminder /
+      // post-event). Own panel via activePartId === "communication", same step.
+      { id: "communication", label: "Communication", icon: MessageSquare, step: 3 },
     ],
   },
   {
@@ -5153,6 +5162,17 @@ export function CreateEventPage() {
               <EventAutoDmPanel eventId={editEventId} eventStatus={eventStatus} isEditMode={isEditMode} kind={eventKind} />
             </div>
 
+            {/* Communication panel — the per-event message arc (sign-up info /
+                reminder / post-event). Same step as the form, toggled by the
+                rail's "Communication" item (activePartId === "communication"). */}
+            <div
+              style={{
+                display: currentStep === 3 && activePartId === "communication" ? "block" : "none",
+              }}
+            >
+              <EventCommunicationPanel eventId={isEditMode ? editEventId : draftEventId} isEditMode={isEditMode} />
+            </div>
+
             {/* Product price & delivery panel — product pages only, same step,
                 toggled by the rail's "Price & delivery" item. */}
             <div
@@ -5176,7 +5196,7 @@ export function CreateEventPage() {
             {/* === STEP 4 (tab position): FORM === */}
             <div
               style={{
-                display: currentStep === 3 && activePartId !== "autoDm" && activePartId !== "price" ? "block" : "none",
+                display: currentStep === 3 && activePartId !== "autoDm" && activePartId !== "price" && activePartId !== "communication" ? "block" : "none",
               }}
             >
 

@@ -73,7 +73,7 @@ import { requestMetrics } from "./middleware/requestMetrics.js";
 import { captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
-import { reminder24hEmail } from "./emails/signupConfirmation.js";
+import { composedMessageEmail } from "./emails/signupConfirmation.js";
 import trackingRoutes from "./email/tracking/trackingRoutes.js";
 import { handleMcp, mcpCorsPreflight } from "./mcp/httpHandler.js";
 import { dispatch as dispatchMessage } from "./messaging/index.js";
@@ -497,20 +497,52 @@ app.listen(PORT, HOST, async () => {
     }
   }, CLEANUP_INTERVAL_MS);
 
-  /* ── 24-hour event reminder emails ────────────────────── */
+  /* ── Pre-event reminders ──────────────────────────────────
+   * Timing is now PER EVENT (events.comms_config.reminder.hoursBefore, default
+   * 12h) instead of a hardcoded ~24h. We look ahead far enough to cover the max
+   * configurable lead (72h) and let the per-event decision in eventComms.js
+   * (reminderDue) pick the exact tick to fire. Idempotency dedupes the ticks.
+   */
   const REMINDER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
-  const REMINDER_WINDOW_MS  = 25 * 60 * 60 * 1000; // 25 hours
+  const REMINDER_WINDOW_MS  = 73 * 60 * 60 * 1000; // 73 hours (covers max 72h lead + slack)
+
+  // Token resolution context for a composed message — the real {event name},
+  // {time}, {location}, {coordinates}. Per-recipient links ({room link} /
+  // {upload link}) are layered on in the guest loop. Time/location always
+  // resolve to the real value (decoupled from the page's reveal-later flags).
+  function buildCommsCtx(event) {
+    let time = "";
+    try {
+      time = event.starts_at
+        ? new Date(event.starts_at).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: event.timezone || undefined })
+        : "";
+    } catch { time = ""; }
+    const lat = event.location_lat, lng = event.location_lng;
+    const hasCoords = lat != null && lng != null;
+    const mapsByCoords = hasCoords ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : "";
+    const mapsByAddr = event.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}` : "";
+    return {
+      eventName: event.title || "the event",
+      time,
+      location: event.location || "",
+      locationUrl: mapsByCoords || mapsByAddr || "",
+      coordinates: hasCoords ? `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}` : "",
+      coordinatesUrl: mapsByCoords || "",
+    };
+  }
 
   async function sendEventReminders() {
     try {
       const { supabase } = await import("./supabase.js");
+      const { getEventCommsConfig, reminderDue, resolveCommsHtml, bodyNeedsRoomKey } = await import("./services/eventComms.js");
       const now = new Date();
-      const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_MS);
+      const nowMs = now.getTime();
+      const windowEnd = new Date(nowMs + REMINDER_WINDOW_MS);
 
-      // 1. Find published events starting in the next 25 hours
+      // 1. Find published events starting within the look-ahead window.
       const { data: events, error: eventsErr } = await supabase
         .from("events")
-        .select("id, title, slug, starts_at, timezone, location, cover_image_url, image_url, host_id")
+        .select("id, title, slug, starts_at, ends_at, timezone, location, location_lat, location_lng, show_coordinates, hide_date, hide_location, date_reveal_hint, reveal_hint, cover_image_url, image_url, host_id, comms_config")
         .eq("status", "PUBLISHED")
         .gt("starts_at", now.toISOString())
         .lt("starts_at", windowEnd.toISOString());
@@ -522,6 +554,16 @@ app.listen(PORT, HOST, async () => {
       if (!events || events.length === 0) return;
 
       for (const event of events) {
+        // Per-event timing + opt-out. Skip the whole event unless THIS tick is
+        // the reminder's moment (within the grace window after start-hoursBefore).
+        const commsCfg = getEventCommsConfig
+          ? (await getEventCommsConfig(event.id))
+          : null;
+        const reminderCfg = commsCfg?.reminder;
+        const startMs = new Date(event.starts_at).getTime();
+        if (reminderCfg && !reminderDue({ now: nowMs, startMs, hoursBefore: reminderCfg.hoursBefore, enabled: reminderCfg.enabled })) {
+          continue;
+        }
         // 2. Get confirmed RSVPs with person details
         const { data: rsvps, error: rsvpErr } = await supabase
           .from("rsvps")
@@ -574,6 +616,13 @@ app.listen(PORT, HOST, async () => {
           }
         }
 
+        // Token resolution context for the host's composed reminder. The {time}
+        // and {location} tokens always resolve to the real value — DECOUPLED from
+        // the event page's reveal-later flags — so a host can hand over the
+        // details in the message even when the public page hides them.
+        const ctxBase = buildCommsCtx(event, resolvedImageUrl);
+        const needsRoomKey = bodyNeedsRoomKey(reminderCfg.body);
+
         // 5. Send reminder to each guest. Reminders are transactional — the
         // recipient explicitly RSVP'd to this event — so we do NOT filter by
         // people.marketing_unsubscribed_at. We do still expose the unsubscribe
@@ -592,24 +641,29 @@ app.listen(PORT, HOST, async () => {
             console.error(`[Reminders] Failed to mint unsubscribe token for ${person.email}:`, e.message);
           }
 
+          // Mint a per-recipient room key only if the message links to the room.
+          let roomUrl = "";
+          if (needsRoomKey) {
+            try {
+              const { mintRoomKey } = await import("./services/roomKeys.js");
+              const rawKey = await mintRoomKey({ email: person.email, eventId: event.id, personId: person.id });
+              if (rawKey) roomUrl = `${frontendBase.replace(/\/$/, "")}/api/k/${rawKey}`;
+            } catch {}
+          }
+
+          // Key kept as the historical "reminder-24h-…" string (not the lead
+          // time) so it stays STABLE across this deploy: any event that already
+          // sent a reminder under the old ~24h logic is deduped and won't fire a
+          // second one when the new per-event timing crosses. One reminder per
+          // guest per event, regardless of the configured hours.
           const idempotencyKey = `reminder-24h-${event.id}-${person.id}`;
-          const reminderHtml = reminder24hEmail({
-            name: person.name || "there",
+          const reminderHtml = composedMessageEmail({
             eventTitle: event.title,
-            startsAt: event.starts_at,
-            timezone: event.timezone || "",
+            badgeText: "HAPPENING SOON",
             imageUrl: resolvedImageUrl,
-            location: event.location || "",
-            locationLat: event.location_lat ?? null,
-            locationLng: event.location_lng ?? null,
-            showCoordinates: event.show_coordinates ?? false,
-            slug: event.slug || "",
+            bodyHtml: resolveCommsHtml(reminderCfg.body, { ...ctxBase, roomUrl, uploadUrl: roomUrl }),
             frontendUrl: frontendBase,
             unsubscribeUrl,
-            hideDate: event.hide_date || false,
-            hideLocation: event.hide_location || false,
-            dateRevealHint: event.date_reveal_hint || "",
-            revealHint: event.reveal_hint || "",
             ...hostBrand,
           });
           try {
@@ -634,7 +688,7 @@ app.listen(PORT, HOST, async () => {
                 },
               },
               email: {
-                subject: `"${event.title}" is tomorrow!`,
+                subject: `"${event.title}" is coming up`,
                 htmlBody: reminderHtml,
                 category: "transactional",
               },
@@ -660,6 +714,161 @@ app.listen(PORT, HOST, async () => {
   // The outbox idempotency key `reminder-24h-<eventId>-<personId>` dedupes BOTH
   // rails across the every-15-min ticks, so the recurring tick is safe.
   setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
+
+  /* ── Post-event messages ──────────────────────────────────
+   * The third leg of the per-event communication arc: after the event, a
+   * "thanks — upload your photos" note routed to the Room's content wall.
+   * Per-event timing (events.comms_config.postEvent.hoursAfter, default 16h)
+   * and opt-in (default ON). postEventDue() only fires inside a tight grace
+   * window after the crossing, so deploying this never backfills a blast to
+   * events that ended long ago. Idempotency dedupes the 15-min ticks.
+   */
+  const POST_EVENT_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+  // Look back far enough to cover the max configurable delay (a week) plus slack.
+  const POST_EVENT_LOOKBACK_MS = (168 + 6) * 60 * 60 * 1000;
+
+  async function sendPostEventMessages() {
+    try {
+      const { supabase } = await import("./supabase.js");
+      const { getEventCommsConfig, postEventDue, effectiveEndMs, resolveCommsHtml, bodyNeedsRoomKey } = await import("./services/eventComms.js");
+      const { ensureUnsubscribeToken } = await import("./data.js");
+      const now = new Date();
+      const nowMs = now.getTime();
+      const lookbackStart = new Date(nowMs - POST_EVENT_LOOKBACK_MS);
+      const frontendBase = getFrontendUrl();
+
+      // Published events that have already started within the look-back window
+      // (an event ends after it starts, so this is a superset of "recently ended").
+      const { data: events, error: eventsErr } = await supabase
+        .from("events")
+        .select("id, title, slug, starts_at, ends_at, timezone, location, location_lat, location_lng, cover_image_url, image_url, host_id")
+        .eq("status", "PUBLISHED")
+        .lt("starts_at", now.toISOString())
+        .gt("starts_at", lookbackStart.toISOString());
+      if (eventsErr) {
+        console.error("[PostEvent] Error fetching events:", eventsErr.message);
+        return;
+      }
+      if (!events || events.length === 0) return;
+
+      for (const event of events) {
+        const cfg = await getEventCommsConfig(event.id);
+        const peCfg = cfg.postEvent;
+        const endMs = effectiveEndMs({ ends_at: event.ends_at, starts_at: event.starts_at });
+        if (!postEventDue({ now: nowMs, endMs, hoursAfter: peCfg.hoursAfter, enabled: peCfg.enabled })) {
+          continue;
+        }
+
+        const { data: rsvps, error: rsvpErr } = await supabase
+          .from("rsvps")
+          .select(`id, person_id, people:person_id ( id, name, email, phone_e164, phone_verified_at )`)
+          .eq("event_id", event.id)
+          .eq("booking_status", "CONFIRMED");
+        if (rsvpErr) {
+          console.error(`[PostEvent] Error fetching RSVPs for event ${event.id}:`, rsvpErr.message);
+          continue;
+        }
+        if (!rsvps || rsvps.length === 0) continue;
+
+        // Host voice + brand (same resolution as the reminder path).
+        let hostBrand = {};
+        let hostProfile = null;
+        try {
+          hostProfile = await getUserProfile(event.host_id);
+          hostBrand = {
+            brandName: hostProfile?.brand || "",
+            brandWebsite: hostProfile?.brandWebsite || "",
+            contactEmail: hostProfile?.contactEmail || "",
+          };
+        } catch {}
+        const hostSig =
+          hostProfile?.whatsappSignature ||
+          (hostProfile?.name ? `It's me, ${hostProfile.name.split(/\s+/)[0]}` : "PullUp");
+
+        let resolvedImageUrl = event.cover_image_url || event.image_url || "";
+        if (resolvedImageUrl && !resolvedImageUrl.startsWith("http")) {
+          try {
+            let imgPath = resolvedImageUrl;
+            if (resolvedImageUrl.includes("event-images/")) {
+              const match = resolvedImageUrl.match(/event-images\/([^?]+)/);
+              if (match) imgPath = match[1];
+            }
+            const { data: { publicUrl } } = supabase.storage.from("event-images").getPublicUrl(imgPath);
+            if (publicUrl) resolvedImageUrl = publicUrl;
+          } catch {}
+        }
+        const ctxBase = buildCommsCtx(event);
+        const needsRoomKey = bodyNeedsRoomKey(peCfg.body);
+
+        for (const rsvp of rsvps) {
+          const person = rsvp.people;
+          if (!person?.email) continue;
+
+          let unsubscribeUrl = "";
+          try {
+            const token = await ensureUnsubscribeToken(person.id);
+            unsubscribeUrl = `${frontendBase}/u/${token}`;
+          } catch {}
+
+          // Sign the guest straight into the Room (the upload destination), the
+          // same way the signup confirmation does — only when the message links there.
+          let roomUrl = "";
+          if (needsRoomKey) {
+            try {
+              const { mintRoomKey } = await import("./services/roomKeys.js");
+              const rawKey = await mintRoomKey({ email: person.email, eventId: event.id, personId: person.id });
+              if (rawKey) roomUrl = `${frontendBase.replace(/\/$/, "")}/api/k/${rawKey}`;
+            } catch {}
+          }
+
+          const idempotencyKey = `post-event-${event.id}-${person.id}`;
+          const html = composedMessageEmail({
+            eventTitle: event.title,
+            badgeText: "THANK YOU",
+            imageUrl: resolvedImageUrl,
+            bodyHtml: resolveCommsHtml(peCfg.body, { ...ctxBase, roomUrl, uploadUrl: roomUrl }),
+            frontendUrl: frontendBase,
+            unsubscribeUrl,
+            ...hostBrand,
+          });
+          try {
+            await dispatchMessage({
+              recipient: {
+                id: person.id,
+                email: person.email,
+                phone_e164: person.phone_e164 || null,
+                phone_verified_at: person.phone_verified_at || null,
+              },
+              hostProfile: hostProfile || { id: event.host_id },
+              whatsapp: {
+                templateKey: "post_event_thanks",
+                variables: {
+                  host_signature: hostSig,
+                  event_title: event.title || "the event",
+                },
+              },
+              email: {
+                subject: `Thanks for coming to ${event.title}`,
+                htmlBody: html,
+                category: "transactional",
+              },
+              context: {
+                personId: person.id,
+                hostProfileId: event.host_id,
+                idempotencyKey,
+                legalBasis: "legitimate_interest",
+              },
+            });
+          } catch (err) {
+            console.error(`[PostEvent] Failed to send to ${person.email} for event ${event.id}:`, err.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[PostEvent] Unexpected error in sendPostEventMessages:", err.message);
+    }
+  }
+  setInterval(sendPostEventMessages, POST_EVENT_INTERVAL_MS);
 
   /* ── Host daily digest ─────────────────────────────────────
    * Opt-in, default-OFF, email-only. Each host chooses a local send time +

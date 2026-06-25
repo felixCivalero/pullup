@@ -24,6 +24,7 @@ import { logger } from "../logger.js";
 import { sendEmail } from "../services/emailService.js";
 import {
   signupConfirmationEmail,
+  composedMessageEmail,
   reservationEmail,
 } from "../emails/signupConfirmation.js";
 import { verifyWaitlistToken } from "../utils/waitlistTokens.js";
@@ -1274,9 +1275,16 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         // Waitlist always emails (there's no rsvp_confirm template for it).
         const { data: evReq } = await supabase
           .from("events")
-          .select("require_phone")
+          .select("require_phone, comms_config")
           .eq("id", result.event.id)
           .maybeSingle();
+        // Per-event communication config (the editor's Communication panel).
+        // The confirmed-signup email is the host's COMPOSED message — tokens
+        // ({time}/{location}/{room link}…) resolve to the real details,
+        // decoupled from the page's reveal-later flags. Waitlist keeps the
+        // standard transactional template.
+        const { normalizeCommsConfig, resolveCommsHtml } = await import("../services/eventComms.js");
+        const signupCfg = normalizeCommsConfig(evReq?.comms_config).signup;
         const waKing =
           !isWaitlistEmail &&
           !!evReq?.require_phone &&
@@ -1324,6 +1332,65 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           }
         }
 
+        // Build the confirmation email body. Confirmed → the host's composed
+        // message (WYSIWYG, what they previewed in the editor). Waitlist → the
+        // standard transactional template (not part of the 3-step arc).
+        let signupHtml;
+        if (isWaitlistEmail) {
+          signupHtml = signupConfirmationEmail({
+            name: result.rsvp.name || name,
+            eventTitle: result.event.title,
+            date: new Date(result.event.startsAt).toLocaleString(),
+            isWaitlist: true,
+            imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+            location: result.event.location || "",
+            locationLat: result.event.locationLat ?? null,
+            locationLng: result.event.locationLng ?? null,
+            showCoordinates: result.event.showCoordinates ?? false,
+            startsAt: result.event.startsAt || "",
+            endsAt: result.event.endsAt || "",
+            timezone: result.event.timezone || "",
+            plusOnes: Number(result.rsvp.plusOnes) || 0,
+            slug: result.event.slug || "",
+            eventId: result.event.id || "",
+            frontendUrl: getFrontendUrl(),
+            spotifyUrl: result.event.spotify || "",
+            hideDate: result.event.hideDate || false,
+            hideLocation: result.event.hideLocation || false,
+            dateRevealHint: result.event.dateRevealHint || "",
+            revealHint: result.event.revealHint || "",
+            ...hostBrand,
+          });
+        } else {
+          const ev = result.event;
+          let timeText = "";
+          try {
+            timeText = ev.startsAt ? new Date(ev.startsAt).toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: ev.timezone || undefined }) : "";
+          } catch { timeText = ""; }
+          const lat = ev.locationLat, lng = ev.locationLng;
+          const hasCoords = lat != null && lng != null;
+          const mapsCoords = hasCoords ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` : "";
+          const mapsAddr = ev.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}` : "";
+          const ctx = {
+            eventName: ev.title || "the event",
+            time: timeText,
+            location: ev.location || "",
+            locationUrl: mapsCoords || mapsAddr || "",
+            coordinates: hasCoords ? `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}` : "",
+            coordinatesUrl: mapsCoords || "",
+            roomUrl: roomKeyUrl,
+            uploadUrl: roomKeyUrl,
+          };
+          signupHtml = composedMessageEmail({
+            eventTitle: ev.title,
+            badgeText: "YOU'RE IN",
+            imageUrl: ev.coverImageUrl || ev.imageUrl || "",
+            bodyHtml: resolveCommsHtml(signupCfg.body, ctx),
+            frontendUrl: getFrontendUrl(),
+            ...hostBrand,
+          });
+        }
+
         if (!confirmedViaWhatsApp) await dispatchMessage({
           recipient,
           hostProfile: hostProfileFull,
@@ -1335,33 +1402,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             subject: isWaitlistEmail
               ? "You’re on the waitlist"
               : "Your spot is confirmed",
-            htmlBody: signupConfirmationEmail({
-              name: result.rsvp.name || name,
-              eventTitle: result.event.title,
-              date: new Date(result.event.startsAt).toLocaleString(),
-              isWaitlist: isWaitlistEmail,
-              imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
-              location: result.event.location || "",
-              locationLat: result.event.locationLat ?? null,
-              locationLng: result.event.locationLng ?? null,
-              showCoordinates: result.event.showCoordinates ?? false,
-              startsAt: result.event.startsAt || "",
-              endsAt: result.event.endsAt || "",
-              timezone: result.event.timezone || "",
-              plusOnes: Number(result.rsvp.plusOnes) || 0,
-              slug: result.event.slug || "",
-              eventId: result.event.id || "",
-              frontendUrl: getFrontendUrl(),
-              roomKeyUrl,
-              spotifyUrl: result.event.spotify || "",
-              ticketPrice: result.event.ticketPrice ? (Number(result.event.ticketPrice) / 100).toFixed(2) : 0,
-              ticketCurrency: result.event.ticketCurrency || "",
-              hideDate: result.event.hideDate || false,
-              hideLocation: result.event.hideLocation || false,
-              dateRevealHint: result.event.dateRevealHint || "",
-              revealHint: result.event.revealHint || "",
-              ...hostBrand,
-            }),
+            htmlBody: signupHtml,
           },
           context: {
             personId: result.rsvp.personId || null,

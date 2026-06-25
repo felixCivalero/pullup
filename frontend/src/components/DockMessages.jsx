@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown, Loader2, CheckCircle2 } from "lucide-react";
+import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown, Loader2, CheckCircle2, PenLine } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
@@ -415,6 +415,19 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
     setSending(false);
     setSendProgress((s) => (s ? { ...s, complete: true } : s));
   }
+  // Filtering builds an AUDIENCE — this lets the host act on it: write to the
+  // whole filtered/searched set in one go, via the same one-to-many composer as
+  // hand-picking (just seeded from the current filter instead of manual taps).
+  // Without this, a filter only narrows the list with no way to message it —
+  // the gap that made "where do I write?" unanswerable.
+  function messageAudience() {
+    if (!list.length) return;
+    setSelected(list.map((p) => p.id));
+    setDraft(""); setSubject(""); setAttachments([]); setSmartOpen(false); setSendProgress(null);
+    setSelecting(false);
+    setBroadcast(true);
+  }
+
   // Leave the broadcast flow after a send — back to the message list, cleared.
   function finishBroadcast() {
     setDraft(""); setSubject(""); setAttachments([]); setAttachedEventId(null); setAttachedLocation(null); setSmartOpen(false);
@@ -772,11 +785,17 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         {filtersOpen && (
           <>
             <div onClick={() => setFiltersOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1 }} />
-            <div style={{ position: "absolute", top: "100%", left: 8, right: 8, zIndex: 2, background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 18px 44px rgba(10,10,10,0.18)", padding: "10px 14px 14px", maxHeight: 470, overflowY: "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ fontSize: 13.5, fontWeight: 800 }}>Audience</div>
-                {activeFilterCount > 0 && <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 12, fontWeight: 700, color: D.pink, padding: "2px 4px" }}>Reset</button>}
+            <div style={{ position: "absolute", top: "100%", left: 8, right: 8, zIndex: 2, background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 18px 44px rgba(10,10,10,0.18)", maxHeight: 470, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+              {/* Clear close affordance — the panel is a sheet you can always get
+                  out of (tap Done, the X, or anywhere outside). */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px 9px", borderBottom: `1px solid ${D.line}`, position: "sticky", top: 0, background: D.bg, zIndex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800 }}>Choose who to message</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {activeFilterCount > 0 && <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 12, fontWeight: 700, color: D.pink, padding: "2px 6px" }}>Reset</button>}
+                  <button onClick={() => setFiltersOpen(false)} aria-label="Done" style={{ ...iconBtn, fontSize: 12.5, fontWeight: 800, color: D.muted, padding: "2px 6px" }}>Done</button>
+                </div>
               </div>
+              <div style={{ padding: "4px 14px 14px" }}>
 
               <div style={fLabel}>Channel</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -840,6 +859,15 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                   )}
                 </>
               )}
+              </div>
+              {/* Sticky footer: act on the chosen audience right here, so a
+                  filter leads straight to writing — not a dead end. */}
+              <div style={{ position: "sticky", bottom: 0, background: D.bg, borderTop: `1px solid ${D.line}`, padding: "10px 14px" }}>
+                <button onClick={() => { setFiltersOpen(false); messageAudience(); }} disabled={!list.length}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: list.length ? D.youGrad : D.them, color: list.length ? "#fff" : D.faint, fontWeight: 800, fontSize: 14, cursor: list.length ? "pointer" : "default" }}>
+                  <PenLine size={16} /> {list.length ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}` : "No one matches"}
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -853,15 +881,33 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
 
-        {/* Always-visible plain-language summary of the audience being built. */}
-        {filterSummary.length > 0 && (
+        {/* Audience summary — always legible, so the "write to N" action below
+            is honest about who it reaches (filtered set, or everyone). */}
+        {people && list.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: D.muted, flexWrap: "wrap" }}>
             <Users size={13} color={D.pink} style={{ flexShrink: 0 }} />
             <span style={{ color: D.ink, fontWeight: 700 }}>{list.length} {list.length === 1 ? "person" : "people"}</span>
-            <span style={{ color: D.faint }}>·</span>
-            <span>{filterSummary.join(" · ")}</span>
-            <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
+            {filterSummary.length > 0 && (
+              <>
+                <span style={{ color: D.faint }}>·</span>
+                <span>{filterSummary.join(" · ")}</span>
+                <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
+              </>
+            )}
           </div>
+        )}
+
+        {/* THE primary action — the answer to "where do I write the message?".
+            Filter/search to narrow (or don't), then tap here to write to the
+            whole shown audience. Opens the composer; nothing sends until you hit
+            send. Hidden in select mode (its own footer drives that). */}
+        {people && list.length > 0 && !selecting && (
+          <button onClick={messageAudience}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 9, padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
+            <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
+              ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
+              : `Write to everyone · ${list.length}`}
+          </button>
         )}
 
         {/* Select-all over the filtered set when in selection mode. */}

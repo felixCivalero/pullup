@@ -555,7 +555,7 @@ ${imageUrl ? `<!-- Event Image -->
 <!-- Message -->
 <tr><td style="padding:8px 20px;text-align:center;">
   <p style="margin:0;font-size:15px;color:${rgbaFromHex(b.ink, 0.7)};line-height:1.5;font-family:${b.fontStack};">
-    Hi ${name}, <strong translate="no" class="notranslate">${eventTitle}</strong> is tomorrow!
+    Hi ${name}, <strong translate="no" class="notranslate">${eventTitle}</strong> is coming up!
   </p>
 </td></tr>
 
@@ -579,6 +579,49 @@ ${noteBlock(customNote, b)}
 </td></tr>
 
 ${emailFooter({ message: "See you tomorrow!", brandName, brandWebsite, contactEmail, frontendUrl, unsubscribeUrl }, b)}`;
+
+  return emailShell(content, b);
+}
+
+/* ══════════════════════════════════════════
+   COMPOSED MESSAGE EMAIL — the per-event Communication panel's WYSIWYG sends
+   (sign-up info / reminder / post-event). The host writes the message with
+   live-detail tokens; eventComms.resolveCommsHtml turns it into `bodyHtml`
+   (escaped prose + resolved tokens/links). This renders that body inside the
+   branded shell so what the host previews is what the guest receives.
+   ══════════════════════════════════════════ */
+export function composedMessageEmail({
+  eventTitle = "",
+  badgeText = "",
+  imageUrl = "",
+  bodyHtml = "",
+  frontendUrl = "https://pullup.se",
+  brandName = "",
+  brandWebsite = "",
+  contactEmail = "",
+  unsubscribeUrl = "",
+  footerMessage = "",
+  brand = {},
+}) {
+  const b = resolveEmailBrand(brand);
+  const content = `
+${logoHeader(b)}
+${badgeText ? `<!-- Badge -->
+<tr><td align="center" style="padding:24px 0 8px;">
+  ${badge(badgeText, b)}
+</td></tr>` : ""}
+
+${imageUrl ? `<!-- Event Image -->
+<tr><td style="padding:16px 0 4px;">
+  <img src="${imageUrl}" alt="${eventTitle.replace(/"/g, "&quot;")}" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;object-fit:cover;max-height:280px;border:0;outline:none;" />
+</td></tr>` : ""}
+
+<!-- The host's composed message (tokens already resolved to HTML) -->
+<tr><td style="padding:18px 20px 6px;">
+  <p style="margin:0;font-size:15.5px;color:${b.ink};line-height:1.6;font-family:${b.fontStack};">${bodyHtml}</p>
+</td></tr>
+
+${emailFooter({ message: footerMessage, brandName, brandWebsite, contactEmail, frontendUrl, unsubscribeUrl }, b)}`;
 
   return emailShell(content, b);
 }

@@ -139,15 +139,12 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
     }
   }, [setBusy, tallyAndUrl]);
 
-  // MANY → fetch each, bundle into one .zip, save that. A single selection just
+  // MANY → fetch each, bundle into one .zip, save that. A single item just
   // downloads the file (no point zipping one).
-  const downloadSelected = useCallback(async () => {
-    const chosen = items.filter((it) => selected.has(it.id));
+  const downloadMany = useCallback(async (chosen) => {
     if (!chosen.length) return;
     if (chosen.length === 1) {
       await downloadOne(chosen[0]);
-      setSelected(new Set());
-      setSelecting(false);
       return;
     }
     setBulkBusy(true);
@@ -164,10 +161,18 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
       if (files.length) downloadBlob(buildZip(files), `pullup-wall-${files.length}.zip`);
     } finally {
       setBulkBusy(false);
-      setSelected(new Set());
-      setSelecting(false);
     }
-  }, [items, selected, downloadOne, tallyAndUrl]);
+  }, [downloadOne, tallyAndUrl]);
+
+  // The select-mode bar: download whatever's ticked, then exit select mode.
+  const downloadSelected = useCallback(async () => {
+    await downloadMany(items.filter((it) => selected.has(it.id)));
+    setSelected(new Set());
+    setSelecting(false);
+  }, [items, selected, downloadMany]);
+
+  // One tap, no selecting → grab the whole wall as a zip.
+  const downloadAll = useCallback(() => downloadMany(items), [items, downloadMany]);
 
   const toggleSelect = useCallback((id) => {
     setSelected((prev) => {
@@ -219,9 +224,15 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
               <X size={15} /> Cancel
             </button>
           ) : (
-            <button onClick={() => setSelecting(true)} style={ghostBtn}>
-              <CheckCheck size={15} /> Select
-            </button>
+            <>
+              <button onClick={downloadAll} disabled={bulkBusy} style={{ ...darkBtn, opacity: bulkBusy ? 0.7 : 1 }}>
+                {bulkBusy ? <Loader2 size={15} className="spin" /> : <Download size={15} strokeWidth={2.4} />}
+                {bulkBusy ? "Zipping…" : (count === 1 ? "Download" : `Download all ${count}`)}
+              </button>
+              <button onClick={() => setSelecting(true)} style={ghostBtn}>
+                <CheckCheck size={15} /> Select
+              </button>
+            </>
           )
         )}
         {canUpload && (
@@ -681,4 +692,11 @@ const ghostBtn = {
   display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 999,
   padding: "8px 13px", fontSize: 13, fontWeight: 650, fontFamily: SF, cursor: "pointer",
   background: colors.background, color: colors.text, border: `1px solid ${colors.border}`,
+};
+// Solid dark "Download all" — the loud, obvious verb. Kept distinct from the
+// pink "Add yours" so the two actions never read as the same button.
+const darkBtn = {
+  display: "inline-flex", alignItems: "center", gap: 7, border: "none", borderRadius: 999,
+  padding: "9px 16px", fontSize: 13.5, fontWeight: 750, fontFamily: SF, cursor: "pointer",
+  background: colors.text, color: "#fff", boxShadow: "0 6px 18px rgba(10,10,10,0.18)",
 };

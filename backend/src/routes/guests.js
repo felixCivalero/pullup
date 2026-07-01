@@ -110,14 +110,42 @@ export function registerGuestRoutes(app) {
         })
         .filter(Boolean);
 
-      // Custom (non-identity) form fields are answered per-RSVP — emit them
-      // as their own columns from rsvps.custom_answers, keyed by field id.
-      const customColumns = (event.formFields || [])
-        .filter((f) => String(f?.type || "").toLowerCase() === "custom" && f?.id)
-        .map((f) => ({
-          header: f.label || "Custom",
-          accessor: (guest) => (guest.customAnswers || {})[f.id] || "",
-        }));
+      // Free-text answers live per-RSVP in rsvps.custom_answers, keyed by the
+      // question's id. Two id namespaces feed this: enrichment questions
+      // (event.enrichmentQuestions, "q_..." ids) — what the live guest form uses
+      // — and legacy custom form fields (event.formFields type "custom", "ff_..."
+      // ids). Historically the export only read formFields, so enrichment answers
+      // (e.g. an "Allergier" question) came out blank. Build one column per id
+      // from BOTH sets, then sweep any orphan keys left by renamed/removed
+      // questions so no submitted answer is silently dropped from the CSV.
+      const answerColumnsById = new Map(); // id -> header (insertion order = column order)
+      for (const q of event.enrichmentQuestions || []) {
+        if (q?.id && !answerColumnsById.has(q.id)) {
+          answerColumnsById.set(q.id, q.label || "Answer");
+        }
+      }
+      for (const f of event.formFields || []) {
+        if (
+          String(f?.type || "").toLowerCase() === "custom" &&
+          f?.id &&
+          !answerColumnsById.has(f.id)
+        ) {
+          answerColumnsById.set(f.id, f.label || "Custom");
+        }
+      }
+      for (const guest of guests) {
+        for (const key of Object.keys(guest.customAnswers || {})) {
+          if (!answerColumnsById.has(key)) answerColumnsById.set(key, key);
+        }
+      }
+      const customColumns = [...answerColumnsById.entries()]
+        .map(([id, header]) => ({
+          header,
+          accessor: (guest) => (guest.customAnswers || {})[id] || "",
+        }))
+        // Drop questions nobody on this event answered (incl. stale duplicate
+        // definitions) so the CSV doesn't carry confusing all-blank columns.
+        .filter((col) => guests.some((guest) => col.accessor(guest)));
 
       // CSV header
       const headers = [

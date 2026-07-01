@@ -1824,10 +1824,9 @@ function ActionsSkeleton() {
 // (the banner shouldn't shout). A create tile is always the last card.
 function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onMessageAll, onDeleted }) {
   const isMobile = useIsMobile();
-  // Drafts are shown by default now — they sit first in the strip with a Draft
-  // badge so a growing pile is impossible to miss (and easy to finish or bin),
-  // instead of hiding behind a toggle that let drafts quietly stack up.
-  const [showDrafts, setShowDrafts] = useState(true);
+  // Drafts are hidden by default to keep the strip clean — a "N drafts · show"
+  // toggle surfaces them on demand (they then sort first with a Draft badge).
+  const [showDrafts, setShowDrafts] = useState(false);
   // One unified panel opens below the strip when you open a card. It holds the
   // SAME action bar for every event (Manage · Team · VIP · Share · delete) so
   // nothing behaves inconsistently — only "Manage" navigates; the rest swap

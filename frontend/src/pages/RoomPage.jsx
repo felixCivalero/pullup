@@ -1867,7 +1867,6 @@ function EventsBanner({ events, memberRooms = [], onOpenEvent, onOpenRoom, onCre
       <SectionHeader
         title="Your events"
         count={memberRooms.length > 0 ? null : (published.length || null)}
-        hint={going ? "events you joined — tap one to enter the room" : "the nights you host — tap one to run it"}
         badge={memberRooms.length > 0 && (
           // The switch — two labelled pills with the counts baked in, so the
           // face you're NOT on is never invisible.

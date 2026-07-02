@@ -641,13 +641,20 @@ export function EventPage() {
         }
 
         if (res.status === 409 && err.error === "duplicate") {
+          // Already in — that's a fact, not a failure. The gate stays at
+          // submit (no pre-check oracle), but it answers kindly and in the
+          // page's own language: member of a community vs spot at an event.
           const existingRsvp = err.rsvp || {};
           const partySize = existingRsvp.partySize || 1;
           const isWaitlisted = err.status === "waitlist" || existingRsvp.bookingStatus === "WAITLIST";
-          const statusLabel = isWaitlisted ? "on the waitlist" : "confirmed";
-          const partyLabel = partySize === 1 ? "1 person" : `${partySize} people`;
+          const isCommunity = (event?.kind || "event") === "community";
           return {
-            error: `You've already booked for this event (${statusLabel}, ${partyLabel}). Need to make changes? Contact the host.`,
+            alreadyIn: true,
+            message: isCommunity
+              ? "You're already a member — nothing to do. Same link, same you."
+              : isWaitlisted
+                ? "You're already on the waitlist for this event — hold tight."
+                : `You already have a spot at this event${partySize > 1 ? ` (${partySize} people)` : ""}. Need changes? Message the host.`,
           };
         }
 

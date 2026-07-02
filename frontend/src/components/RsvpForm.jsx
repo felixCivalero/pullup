@@ -118,6 +118,9 @@ export function RsvpForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  // "Already in" — the submit gate caught a duplicate. A fact, not a failure:
+  // rendered as a calm green notice, never the red error box.
+  const [alreadyIn, setAlreadyIn] = useState("");
   const [wantsDinner, setWantsDinner] = useState(false);
   const [dinnerTimeSlot, setDinnerTimeSlot] = useState(null);
   const [dinnerSeats, setDinnerSeats] = useState(1);
@@ -293,6 +296,7 @@ export function RsvpForm({
 
     if (loading) return;
     setError("");
+    setAlreadyIn("");
 
     if (isWaitlistUpgrade) {
       if (onSubmit) {
@@ -306,7 +310,9 @@ export function RsvpForm({
             dinnerTimeSlot: details.dinnerTimeSlot || null,
             dinnerPartySize: details.dinnerPartySize || null,
           });
-          if (result && result.error) {
+          if (result && result.alreadyIn) {
+            setAlreadyIn(result.message);
+          } else if (result && result.error) {
             setError(result.error);
           }
         } catch (err) {
@@ -378,7 +384,9 @@ export function RsvpForm({
           instagram: (instagram || "").trim() || null,
           customAnswers: trimmedAnswers,
         });
-        if (result && result.error) {
+        if (result && result.alreadyIn) {
+          setAlreadyIn(result.message);
+        } else if (result && result.error) {
           if (result.capacityExceeded) {
             setCapacityExceeded(true);
             setError("");
@@ -1071,6 +1079,27 @@ export function RsvpForm({
                   ? "No payment now. You'll get a link to confirm if spots open."
                   : "The host will contact you if a spot becomes available."}
               </div>
+            </div>
+          )}
+
+          {/* Already in — green, calm, done. */}
+          {alreadyIn && (
+            <div style={{
+              padding: "12px 14px",
+              borderRadius: "8px",
+              background: "rgba(34, 197, 94, 0.12)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              fontSize: "13.5px",
+              color: "#4ade80",
+              fontWeight: 600,
+              marginBottom: "16px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "8px",
+              lineHeight: 1.5,
+            }}>
+              <span aria-hidden="true" style={{ fontWeight: 800 }}>✓</span>
+              <span>{alreadyIn}</span>
             </div>
           )}
 

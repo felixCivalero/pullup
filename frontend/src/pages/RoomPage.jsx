@@ -1354,9 +1354,13 @@ function PeopleContactCard({ person, events }) {
   const [notes, setNotes] = useState(() => (Array.isArray(person.notes) ? person.notes : []));
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [adding, setAdding] = useState(false);       // note composer folded until asked for
+  const [allEvents, setAllEvents] = useState(false); // event chips folded past the first two
   const phone = person.phone || person.phone_e164 || null;
   const ig = person.instagram ? String(person.instagram).replace(/^@+/, "") : null;
   const evChips = (person.events || []).map((id) => events.find((e) => e.id === id)).filter(Boolean);
+  const shownChips = allEvents ? evChips : evChips.slice(0, 2);
+  const moreChips = evChips.length - shownChips.length;
 
   // Merge fresh payload notes with any optimistic local-only adds (by id), so a
   // 5s poll that hasn't caught up yet can't blink a just-added note away.
@@ -1380,41 +1384,54 @@ function PeopleContactCard({ person, events }) {
     try {
       const r = await authenticatedFetch(`/host/crm/people/${person.id}/notes`, { method: "POST", body: JSON.stringify({ content }) });
       const d = await r.json();
-      if (d?.id) { setNotes((cur) => [d, ...cur]); setDraft(""); }
+      if (d?.id) { setNotes((cur) => [d, ...cur]); setDraft(""); setAdding(false); }
     } catch { /* keep the draft so nothing is lost */ }
     setSaving(false);
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", borderRadius: 18, border: `1px solid ${colors.border}`, background: colors.surface, fontFamily: SF, overflow: "hidden" }}>
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* Identity */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <Avatar initials={person.initials} color={person.color} size={48} />
+      <div style={{ padding: "14px 15px", display: "flex", flexDirection: "column", gap: 11 }}>
+        {/* Identity row — avatar, name, the one-line relationship, and a quiet
+            Message pill in the corner (the card is the person, not a form). */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+          <Avatar initials={person.initials} color={person.color} size={44} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <HeatDot warmth={person.warmth} />
-              <span style={{ fontSize: 16, fontWeight: 800, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
+              <span style={{ fontSize: 15.5, fontWeight: 800, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{person.name}</span>
             </div>
-            {person.relationship && <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 3, lineHeight: 1.4 }}>{person.relationship}</div>}
+            {person.relationship && <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 1.4 }}>{person.relationship}</div>}
           </div>
+          <button
+            onClick={message}
+            title={`Message ${person.name || ""}`}
+            style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 999, border: `1px solid ${colors.accentBorder}`, background: colors.accentSoft, color: colors.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
+          >
+            <Send size={13} /> Message
+          </button>
         </div>
 
         {/* Contact */}
         {(person.email || phone || ig) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {person.email && <DetailChip icon={Mail} text={person.email} />}
             {phone && <DetailChip icon={Phone} text={phone} />}
             {ig && <DetailChip icon={Instagram} text={`@${ig}`} />}
           </div>
         )}
 
-        {/* Where you met */}
+        {/* Where you met — first two events, the rest behind "+N". */}
         {evChips.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {evChips.map((e) => (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+            {shownChips.map((e) => (
               <span key={e.id} style={{ fontSize: 10.5, color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap", maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
             ))}
+            {(moreChips > 0 || allEvents) && (
+              <button onClick={() => setAllEvents((v) => !v)} style={{ fontSize: 10.5, fontWeight: 700, color: colors.textMuted, background: "none", border: `1px dashed ${colors.border}`, padding: "3px 9px", borderRadius: 999, cursor: "pointer", fontFamily: SF, whiteSpace: "nowrap" }}>
+                {allEvents ? "less" : `+${moreChips} more`}
+              </button>
+            )}
           </div>
         )}
 
@@ -1422,41 +1439,52 @@ function PeopleContactCard({ person, events }) {
         {Array.isArray(person.answers) && person.answers.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {person.answers.map((a, i) => (
-              <div key={i} style={{ padding: "8px 11px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surfaceMuted }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>{a.label}</div>
-                <div style={{ fontSize: 13, color: colors.text, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.value}</div>
+              <div key={i} style={{ padding: "7px 11px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surfaceMuted }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: colors.textSubtle }}>{a.label} </span>
+                <span style={{ fontSize: 12.5, color: colors.text, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.value}</span>
               </div>
             ))}
           </div>
         )}
-
-        <button onClick={message} style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 14px", borderRadius: 12, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}>
-          <Send size={15} /> Message
-        </button>
       </div>
 
-      {/* Notes — inline, always there. Newest first; add-info at the foot. */}
-      <div style={{ borderTop: `1px solid ${colors.borderFaint}`, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Notes</div>
+      {/* Notes — existing notes always visible; the composer stays folded
+          behind "+ Add info" so an empty card doesn't carry an empty form. */}
+      <div style={{ borderTop: `1px solid ${colors.borderFaint}`, padding: "11px 15px 13px", display: "flex", flexDirection: "column", gap: 8 }}>
         {notes.map((n) => (
-          <div key={n.id} style={{ padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.background }}>
-            <div style={{ fontSize: 13.5, color: colors.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{n.content}</div>
-            <div style={{ fontSize: 11, color: colors.textFaded, marginTop: 6 }}>{fmtNoteDate(n.noteDate || n.createdAt)}</div>
+          <div key={n.id} style={{ padding: "8px 11px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.background }}>
+            <div style={{ fontSize: 13, color: colors.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.45 }}>{n.content}</div>
+            <div style={{ fontSize: 10.5, color: colors.textFaded, marginTop: 4 }}>{fmtNoteDate(n.noteDate || n.createdAt)}</div>
           </div>
         ))}
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNote(); }}
-          placeholder="Add info — allergies, how you met, what they're into…"
-          rows={2}
-          style={{ width: "100%", resize: "none", padding: "10px 12px", borderRadius: 12, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13.5, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
-        />
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={saveNote} disabled={!draft.trim() || saving} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 13, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>
-            <Plus size={14} /> {saving ? "Adding…" : "Add info"}
+        {!adding ? (
+          <button
+            onClick={() => setAdding(true)}
+            style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 2px", border: "none", background: "none", color: colors.textMuted, fontSize: 12, fontWeight: 650, cursor: "pointer", fontFamily: SF }}
+          >
+            <Plus size={13} /> Add info — allergies, how you met, what they're into…
           </button>
-        </div>
+        ) : (
+          <>
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") saveNote(); }}
+              placeholder="Allergies, how you met, what they're into…"
+              rows={2}
+              style={{ width: "100%", resize: "none", padding: "9px 11px", borderRadius: 10, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => { setAdding(false); setDraft(""); }} style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: SF }}>
+                Cancel
+              </button>
+              <button onClick={saveNote} disabled={!draft.trim() || saving} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 999, border: "none", background: draft.trim() && !saving ? colors.accent : colors.surfaceMuted, color: draft.trim() && !saving ? "#fff" : colors.textFaded, fontSize: 12, fontWeight: 700, cursor: draft.trim() && !saving ? "pointer" : "not-allowed", fontFamily: SF }}>
+                {saving ? "Adding…" : "Save"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

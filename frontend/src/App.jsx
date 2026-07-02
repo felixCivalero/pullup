@@ -95,6 +95,7 @@ const ViewAsBar = lazyPage(() => import("./components/admin/ViewAsBar.jsx"), "Vi
 const IdeaWidget = lazyPage(() => import("./components/IdeaWidget"), "IdeaWidget");
 import ErrorBoundary from "./components/ErrorBoundary";
 import { HostResourceProvider } from "./contexts/HostResourceContext";
+import { MessagesStoreProvider } from "./contexts/MessagesStoreContext";
 import { useAuth } from "./contexts/AuthContext";
 
 // /room is no longer its own surface — your room is your person room. There is
@@ -111,6 +112,9 @@ function App() {
   return (
     <ErrorBoundary>
       <HostResourceProvider>
+      {/* The messages store sits ABOVE routes and the dock: contacts load once
+          per session, survive every navigation, and stay live over realtime. */}
+      <MessagesStoreProvider>
       {/* The PullUp AI coach widget — only mounted on the create/edit-event
           builder (it gets in the way of the Room's chat composer elsewhere). */}
       <CoachWidgetGate />
@@ -267,6 +271,7 @@ function App() {
         </Route>
       </Routes>
       </Suspense>
+      </MessagesStoreProvider>
       </HostResourceProvider>
     </ErrorBoundary>
   );

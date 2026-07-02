@@ -13,6 +13,7 @@ import { getGoogleMapsUrl } from "../lib/urlUtils";
 import { useToast } from "./Toast";
 import { useRoomRealtime } from "../lib/useRoomRealtime.js";
 import { useAudienceFilter } from "../lib/useAudienceFilter.js";
+import { useMessagesStore } from "../contexts/useMessagesStore.js";
 import MessageStatusTicks from "./room/MessageStatusTicks.jsx";
 
 const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -139,8 +140,10 @@ function Avatar({ name, size = 44, dot, src }) {
 export default function DockMessages({ onClose, expanded, onToggleExpand, openThread = null }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [people, setPeople] = useState(null);
-  const [roomEvents, setRoomEvents] = useState([]);
+  // Contacts live in the app-level store — loaded once per session, kept live
+  // over realtime, surviving every dock close and page change. The dock only
+  // ASKS for them; it never owns them.
+  const { people, setPeople, roomEvents, ensureLoaded, sentKeys: sentKeysRef } = useMessagesStore();
   // Audience builder — shared verbatim with the Room's "Your people" view.
   const af = useAudienceFilter(people || [], roomEvents);
   const { channels, eventIds, attendance, segment, q, setAttendance, setSegment, setQ,
@@ -161,61 +164,21 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   const scroller = useRef(null);
   const fileRef = useRef(null);
   const taRef = useRef(null); // composer textarea — for auto-grow
-  // Keys (clientId + server id) of bubbles WE created this session, so a realtime
-  // echo of our own send doesn't double-render alongside its optimistic copy.
-  const sentKeysRef = useRef(new Set());
 
-  async function load() {
-    try { const r = await authenticatedFetch("/host/room"); const d = r.ok ? await r.json() : null; setPeople(d?.people || []); setRoomEvents(d?.events || []); }
-    catch { setPeople([]); }
-  }
-  useEffect(() => { load(); }, []);
-  // Safety net: realtime is the live path, but if the tab was backgrounded and
-  // the socket dropped, refetch on focus so nothing is missed.
-  useEffect(() => {
-    const onFocus = () => load();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, []);
-
-  // ── Live: inbound replies + delivery-status ticks stream straight in. ──
+  // First mount asks the store to load (a no-op ever after — the cache renders
+  // instantly on every later open). All people-list realtime merges live in
+  // the store; the dock's own subscription below only reconciles the local
+  // optimistic `sent` bubbles (tick upgrades + own-echo id reconcile).
+  useEffect(() => { ensureLoaded(); }, [ensureLoaded]);
   useRoomRealtime({
     onMessage: ({ eventType, row }) => {
-      const mine = row.from === "you";
       if (eventType === "UPDATE") {
-        // A tick moved (sent → delivered → read / failed). Patch wherever it lives.
         setSent((s) => s.map((m) => (m.id === row.id ? { ...m, status: row.status } : m)));
-        setPeople((ps) => ps && ps.map((p) => p.id !== row.personId ? p : { ...p, thread: (p.thread || []).map((m) => (m.id === row.id ? { ...m, status: row.status } : m)) }));
         return;
       }
-      // INSERT
-      if (mine) {
-        // Our own send echoing back: reconcile the optimistic bubble's id, don't
-        // duplicate it. An outbound from ANOTHER device (unknown key) is appended.
-        if (row.clientId && sentKeysRef.current.has(row.clientId)) {
-          setSent((s) => s.map((m) => (m.clientId === row.clientId ? { ...m, id: row.id, status: row.status || m.status } : m)));
-          sentKeysRef.current.add(row.id);
-          return;
-        }
-        if (sentKeysRef.current.has(row.id)) return;
+      if (row.from === "you" && row.clientId && sentKeysRef.current.has(row.clientId)) {
+        setSent((s) => s.map((m) => (m.clientId === row.clientId ? { ...m, id: row.id, status: row.status || m.status } : m)));
       }
-      // New person we don't have yet → pull the room fresh; otherwise append the
-      // reply (or another-device send) to their thread + float them up the list.
-      if (!(people || []).some((p) => p.id === row.personId)) { load(); return; }
-      setPeople((ps) => ps && ps.map((p) => {
-        if (p.id !== row.personId) return p;
-        if ((p.thread || []).some((m) => m.id === row.id)) return p;
-        return {
-          ...p,
-          thread: [...(p.thread || []), { ...row, time: "now" }],
-          lastMessage: { from: row.from, text: row.text || "", time: "now" },
-          // Float them up the list live: a new message resets recency, and an
-          // inbound one (not ours) is now awaiting our reply ("unread").
-          lastMessageAt: new Date().toISOString(),
-          lastActivityAt: new Date().toISOString(),
-          awaitingReply: !mine,
-        };
-      }));
     },
   });
 

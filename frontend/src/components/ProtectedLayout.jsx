@@ -313,13 +313,19 @@ function ProtectedLayoutInner() {
   }
 
   // The header "Live" button reflects the event's stage. A draft isn't public
-  // yet, so it offers a preview; a published event is "Live", and once the
+  // yet, so it offers a preview; a published event is "Live" — or "Ended" once
+  // its date has passed (the page/room stay up as a memory) — and once the
   // editor has unsaved edits it nudges the host to preview those changes.
   const liveBtn = (() => {
     const isDraft = eventNav?.status === "DRAFT";
     if (isDraft) return { label: "Show preview", dot: "rgba(255,255,255,0.4)" };
-    if (eventNav?.dirty) return { label: "Live · preview changes", dot: "#f0d878" };
-    return { label: "Live", dot: "#4ade80" };
+    // The editor feeds `ended` (derived from stored dates); the Room feeds the
+    // older status "PASSED" — same fact, both read as Ended.
+    const ended = eventNav?.ended || eventNav?.status === "PASSED";
+    if (eventNav?.dirty) return { label: `${ended ? "Ended" : "Live"} · preview changes`, dot: "#f0d878" };
+    return ended
+      ? { label: "Ended", dot: "#9ca3af" }
+      : { label: "Live", dot: "#4ade80" };
   })();
 
   // Show loading state while checking auth
@@ -937,7 +943,10 @@ function ProtectedLayoutInner() {
                 e.target.style.boxShadow = colors.accentShadow;
               }}
             >
-              {editorRoute ? "Publish" : "+ create"}
+              {/* A past-dated draft doesn't "publish" a new event — it REOPENS
+                  the page/room of one that already happened (the editor asks a
+                  confirm and keeps sign-ups closed). */}
+              {editorRoute ? (eventNav?.ended ? "Reopen" : "Publish") : "+ create"}
             </button>
           </>
           )}

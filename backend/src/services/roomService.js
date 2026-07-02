@@ -18,6 +18,7 @@
 // describe care that exists, we don't manufacture it.
 
 import { supabase } from "../supabase.js";
+import { deriveEventListingStatus } from "../lib/eventLifecycle.js";
 import { logger } from "../logger.js";
 import { getUserProfile } from "../data.js";
 import { getConnectionsForHost } from "../instagram/repos/instagramConnectionsRepo.js";
@@ -236,7 +237,7 @@ function isEventKind(k) { return k == null || k === "event"; }
 async function getHostedEventCards(hostId) {
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, ticket_type, ticket_price, ticket_currency, location, kind")
+    .select("id, title, slug, starts_at, ends_at, status, total_capacity, cover_image_url, image_url, ticket_type, ticket_price, ticket_currency, location, kind")
     .eq("host_id", hostId);
   const list = (events || []).filter((e) => isEventKind(e.kind));
   if (!list.length) return [];
@@ -249,10 +250,7 @@ async function getHostedEventCards(hostId) {
   const now = Date.now();
   return list
     .map((e) => {
-      const published = (e.status || "").toUpperCase() === "PUBLISHED";
-      const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
-      const isPast = published && starts != null && starts < now;
-      const status = !published ? "draft" : isPast ? "past" : "live";
+      const status = deriveEventListingStatus(e.status, e.starts_at, e.ends_at, now);
       return {
         id: e.id,
         title: e.title || "Untitled event",
@@ -324,16 +322,13 @@ async function getMemberRooms(accountId, email = null) {
     if (!ids.length) return [];
     const { data: evs } = await supabase
       .from("events")
-      .select("id, title, slug, starts_at, status, cover_image_url, image_url, location, kind")
+      .select("id, title, slug, starts_at, ends_at, status, cover_image_url, image_url, location, kind")
       .in("id", ids);
     const now = Date.now();
     return (evs || [])
       .filter((e) => isEventKind(e.kind)) // real events only — not community/product pages joined via RSVP
       .map((e) => {
-        const published = (e.status || "").toUpperCase() === "PUBLISHED";
-        const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
-        const isPast = published && starts != null && starts < now;
-        const status = !published ? "draft" : isPast ? "past" : "live";
+        const status = deriveEventListingStatus(e.status, e.starts_at, e.ends_at, now);
         const isCoHost = roleByEvent.has(e.id);
         return {
           id: e.id,
@@ -432,7 +427,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   const [people, idents, { data: events }] = await Promise.all([
     chunkedByIds(personIds, (ids) => supabase.from("people").select("id, name, email, phone_e164, phone_verified_at, instagram, ig_user_id").in("id", ids).then((r) => r.data || [])),
     chunkedByIds(personIds, (ids) => supabase.from("person_identities").select("person_id, kind").in("person_id", ids).then((r) => r.data || [])),
-    supabase.from("events").select("id, title, slug, starts_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions, kind").eq("host_id", hostId),
+    supabase.from("events").select("id, title, slug, starts_at, ends_at, status, total_capacity, cover_image_url, image_url, created_via, ticket_type, ticket_price, ticket_currency, location, enrichment_questions, kind").eq("host_id", hostId),
   ]);
   const peopleById = new Map((people || []).map((p) => [p.id, p]));
   // Linked external-source profiles (IG etc.) → avatar + reach/reciprocity signals.
@@ -531,10 +526,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     // waitlist and widget pages share this table but aren't events.
     .filter((e) => isEventKind(e.kind))
     .map((e) => {
-      const published = (e.status || "").toUpperCase() === "PUBLISHED";
-      const starts = e.starts_at ? new Date(e.starts_at).getTime() : null;
-      const isPast = published && starts != null && starts < now;
-      const status = !published ? "draft" : isPast ? "past" : "live";
+      const status = deriveEventListingStatus(e.status, e.starts_at, e.ends_at, now);
       return {
         id: e.id,
         title: e.title || "Untitled event",

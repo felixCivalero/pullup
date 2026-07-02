@@ -33,6 +33,7 @@ import { recordOptIn as recordPhoneOptIn } from "../whatsapp/repos/phoneOptInsRe
 import { logPersonEvent } from "../services/personTimeline.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
 import { getFrontendUrl } from "../lib/urls.js";
+import { hasEventEnded } from "../lib/eventLifecycle.js";
 import { paymentsV2Enabled } from "../config/billing.js";
 import { railsForEvent } from "../services/payments/index.js";
 import { getPlanForHost } from "../repos/billing.js";
@@ -69,6 +70,21 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
 
     if (!email && !vipToken) {
       return res.status(400).json({ error: "email is required" });
+    }
+
+    // Sign-ups close when the event ends — server-enforced (the disabled page
+    // CTA alone was UI-only). A reopened past event keeps its page and room
+    // live without silently reopening its form. TBA events skip: their date is
+    // a private placeholder, not the public time.
+    const eventForGate = await findEventBySlug(slug);
+    if (!eventForGate) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    if (!eventForGate.hideDate && hasEventEnded(eventForGate.startsAt, eventForGate.endsAt)) {
+      return res.status(400).json({
+        error: "event_ended",
+        message: "This event has ended — sign-ups are closed.",
+      });
     }
 
     // Handle VIP invite flow

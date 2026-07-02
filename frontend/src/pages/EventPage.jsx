@@ -20,6 +20,7 @@ import {
   formatLocationShort,
 } from "../lib/urlUtils";
 import { formatEventDate, formatEventTime } from "../lib/dateUtils.js";
+import { hasEventEnded } from "../lib/eventLifecycle.js";
 import { ModalOrDrawer } from "../components/ui/ModalOrDrawer";
 import { EventPageContent } from "../components/EventPageContent";
 import { EventPreview } from "../components/EventPreview";
@@ -336,14 +337,10 @@ export function EventPage() {
   }, [event, pendingPayment, handlePaymentSuccess]);
 
   // Check if event has passed - MUST be called before any early returns to follow Rules of Hooks
-  const isEventPast = useMemo(() => {
-    if (!event) return false;
-    const now = new Date();
-    // Use endsAt if available, otherwise use startsAt
-    const eventEndTime = event.endsAt ? new Date(event.endsAt) : (event.startsAt ? new Date(event.startsAt) : null);
-    if (!eventEndTime) return false;
-    return now > eventEndTime;
-  }, [event]);
+  const isEventPast = useMemo(
+    () => !!event && hasEventEnded(event.startsAt, event.endsAt),
+    [event]
+  );
 
   // Check if event is sold out (full capacity, no waitlist)
   const isSoldOut = useMemo(() => {

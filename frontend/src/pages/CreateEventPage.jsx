@@ -90,6 +90,7 @@ import {
 } from "../lib/errorHandler.js";
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { parseCoordinates, formatCoordinates } from "../lib/urlUtils";
+import { hasEventEnded, sameInstant } from "../lib/eventLifecycle.js";
 
 // Paste-coordinates field for the location editor. Lets a host who has the exact
 // pin (but no precise street address) type/paste "59.3293, 18.0686" and have it
@@ -650,6 +651,11 @@ export function CreateEventPage() {
   const [eventTitle, setEventTitle] = useState(null);
   const [eventSlug, setEventSlug] = useState(null);
   const [eventStatus, setEventStatus] = useState(null);
+  // The event's dates AS STORED on the server (edit mode). The past-date guard
+  // only fires when a date is CHANGED from these — an event whose existing date
+  // already passed stays saveable and re-publishable (that's how a past room
+  // reopens). Also drives the "Ended" header state + Reopen/Reschedule confirms.
+  const [originalDates, setOriginalDates] = useState(null);
   // Page kind ('event' default). A loaded kind='community' row turns this editor
   // into the community page editor: no date/location, "Join" CTA. Set from the
   // loaded row (community pages are always edited, never freshly created here).
@@ -1189,6 +1195,12 @@ export function CreateEventPage() {
   const hasUnsavedEdits =
     isEditMode && baselineSnapshot.current !== null && formSnapshot !== baselineSnapshot.current;
 
+  // Has this event (as stored) already happened? Drives the header "Ended"
+  // state, the Reopen confirm on a past draft, and the date-section note. TBA
+  // events never count — their date is a private placeholder.
+  const eventEnded =
+    isEditMode && !hideDate && !!originalDates && hasEventEnded(originalDates.startsAt, originalDates.endsAt);
+
   // Feed event identity + stage into the navbar so the header "Live" button can
   // reflect it AND so the draft carries its own Room/Guests/Insights menu while
   // you build it. Fires for both edit mode and /create — on /create the id only
@@ -1205,6 +1217,9 @@ export function CreateEventPage() {
       myRole: "owner",
       kind: eventKind,
       dirty: hasUnsavedEdits,
+      // Already happened (per stored dates) → header shows "Ended" instead of
+      // "Live", and a past draft's Publish becomes "Reopen".
+      ended: eventEnded,
       guestsCount: null,
       // Published-event Edit puts its "Save changes" control in the top nav (same
       // as the draft's Publish), so feed the validation gap + save state up to the
@@ -1215,7 +1230,7 @@ export function CreateEventPage() {
         ? (uploadStatus ? `Uploading ${uploadStatus.done}/${uploadStatus.total}…` : "Saving…")
         : "Save changes",
     });
-  }, [isEditMode, editEventId, draftEventId, eventSlug, eventStatus, eventTitle, eventKind, hasUnsavedEdits, hasAttemptedPublish, missingCount, loading, uploadStatus, setEventNav]);
+  }, [isEditMode, editEventId, draftEventId, eventSlug, eventStatus, eventTitle, eventKind, hasUnsavedEdits, eventEnded, hasAttemptedPublish, missingCount, loading, uploadStatus, setEventNav]);
 
   // Stripe connection status - load from backend
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -1405,7 +1420,7 @@ export function CreateEventPage() {
     setShowDraftBanner(false);
     setTitle(""); setDescription(""); setLocation("");
     setLocationLat(null); setLocationLng(null); setHideLocation(false);
-    setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
+    setStartsAt(""); setEndsAt(""); setOriginalDates(null); setTimezone(getUserTimezone());
     setMaxAttendees(""); setWaitlistEnabled(false);
     setImageFile(null); setImagePreview(null);
     setMediaFiles([]); setMediaMode(null);
@@ -1563,16 +1578,28 @@ export function CreateEventPage() {
 
   function validateStep() {
     // Check date logic errors (these are hard errors, not missing fields).
-    // Skip the past-date check for TBA events — the date is a private
-    // placeholder for sorting/reminders, not the public time.
-    if (!hideDate && startsAt && new Date(startsAt) < new Date()) {
+    // The past-date guard only fires when the date is being CHANGED — an event
+    // whose stored date already passed stays saveable and re-publishable
+    // (mirrors the server guard in PUT /host/events/:id). Skip for TBA events —
+    // the date is a private placeholder for sorting/reminders, not the public
+    // time. In create mode originalDates is null, so any past date is a change.
+    const startChanged = !sameInstant(startsAt, originalDates?.startsAt);
+    const endChanged = !sameInstant(endsAt, originalDates?.endsAt);
+    if (!hideDate && startsAt && startChanged && new Date(startsAt) < new Date()) {
       goToStep(2);
       showToast("Event start date cannot be in the past", "error");
       return false;
     }
-    if (!hideDate && endsAt && new Date(endsAt) < new Date()) {
+    if (!hideDate && endsAt && endChanged && new Date(endsAt) < new Date()) {
       goToStep(2);
       showToast("Event end date cannot be in the past", "error");
+      return false;
+    }
+    // A changed date must leave start/end coherent — guards the half-reschedule
+    // where a past event gets a future start but keeps its old past end.
+    if ((startChanged || endChanged) && startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
+      goToStep(2);
+      showToast("Event end time must be after the start time", "error");
       return false;
     }
     // Check missing required fields
@@ -1603,7 +1630,7 @@ export function CreateEventPage() {
     if (draft) return;
     setTitle(""); setDescription(""); setLocation("");
     setLocationLat(null); setLocationLng(null); setHideLocation(false);
-    setStartsAt(""); setEndsAt(""); setTimezone(getUserTimezone());
+    setStartsAt(""); setEndsAt(""); setOriginalDates(null); setTimezone(getUserTimezone());
     setMaxAttendees(""); setWaitlistEnabled(false);
     setImageFile(null); setImagePreview(null);
     setMediaFiles([]); setMediaMode(null);
@@ -1754,6 +1781,7 @@ export function CreateEventPage() {
         setDateRevealHint(ev.dateRevealHint || "");
         setStartsAt(ev.startsAt || "");
         setEndsAt(ev.endsAt || "");
+        setOriginalDates({ startsAt: ev.startsAt || null, endsAt: ev.endsAt || null });
         setTimezone(ev.timezone || getUserTimezone());
         setMaxAttendees(ev.cocktailCapacity ? String(ev.cocktailCapacity) : "");
         setWaitlistEnabled(!!ev.waitlistEnabled);
@@ -2670,6 +2698,28 @@ export function CreateEventPage() {
     if (e) e.preventDefault();
     if (!validateStep()) return;
 
+    // Lifecycle confirms for an event that already happened — both transitions
+    // are deliberate, never silent:
+    //  · Reschedule: the date moved to the future → the event goes back to
+    //    upcoming, sign-ups reopen, reminders re-arm, guests stay on the list.
+    //  · Reopen: publishing a past draft with its date untouched → the page and
+    //    room come back live AS a past event (sign-ups stay closed).
+    if (isEditMode && eventEnded) {
+      const rescheduling =
+        !sameInstant(startsAt, originalDates?.startsAt) && startsAt && new Date(startsAt) > new Date();
+      if (rescheduling) {
+        const ok = window.confirm(
+          "This event already happened. Setting a new date reschedules it: the page goes back to upcoming, sign-ups reopen, reminders re-arm, and everyone already on the guest list stays on it.\n\nReschedule?"
+        );
+        if (!ok) return;
+      } else if (eventStatus === "DRAFT") {
+        const ok = window.confirm(
+          "This event has ended. Reopening puts the page and room back live as a past event — sign-ups stay closed and no reminders go out.\n\nReopen?"
+        );
+        if (!ok) return;
+      }
+    }
+
     // Auth gate: if not logged in, save draft and show auth modal
     if (!user && !isEditMode) {
       // Save current draft with pendingPublish flag
@@ -2707,6 +2757,11 @@ export function CreateEventPage() {
         }
 
         const updated = await res.json();
+
+        // Re-baseline the stored dates to what the server now holds, so the
+        // next save compares against reality (a reschedule shouldn't re-confirm
+        // on every subsequent save).
+        setOriginalDates({ startsAt: updated.startsAt || null, endsAt: updated.endsAt || null });
 
         // Upload any NEW media items (ones without serverId) in parallel.
         const newMedia = mediaFiles.filter((m) => !m.serverId && m.file);
@@ -4289,6 +4344,25 @@ export function CreateEventPage() {
                   />
                 </div>
               </div>
+
+              {/* Ended note — the date already passed; changing it is a deliberate
+                  reschedule, leaving it keeps the page as a memory. */}
+              {eventEnded && (
+                <div style={{
+                  margin: "0 0 10px",
+                  padding: "10px 14px",
+                  borderRadius: "12px",
+                  background: "rgba(236, 23, 143, 0.06)",
+                  border: "1px solid rgba(236, 23, 143, 0.18)",
+                  fontSize: "12.5px",
+                  lineHeight: 1.55,
+                  color: colors.textSubtle,
+                }}>
+                  This event has ended. Set a new date to run it again — sign-ups reopen and
+                  reminders re-arm — or leave the date as is to keep the page and room live
+                  as a memory.
+                </div>
+              )}
 
               {/* Start Date & Time */}
               <div style={{

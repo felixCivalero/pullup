@@ -28,6 +28,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { validateEventData } from "../middleware/validation.js";
 import { processHostedByLogos } from "../services/hostedByLogos.js";
 import { isDevelopment, getFrontendUrl } from "../lib/urls.js";
+import { sameInstant } from "../lib/eventLifecycle.js";
 import { logger } from "../logger.js";
 import {
   sendEmail,
@@ -1323,15 +1324,31 @@ app.put(
       return res.status(404).json({ error: "Event not found" });
     }
 
-    // Validate dates are not in the past. For TBA events the date is a private
-    // placeholder, so skip the check — fall back to currentEvent.hideDate when
+    // Validate dates are not in the past — but ONLY when the date is being
+    // CHANGED. An event whose existing date already passed must stay saveable,
+    // unpublishable and re-publishable (that's how a past room reopens); only
+    // writing a NEW past date is rejected. For TBA events the date is a private
+    // placeholder, so skip entirely — fall back to currentEvent.hideDate when
     // the request didn't include hideDate (partial update).
     const effectiveHideDate = hideDate !== undefined ? hideDate : currentEvent.hideDate;
-    if (!effectiveHideDate && startsAt && new Date(startsAt) < new Date()) {
+    const startChanged = !!startsAt && !sameInstant(startsAt, currentEvent.startsAt);
+    const endChanged = !!endsAt && !sameInstant(endsAt, currentEvent.endsAt);
+    if (!effectiveHideDate && startChanged && new Date(startsAt) < new Date()) {
       return res.status(400).json({ error: "Event start date cannot be in the past" });
     }
-    if (!effectiveHideDate && endsAt && new Date(endsAt) < new Date()) {
+    if (!effectiveHideDate && endChanged && new Date(endsAt) < new Date()) {
       return res.status(400).json({ error: "Event end date cannot be in the past" });
+    }
+    // A changed date must leave start/end coherent — guards the half-reschedule
+    // where a past event gets a future start but keeps its old past end.
+    if (startChanged || endChanged) {
+      const effStart = startsAt || currentEvent.startsAt;
+      // endsAt: null is an explicit clear (mapEventToDb writes it) — the event
+      // will have no end after this save, so there's nothing to keep coherent.
+      const effEnd = endsAt === null ? null : (endsAt || currentEvent.endsAt);
+      if (effStart && effEnd && new Date(effEnd) <= new Date(effStart)) {
+        return res.status(400).json({ error: "Event end time must be after the start time" });
+      }
     }
 
     // Only owner or admin can edit event details (Stripe, pricing, etc.)

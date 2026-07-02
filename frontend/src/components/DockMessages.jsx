@@ -768,24 +768,95 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // ── List view ───────────────────────────────────────────────────────────
   const listView = (split = false) => (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: D.bg, color: D.ink }}>
-      {/* Header + the audience-builder dropdown that floats down over the search. */}
       <div style={{ position: "relative", zIndex: 20 }}>
         <div style={{ position: "relative", zIndex: 3, display: "flex", alignItems: "center", gap: 6, padding: "13px 12px 11px 16px", borderBottom: `1px solid ${D.line}`, background: D.bg }}>
           <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", flex: 1 }}>Messages</div>
-          <button onClick={() => setFiltersOpen((o) => !o)}
-            style={{ ...pill(filtersOpen || activeFilterCount > 0), display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px" }}>
-            <SlidersHorizontal size={13} strokeWidth={2.4} />
-            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ""}
-          </button>
-          <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
           {onToggleExpand && <button onClick={onToggleExpand} style={iconBtn} aria-label="Expand">{expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>}
           {onClose && <button onClick={onClose} style={iconBtn} aria-label="Close"><X size={19} /></button>}
         </div>
 
+      </div>
+
+      <div style={{ padding: "10px 12px 8px" }}>
+        <div style={{ position: "relative", marginBottom: filterSummary.length || selecting ? 9 : 0 }}>
+          <Search size={14} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: D.faint }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" type="search"
+            name="pullup-search" autoComplete="off" data-lpignore="true" data-1p-ignore data-form-type="other"
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
+        </div>
+
+        {/* Active-filter line — only when something narrows the list (the count
+            itself lives on the write bar at the bottom, once). */}
+        {people && filterSummary.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: D.muted, flexWrap: "wrap" }}>
+            <Users size={13} color={D.pink} style={{ flexShrink: 0 }} />
+            <span>{filterSummary.join(" · ")}</span>
+            <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
+          </div>
+        )}
+
+        {/* Select-all over the filtered set when in selection mode. */}
+        {selecting && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: filterSummary.length ? 7 : 0 }}>
+            <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px", whiteSpace: "nowrap" }}>
+              {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
+            </button>
+            <div style={{ flex: 1 }} />
+            {selected.length > 0 && <span style={{ fontSize: 12, color: D.muted }}>{selected.length} selected</span>}
+          </div>
+        )}
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "2px 6px 8px" }}>
+        {people === null && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>Loading…</div>}
+        {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>No one here yet.</div>}
+        {list.map((p) => {
+          const line = p.lastMessage?.text || p.relationship || "";
+          const sel = selected.includes(p.id);
+          const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
+          return (
+            <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
+              style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
+              <Avatar name={p.name} src={p.avatarUrl} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>
+                  {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
+                </div>
+                {/* Preview · time — inline, Instagram-style: the preview truncates, the time stays. */}
+                <div style={{ display: "flex", alignItems: "baseline", fontSize: 12.5, color: D.muted, minWidth: 0 }}>
+                  <span style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</span>
+                  {relTimeShort(p.lastActivityAt) && <span style={{ flexShrink: 0, color: p.awaitingReply ? D.pink : D.faint, fontWeight: p.awaitingReply ? 600 : 400 }}>{line ? " · " : ""}{relTimeShort(p.lastActivityAt)}</span>}
+                </div>
+              </div>
+              {selecting ? (
+                <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? D.pink : D.line}`, background: sel ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {sel && <Check size={13} color="#fff" strokeWidth={3} />}
+                </span>
+              ) : (
+                <span title={reachOf(p).map((c) => CH[c]?.label || c).join(" · ")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  {reachOf(p).slice(0, 3).map((c) => {
+                    const Icon = CH_ICON[c] || MessageCircle;
+                    const on = c === (p.channel || "email");
+                    return <Icon key={c} size={14} strokeWidth={2.25} color={CH[c]?.color || D.faint} style={{ opacity: on ? 1 : 0.45 }} />;
+                  })}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* The foot — audience controls live NEXT TO the action they shape. The
+          filter sheet expands UP from here (anchored to this bar), the count
+          on the write bar updates live underneath, nothing floats detached. */}
+      {people && (
+        <div style={{ position: "relative", zIndex: 20, borderTop: `1px solid ${D.line}`, background: D.bg, padding: "8px 12px 10px" }}>
         {filtersOpen && (
           <>
             <div onClick={() => setFiltersOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1 }} />
-            <div style={{ position: "absolute", top: "100%", left: 8, right: 8, zIndex: 2, background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 18px 44px rgba(10,10,10,0.18)", maxHeight: 470, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 8, right: 8, zIndex: 2, background: D.bg, border: `1px solid ${D.line}`, borderRadius: 14, boxShadow: "0 -14px 40px rgba(10,10,10,0.18)", maxHeight: "min(470px, 62vh)", overflowY: "auto", display: "flex", flexDirection: "column" }}>
               {/* Clear close affordance — the panel is a sheet you can always get
                   out of (tap Done, the X, or anywhere outside). */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px 9px", borderBottom: `1px solid ${D.line}`, position: "sticky", top: 0, background: D.bg, zIndex: 1 }}>
@@ -860,112 +931,37 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                 </>
               )}
               </div>
-              {/* Sticky footer: act on the chosen audience right here, so a
-                  filter leads straight to writing — not a dead end. */}
-              <div style={{ position: "sticky", bottom: 0, background: D.bg, borderTop: `1px solid ${D.line}`, padding: "10px 14px" }}>
-                <button onClick={() => { setFiltersOpen(false); messageAudience(); }} disabled={!list.length}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: list.length ? D.youGrad : D.them, color: list.length ? "#fff" : D.faint, fontWeight: 800, fontSize: 14, cursor: list.length ? "pointer" : "default" }}>
-                  <PenLine size={16} /> {list.length ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}` : "No one matches"}
-                </button>
-              </div>
             </div>
           </>
         )}
-      </div>
-
-      <div style={{ padding: "10px 12px 8px" }}>
-        <div style={{ position: "relative", marginBottom: filterSummary.length || selecting ? 9 : 0 }}>
-          <Search size={14} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: D.faint }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" type="search"
-            name="pullup-search" autoComplete="off" data-lpignore="true" data-1p-ignore data-form-type="other"
-            style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
-        </div>
-
-        {/* Active-filter line — only when something narrows the list (the count
-            itself lives on the write bar at the bottom, once). */}
-        {people && filterSummary.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: D.muted, flexWrap: "wrap" }}>
-            <Users size={13} color={D.pink} style={{ flexShrink: 0 }} />
-            <span>{filterSummary.join(" · ")}</span>
-            <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
-          </div>
-        )}
-
-        {/* Select-all over the filtered set when in selection mode. */}
-        {selecting && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: filterSummary.length ? 7 : 0 }}>
-            <button onClick={toggleSelectAll} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: D.pink, padding: "4px 6px", whiteSpace: "nowrap" }}>
-              {allVisibleSelected ? "Clear" : `Select all · ${list.length}`}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: list.length > 0 ? 8 : 0 }}>
+            <button onClick={() => setFiltersOpen((o) => !o)}
+              style={{ ...pill(filtersOpen || activeFilterCount > 0), display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px" }}>
+              <SlidersHorizontal size={13} strokeWidth={2.4} />
+              Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ""}
             </button>
             <div style={{ flex: 1 }} />
-            {selected.length > 0 && <span style={{ fontSize: 12, color: D.muted }}>{selected.length} selected</span>}
+            <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
           </div>
-        )}
-      </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "2px 6px 8px" }}>
-        {people === null && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>Loading…</div>}
-        {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>No one here yet.</div>}
-        {list.map((p) => {
-          const line = p.lastMessage?.text || p.relationship || "";
-          const sel = selected.includes(p.id);
-          const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
-          return (
-            <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
-              style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
-              <Avatar name={p.name} src={p.avatarUrl} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>
-                  {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
-                </div>
-                {/* Preview · time — inline, Instagram-style: the preview truncates, the time stays. */}
-                <div style={{ display: "flex", alignItems: "baseline", fontSize: 12.5, color: D.muted, minWidth: 0 }}>
-                  <span style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</span>
-                  {relTimeShort(p.lastActivityAt) && <span style={{ flexShrink: 0, color: p.awaitingReply ? D.pink : D.faint, fontWeight: p.awaitingReply ? 600 : 400 }}>{line ? " · " : ""}{relTimeShort(p.lastActivityAt)}</span>}
-                </div>
-              </div>
-              {selecting ? (
-                <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, border: `2px solid ${sel ? D.pink : D.line}`, background: sel ? D.pink : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {sel && <Check size={13} color="#fff" strokeWidth={3} />}
-                </span>
-              ) : (
-                <span title={reachOf(p).map((c) => CH[c]?.label || c).join(" · ")}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  {reachOf(p).slice(0, 3).map((c) => {
-                    const Icon = CH_ICON[c] || MessageCircle;
-                    const on = c === (p.channel || "email");
-                    return <Icon key={c} size={14} strokeWidth={2.25} color={CH[c]?.color || D.faint} style={{ opacity: on ? 1 : 0.45 }} />;
-                  })}
-                </span>
-              )}
+          {list.length > 0 && !selecting && (
+            <button onClick={messageAudience}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
+              <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
+                ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
+                : `Write to everyone · ${list.length}`}
             </button>
-          );
-        })}
-      </div>
+          )}
 
-      {/* THE primary action — pinned at the foot like a compose bar, under the
-          list it addresses. Filter/search to narrow (or don't), then tap to
-          write to the whole shown audience. Opens the composer; nothing sends
-          until you hit send. Hidden in select mode (its own footer below). */}
-      {people && list.length > 0 && !selecting && (
-        <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, background: D.bg }}>
-          <button onClick={messageAudience}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
-            <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
-              ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
-              : `Write to everyone · ${list.length}`}
-          </button>
-        </div>
-      )}
-
-      {selecting && selected.length > 0 && (
-        <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
-          <button onClick={() => { setDraft(""); setSubject(""); setAttachments([]); setSmartOpen(false); setSendProgress(null); setBroadcast(true); }}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
-            Write to {selected.length} <ChevronRight size={15} />
-          </button>
+          {selecting && selected.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: D.muted, flex: 1 }}>{selected.length} selected</div>
+              <button onClick={() => { setDraft(""); setSubject(""); setAttachments([]); setSmartOpen(false); setSendProgress(null); setBroadcast(true); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 999, border: "none", background: D.youGrad, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+                Write to {selected.length} <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -126,6 +126,22 @@ export function IdeaWidget() {
     return () => window.removeEventListener("pullup:open-thread", onOpenThread);
   }, []);
 
+  // An event room's "Message guests" pops the dock open pre-aimed at that
+  // event's audience via `pullup:message-event`. {id,ts} — ts so the same
+  // event re-applies even if already the filter.
+  const [openEventFilter, setOpenEventFilter] = useState(null);
+  useEffect(() => {
+    const onMessageEvent = (e) => {
+      const eid = e?.detail?.eventId;
+      if (!eid) return;
+      setDockTab("messages");
+      setOpen(true);
+      setOpenEventFilter({ id: eid, ts: Date.now() });
+    };
+    window.addEventListener("pullup:message-event", onMessageEvent);
+    return () => window.removeEventListener("pullup:message-event", onMessageEvent);
+  }, []);
+
   // The create/edit page broadcasts the event being built so the dock can
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
   const [canvasEventId, setCanvasEventId] = useState(null);
@@ -429,6 +445,7 @@ export function IdeaWidget() {
                 expanded={!fullScreen && msgExpanded}
                 onToggleExpand={fullScreen ? undefined : () => setMsgExpanded((v) => !v)}
                 openThread={openThread}
+                openEventFilter={openEventFilter}
               />
             )}
           </div>

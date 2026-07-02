@@ -35,7 +35,8 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star, Share2, Send } from "lucide-react";
+import { EventShareModal } from "../components/EventShareModal.jsx";
 import { RoomPagesSettings } from "../components/RoomPagesSettings.jsx";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
 import { VipInviteSection } from "../components/VipInviteSection.jsx";
@@ -385,6 +386,15 @@ function RoomTeamSettings({ eventId, open, setOpen }) {
   );
 }
 
+// The shared toolbar pill — same look as the Team/Room-access fold pills, so
+// the top of the room reads as one row of host controls.
+const TOOLBAR_PILL = {
+  display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px",
+  borderRadius: 999, border: `1px solid ${colors.border}`, background: "#fff",
+  color: colors.text, fontSize: 13, fontWeight: 600,
+  cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+};
+
 // The VIP fold — mint personal invite links right from the room, same
 // pill+fold pattern as Team. Moved here from the old home-dashboard event
 // panel (which is gone); shown only while the event hasn't ended.
@@ -580,6 +590,7 @@ export default function EventRoomPage() {
   const [welcomeEditing, setWelcomeEditing] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [vipOpen, setVipOpen] = useState(false);
+  const [sharing, setSharing] = useState(false); // → EventShareModal (page + room links)
   const [welcomeSaved, setWelcomeSaved] = useState(false);
   const [ackedPost, setAckedPost] = useState(false);
   const [ackedTeam, setAckedTeam] = useState(false);
@@ -741,10 +752,27 @@ export default function EventRoomPage() {
                   {canEditEvent && event && !hasEventEnded(event.startsAt, event.endsAt) && (
                     <RoomVipSettings event={event} open={vipOpen} setOpen={setVipOpen} />
                   )}
+                  {/* Share + Message guests — the last two powers of the old
+                      home hover-panel, now living where the event lives. */}
+                  {event?.slug && (
+                    <button type="button" onClick={() => setSharing(true)} style={TOOLBAR_PILL}>
+                      <Share2 size={15} /> Share
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("pullup:message-event", { detail: { eventId: id } }))}
+                    title="Open Messages aimed at everyone on this event"
+                    style={TOOLBAR_PILL}
+                  >
+                    <Send size={15} /> Message guests
+                  </button>
                 </>
               ) : null}
             />
           </div>
+
+          {sharing && event && <EventShareModal event={event} onClose={() => setSharing(false)} />}
 
           {/* Make-the-most-of-your-room nudge — host-only (owner/admin),
               dismissible, in the Room's own pink. NOT a description of the room:

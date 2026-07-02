@@ -136,7 +136,7 @@ function Avatar({ name, size = 44, dot, src }) {
   );
 }
 
-export default function DockMessages({ onClose, expanded, onToggleExpand, openThread = null }) {
+export default function DockMessages({ onClose, expanded, onToggleExpand, openThread = null, openEventFilter = null }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [people, setPeople] = useState(null);
@@ -223,6 +223,18 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // A notification (via IdeaWidget) can target a specific person's thread. Set
   // the id; the thread resolves as soon as `people` loads.
   useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
+  // An event room's "Message guests" (via IdeaWidget) aims the dock at that
+  // event's audience: reset the filters, filter to the one event, stay on the
+  // list — the write bar below carries the live "Write to these N".
+  useEffect(() => {
+    if (!openEventFilter?.id) return;
+    clearFilters();
+    setQ("");
+    toggleEvent(openEventFilter.id);
+    setOpenId(null);
+    setFiltersOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openEventFilter]);
 
   // The dock orders the filtered audience like an inbox (unread → recency).
   const list = useMemo(() => [...af.list].sort((a, b) => {

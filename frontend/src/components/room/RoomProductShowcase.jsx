@@ -41,6 +41,10 @@ export function RoomProductShowcase({
   prefill = {},
   onManage,
   heading = "Shop",
+  // Home-room styling: the big section-header language (real title + hint)
+  // instead of the small-caps room label. Event rooms keep the default.
+  homeHeader = false,
+  hint = null,
 }) {
   const t = tokens(theme);
   const [buying, setBuying] = useState(null); // a product card
@@ -103,9 +107,14 @@ export function RoomProductShowcase({
   };
 
   return (
-    <div style={{ marginTop: 30 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.subtle, fontFamily: SF }}>{heading}</span>
+    <div style={{ marginTop: homeHeader ? 0 : 30 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: homeHeader ? 14 : 10, minHeight: homeHeader ? 32 : undefined }}>
+        {homeHeader ? (
+          <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: "-0.015em", color: t.text, fontFamily: SF, whiteSpace: "nowrap" }}>{heading}</span>
+        ) : (
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: t.subtle, fontFamily: SF }}>{heading}</span>
+        )}
+        {hint && <span style={{ fontSize: 12.5, color: t.subtle, fontFamily: SF, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>· {hint}</span>}
         {isHost && (
           <button
             type="button"

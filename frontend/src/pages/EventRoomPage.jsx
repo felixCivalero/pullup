@@ -35,9 +35,12 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star } from "lucide-react";
 import { RoomPagesSettings } from "../components/RoomPagesSettings.jsx";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
+import { VipInviteSection } from "../components/VipInviteSection.jsx";
+import { useToast } from "../components/Toast";
+import { hasEventEnded } from "../lib/eventLifecycle.js";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
 import RoomContentWall from "../components/room/RoomContentWall.jsx";
@@ -382,6 +385,33 @@ function RoomTeamSettings({ eventId, open, setOpen }) {
   );
 }
 
+// The VIP fold — mint personal invite links right from the room, same
+// pill+fold pattern as Team. Moved here from the old home-dashboard event
+// panel (which is gone); shown only while the event hasn't ended.
+function RoomVipSettings({ event, open, setOpen }) {
+  const { showToast } = useToast();
+  const pill = {
+    display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px",
+    borderRadius: 999, border: `1px solid ${open ? colors.accent : colors.border}`,
+    background: open ? (colors.accentSoft || "rgba(236,23,143,0.08)") : "#fff",
+    color: open ? colors.accent : colors.text, fontSize: 13, fontWeight: 600,
+    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+  };
+  return (
+    <>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={pill}>
+        <Star size={15} /> VIP
+        <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <div style={{ width: "100%", marginTop: 10 }}>
+          <VipInviteSection event={event} showToast={showToast} compact />
+        </div>
+      )}
+    </>
+  );
+}
+
 // Host sub-roles that actually RUN the room (get the chief-of-staff view +
 // edit the room's access config). reception works the door; analytics only
 // reads Insights — neither manages the room itself. room_curator is the role
@@ -549,6 +579,7 @@ export default function EventRoomPage() {
   // page's scroll container; welcomeRef/feedRef carry the host to what opened.
   const [welcomeEditing, setWelcomeEditing] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [vipOpen, setVipOpen] = useState(false);
   const [welcomeSaved, setWelcomeSaved] = useState(false);
   const [ackedPost, setAckedPost] = useState(false);
   const [ackedTeam, setAckedTeam] = useState(false);
@@ -707,6 +738,9 @@ export default function EventRoomPage() {
                   <RoomAccessSettings eventId={id} />
                   <RoomPagesSettings eventId={id} pages={pagesOverride || viewPages} onChange={setPagesOverride} />
                   {canEditEvent && <RoomTeamSettings eventId={id} open={teamOpen} setOpen={setTeamOpen} />}
+                  {canEditEvent && event && !hasEventEnded(event.startsAt, event.endsAt) && (
+                    <RoomVipSettings event={event} open={vipOpen} setOpen={setVipOpen} />
+                  )}
                 </>
               ) : null}
             />

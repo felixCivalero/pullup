@@ -16,15 +16,13 @@
 // voice made easier (a draft he approves) — never care manufactured on his
 // behalf. Composer = draft, never auto-send.
 
-import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, ChevronDown, Copy, Mail, Phone, Plus, Send, ExternalLink, SlidersHorizontal } from "lucide-react";
+import { Trash2, Check, Link2, Paperclip, X, Search, Instagram, Music2, Twitter, Youtube, Globe, Linkedin, DoorOpen, ChevronRight, ChevronDown, Copy, Mail, Phone, Plus, Send, ExternalLink, SlidersHorizontal, Share2, MoreHorizontal } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
-import { EventHostsSection } from "../components/EventHostsSection.jsx";
-import { VipInviteSection } from "../components/VipInviteSection.jsx";
 import ProfileSetup from "../components/room/ProfileSetup.jsx";
 import LookingBack from "../components/room/LookingBack.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
@@ -1167,6 +1165,26 @@ function ProfileMasthead({ host, loading, onStat }) {
 // ─── The global Room ────────────────────────────────────────────────
 // Your community — the front door to THIS room. Self-contained so it can sit in
 // its own column beside "Rooms you're in". No outer margin; the caller spaces it.
+// One header language for every section of the home Room — a real title, the
+// count, and a one-line whisper of what the section IS. Repeated verbatim on
+// every section so the page scans like a table of contents instead of blending.
+function SectionHeader({ title, badge, count, hint, right }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14, fontFamily: SF, minHeight: 32 }}>
+      <span style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.015em", color: colors.text, whiteSpace: "nowrap" }}>{title}</span>
+      {badge}
+      {count != null && <span style={{ fontSize: "13px", fontWeight: 700, color: colors.textFaded }}>{typeof count === "number" ? count.toLocaleString() : count}</span>}
+      {hint && <span style={{ fontSize: "12.5px", color: colors.textFaded, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>· {hint}</span>}
+      <div style={{ flex: 1 }} />
+      {right}
+    </div>
+  );
+}
+
+// The shared "new section starts here" break — air + a faint rule, so sections
+// stop bleeding into each other.
+const SECTION_BREAK = { marginTop: 34, paddingTop: 24, borderTop: `1px solid ${colors.borderFaint}` };
+
 function CommunityCard({ community }) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -1185,9 +1203,10 @@ function CommunityCard({ community }) {
     // Fills its column so it stands the same height as the "Rooms you're in"
     // cards beside it — the two read as one tidy grid row.
     <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your community</span>
-        {c && (
+      <SectionHeader
+        title="Your community"
+        hint="people who join through your link"
+        badge={c && (
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 5,
             fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1199,7 +1218,7 @@ function CommunityCard({ community }) {
             {live ? "● Live" : "Draft"}
           </span>
         )}
-      </div>
+      />
       <div
         role="button"
         tabIndex={0}
@@ -1208,7 +1227,7 @@ function CommunityCard({ community }) {
         style={{
           display: "flex", alignItems: "center", gap: 13, width: "100%", flex: 1, boxSizing: "border-box",
           padding: "15px 16px", borderRadius: 16, cursor: "pointer",
-          textAlign: "left", fontFamily: SF, boxSizing: "border-box",
+          textAlign: "left", fontFamily: SF,
           border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
           background: live
             ? `linear-gradient(180deg, rgba(34,197,94,0.06), ${colors.surface} 70%)`
@@ -1264,35 +1283,26 @@ function MemberRoomsRail({ rooms, onOpen }) {
              : { label: "Guest", c: colors.textMuted, bg: colors.surfaceMuted, b: colors.border };
   return (
     <div>
-      {/* Same small-caps section label + horizontal strip as "Your events", so
-          the two rails read as siblings — only the headline tells them apart. */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-        <DoorOpen size={13} color={colors.textSubtle} strokeWidth={2.4} />
-        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Rooms you're in</span>
-        <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· events you joined</span>
-      </div>
-      <div style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "flex-start", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
+      {/* Same poster language as "Your events", half the size and pill-tagged —
+          rhymes with your posters, unmistakably not yours. */}
+      <SectionHeader title="Rooms you're in" count={rooms.length} hint="events you joined" />
+      <div style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "stretch", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
         {rooms.map((r) => {
           const t = tag(r);
+          const meta = [r.when, r.location].filter(Boolean).join(" · ");
           return (
             <button
               key={r.id}
               onClick={() => onOpen(r.id)}
-              style={{ flex: "0 0 auto", width: isMobile ? 200 : 228, scrollSnapAlign: isMobile ? "start" : undefined, textAlign: "left", cursor: "pointer", padding: 0, border: `1px solid ${colors.border}`, borderRadius: "14px", overflow: "hidden", background: colors.surface, display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(10,10,10,0.03)" }}
+              style={{ flex: "0 0 auto", width: isMobile ? "34vw" : 150, maxWidth: isMobile ? 170 : undefined, aspectRatio: "3 / 4", scrollSnapAlign: isMobile ? "start" : undefined, textAlign: "left", cursor: "pointer", padding: 0, border: "none", borderRadius: "16px", overflow: "hidden", position: "relative", background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)", fontFamily: SF, boxShadow: "0 2px 8px rgba(10,10,10,0.07)" }}
             >
-              <div style={{ height: 84, background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)", position: "relative" }}>
-                {r.coverImage && <img src={r.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
-                <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10.5, fontWeight: 700, color: t.c, background: t.bg, border: `1px solid ${t.b}`, borderRadius: 999, padding: "2px 8px" }}>{t.label}</span>
-              </div>
-              <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: "3px" }}>
-                <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.text, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: SF }}>{r.title}</div>
-                <div style={{ fontSize: "12px", color: colors.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {[r.when, r.location].filter(Boolean).join(" · ") || (r.status === "draft" ? "Draft" : "")}
-                </div>
-                <div style={{ marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 650, color: colors.accent }}>
-                  Enter room <ChevronRight size={13} strokeWidth={2.6} />
-                </div>
-              </div>
+              {r.coverImage && <img src={r.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+              <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.68) 100%)" }} />
+              <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: "#fff", background: r.isHost ? "rgba(236,23,143,0.85)" : "rgba(10,10,10,0.5)", borderRadius: 999, padding: "3px 8px", backdropFilter: "blur(4px)" }}>{t.label}</span>
+              <span style={{ position: "absolute", left: 10, right: 10, bottom: 9 }}>
+                <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: "12.5px", fontWeight: 800, color: "#fff", lineHeight: 1.25, letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>{r.title}</span>
+                {meta && <span style={{ display: "block", marginTop: 2, fontSize: "10.5px", fontWeight: 600, color: "rgba(255,255,255,0.85)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>{meta}</span>}
+              </span>
             </button>
           );
         })}
@@ -1451,18 +1461,18 @@ function PeopleLayer({ people = [], events = [] }) {
   const lbl = { fontSize: "10.5px", fontWeight: 800, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em", margin: "14px 2px 7px" };
 
   return (
-    <div style={{ marginTop: "30px", fontFamily: SF }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>Your people</span>
-        {people.length > 0 && <span style={{ fontSize: "11px", color: colors.textFaded, letterSpacing: "0.02em" }}>· {people.length}</span>}
-        <div style={{ flex: 1 }} />
-        {people.length > 0 && (
+    <div style={{ ...SECTION_BREAK, fontFamily: SF }}>
+      <SectionHeader
+        title="Your people"
+        count={people.length || null}
+        hint="everyone who's crossed your events — search, filter, message"
+        right={people.length > 0 && (
           <button type="button" onClick={() => setFiltersOpen((o) => !o)} style={pill(filtersOpen || af.activeCount > 0)}>
             <SlidersHorizontal size={14} strokeWidth={2.2} />
             Filters{af.activeCount > 0 ? ` · ${af.activeCount}` : ""}
           </button>
         )}
-      </div>
+      />
 
       {people.length > 0 && (
         <div style={{ position: "relative", marginBottom: "12px" }}>
@@ -1601,7 +1611,6 @@ export function OwnerConsole({ room: roomProp }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState(null);
-  const [lensEventId, setLensEventId] = useState(null); // event-lens over the Room
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
   const [managingProducts, setManagingProducts] = useState(false); // main-room product manager
   // Local copy so ProfileSetup patches + event deletion update in place without
@@ -1617,7 +1626,6 @@ export function OwnerConsole({ room: roomProp }) {
   const COMMUNITY = room?.community || null;
   const PRODUCTS = room?.products || [];
 
-  const lensEvent = EVENTS.find((e) => e.id === lensEventId) || null;
   const selected = PEOPLE.find((p) => p.id === selectedId) || null;
 
   return (
@@ -1639,30 +1647,20 @@ export function OwnerConsole({ room: roomProp }) {
       {/* The events banner — your content, up top. */}
       <EventsBanner
         events={EVENTS}
-        people={PEOPLE}
-        lensEventId={lensEventId}
         onOpenEvent={(id) => {
           // A draft is never "managed" in the room — it has no guests yet. Any
-          // open/manage action on a draft goes straight to the editor.
+          // open action on a draft goes straight to the editor.
           const ev = EVENTS.find((e) => e.id === id);
           navigate(ev?.status === "draft" ? `/app/events/${id}/edit` : `/events/${id}/room`);
         }}
-        onSubpage={(id, sub) => navigate(`/app/events/${id}/${sub}`)}
         onCreate={() => navigate("/create")}
-        onFocus={(id) => setLensEventId((cur) => (cur === id ? null : id))}
-        onMessageAll={(eventId) => {
-          const evp = PEOPLE.filter((p) => (p.events || []).includes(eventId));
-          if (!evp.length) return;
-          setSelectedId(null);
-          setBulkPeople(evp);
-        }}
         onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
       />
 
       {/* Community + Rooms you're in — two sibling worlds sharing one row, sized
           to match so they read as a clean grid. They stack on phones; when you're
           in no other rooms, community takes the full width. */}
-      <div style={{ marginTop: 30, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "stretch" }}>
+      <div style={{ ...SECTION_BREAK, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "stretch" }}>
         <div style={{ flex: MEMBER_ROOMS.length ? "1 1 0" : "1 1 100%", minWidth: 0, display: "flex" }}>
           <CommunityCard community={COMMUNITY} />
         </div>
@@ -1676,14 +1674,18 @@ export function OwnerConsole({ room: roomProp }) {
       {/* Your products — under the community/rooms grid. The host's global product
           library: a tight banner for one, a clean grid for many. Live products
           show in the main room automatically; this is the manage anchor. */}
-      <RoomProductShowcase
-        products={PRODUCTS}
-        isHost
-        theme="light"
-        scope="main"
-        heading="Your products"
-        onManage={() => setManagingProducts(true)}
-      />
+      <div style={SECTION_BREAK}>
+        <RoomProductShowcase
+          products={PRODUCTS}
+          isHost
+          theme="light"
+          scope="main"
+          heading="Your products"
+          hint="what you sell beyond tickets"
+          homeHeader
+          onManage={() => setManagingProducts(true)}
+        />
+      </div>
       {managingProducts && (
         <RoomProductManager
           scope="main"
@@ -1714,7 +1716,7 @@ export function OwnerConsole({ room: roomProp }) {
             }
           >
             {bulkPeople ? (
-              <BulkPanel people={bulkPeople} events={EVENTS} lensEvent={lensEvent} host={HOST} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
+              <BulkPanel people={bulkPeople} events={EVENTS} host={HOST} onClose={() => setBulkPeople(null)} onClear={() => setBulkPeople(null)} />
             ) : (
               <ThreadPanel person={selected} onClose={() => setSelectedId(null)} igAccounts={HOST.igAccounts || []} events={EVENTS} host={HOST} />
             )}
@@ -1779,19 +1781,12 @@ function Bar({ w = "100%", h = 12, r = 6, style = {} }) {
 function EventsBannerSkeleton() {
   return (
     <div style={{ marginBottom: "26px" }}>
-      <Bar w="90px" h={11} style={{ marginBottom: "12px" }} />
-      <div style={{ display: "flex", gap: "12px", overflow: "hidden" }}>
+      <Bar w="150px" h={16} style={{ marginBottom: "14px" }} />
+      <div style={{ display: "flex", gap: "14px", overflow: "hidden", alignItems: "stretch" }}>
         {/* create tile placeholder */}
-        <div style={{ width: 150, flexShrink: 0, height: 170, borderRadius: "16px", background: colors.surfaceMuted, animation: SHIMMER, backgroundImage: `linear-gradient(90deg, ${colors.surfaceMuted} 25%, ${colors.borderFaint} 37%, ${colors.surfaceMuted} 63%)`, backgroundSize: "400% 100%" }} />
+        <div style={{ width: 148, flexShrink: 0, borderRadius: "20px", background: colors.surfaceMuted, animation: SHIMMER, backgroundImage: `linear-gradient(90deg, ${colors.surfaceMuted} 25%, ${colors.borderFaint} 37%, ${colors.surfaceMuted} 63%)`, backgroundSize: "400% 100%" }} />
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} style={{ width: 172, flexShrink: 0, borderRadius: "16px", border: `1px solid ${colors.border}`, overflow: "hidden", background: colors.surface }}>
-            <div style={{ height: 92, background: colors.surfaceMuted, animation: SHIMMER, backgroundImage: `linear-gradient(90deg, ${colors.surfaceMuted} 25%, ${colors.borderFaint} 37%, ${colors.surfaceMuted} 63%)`, backgroundSize: "400% 100%" }} />
-            <div style={{ padding: "11px 12px" }}>
-              <Bar w="80%" h={12} style={{ marginBottom: "8px" }} />
-              <Bar w="50%" h={10} style={{ marginBottom: "8px" }} />
-              <Bar w="100%" h={4} r={999} />
-            </div>
-          </div>
+          <div key={i} style={{ width: 200, aspectRatio: "5 / 7", flexShrink: 0, borderRadius: "20px", background: colors.surfaceMuted, animation: SHIMMER, backgroundImage: `linear-gradient(90deg, ${colors.surfaceMuted} 25%, ${colors.borderFaint} 37%, ${colors.surfaceMuted} 63%)`, backgroundSize: "400% 100%" }} />
         ))}
       </div>
     </div>
@@ -1822,95 +1817,42 @@ function ActionsSkeleton() {
 // actionables below. So they live as a compact poster strip up top. Each
 // poster opens the event page; its actions stay FOLDED until you want them
 // (the banner shouldn't shout). A create tile is always the last card.
-function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage, onCreate, onFocus, onMessageAll, onDeleted }) {
+function EventsBanner({ events, onOpenEvent, onCreate, onDeleted }) {
   const isMobile = useIsMobile();
-  // Drafts are hidden by default to keep the strip clean — a "N drafts · show"
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  // Drafts are hidden by default to keep the wall clean — a "N drafts · show"
   // toggle surfaces them on demand (they then sort first with a Draft badge).
   const [showDrafts, setShowDrafts] = useState(false);
-  // One unified panel opens below the strip when you open a card. It holds the
-  // SAME action bar for every event (Manage · Team · VIP · Share · delete) so
-  // nothing behaves inconsistently — only "Manage" navigates; the rest swap
-  // content inline. { eventId, tab } | null.
-  //
-  // Desktop opens on HOVER; clicking PINS it open (so moving the mouse away
-  // doesn't close it once you've committed). Phone has no hover — a tap pins it
-  // straight away, and you decide right under the cards.
-  const [panel, setPanel] = useState(null);
-  const [pinned, setPinned] = useState(false);
-  const panelEvent = panel ? events.find((e) => e.id === panel.eventId) : null;
-  const hoverTimer = useRef(null);
-  const closeTimer = useRef(null);
-  const clearTimers = () => { clearTimeout(hoverTimer.current); clearTimeout(closeTimer.current); };
-
-  // Click/tap: toggle a PINNED panel for this card.
-  const clickCard = (id) => {
-    clearTimers();
-    setPanel((cur) => {
-      if (cur && cur.eventId === id && pinned) { setPinned(false); return null; }
-      setPinned(true);
-      return cur && cur.eventId === id ? cur : { eventId: id, tab: null };
-    });
-  };
-  // Hover (desktop only): open after a short beat so brushing across the strip
-  // doesn't flash panels open.
-  const hoverOpen = (id) => {
-    if (isMobile) return;
-    clearTimeout(closeTimer.current);
-    hoverTimer.current = setTimeout(() => {
-      setPanel((cur) => (cur && cur.eventId === id ? cur : { eventId: id, tab: null }));
-    }, 110);
-  };
-  // Leaving the whole banner closes an UNPINNED panel after a grace beat (so you
-  // can travel from a card down into its panel without it snapping shut).
-  const bannerLeave = () => {
-    if (isMobile) return;
-    clearTimeout(hoverTimer.current);
-    closeTimer.current = setTimeout(() => { if (!pinned) setPanel(null); }, 220);
-  };
-  const bannerEnter = () => { if (!isMobile) clearTimeout(closeTimer.current); };
-  const closePanel = () => { clearTimers(); setPinned(false); setPanel(null); };
-  useEffect(() => () => clearTimers(), []);
-
-  // Connector: a beak under the strip that points at the OPEN card, so the
-  // panel reads as having dropped out of that specific event — not a detached
-  // box. We measure the selected card's centre relative to the banner and keep
-  // it in sync as the strip scrolls or the window resizes.
-  const stripRef = useRef(null);
-  const rootRef = useRef(null);
-  const cardRefs = useRef({});
-  const [arrowLeft, setArrowLeft] = useState(null);
-  useLayoutEffect(() => {
-    if (!panel) { setArrowLeft(null); return; }
-    const measure = () => {
-      const card = cardRefs.current[panel.eventId];
-      const root = rootRef.current;
-      if (!card || !root) return;
-      const cr = card.getBoundingClientRect();
-      const rr = root.getBoundingClientRect();
-      const center = cr.left + cr.width / 2 - rr.left;
-      setArrowLeft(Math.max(30, Math.min(rr.width - 30, center)));
-    };
-    measure();
-    const strip = stripRef.current;
-    window.addEventListener("resize", measure);
-    strip?.addEventListener("scroll", measure, { passive: true });
-    return () => {
-      window.removeEventListener("resize", measure);
-      strip?.removeEventListener("scroll", measure);
-    };
-  }, [panel]);
+  const [shareEvent, setShareEvent] = useState(null);   // → share popup (page / room)
+  const [deleteEvent, setDeleteEvent] = useState(null); // → delete confirm popup
+  const [sheetEvent, setSheetEvent] = useState(null);   // phone ⋯ → action sheet
+  const [duplicatingId, setDuplicatingId] = useState(null);
 
   const drafts = events.filter((e) => e.status === "draft");
   const published = events.filter((e) => e.status !== "draft");
   const shown = showDrafts ? [...drafts, ...published] : published;
 
+  async function doDuplicate(event) {
+    if (duplicatingId) return;
+    setDuplicatingId(event.id);
+    setSheetEvent(null);
+    try {
+      const res = await authenticatedFetch(`/host/events/${event.id}/duplicate`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.event?.id) { showToast(data.message || "Could not duplicate event", "error"); setDuplicatingId(null); return; }
+      showToast("Duplicated — change the name and date", "success");
+      navigate(`/app/events/${data.event.id}/edit`); // land in the new draft's editor
+    } catch { showToast("Could not duplicate event", "error"); setDuplicatingId(null); }
+  }
+
   return (
-    <div ref={rootRef} onMouseEnter={bannerEnter} onMouseLeave={bannerLeave} style={{ marginBottom: "26px", position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: colors.textSubtle }}>
-          Your events
-        </span>
-        {drafts.length > 0 && (
+    <div style={{ marginBottom: "26px", position: "relative" }}>
+      <SectionHeader
+        title="Your events"
+        count={published.length || null}
+        hint="the nights you host — tap one to run it"
+        right={drafts.length > 0 && (
           <button
             onClick={() => setShowDrafts((v) => !v)}
             title={showDrafts ? "Hide drafts" : "Show drafts"}
@@ -1919,13 +1861,8 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
             {drafts.length} draft{drafts.length === 1 ? "" : "s"} {showDrafts ? "· hide" : "· show"}
           </button>
         )}
-        {lensEventId && (
-          <button onClick={() => onFocus(lensEventId)} style={{ marginLeft: "auto", fontSize: "11px", fontWeight: 600, color: colors.accent, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, borderRadius: "999px", padding: "3px 10px", cursor: "pointer", fontFamily: SF }}>
-            Clear focus
-          </button>
-        )}
-      </div>
-      <div ref={stripRef} style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "flex-start", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
+      />
+      <div style={{ display: "flex", gap: isMobile ? "10px" : "14px", overflowX: "auto", alignItems: "stretch", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
         {/* Create event leads — the primary, always-available action. */}
         <CreateTile onClick={onCreate} isMobile={isMobile} />
         {shown.map((e) => (
@@ -1933,11 +1870,12 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
             key={e.id}
             event={e}
             isMobile={isMobile}
-            focused={lensEventId === e.id}
-            selected={panel?.eventId === e.id}
-            onSelect={() => (e.status === "draft" ? onSubpage(e.id, "edit") : clickCard(e.id))}
-            onHoverOpen={() => hoverOpen(e.id)}
-            innerRef={(el) => { if (el) cardRefs.current[e.id] = el; else delete cardRefs.current[e.id]; }}
+            busy={duplicatingId === e.id}
+            onOpen={() => onOpenEvent(e.id)}
+            onShare={() => setShareEvent(e)}
+            onDuplicate={() => doDuplicate(e)}
+            onDelete={() => { setSheetEvent(null); setDeleteEvent(e); }}
+            onMenu={() => setSheetEvent(e)}
           />
         ))}
         {!shown.length && (
@@ -1947,65 +1885,116 @@ function EventsBanner({ events, people = [], lensEventId, onOpenEvent, onSubpage
         )}
       </div>
 
-      {/* Unified event panel — one consistent action bar for every event. */}
-      {panel && panelEvent && (
-        <EventActionPanel
-          event={panelEvent}
-          arrowLeft={arrowLeft}
-          isMobile={isMobile}
-          tab={panel.tab}
-          onTab={(tab) => { setPinned(true); setPanel((cur) => ({ ...cur, tab: cur.tab === tab ? null : tab })); }}
-          onClose={closePanel}
-          focused={lensEventId === panelEvent.id}
-          guestCount={people.filter((p) => (p.events || []).includes(panelEvent.id)).length}
-          onManage={() => onOpenEvent(panelEvent.id)}
-          onFocus={() => onFocus(panelEvent.id)}
-          onMessageAll={() => onMessageAll?.(panelEvent.id)}
-          onDeleted={() => { closePanel(); onDeleted?.(panelEvent.id); }}
+      {shareEvent && <EventShareModal event={shareEvent} onClose={() => setShareEvent(null)} />}
+      {deleteEvent && (
+        <DeleteEventModal
+          event={deleteEvent}
+          onClose={() => setDeleteEvent(null)}
+          onDeleted={(id) => { setDeleteEvent(null); onDeleted?.(id); }}
+        />
+      )}
+      {sheetEvent && (
+        <EventActionSheet
+          event={sheetEvent}
+          onClose={() => setSheetEvent(null)}
+          onShare={() => { const e = sheetEvent; setSheetEvent(null); setShareEvent(e); }}
+          onDuplicate={() => doDuplicate(sheetEvent)}
+          onDelete={() => { const e = sheetEvent; setSheetEvent(null); setDeleteEvent(e); }}
         />
       )}
     </div>
   );
 }
 
-// The one panel — same bar for every event. Manage navigates; Team / VIP /
-// Share swap content inline here; Focus drops the event as a lens; delete
-// confirms inline. This is what removes the "some jump, some pop" confusion.
-function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, focused, guestCount = 0, onManage, onFocus, onMessageAll, onDeleted }) {
-  const { showToast } = useToast();
-  const navigate = useNavigate();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [duplicating, setDuplicating] = useState(false);
-  const [copied, setCopied] = useState(null);
-  const isPast = event.status === "past";
-  // Banner identity — mirrors the poster card so the panel wears the event.
-  const live = event.status === "live";
-  const isDraft = event.status === "draft";
-  const banner = event.poster || gradientFor(event.id);
-  const pillBg = isDraft ? "rgba(180,83,9,0.9)" : live ? "rgba(22,163,74,0.9)" : "rgba(0,0,0,0.5)";
-  const pillLabel = isDraft ? "Draft" : live ? "Live" : "Past";
+// One share target — a labelled link row with Copy (+ native share where the
+// platform has it). Used twice by the share popup: the event page and the room.
+function ShareBlock({ id, title, sub, url, copied, onCopy, canNative, onNative, children }) {
+  return (
+    <div style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: "14px 15px", background: colors.surface }}>
+      <div style={{ fontSize: "14px", fontWeight: 800, color: colors.text }}>{title}</div>
+      <div style={{ fontSize: "12px", color: colors.textMuted, marginTop: 2, lineHeight: 1.45 }}>{sub}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: "12px", color: colors.textSubtle, background: colors.surfaceMuted, border: `1px solid ${colors.borderFaint}`, borderRadius: 10, padding: "9px 11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left" }}>{url.replace(/^https?:\/\//, "")}</span>
+        <button onClick={() => onCopy(id, url)} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 15px", borderRadius: 999, border: "none", background: copied === id ? "#16a34a" : colors.accent, color: "#fff", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", fontFamily: SF, transition: "background 0.15s" }}>
+          {copied === id ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+        </button>
+        {canNative && (
+          <button onClick={() => onNative(url)} title="Share…" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Share2 size={15} />
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
 
-  const shareChannels = [
-    { key: "instagram", label: "Instagram" }, { key: "tiktok", label: "TikTok" },
-    { key: "facebook", label: "Facebook" }, { key: "twitter", label: "X" },
-    { key: "linkedin", label: "LinkedIn" }, { key: "direct", label: "Direct link" },
-  ];
-  function copyLink(source) {
-    const base = `${window.location.origin}/e/${event.slug}`;
-    let url = base;
-    if (source !== "direct" && event.slug) {
-      const u = new URL(base);
-      u.searchParams.set("utm_source", source);
-      u.searchParams.set("utm_medium", "social");
-      u.searchParams.set("utm_campaign", event.slug);
-      url = u.toString();
-    }
+// Share popup — two childishly clear targets: the event PAGE (the public
+// invite, where people sign up) and the ROOM (where guests land once they're
+// in). The per-channel chips keep the utm tracking so Insights still knows
+// which channel drove the traffic.
+function EventShareModal({ event, onClose }) {
+  const isMobile = useIsMobile();
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(null);
+  const origin = window.location.origin;
+  const pageUrl = `${origin}/e/${event.slug}`;
+  const roomUrl = `${origin}/events/${event.id}/room`;
+  const canNative = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  function copy(key, url) {
     navigator.clipboard.writeText(url);
-    setCopied(source);
+    setCopied(key);
     showToast("Link copied!");
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => setCopied(null), 1800);
   }
+  function trackedUrl(source) {
+    const u = new URL(pageUrl);
+    u.searchParams.set("utm_source", source);
+    u.searchParams.set("utm_medium", "social");
+    u.searchParams.set("utm_campaign", event.slug || event.id);
+    return u.toString();
+  }
+  async function native(url) {
+    try { await navigator.share({ title: event.title, url }); } catch { /* user dismissed */ }
+  }
+
+  const CHANNELS = [
+    { key: "instagram", label: "Instagram" }, { key: "tiktok", label: "TikTok" },
+    { key: "facebook", label: "Facebook" }, { key: "twitter", label: "X" }, { key: "linkedin", label: "LinkedIn" },
+  ];
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,10,10,0.42)", display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center", padding: isMobile ? 0 : 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 470, background: colors.background, borderRadius: isMobile ? "20px 20px 0 0" : 20, border: `1px solid ${colors.border}`, boxShadow: "0 24px 70px rgba(10,10,10,0.28)", padding: "18px 18px 20px", fontFamily: SF, animation: isMobile ? "roomSheetUp 0.2s ease-out" : "roomPanelDrop 0.16s ease-out" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: "15.5px", fontWeight: 800, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Share “{event.title}”</div>
+          </div>
+          <button onClick={onClose} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: "50%", border: "none", background: colors.surfaceMuted, color: colors.textMuted, fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <ShareBlock id="page" title="Event page" sub="The public invite — where people discover it and sign up." url={pageUrl} copied={copied} onCopy={copy} canNative={canNative} onNative={native}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {CHANNELS.map((ch) => (
+                <button key={ch.key} onClick={() => copy(ch.key, trackedUrl(ch.key))} title={`Copy a tracked link for ${ch.label} — Insights will show what it drove`} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 999, border: `1px solid ${copied === ch.key ? "rgba(34,197,94,0.4)" : colors.border}`, background: copied === ch.key ? "rgba(34,197,94,0.1)" : colors.surface, cursor: "pointer", fontSize: "11.5px", fontWeight: 600, color: copied === ch.key ? "#16a34a" : colors.textMuted, fontFamily: SF }}>
+                  {copied === ch.key ? <Check size={12} /> : <Link2 size={12} />}
+                  {copied === ch.key ? "Copied" : `for ${ch.label}`}
+                </button>
+              ))}
+            </div>
+          </ShareBlock>
+          <ShareBlock id="room" title="Room" sub="Where your guests hang out — send it to people who are already in." url={roomUrl} copied={copied} onCopy={copy} canNative={canNative} onNative={native} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Delete confirm — its own small popup so the wall never grows panels.
+function DeleteEventModal({ event, onClose, onDeleted }) {
+  const { showToast } = useToast();
+  const [deleting, setDeleting] = useState(false);
   async function doDelete() {
     setDeleting(true);
     try {
@@ -2013,130 +2002,45 @@ function EventActionPanel({ event, arrowLeft, isMobile, tab, onTab, onClose, foc
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(data.message || "Could not delete event", "error"); setDeleting(false); return; }
       showToast("Event deleted", "success");
-      onDeleted?.();
+      onDeleted(event.id);
     } catch { showToast("Could not delete event", "error"); setDeleting(false); }
   }
-  async function doDuplicate() {
-    if (duplicating) return;
-    setDuplicating(true);
-    try {
-      const res = await authenticatedFetch(`/host/events/${event.id}/duplicate`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.event?.id) { showToast(data.message || "Could not duplicate event", "error"); setDuplicating(false); return; }
-      showToast("Duplicated — change the name and date", "success");
-      navigate(`/app/events/${data.event.id}/edit`); // land in the new draft's editor
-    } catch { showToast("Could not duplicate event", "error"); setDuplicating(false); }
-  }
-
-  // The bar — mirrors the old dashboard: Manage (filled, the one nav) then the
-  // inline tabs, a focus toggle, and delete at the end.
-  const Tab = ({ id, label, jump }) => (
-    <button
-      onClick={() => onTab(id)}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", fontWeight: 600,
-        fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
-        border: `1px solid ${tab === id ? colors.text : colors.border}`,
-        background: tab === id ? colors.text : colors.surface,
-        color: tab === id ? "#fff" : colors.textMuted, whiteSpace: "nowrap",
-      }}
-    >
-      {label}{jump ? " ↗" : ""}
-    </button>
-  );
-
   return (
-    <div style={{ position: "relative", marginTop: "12px", fontFamily: SF }}>
-      {/* The beak — points up at the open card, so the panel reads as having
-          dropped out of THAT event, not floated in detached. */}
-      {arrowLeft != null && (
-        <>
-          <span style={{ position: "absolute", top: -8, left: arrowLeft, transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "9px solid transparent", borderRight: "9px solid transparent", borderBottom: `9px solid ${colors.accent}`, zIndex: 2 }} />
-        </>
-      )}
-
-      <div style={{ border: `1px solid ${colors.accentBorder}`, borderTop: `3px solid ${colors.accent}`, borderRadius: "16px", background: colors.surface, overflow: "hidden", boxShadow: "0 14px 40px rgba(10,10,10,0.13)", animation: isMobile ? undefined : "roomPanelDrop 0.18s ease-out" }}>
-        {/* Cover banner — the panel wears the event's poster so it's unmistakably
-            THIS event, expanded. */}
-        <div style={{ position: "relative", height: 78, background: banner, overflow: "hidden" }}>
-          {event.coverImage && (
-            <img src={event.coverImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
-          )}
-          <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.12) 42%, rgba(0,0,0,0.74) 100%)" }} />
-          <div style={{ position: "absolute", top: 10, left: 13, display: "flex", alignItems: "center", gap: "9px" }}>
-            <span style={{ fontSize: "9.5px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#fff", background: pillBg, padding: "3px 8px", borderRadius: "999px", backdropFilter: "blur(2px)" }}>{pillLabel}</span>
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.95)", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>{event.when}</span>
-          </div>
-          <button onClick={onClose} style={{ position: "absolute", top: 9, right: 10, width: 26, height: 26, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.4)", color: "#fff", fontSize: "15px", cursor: "pointer", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-          <div style={{ position: "absolute", left: 14, right: 14, bottom: 9, fontSize: "15.5px", fontWeight: 750, color: "#fff", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</div>
-        </div>
-
-        {/* Body — the action bar + any inline tab content. */}
-        <div style={{ padding: "14px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: tab ? "16px" : 0 }}>
-        <button onClick={onManage} style={{ fontSize: "12.5px", fontWeight: 700, fontFamily: SF, padding: "7px 16px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
-          Manage ↗
-        </button>
-        {guestCount > 0 && (
-          <button onClick={onMessageAll} title={`Email everyone tied to ${event.title}`} style={{ fontSize: "12.5px", fontWeight: 600, fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: "pointer", border: `1px solid ${colors.accentBorder}`, background: colors.accentSoft, color: colors.accent, whiteSpace: "nowrap" }}>
-            Message all {guestCount}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,10,10,0.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 380, background: colors.background, borderRadius: 18, border: `1px solid ${colors.border}`, boxShadow: "0 24px 70px rgba(10,10,10,0.28)", padding: "20px 20px 18px", fontFamily: SF }}>
+        <div style={{ fontSize: "15px", fontWeight: 800, color: colors.text, lineHeight: 1.35 }}>Delete “{event.title}”?</div>
+        <div style={{ fontSize: "12.5px", color: colors.textMuted, marginTop: 6, lineHeight: 1.5 }}>This can’t be undone.</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button disabled={deleting} onClick={doDelete} style={{ padding: "9px 18px", borderRadius: 999, border: "none", background: colors.danger, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.7 : 1, fontFamily: SF }}>
+            {deleting ? "Deleting…" : "Delete event"}
           </button>
-        )}
-        <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
-        <Tab id="team" label="Team" />
-        {!isPast && <Tab id="vip" label="VIP" />}
-        <Tab id="share" label="Share & Track" />
-        <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
-        <button onClick={doDuplicate} disabled={duplicating} title="Duplicate as a new draft" style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px", fontWeight: 600, fontFamily: SF, padding: "7px 14px", borderRadius: "999px", cursor: duplicating ? "default" : "pointer", opacity: duplicating ? 0.6 : 1, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, whiteSpace: "nowrap" }}>
-          <Copy size={13} />{duplicating ? "Duplicating…" : "Duplicate"}
-        </button>
-        <div style={{ width: 1, height: 20, background: colors.border, margin: "0 2px" }} />
-        <button onClick={() => setConfirmDelete(true)} title="Delete event" style={{ width: 32, height: 32, borderRadius: "999px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Trash2 size={14} />
-        </button>
+          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, fontWeight: 600, fontSize: "13px", cursor: "pointer", fontFamily: SF }}>
+            Cancel
+          </button>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Inline content for the selected tab */}
-      {tab === "team" && (
-        <EventHostsSection eventId={event.id} canManageHosts={["owner", "admin"].includes(event.myRole)} compact />
-      )}
-      {tab === "vip" && (
-        <VipInviteSection event={event} showToast={showToast} compact />
-      )}
-      {tab === "share" && (
-        <div>
-          <div style={{ fontSize: "11.5px", color: colors.textFaded, marginBottom: "10px" }}>
-            Add these to your stories, bios, and posts — then check Insights to see which channels drive traffic.
-          </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {shareChannels.map((ch) => (
-              <button key={ch.key} onClick={() => copyLink(ch.key)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "8px", border: `1px solid ${copied === ch.key ? colors.successRgba : colors.border}`, background: copied === ch.key ? colors.successRgba : colors.surface, cursor: "pointer", fontSize: "12px", fontWeight: 500, color: copied === ch.key ? colors.success : colors.textMuted, fontFamily: SF }}>
-                {copied === ch.key ? <Check size={14} style={{ color: colors.success }} /> : <Link2 size={14} />}
-                {copied === ch.key ? "Copied!" : ch.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Delete confirm */}
-      {confirmDelete && (
-        <div style={{ marginTop: tab ? "14px" : "14px", padding: "14px 16px", borderRadius: "12px", border: `1px solid ${colors.danger}`, background: colors.dangerRgba }}>
-          <div style={{ fontSize: "13px", fontWeight: 600, color: colors.text, marginBottom: "10px" }}>
-            Delete "{event.title}"? This can't be undone.
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button disabled={deleting} onClick={doDelete} style={{ padding: "8px 16px", borderRadius: "999px", border: "none", background: colors.danger, color: "#fff", fontWeight: 700, fontSize: "12.5px", cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.7 : 1, fontFamily: SF }}>
-              {deleting ? "Deleting…" : "Delete event"}
-            </button>
-            <button onClick={() => setConfirmDelete(false)} style={{ padding: "8px 16px", borderRadius: "999px", border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, fontWeight: 600, fontSize: "12.5px", cursor: "pointer", fontFamily: SF }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-        </div>{/* /body */}
-      </div>{/* /card */}
+// Phone ⋯ sheet — the same three quick actions the desktop card shows on hover.
+function EventActionSheet({ event, onClose, onShare, onDuplicate, onDelete }) {
+  const isDraft = event.status === "draft";
+  const row = (danger) => ({
+    display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "15px 18px",
+    border: "none", borderBottom: `1px solid ${colors.borderFaint}`, background: "none",
+    fontSize: "14.5px", fontWeight: 650, color: danger ? colors.danger : colors.text,
+    cursor: "pointer", fontFamily: SF, textAlign: "left",
+  });
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(10,10,10,0.42)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 470, background: colors.background, borderRadius: "20px 20px 0 0", boxShadow: "0 -12px 44px rgba(10,10,10,0.22)", paddingBottom: "env(safe-area-inset-bottom, 8px)", fontFamily: SF, animation: "roomSheetUp 0.2s ease-out" }}>
+        <div style={{ padding: "14px 18px 10px", fontSize: "13px", fontWeight: 800, color: colors.textSubtle, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", borderBottom: `1px solid ${colors.borderFaint}` }}>{event.title}</div>
+        {!isDraft && <button onClick={onShare} style={row(false)}><Share2 size={17} color={colors.textMuted} /> Share</button>}
+        <button onClick={onDuplicate} style={row(false)}><Copy size={17} color={colors.textMuted} /> Duplicate as a new draft</button>
+        <button onClick={onDelete} style={row(true)}><Trash2 size={17} /> Delete</button>
+        <button onClick={onClose} style={{ ...row(false), justifyContent: "center", borderBottom: "none", color: colors.textMuted }}>Cancel</button>
+      </div>
     </div>
   );
 }
@@ -2156,69 +2060,88 @@ function gradientFor(id) {
   return POSTER_GRADIENTS[h % POSTER_GRADIENTS.length];
 }
 
-// A poster card. The WHOLE card is one button — tapping it selects the event
-// and opens the unified action panel below the strip. No per-card folding
-// actions anymore (that's what caused the inconsistent behaviour).
-function EventPosterCard({ event, focused, selected, onSelect, onHoverOpen, innerRef, isMobile }) {
+// A cinematic poster — the cover IS the card (title + when · where on the
+// bottom scrim). ONE click = go to the event (drafts → the editor). Quick
+// actions (share / duplicate / delete) fade in top-right on hover; phones get
+// a ⋯ that opens the same three as a sheet. Past events read cooler
+// (desaturated + dimmed) so the wall separates "alive" from "memory" at a
+// glance without reading a word.
+function EventPosterCard({ event, isMobile, busy, onOpen, onShare, onDuplicate, onDelete, onMenu }) {
+  const [hover, setHover] = useState(false);
   const live = event.status === "live";
   const isDraft = event.status === "draft";
-  const pct = event.capacity ? Math.min(1, event.comingCount / event.capacity) : 0;
-  const short = event.title;
+  const isPast = event.status === "past";
   const fallback = event.poster || gradientFor(event.id);
-  const pillBg = isDraft ? "rgba(180,83,9,0.85)" : live ? "rgba(22,163,74,0.85)" : "rgba(0,0,0,0.45)";
+  const pillBg = isDraft ? "rgba(180,83,9,0.9)" : live ? "rgba(22,163,74,0.92)" : "rgba(10,10,10,0.55)";
   const pillLabel = isDraft ? "Draft" : live ? "Live" : "Past";
-  const ring = selected ? colors.accent : focused ? colors.accentBorder : colors.border;
+  const meta = [event.when, event.location].filter(Boolean).join(" · ");
+  const glass = {
+    width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    background: "rgba(10,10,10,0.52)", color: "#fff",
+    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+  };
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
   return (
-    <button
-      ref={innerRef}
-      onClick={onSelect}
-      onMouseEnter={onHoverOpen}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
-        // Phone: ~43vw so two cards sit full with a sliver of the third peeking
-        // (reads as swipeable). Desktop: fixed 172.
-        width: isMobile ? "43vw" : 172, maxWidth: isMobile ? 190 : undefined,
+        // Phone: ~46vw so two posters sit full with a sliver of the third
+        // peeking (reads as swipeable). Desktop: fixed 200, cinema 5:7.
+        width: isMobile ? "46vw" : 200, maxWidth: isMobile ? 220 : undefined,
+        aspectRatio: "5 / 7",
         scrollSnapAlign: isMobile ? "start" : undefined,
-        flexShrink: 0, borderRadius: "16px", border: `1px solid ${ring}`,
-        background: colors.surface, overflow: "hidden", textAlign: "left", padding: 0,
-        cursor: "pointer", fontFamily: SF,
-        // Selected lifts toward you and glows accent — it's clearly the card the
-        // panel below belongs to.
-        transform: selected ? "translateY(-2px)" : "none",
-        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-        boxShadow: selected ? `0 0 0 2px ${colors.accent}, 0 12px 28px rgba(236,23,143,0.22)` : focused ? `0 0 0 1px ${colors.accentBorder}` : "none",
+        flexShrink: 0, borderRadius: 20, position: "relative", overflow: "hidden",
+        background: fallback, cursor: "pointer", fontFamily: SF, textAlign: "left",
+        transform: hover && !isMobile ? "translateY(-3px)" : "none",
+        transition: "transform 0.18s ease, box-shadow 0.18s ease",
+        boxShadow: hover && !isMobile ? "0 16px 34px rgba(10,10,10,0.22)" : "0 2px 10px rgba(10,10,10,0.08)",
       }}
     >
-      <div style={{ height: 92, background: fallback, position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "9px 11px" }}>
-        {event.coverImage && (
-          <img src={event.coverImage} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      {event.coverImage && (
+        <img
+          src={event.coverImage} alt=""
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: isPast ? "grayscale(55%) contrast(0.96)" : "none", opacity: isPast ? 0.88 : 1 }}
+        />
+      )}
+      <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.24) 0%, rgba(0,0,0,0) 34%, rgba(0,0,0,0.02) 52%, rgba(0,0,0,0.74) 100%)" }} />
+
+      <span style={{ position: "absolute", top: 10, left: 10, fontSize: "9.5px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "#fff", background: pillBg, padding: "4px 9px", borderRadius: 999, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>{pillLabel}</span>
+
+      {/* Quick actions — hover-fade on desktop, an always-there ⋯ on phones. */}
+      {isMobile ? (
+        <button onClick={stop(onMenu)} aria-label="Event actions" style={{ ...glass, position: "absolute", top: 8, right: 8 }}>
+          <MoreHorizontal size={17} />
+        </button>
+      ) : (
+        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6, opacity: hover ? 1 : 0, pointerEvents: hover ? "auto" : "none", transition: "opacity 0.15s ease" }}>
+          {!isDraft && <button onClick={stop(onShare)} title="Share" style={glass}><Share2 size={14} /></button>}
+          <button onClick={stop(onDuplicate)} title="Duplicate as a new draft" style={{ ...glass, opacity: busy ? 0.5 : 1 }}><Copy size={14} /></button>
+          <button onClick={stop(onDelete)} title="Delete" style={{ ...glass, color: "#fca5a5" }}><Trash2 size={14} /></button>
+        </div>
+      )}
+
+      <div style={{ position: "absolute", left: 12, right: 12, bottom: 11 }}>
+        <div style={{ fontSize: "15px", fontWeight: 800, color: "#fff", lineHeight: 1.22, letterSpacing: "-0.01em", textShadow: "0 1px 10px rgba(0,0,0,0.5)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{event.title}</div>
+        {meta && (
+          <div style={{ marginTop: 3, fontSize: "11.5px", fontWeight: 600, color: "rgba(255,255,255,0.88)", textShadow: "0 1px 8px rgba(0,0,0,0.5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
         )}
-        <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.22) 0%, transparent 45%, rgba(0,0,0,0.40) 100%)" }} />
-        <span style={{ position: "relative", alignSelf: "flex-start", fontSize: "9.5px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#fff", background: pillBg, padding: "3px 8px", borderRadius: "999px", backdropFilter: "blur(2px)" }}>
-          {pillLabel}
-        </span>
-        <span style={{ position: "relative", fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.95)", textShadow: "0 1px 6px rgba(0,0,0,0.45)" }}>{event.when}</span>
+        <div style={{ marginTop: 4, fontSize: "11.5px", fontWeight: 700, color: isDraft ? "#fcd34d" : "rgba(255,255,255,0.72)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+          {isDraft ? "Finish & publish →" : `${event.comingCount}${event.capacity ? ` / ${event.capacity}` : ""} ${live ? "coming" : "came"}`}
+        </div>
       </div>
-      <div style={{ padding: "11px 12px 12px" }}>
-        <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.text, lineHeight: 1.25, marginBottom: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{short}</div>
-        {isDraft ? (
-          <div style={{ fontSize: "11.5px", fontWeight: 600, color: colors.accent }}>Finish &amp; publish →</div>
-        ) : (
-          <>
-            <div style={{ fontSize: "11.5px", color: colors.textSubtle, marginBottom: "5px" }}>
-              {event.comingCount}{event.capacity ? ` / ${event.capacity}` : ""} {live ? "coming" : "came"}
-            </div>
-            <div style={{ height: 4, borderRadius: "999px", background: colors.surfaceMuted, overflow: "hidden" }}>
-              <div style={{ width: `${Math.round(pct * 100)}%`, height: "100%", background: live ? colors.accent : colors.textFaded, borderRadius: "999px" }} />
-            </div>
-          </>
-        )}
-      </div>
-    </button>
+    </div>
   );
 }
 
-// The clear primary action — leads the strip, filled accent so it reads as
-// "start here," not a faint placeholder.
+// The clear primary action — leads the wall, filled accent, stretches to the
+// posters' height so the row reads as one shelf.
 function CreateTile({ onClick, isMobile }) {
   const [hover, setHover] = useState(false);
   return (
@@ -2227,9 +2150,10 @@ function CreateTile({ onClick, isMobile }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: isMobile ? "40vw" : 150, maxWidth: isMobile ? 178 : undefined,
+        width: isMobile ? "34vw" : 148, maxWidth: isMobile ? 170 : undefined,
         scrollSnapAlign: isMobile ? "start" : undefined,
-        flexShrink: 0, minHeight: 92 + 78, borderRadius: "16px",
+        alignSelf: "stretch",
+        flexShrink: 0, borderRadius: 20,
         border: "none",
         background: colors.accent,
         color: "#fff",

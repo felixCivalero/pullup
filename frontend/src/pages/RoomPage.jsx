@@ -1299,46 +1299,6 @@ function CommunityCard({ community }) {
   );
 }
 
-// Rooms you're in — the events you belong to but don't own: ones you co-host,
-// and ones you attend as a guest (RSVP'd / pulled up). Every card opens the one
-// shared Room. This is what makes the home work for a pure guest, who otherwise
-// hosts nothing and would land on an empty page.
-function MemberRoomsRail({ rooms, onOpen }) {
-  const isMobile = useIsMobile();
-  if (!rooms?.length) return null;
-  const tag = (r) =>
-    r.isHost ? { label: "Co-host", c: colors.accent, bg: colors.accentSoft, b: colors.accentBorder }
-             : { label: "Guest", c: colors.textMuted, bg: colors.surfaceMuted, b: colors.border };
-  return (
-    <div>
-      {/* Same poster language as "Your events", half the size and pill-tagged —
-          rhymes with your posters, unmistakably not yours. */}
-      <SectionHeader title="Rooms you're in" count={rooms.length} hint="events you joined" />
-      <div style={{ display: "flex", gap: isMobile ? "10px" : "12px", overflowX: "auto", alignItems: "stretch", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
-        {rooms.map((r) => {
-          const t = tag(r);
-          const meta = [r.when, r.location].filter(Boolean).join(" · ");
-          return (
-            <button
-              key={r.id}
-              onClick={() => onOpen(r.id)}
-              style={{ flex: "0 0 auto", width: isMobile ? "34vw" : 150, maxWidth: isMobile ? 170 : undefined, aspectRatio: "3 / 4", scrollSnapAlign: isMobile ? "start" : undefined, textAlign: "left", cursor: "pointer", padding: 0, border: "none", borderRadius: "16px", overflow: "hidden", position: "relative", background: "linear-gradient(135deg, #fde7f3 0%, #f4f4f5 55%, #e7f9f5 100%)", fontFamily: SF, boxShadow: "0 2px 8px rgba(10,10,10,0.07)" }}
-            >
-              {r.coverImage && <img src={r.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
-              <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.68) 100%)" }} />
-              <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: "#fff", background: r.isHost ? "rgba(236,23,143,0.85)" : "rgba(10,10,10,0.5)", borderRadius: 999, padding: "3px 8px", backdropFilter: "blur(4px)" }}>{t.label}</span>
-              <span style={{ position: "absolute", left: 10, right: 10, bottom: 9 }}>
-                <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", fontSize: "12.5px", fontWeight: 800, color: "#fff", lineHeight: 1.25, letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>{r.title}</span>
-                {meta && <span style={{ display: "block", marginTop: 2, fontSize: "10.5px", fontWeight: 600, color: "rgba(255,255,255,0.85)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>{meta}</span>}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── Your people — the CRM layer, surfaced ──────────────────────────
 //
 // The body never showed the people the system already holds. This is the
@@ -1700,31 +1660,27 @@ export function OwnerConsole({ room: roomProp }) {
         onCreate={() => navigate("/create")}
       />
 
-      {/* The events banner — your content, up top. */}
+      {/* The events banner — your content, up top. One shelf, two faces:
+          Hosting (the wall you run) and Going (rooms you joined), switched by
+          the segmented pills in the header. */}
       <EventsBanner
         events={EVENTS}
+        memberRooms={MEMBER_ROOMS}
         onOpenEvent={(id) => {
           // A draft is never "managed" in the room — it has no guests yet. Any
           // open action on a draft goes straight to the editor.
           const ev = EVENTS.find((e) => e.id === id);
           navigate(ev?.status === "draft" ? `/app/events/${id}/edit` : `/events/${id}/room`);
         }}
+        onOpenRoom={(id) => navigate(`/events/${id}/room`)}
         onCreate={() => navigate("/create")}
         onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
       />
 
-      {/* Community + Rooms you're in — two sibling worlds sharing one row, sized
-          to match so they read as a clean grid. They stack on phones; when you're
-          in no other rooms, community takes the full width. */}
-      <div style={{ ...SECTION_BREAK, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16, alignItems: "stretch" }}>
-        <div style={{ flex: MEMBER_ROOMS.length ? "1 1 0" : "1 1 100%", minWidth: 0, display: "flex" }}>
-          <CommunityCard community={COMMUNITY} />
-        </div>
-        {MEMBER_ROOMS.length > 0 && (
-          <div style={{ flex: "1 1 0", minWidth: 0 }}>
-            <MemberRoomsRail rooms={MEMBER_ROOMS} onOpen={(id) => navigate(`/events/${id}/room`)} />
-          </div>
-        )}
+      {/* Your community — the full-width banner row (going-events moved up
+          into the events shelf's Going face). */}
+      <div style={{ ...SECTION_BREAK, display: "flex" }}>
+        <CommunityCard community={COMMUNITY} />
       </div>
 
       {/* Your products — under the community/rooms grid. The host's global product
@@ -1873,10 +1829,14 @@ function ActionsSkeleton() {
 // actionables below. So they live as a compact poster strip up top. Each
 // poster opens the event page; its actions stay FOLDED until you want them
 // (the banner shouldn't shout). A create tile is always the last card.
-function EventsBanner({ events, onOpenEvent, onCreate, onDeleted }) {
+function EventsBanner({ events, memberRooms = [], onOpenEvent, onOpenRoom, onCreate, onDeleted }) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  // One shelf, two faces: Hosting (the wall you run) and Going (rooms you
+  // joined — guest + co-host). A pure guest who hosts nothing lands on Going.
+  const [view, setView] = useState(() => (events.length === 0 && memberRooms.length > 0 ? "going" : "hosting"));
+  const going = view === "going" && memberRooms.length > 0;
   // Drafts are hidden by default to keep the wall clean — a "N drafts · show"
   // toggle surfaces them on demand (they then sort first with a Draft badge).
   const [showDrafts, setShowDrafts] = useState(false);
@@ -1906,9 +1866,24 @@ function EventsBanner({ events, onOpenEvent, onCreate, onDeleted }) {
     <div style={{ marginBottom: "26px", position: "relative" }}>
       <SectionHeader
         title="Your events"
-        count={published.length || null}
-        hint="the nights you host — tap one to run it"
-        right={drafts.length > 0 && (
+        count={memberRooms.length > 0 ? null : (published.length || null)}
+        hint={going ? "events you joined — tap one to enter the room" : "the nights you host — tap one to run it"}
+        badge={memberRooms.length > 0 && (
+          // The switch — two labelled pills with the counts baked in, so the
+          // face you're NOT on is never invisible.
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: 2, borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surfaceMuted }}>
+            {[["hosting", `Hosting · ${published.length + drafts.length}`], ["going", `Going · ${memberRooms.length}`]].map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{ border: "none", borderRadius: 999, padding: "4px 11px", fontSize: "11.5px", fontWeight: 700, fontFamily: SF, cursor: "pointer", whiteSpace: "nowrap", background: view === v ? colors.text : "transparent", color: view === v ? "#fff" : colors.textMuted, transition: "background 0.15s, color 0.15s" }}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        )}
+        right={!going && drafts.length > 0 && (
           <button
             onClick={() => setShowDrafts((v) => !v)}
             title={showDrafts ? "Hide drafts" : "Show drafts"}
@@ -1919,25 +1894,35 @@ function EventsBanner({ events, onOpenEvent, onCreate, onDeleted }) {
         )}
       />
       <div style={{ display: "flex", gap: isMobile ? "10px" : "14px", overflowX: "auto", alignItems: "stretch", paddingBottom: "6px", scrollbarWidth: "thin", scrollSnapType: isMobile ? "x proximity" : undefined, WebkitOverflowScrolling: "touch" }}>
-        {/* Create event leads — the primary, always-available action. */}
-        <CreateTile onClick={onCreate} isMobile={isMobile} />
-        {shown.map((e) => (
-          <EventPosterCard
-            key={e.id}
-            event={e}
-            isMobile={isMobile}
-            busy={duplicatingId === e.id}
-            onOpen={() => onOpenEvent(e.id)}
-            onShare={() => setShareEvent(e)}
-            onDuplicate={() => doDuplicate(e)}
-            onDelete={() => { setSheetEvent(null); setDeleteEvent(e); }}
-            onMenu={() => setSheetEvent(e)}
-          />
-        ))}
-        {!shown.length && (
-          <div style={{ display: "flex", alignItems: "center", color: colors.textSubtle, fontSize: "13px", fontFamily: SF, padding: "0 8px" }}>
-            No published events yet — make your first one.
-          </div>
+        {going ? (
+          // Going — the rooms you joined, wearing the same posters as yours
+          // (Guest/Co-host pill instead of quick actions; click = enter room).
+          memberRooms.map((r) => (
+            <EventPosterCard key={r.id} event={r} isMobile={isMobile} going onOpen={() => onOpenRoom(r.id)} />
+          ))
+        ) : (
+          <>
+            {/* Create event leads — the primary, always-available action. */}
+            <CreateTile onClick={onCreate} isMobile={isMobile} />
+            {shown.map((e) => (
+              <EventPosterCard
+                key={e.id}
+                event={e}
+                isMobile={isMobile}
+                busy={duplicatingId === e.id}
+                onOpen={() => onOpenEvent(e.id)}
+                onShare={() => setShareEvent(e)}
+                onDuplicate={() => doDuplicate(e)}
+                onDelete={() => { setSheetEvent(null); setDeleteEvent(e); }}
+                onMenu={() => setSheetEvent(e)}
+              />
+            ))}
+            {!shown.length && (
+              <div style={{ display: "flex", alignItems: "center", color: colors.textSubtle, fontSize: "13px", fontFamily: SF, padding: "0 8px" }}>
+                No published events yet — make your first one.
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -2037,14 +2022,18 @@ function gradientFor(id) {
 // a ⋯ that opens the same three as a sheet. Past events read cooler
 // (desaturated + dimmed) so the wall separates "alive" from "memory" at a
 // glance without reading a word.
-function EventPosterCard({ event, isMobile, busy, onOpen, onShare, onDuplicate, onDelete, onMenu }) {
+function EventPosterCard({ event, isMobile, busy, going = false, onOpen, onShare, onDuplicate, onDelete, onMenu }) {
   const [hover, setHover] = useState(false);
   const live = event.status === "live";
   const isDraft = event.status === "draft";
   const isPast = event.status === "past";
   const fallback = event.poster || gradientFor(event.id);
-  const pillBg = isDraft ? "rgba(180,83,9,0.9)" : live ? "rgba(22,163,74,0.92)" : "rgba(10,10,10,0.55)";
-  const pillLabel = isDraft ? "Draft" : live ? "Live" : "Past";
+  // Going face: the pill names your seat (Co-host/Guest), not the lifecycle —
+  // and the card carries no host quick-actions (it isn't yours to run).
+  const pillBg = going
+    ? (event.isHost ? "rgba(236,23,143,0.88)" : "rgba(10,10,10,0.5)")
+    : isDraft ? "rgba(180,83,9,0.9)" : live ? "rgba(22,163,74,0.92)" : "rgba(10,10,10,0.55)";
+  const pillLabel = going ? (event.isHost ? "Co-host" : "Guest") : isDraft ? "Draft" : live ? "Live" : "Past";
   const meta = [event.when, event.location].filter(Boolean).join(" · ");
   const glass = {
     width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer",
@@ -2085,8 +2074,9 @@ function EventPosterCard({ event, isMobile, busy, onOpen, onShare, onDuplicate, 
 
       <span style={{ position: "absolute", top: 10, left: 10, fontSize: "9.5px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "#fff", background: pillBg, padding: "4px 9px", borderRadius: 999, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>{pillLabel}</span>
 
-      {/* Quick actions — hover-fade on desktop, an always-there ⋯ on phones. */}
-      {isMobile ? (
+      {/* Quick actions — hover-fade on desktop, an always-there ⋯ on phones.
+          The going face has none: you enter this room, you don't run it. */}
+      {going ? null : isMobile ? (
         <button onClick={stop(onMenu)} aria-label="Event actions" style={{ ...glass, position: "absolute", top: 8, right: 8 }}>
           <MoreHorizontal size={17} />
         </button>
@@ -2103,8 +2093,8 @@ function EventPosterCard({ event, isMobile, busy, onOpen, onShare, onDuplicate, 
         {meta && (
           <div style={{ marginTop: 3, fontSize: "11.5px", fontWeight: 600, color: "rgba(255,255,255,0.88)", textShadow: "0 1px 8px rgba(0,0,0,0.5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta}</div>
         )}
-        <div style={{ marginTop: 4, fontSize: "11.5px", fontWeight: 700, color: isDraft ? "#fcd34d" : "rgba(255,255,255,0.72)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
-          {isDraft ? "Finish & publish →" : `${event.comingCount}${event.capacity ? ` / ${event.capacity}` : ""} ${live ? "coming" : "came"}`}
+        <div style={{ marginTop: 4, fontSize: "11.5px", fontWeight: 700, color: isDraft && !going ? "#fcd34d" : "rgba(255,255,255,0.72)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+          {going ? "Enter room →" : isDraft ? "Finish & publish →" : `${event.comingCount}${event.capacity ? ` / ${event.capacity}` : ""} ${live ? "coming" : "came"}`}
         </div>
       </div>
     </div>

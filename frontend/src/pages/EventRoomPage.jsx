@@ -35,11 +35,12 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star, Share2, Send } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star, Share2 } from "lucide-react";
 import { EventShareModal } from "../components/EventShareModal.jsx";
 import { RoomPagesSettings } from "../components/RoomPagesSettings.jsx";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
 import { VipInviteSection } from "../components/VipInviteSection.jsx";
+import { useSetHostResource } from "../contexts/useHostResource.js";
 import { useToast } from "../components/Toast";
 import { hasEventEnded } from "../lib/eventLifecycle.js";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
@@ -544,6 +545,10 @@ export default function EventRoomPage() {
   const [roster, setRoster] = useState(null);
   const [managingProducts, setManagingProducts] = useState(false); // event-room product manager
   const isHost = level === "host";
+  // Declare the host resource when the viewer runs this event — it's what
+  // makes the floating Messages/coach bubble show on the room (and every
+  // event page); guests declare nothing, so their room stays clean.
+  useSetHostResource(isHost && id ? { type: "event", id } : null);
   // The scanned code/pass that proves this viewer is at the door. The presence
   // pass (minted server-side once a live code verifies) is stashed here so it
   // outlives the sign-in round-trip the 45s code never could.
@@ -752,21 +757,14 @@ export default function EventRoomPage() {
                   {canEditEvent && event && !hasEventEnded(event.startsAt, event.endsAt) && (
                     <RoomVipSettings event={event} open={vipOpen} setOpen={setVipOpen} />
                   )}
-                  {/* Share + Message guests — the last two powers of the old
-                      home hover-panel, now living where the event lives. */}
+                  {/* Share — the old home hover-panel's Share & Track, living
+                      where the event lives. (Messaging = the floating dock,
+                      bottom-right on every event page for hosts.) */}
                   {event?.slug && (
                     <button type="button" onClick={() => setSharing(true)} style={TOOLBAR_PILL}>
                       <Share2 size={15} /> Share
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent("pullup:message-event", { detail: { eventId: id } }))}
-                    title="Open Messages aimed at everyone on this event"
-                    style={TOOLBAR_PILL}
-                  >
-                    <Send size={15} /> Message guests
-                  </button>
                 </>
               ) : null}
             />

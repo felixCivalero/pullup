@@ -126,21 +126,6 @@ export function IdeaWidget() {
     return () => window.removeEventListener("pullup:open-thread", onOpenThread);
   }, []);
 
-  // An event room's "Message guests" pops the dock open pre-aimed at that
-  // event's audience via `pullup:message-event`. {id,ts} — ts so the same
-  // event re-applies even if already the filter.
-  const [openEventFilter, setOpenEventFilter] = useState(null);
-  useEffect(() => {
-    const onMessageEvent = (e) => {
-      const eid = e?.detail?.eventId;
-      if (!eid) return;
-      setDockTab("messages");
-      setOpen(true);
-      setOpenEventFilter({ id: eid, ts: Date.now() });
-    };
-    window.addEventListener("pullup:message-event", onMessageEvent);
-    return () => window.removeEventListener("pullup:message-event", onMessageEvent);
-  }, []);
 
   // The create/edit page broadcasts the event being built so the dock can
   // become a live build chat (the /create-scoped canvas). Null elsewhere.
@@ -194,8 +179,13 @@ export function IdeaWidget() {
   void _hasActivity;
 
   let mode = null;
-  const isEventPagePath = pathname.startsWith("/e/") || pathname.startsWith("/events/");
-  if (isDesktop && !isEventPagePath && user) {
+  // Public event pages (/e/) never carry the bubble. The event room and its
+  // siblings (/events/) carry it only when the page declared a host resource —
+  // the host keeps their Messages bottom-right on every event page, a guest's
+  // room stays clean.
+  const isPublicEventPath = pathname.startsWith("/e/");
+  const isEventRoomPath = pathname.startsWith("/events/");
+  if (isDesktop && user && !isPublicEventPath && (!isEventRoomPath || resource)) {
     if (mcpStatus.loading) {
       mode = null; // brief hide while we check connection state
     } else if (!mcpStatus.connected) {
@@ -406,7 +396,7 @@ export function IdeaWidget() {
   // Desktop hides the slot when there's no mode (logged out / mid-load / public
   // page). On mobile the AI coach faces stay off, but Messages — your people —
   // should still be one tap away for any logged-in host on an in-app route.
-  const mobileMessages = !isDesktop && !!user && !isEventPagePath;
+  const mobileMessages = !isDesktop && !!user && !isPublicEventPath && (!isEventRoomPath || !!resource);
   if (mode === null && !mobileMessages) return null;
 
   // On mobile the dock opens as a full-screen sheet (native messaging feel),
@@ -445,7 +435,6 @@ export function IdeaWidget() {
                 expanded={!fullScreen && msgExpanded}
                 onToggleExpand={fullScreen ? undefined : () => setMsgExpanded((v) => !v)}
                 openThread={openThread}
-                openEventFilter={openEventFilter}
               />
             )}
           </div>

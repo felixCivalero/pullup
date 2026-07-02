@@ -33,6 +33,59 @@ function priceLabel(p) {
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
+// A storefront tile — the product image IS the card (clean 4:5, no border
+// box), name + price below like an actual shop. Hover zooms the image a beat;
+// drafts wear an amber pill and read slightly muted. Guests get a Buy pill on
+// the image; hosts see sold count and click through to manage.
+function ShopTile({ p, t, isHost, scope, onClick }) {
+  const [hover, setHover] = useState(false);
+  const draft = isHost && p.live === false;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: "flex", flexDirection: "column", gap: 9, padding: 0, border: "none", background: "none", textAlign: "left", cursor: "pointer", fontFamily: SF, color: t.text, width: "100%" }}
+    >
+      <div style={{ position: "relative", width: "100%", aspectRatio: "4 / 5", borderRadius: 14, overflow: "hidden", background: t.accent + "10", boxShadow: hover ? "0 10px 26px rgba(10,10,10,0.14)" : "0 1px 6px rgba(10,10,10,0.06)", transition: "box-shadow 0.2s ease" }}>
+        {p.coverImageUrl ? (
+          <img
+            src={p.coverImageUrl}
+            alt=""
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: hover ? "scale(1.045)" : "scale(1)", transition: "transform 0.3s ease", filter: draft ? "grayscale(35%)" : "none", opacity: draft ? 0.85 : 1 }}
+          />
+        ) : (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ShoppingBag size={28} color={t.accent} />
+          </div>
+        )}
+        {draft && (
+          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#fff", background: "rgba(180,83,9,0.9)", padding: "3px 8px", borderRadius: 999, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>Draft</span>
+        )}
+        {isHost && p.hideFromMainRoom && scope === "main" && (
+          <span title="Hidden from your main room" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,10,10,0.5)", color: "#fff", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>
+            <EyeOff size={13} />
+          </span>
+        )}
+        {!isHost && (
+          <span style={{ position: "absolute", right: 8, bottom: 8, fontSize: 12, fontWeight: 800, color: "#fff", background: t.accent, borderRadius: 999, padding: "6px 14px", boxShadow: "0 4px 14px rgba(10,10,10,0.25)" }}>Buy</span>
+        )}
+      </div>
+      <div style={{ padding: "0 2px", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 650, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 3 }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: t.accent }}>{priceLabel(p)}</span>
+          {isHost && typeof p.unitsSold === "number" && (
+            <span style={{ fontSize: 11.5, color: t.subtle, marginLeft: "auto" }}>{p.unitsSold} sold</span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export function RoomProductShowcase({
   products = [],
   isHost = false,
@@ -52,59 +105,16 @@ export function RoomProductShowcase({
   // Nothing to show + not a host → render nothing (don't crowd a visitor's room).
   if (!products.length && !isHost) return null;
 
-  const single = products.length === 1;
-
-  // Image keeps a tight footprint: a short wide banner for a lone product, a
-  // compact 4:3 thumb in the grid. Never the page-eating squares we had before.
-  const imgBox = single ? { width: "100%", height: 160 } : { width: "100%", aspectRatio: "4 / 3" };
-
-  const card = (p) => {
-    const draft = isHost && p.live === false;
-    return (
-      <button
-        key={p.id}
-        type="button"
-        onClick={() => (isHost ? onManage?.(p) : setBuying(p))}
-        style={{
-          width: "100%",
-          display: "flex", flexDirection: "column", textAlign: "left",
-          background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16,
-          overflow: "hidden", cursor: "pointer", fontFamily: SF, color: t.text,
-          padding: 0, boxSizing: "border-box",
-        }}
-      >
-        {p.coverImageUrl ? (
-          <div style={{ ...imgBox, background: `url(${p.coverImageUrl}) center/cover` }} />
-        ) : (
-          <div style={{ ...imgBox, background: t.accent + "14", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <ShoppingBag size={26} color={t.accent} />
-          </div>
-        )}
-        <div style={{ padding: "11px 12px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</span>
-            {draft && (
-              <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: t.subtle, border: `1px solid ${t.border}`, borderRadius: 999, padding: "2px 7px" }}>Draft</span>
-            )}
-          </div>
-          {single && p.description && (
-            <div style={{ fontSize: 13, color: t.muted, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.description}</div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: t.accent }}>{priceLabel(p)}</span>
-            {isHost ? (
-              <span style={{ fontSize: 11.5, color: t.subtle, marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                {p.hideFromMainRoom && scope === "main" && <EyeOff size={12} />}
-                {typeof p.unitsSold === "number" ? `${p.unitsSold} sold` : ""}
-              </span>
-            ) : (
-              <span style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 800, color: "#fff", background: t.accent, borderRadius: 999, padding: "6px 13px" }}>Buy</span>
-            )}
-          </div>
-        </div>
-      </button>
-    );
-  };
+  const card = (p) => (
+    <ShopTile
+      key={p.id}
+      p={p}
+      t={t}
+      isHost={isHost}
+      scope={scope}
+      onClick={() => (isHost ? onManage?.(p) : setBuying(p))}
+    />
+  );
 
   return (
     <div style={{ marginTop: homeHeader ? 0 : 30 }}>
@@ -149,12 +159,10 @@ export function RoomProductShowcase({
             <Plus size={13} /> Add
           </span>
         </button>
-      ) : single ? (
-        card(products[0])
       ) : (
-        // Many products → a clean responsive grid that fills the row, instead of
-        // a horizontal scroll. Small cards auto-fit; the row wraps as needed.
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 12 }}>
+        // The storefront grid — image-first tiles that auto-fit the row, one
+        // and many products alike (a lone product just holds one slot).
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 16 }}>
           {products.map(card)}
         </div>
       )}

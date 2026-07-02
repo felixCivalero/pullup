@@ -881,33 +881,14 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 32px", borderRadius: 10, border: "none", background: D.raise, color: D.ink, fontSize: 13, outline: "none" }} />
         </div>
 
-        {/* Audience summary — always legible, so the "write to N" action below
-            is honest about who it reaches (filtered set, or everyone). */}
-        {people && list.length > 0 && (
+        {/* Active-filter line — only when something narrows the list (the count
+            itself lives on the write bar at the bottom, once). */}
+        {people && filterSummary.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: D.muted, flexWrap: "wrap" }}>
             <Users size={13} color={D.pink} style={{ flexShrink: 0 }} />
-            <span style={{ color: D.ink, fontWeight: 700 }}>{list.length} {list.length === 1 ? "person" : "people"}</span>
-            {filterSummary.length > 0 && (
-              <>
-                <span style={{ color: D.faint }}>·</span>
-                <span>{filterSummary.join(" · ")}</span>
-                <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
-              </>
-            )}
+            <span>{filterSummary.join(" · ")}</span>
+            <button onClick={clearFilters} style={{ ...iconBtn, fontSize: 11.5, fontWeight: 700, color: D.faint, padding: "0 4px", marginLeft: 2 }}>Clear</button>
           </div>
-        )}
-
-        {/* THE primary action — the answer to "where do I write the message?".
-            Filter/search to narrow (or don't), then tap here to write to the
-            whole shown audience. Opens the composer; nothing sends until you hit
-            send. Hidden in select mode (its own footer drives that). */}
-        {people && list.length > 0 && !selecting && (
-          <button onClick={messageAudience}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", marginTop: 9, padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
-            <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
-              ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
-              : `Write to everyone · ${list.length}`}
-          </button>
         )}
 
         {/* Select-all over the filtered set when in selection mode. */}
@@ -962,6 +943,21 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           );
         })}
       </div>
+
+      {/* THE primary action — pinned at the foot like a compose bar, under the
+          list it addresses. Filter/search to narrow (or don't), then tap to
+          write to the whole shown audience. Opens the composer; nothing sends
+          until you hit send. Hidden in select mode (its own footer below). */}
+      {people && list.length > 0 && !selecting && (
+        <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, background: D.bg }}>
+          <button onClick={messageAudience}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
+            <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
+              ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
+              : `Write to everyone · ${list.length}`}
+          </button>
+        </div>
+      )}
 
       {selecting && selected.length > 0 && (
         <div style={{ padding: "10px 12px", borderTop: `1px solid ${D.line}`, display: "flex", alignItems: "center", gap: 10 }}>

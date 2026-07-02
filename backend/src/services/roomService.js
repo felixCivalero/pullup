@@ -818,7 +818,7 @@ async function getHostCommunitySummary(hostId) {
   try {
     const { data: ev } = await supabase
       .from("events")
-      .select("id, slug, title, status")
+      .select("id, slug, title, status, cover_image_url, image_url")
       .eq("host_id", hostId)
       .eq("kind", "community")
       .maybeSingle();
@@ -835,6 +835,8 @@ async function getHostCommunitySummary(hostId) {
       status: ev.status,
       live: (ev.status || "").toUpperCase() === "PUBLISHED",
       memberCount: count || 0,
+      // The page's cover — the home card wears the live community page.
+      coverImage: resolveEventImage(ev.cover_image_url || ev.image_url),
     };
   } catch {
     return null;

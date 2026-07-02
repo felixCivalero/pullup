@@ -1198,7 +1198,12 @@ function CommunityCard({ community }) {
     if (!shareUrl) return;
     try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
   };
-  const ghostPill = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, fontFamily: SF, cursor: "pointer", padding: "7px 11px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted };
+  const glass = {
+    display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, fontFamily: SF,
+    cursor: "pointer", padding: "8px 13px", borderRadius: 999, border: "none",
+    background: "rgba(10,10,10,0.52)", color: "#fff", textDecoration: "none",
+    backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", whiteSpace: "nowrap",
+  };
   return (
     // Fills its column so it stands the same height as the "Rooms you're in"
     // cards beside it — the two read as one tidy grid row.
@@ -1206,67 +1211,89 @@ function CommunityCard({ community }) {
       <SectionHeader
         title="Your community"
         hint="people who join through your link"
-        badge={c && (
+        badge={c && !live && (
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 5,
             fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
             padding: "3px 9px", borderRadius: 999,
-            color: live ? "#16a34a" : colors.textMuted,
-            background: live ? "rgba(34,197,94,0.12)" : colors.surfaceMuted,
-            border: `1px solid ${live ? "rgba(34,197,94,0.35)" : colors.border}`,
+            color: colors.textMuted, background: colors.surfaceMuted, border: `1px solid ${colors.border}`,
           }}>
-            {live ? "● Live" : "Draft"}
+            Draft
           </span>
         )}
       />
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => navigate("/community")}
-        onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
-        style={{
-          display: "flex", alignItems: "center", gap: 13, width: "100%", flex: 1, boxSizing: "border-box",
-          padding: "15px 16px", borderRadius: 16, cursor: "pointer",
-          textAlign: "left", fontFamily: SF,
-          border: `1px solid ${live ? "rgba(34,197,94,0.28)" : colors.border}`,
-          background: live
-            ? `linear-gradient(180deg, rgba(34,197,94,0.06), ${colors.surface} 70%)`
-            : `linear-gradient(180deg, ${colors.accent}12, ${colors.surface} 70%)`,
-          color: colors.text,
-        }}
-      >
-        <span style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
-          <DoorOpen size={20} />
-        </span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
-            {live ? (c.title || "Your community") : !c ? "Create your community signup page" : "Finish your community signup page"}
-          </span>
-          <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
-            {!c
-              ? "One link — everyone who wants in lands in your room."
-              : !live
-                ? "It's a draft — publish it to open the doors."
-                : <><strong style={{ color: colors.text, fontWeight: 800 }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} <span style={{ color: colors.textFaded }}>· everyone who joined through your link</span></>}
-          </span>
-        </span>
-        {live && shareUrl ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
-            <button type="button" onClick={copyLink} style={{ ...ghostPill, color: copied ? "#16a34a" : colors.textMuted, borderColor: copied ? "rgba(34,197,94,0.4)" : colors.border }}>
-              {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
-            </button>
-            <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-               style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: colors.accent, textDecoration: "none", padding: "7px 11px", borderRadius: 999, background: `${colors.accent}12` }}>
+      {live ? (
+        // The card IS the community page in miniature — its cover, its title,
+        // its member count — same poster language as the events wall. Click
+        // opens your community view; Copy/View ride on the image.
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate("/community")}
+          onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
+          style={{
+            position: "relative", flex: 1, minHeight: 190, width: "100%", boxSizing: "border-box",
+            borderRadius: 16, overflow: "hidden", cursor: "pointer", fontFamily: SF,
+            background: gradientFor(c.id), boxShadow: "0 2px 10px rgba(10,10,10,0.08)",
+          }}
+        >
+          {c.coverImage && (
+            <img src={c.coverImage} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+          )}
+          <span style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.26) 0%, rgba(0,0,0,0.04) 38%, rgba(0,0,0,0.72) 100%)" }} />
+
+          <span style={{ position: "absolute", top: 10, left: 10, fontSize: "9.5px", fontWeight: 800, letterSpacing: "0.07em", textTransform: "uppercase", color: "#fff", background: "rgba(22,163,74,0.92)", padding: "4px 9px", borderRadius: 999, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}>Live</span>
+
+          <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+            {shareUrl && (
+              <button type="button" onClick={copyLink} style={{ ...glass, background: copied ? "rgba(22,163,74,0.85)" : glass.background }}>
+                {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy link</>}
+              </button>
+            )}
+            <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={glass}>
               View <ExternalLink size={13} />
             </a>
           </div>
-        ) : (
-          // Not live → one clear CTA pill (create or finish/publish).
+
+          <div style={{ position: "absolute", left: 14, right: 14, bottom: 12 }}>
+            <div style={{ fontSize: "17px", fontWeight: 800, color: "#fff", letterSpacing: "-0.01em", lineHeight: 1.2, textShadow: "0 1px 10px rgba(0,0,0,0.5)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.title || "Your community"}</div>
+            <div style={{ marginTop: 3, fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.88)", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+              <strong style={{ fontWeight: 800, color: "#fff" }}>{members.toLocaleString()}</strong> {members === 1 ? "member" : "members"} · everyone who joined through your link
+            </div>
+          </div>
+        </div>
+      ) : (
+        // No page yet / still a draft → one clear CTA row (create or publish).
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate("/community")}
+          onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
+          style={{
+            display: "flex", alignItems: "center", gap: 13, width: "100%", flex: 1, boxSizing: "border-box",
+            padding: "15px 16px", borderRadius: 16, cursor: "pointer",
+            textAlign: "left", fontFamily: SF,
+            border: `1px solid ${colors.border}`,
+            background: `linear-gradient(180deg, ${colors.accent}12, ${colors.surface} 70%)`,
+            color: colors.text,
+          }}
+        >
+          <span style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: `${colors.accent}1f`, color: colors.accent }}>
+            <DoorOpen size={20} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14.5, fontWeight: 700 }}>
+              {!c ? "Create your community signup page" : "Finish your community signup page"}
+            </span>
+            <span style={{ display: "block", fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>
+              {!c ? "One link — everyone who wants in lands in your room." : "It's a draft — publish it to open the doors."}
+            </span>
+          </span>
           <span style={{ flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 800, color: "#fff", background: colors.accent, padding: "7px 13px", borderRadius: 999 }}>
             {!c ? <><Plus size={13} /> Create</> : "Publish"}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

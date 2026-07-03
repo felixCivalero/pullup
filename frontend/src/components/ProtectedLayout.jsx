@@ -261,9 +261,7 @@ function ProtectedLayoutInner() {
   const isCommunityPage = eventNav?.kind === "community";
   const roomTab = { label: "Room", path: `/events/${eventId}/room`, tab: "room" };
   const guestsTab = {
-    label: isCommunityPage
-      ? `Members${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`
-      : `Guests${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+    label: isCommunityPage ? "Members" : "Guests",
     path: `/app/events/${eventId}/guests`,
     tab: "guests",
   };
@@ -290,7 +288,7 @@ function ProtectedLayoutInner() {
         // Community has no room of its own — skip the Room tab, signups → Members.
         ...(isCommunityPage ? [] : [{ label: "Room", path: `/events/${menuEventId}/room`, tab: "room" }]),
         {
-          label: `${isCommunityPage ? "Members" : "Guests"}${eventNav?.guestsCount != null ? ` (${eventNav.guestsCount})` : ""}`,
+          label: isCommunityPage ? "Members" : "Guests",
           path: `/app/events/${menuEventId}/guests`,
           tab: "guests",
         },

@@ -12,6 +12,10 @@ import {
   AlertTriangle,
   Loader2,
   QrCode,
+  Instagram,
+  Phone,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "../components/Toast";
 import { FaPaperPlane, FaCalendar } from "react-icons/fa";
@@ -180,6 +184,11 @@ export function EventGuestsPage() {
   const [showRefundConfirm, setShowRefundConfirm] = useState(null);
   const [refunding, setRefunding] = useState(false);
   const [pulledUpModalGuest, setPulledUpModalGuest] = useState(null);
+  // Multi-select check-in: selected rsvp ids + bulk progress ({done,total} while running).
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(null);
+  // Answer cells whose "+n more" was tapped open (rsvp ids).
+  const [expandedAnswers, setExpandedAnswers] = useState(() => new Set());
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
@@ -749,6 +758,87 @@ export function EventGuestsPage() {
         setGuests(data.guests || []);
       }
     }
+  }
+
+  // ── Multi-select check-in ────────────────────────────────────────────────
+  // Selecting a guest means checking in their WHOLE party: the door question
+  // is "did this booking arrive?", not "how many so far?" (the per-guest modal
+  // still handles partial arrivals). Full party = the same split the modal
+  // saves at its max: dinner seats first, plus-ones/party as cocktails.
+  const canSelectGuest = (g) => g.bookingStatus === "CONFIRMED" || g.status === "attending";
+  function fullPartyCounts(g) {
+    const partySize = g.partySize || 1;
+    const dinnerPartySize = g.dinner?.partySize ?? g.dinnerPartySize ?? 0;
+    const dinnerConfirmed = g.dinner?.bookingStatus === "CONFIRMED" || g.dinnerStatus === "confirmed";
+    const wantsDinner = g.dinner?.enabled ?? g.wantsDinner ?? false;
+    if (wantsDinner && dinnerConfirmed) return { dinner: dinnerPartySize, cocktails: g.plusOnes ?? 0 };
+    return { dinner: 0, cocktails: partySize };
+  }
+  const arrivedCount = (g) =>
+    (g.dinnerPullUpCount ?? g.pulledUpForDinner ?? 0) + (g.cocktailOnlyPullUpCount ?? g.pulledUpForCocktails ?? 0);
+
+  function toggleSelected(rsvpId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rsvpId)) next.delete(rsvpId);
+      else next.add(rsvpId);
+      return next;
+    });
+  }
+
+  async function handleBulkCheckIn() {
+    const targets = guests.filter((g) => selectedIds.has(g.id) && canSelectGuest(g));
+    // Parties already fully in are silently fine — nothing to write for them.
+    const toWrite = targets.filter((g) => {
+      const { dinner, cocktails } = fullPartyCounts(g);
+      return arrivedCount(g) < dinner + cocktails;
+    });
+    if (!toWrite.length) {
+      setSelectedIds(new Set());
+      showToast("Everyone selected is already checked in", "success");
+      return;
+    }
+    setBulkBusy({ done: 0, total: toWrite.length });
+    let failed = 0;
+    let people = 0;
+    // Small write bursts — friendly to the API when a big list is selected.
+    const CHUNK = 6;
+    for (let i = 0; i < toWrite.length; i += CHUNK) {
+      const chunk = toWrite.slice(i, i + CHUNK);
+      await Promise.all(chunk.map(async (g) => {
+        const { dinner, cocktails } = fullPartyCounts(g);
+        try {
+          const res = await authenticatedFetch(`/host/events/${id}/rsvps/${g.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dinnerPullUpCount: dinner || 0,
+              cocktailOnlyPullUpCount: cocktails || 0,
+              // Backward compatibility
+              pulledUpForDinner: dinner || null,
+              pulledUpForCocktails: cocktails || null,
+            }),
+          });
+          if (!res.ok) throw new Error("write failed");
+          people += dinner + cocktails;
+        } catch {
+          failed++;
+        }
+      }));
+      setBulkBusy({ done: Math.min(i + CHUNK, toWrite.length), total: toWrite.length });
+    }
+    // One refetch at the end — counts, badges and stats all realign at once.
+    try {
+      const guestsRes = await authenticatedFetch(`/host/events/${id}/guests`);
+      if (guestsRes.ok) {
+        const data = await guestsRes.json();
+        setGuests(data.guests || []);
+      }
+    } catch { /* the optimistic writes are in; next poll realigns */ }
+    setBulkBusy(null);
+    setSelectedIds(new Set());
+    if (failed) showToast(`Checked in ${toWrite.length - failed} — ${failed} failed, try again`, "error");
+    else showToast(`Checked in ${toWrite.length} ${toWrite.length === 1 ? "party" : "parties"} (${people} people) 🎉`, "success");
   }
 
   // Handle pulled up change - immediate for checkboxes, debounced for number inputs
@@ -1391,6 +1481,35 @@ export function EventGuestsPage() {
                 })}
               </div>
 
+              {/* Selection bar — appears when parties are ticked. One button
+                  checks in every selected booking's FULL party. */}
+              {canCheckIn && selectedIds.size > 0 && (() => {
+                const picked = sortedGuests.filter((g) => selectedIds.has(g.id) && canSelectGuest(g));
+                const totalPeople = picked.reduce((n, g) => { const c = fullPartyCounts(g); return n + c.dinner + c.cocktails; }, 0);
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: colors.accentText }}>
+                      {picked.length} {picked.length === 1 ? "party" : "parties"} selected
+                      <span style={{ fontWeight: 600, color: colors.textMuted }}> · {totalPeople} people</span>
+                    </span>
+                    <button
+                      onClick={handleBulkCheckIn}
+                      disabled={!!bulkBusy}
+                      style={{ marginLeft: "auto", padding: "7px 16px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: bulkBusy ? "default" : "pointer", opacity: bulkBusy ? 0.7 : 1 }}
+                    >
+                      {bulkBusy ? `Checking in… ${bulkBusy.done}/${bulkBusy.total}` : `Check in all (${totalPeople})`}
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      disabled={!!bulkBusy}
+                      style={{ padding: "7px 12px", borderRadius: 999, border: `1px solid ${colors.border}`, background: colors.background, color: colors.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                );
+              })()}
+
               {/* Desktop Table */}
               <div
                 className="guests-desktop-table"
@@ -1417,6 +1536,29 @@ export function EventGuestsPage() {
                         borderBottom: `1px solid ${colors.border}`,
                       }}
                     >
+                      {/* Select-all — every eligible (confirmed) booking in the
+                          current filter. Ticking = "this whole party arrived". */}
+                      {canCheckIn && (
+                        <th style={{ width: "40px", padding: "16px 8px 16px 20px" }}>
+                          {(() => {
+                            const eligible = sortedGuests.filter(canSelectGuest);
+                            const allOn = eligible.length > 0 && eligible.every((g) => selectedIds.has(g.id));
+                            const someOn = eligible.some((g) => selectedIds.has(g.id));
+                            return (
+                              <input
+                                type="checkbox"
+                                checked={allOn}
+                                ref={(el) => { if (el) el.indeterminate = !allOn && someOn; }}
+                                onChange={() => {
+                                  setSelectedIds(allOn ? new Set() : new Set(eligible.map((g) => g.id)));
+                                }}
+                                title={allOn ? "Clear selection" : "Select all"}
+                                style={{ width: 15, height: 15, accentColor: colors.accent, cursor: "pointer", display: "block" }}
+                              />
+                            );
+                          })()}
+                        </th>
+                      )}
                       <SortableHeader
                         column="guest"
                         label="Guest"
@@ -1425,6 +1567,24 @@ export function EventGuestsPage() {
                         onSort={handleSort}
                         align="left"
                       />
+                      {/* The event's own questions (enrichment) — a slim answers
+                          column, only when the host asked something. */}
+                      {Array.isArray(event.enrichmentQuestions) && event.enrichmentQuestions.length > 0 && (
+                        <th
+                          style={{
+                            padding: "16px 18px",
+                            textAlign: "left",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.12em",
+                            color: colors.textSubtle,
+                            width: "190px",
+                          }}
+                        >
+                          {event.enrichmentQuestions.length === 1 ? event.enrichmentQuestions[0].label : "Answers"}
+                        </th>
+                      )}
                       <SortableHeader
                         column="status"
                         label="Status"
@@ -1501,20 +1661,9 @@ export function EventGuestsPage() {
                       >
                         Pulled Up
                       </th>
-                      <th
-                        style={{
-                          padding: "16px 24px",
-                          textAlign: "center",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.12em",
-                          color: colors.textSubtle,
-                          width: "120px",
-                        }}
-                      >
-                        Actions
-                      </th>
+                      {/* Edit/delete live as quiet icons at the row's edge —
+                          actions, not data, so no column header for them. */}
+                      {canEditGuests && <th style={{ width: "40px" }} aria-label="Actions" />}
                     </tr>
                   </thead>
                   <tbody>
@@ -1536,19 +1685,39 @@ export function EventGuestsPage() {
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = colors.surfaceMuted;
+                          const a = e.currentTarget.querySelector(".guest-row-actions");
+                          if (a) a.style.opacity = "1";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.background =
                             idx % 2 === 0
                               ? colors.background
                               : colors.surface;
+                          const a = e.currentTarget.querySelector(".guest-row-actions");
+                          if (a) a.style.opacity = "0.35";
                         }}
                       >
-                        <td style={{ padding: "18px 24px" }}>
+                        {canCheckIn && (
+                          <td style={{ padding: "14px 8px 14px 20px" }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(g.id)}
+                              disabled={!canSelectGuest(g)}
+                              onChange={() => toggleSelected(g.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              title={canSelectGuest(g) ? "Select to check in the whole party" : "Only confirmed guests can be checked in"}
+                              style={{ width: 15, height: 15, accentColor: colors.accent, cursor: canSelectGuest(g) ? "pointer" : "not-allowed", display: "block" }}
+                            />
+                          </td>
+                        )}
+                        {/* Tighter vertical padding than the sibling cells: the
+                            optional contact line below must fit inside the row
+                            height the status cell already sets, never add to it. */}
+                        <td style={{ padding: "14px 24px" }}>
                           <div
                             style={{
                               fontWeight: 600,
-                              marginBottom: "4px",
+                              marginBottom: "2px",
                               fontSize: "15px",
                               color: colors.text,
                             }}
@@ -1564,7 +1733,98 @@ export function EventGuestsPage() {
                           >
                             {g.email}
                           </div>
+                          {/* IG / WhatsApp — one compact line, only when known.
+                              nowrap + ellipsis so a long handle can never make
+                              the row taller. */}
+                          {(g.instagram || g.phone) && (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                                marginTop: "3px",
+                                fontSize: "11.5px",
+                                color: colors.textSubtle,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {g.instagram && (
+                                <a
+                                  href={`https://instagram.com/${String(g.instagram).replace(/^@/, "")}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={`@${String(g.instagram).replace(/^@/, "")} on Instagram`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: colors.textSubtle, textDecoration: "none", fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = "#d6249f"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSubtle; }}
+                                >
+                                  <Instagram size={11} style={{ flexShrink: 0 }} />
+                                  @{String(g.instagram).replace(/^@/, "")}
+                                </a>
+                              )}
+                              {g.phone && (
+                                <span
+                                  title={`WhatsApp / phone: ${g.phone}`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 600, flexShrink: 0 }}
+                                >
+                                  <Phone size={11} style={{ flexShrink: 0 }} />
+                                  {g.phone}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
+                        {Array.isArray(event.enrichmentQuestions) && event.enrichmentQuestions.length > 0 && (
+                          <td style={{ padding: "14px 18px", maxWidth: "190px" }}>
+                            {(() => {
+                              const answered = event.enrichmentQuestions
+                                .map((q) => ({ label: q.label, answer: (g.customAnswers || {})[q.id] }))
+                                .filter((a) => a.answer && String(a.answer).trim());
+                              if (!answered.length) {
+                                return <span style={{ fontSize: "12px", color: colors.textFaded, fontStyle: "italic" }}>—</span>;
+                              }
+                              const single = event.enrichmentQuestions.length === 1;
+                              // Two truncated lines by default; "+n more" is its
+                              // own click target (the row click means check-in)
+                              // that opens the rest inline — expanded lines wrap
+                              // so long answers become fully readable.
+                              const open = expandedAnswers.has(g.id);
+                              const shown = open ? answered : answered.slice(0, 2);
+                              const lineStyle = open
+                                ? { fontSize: "12px", color: colors.textMuted, lineHeight: 1.5, overflowWrap: "anywhere" }
+                                : { fontSize: "12px", color: colors.textMuted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.5 };
+                              const toggle = (e) => {
+                                e.stopPropagation();
+                                setExpandedAnswers((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(g.id)) next.delete(g.id);
+                                  else next.add(g.id);
+                                  return next;
+                                });
+                              };
+                              return (
+                                <div>
+                                  {shown.map((a, i) => (
+                                    <div key={i} title={open ? undefined : `${a.label}: ${a.answer}`} style={lineStyle}>
+                                      {single ? String(a.answer) : <><span style={{ color: colors.textFaded, fontWeight: 600 }}>{a.label}:</span> {String(a.answer)}</>}
+                                    </div>
+                                  ))}
+                                  {(answered.length > 2 || open) && (
+                                    <button
+                                      onClick={toggle}
+                                      style={{ padding: 0, border: "none", background: "none", fontSize: "11px", color: colors.accent, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                                    >
+                                      {open ? "less" : `+${answered.length - 2} more`}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        )}
                         <td style={{ padding: "20px 24px" }}>
                           <CombinedStatusBadge
                             guest={g}
@@ -1845,71 +2105,76 @@ export function EventGuestsPage() {
                             })()}
                           </div>
                         </td>
-                        <td style={{ padding: "20px", textAlign: "center" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "8px",
-                              justifyContent: "center",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            {canEditGuests && (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditGuest(g);
-                                  }}
-                                  style={{
-                                    padding: "6px 12px",
-                                    borderRadius: "999px",
-                                    border: `1px solid ${colors.borderStrong}`,
-                                    background: colors.background,
-                                    color: colors.text,
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    transition: "all 0.15s ease",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = colors.surfaceMuted;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = colors.background;
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowDeleteConfirm(g);
-                                  }}
-                                  style={{
-                                    padding: "6px 12px",
-                                    borderRadius: "999px",
-                                    border: `1px solid ${colors.dangerRgba}`,
-                                    background: colors.dangerRgba,
-                                    color: colors.danger,
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    transition: "all 0.15s ease",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = `rgba(220, 38, 38, 0.16)`;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = colors.dangerRgba;
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
+                        {/* Quiet action icons at the row's edge — no column
+                            chrome, faded until the row is hovered. */}
+                        {canEditGuests && (
+                          <td style={{ padding: "12px 14px 12px 2px" }}>
+                            <div className="guest-row-actions" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px", opacity: 0.35, transition: "opacity 0.15s ease" }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditGuest(g);
+                                }}
+                                title="Edit guest"
+                                aria-label="Edit guest"
+                                style={{
+                                  width: "30px",
+                                  height: "30px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRadius: "999px",
+                                  border: "none",
+                                  background: "transparent",
+                                  color: colors.textMuted,
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = colors.surfaceMuted;
+                                  e.currentTarget.style.color = colors.text;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "transparent";
+                                  e.currentTarget.style.color = colors.textMuted;
+                                }}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowDeleteConfirm(g);
+                                }}
+                                title="Delete guest"
+                                aria-label="Delete guest"
+                                style={{
+                                  width: "30px",
+                                  height: "30px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRadius: "999px",
+                                  border: "none",
+                                  background: "transparent",
+                                  color: colors.textMuted,
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = colors.dangerRgba;
+                                  e.currentTarget.style.color = colors.danger;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "transparent";
+                                  e.currentTarget.style.color = colors.textMuted;
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

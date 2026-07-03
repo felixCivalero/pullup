@@ -29,9 +29,18 @@ export function initErrorReporting() {
         "The operation was aborted",
         "cancelled", // Safari's fetch-abort wording
         /^ResizeObserver loop/,
+        // Android WebView JS↔Java bridge dying on teardown — thrown by scripts
+        // the Instagram/Facebook in-app browser injects, not by our code.
+        /Java object is gone/,
       ],
-      // Browser extensions inject errors from their own origins — drop them.
-      denyUrls: [/extensions\//i, /^chrome:\/\//i, /^moz-extension:\/\//i],
+      // Browser extensions and in-app-browser injected scripts (iabjs:// is
+      // Instagram/Facebook's WebView instrumentation) — drop them.
+      denyUrls: [
+        /extensions\//i,
+        /^chrome:\/\//i,
+        /^moz-extension:\/\//i,
+        /^iabjs:/i,
+      ],
     });
     enabled = true;
   } catch {

@@ -26,7 +26,6 @@ import { AccessGate } from "../components/AccessGate.jsx";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
 import { DoorVerify } from "../components/room/DoorVerify.jsx";
 import { EventQuickActions } from "../components/EventQuickActions.jsx";
-import { HostPartnerLinks } from "../components/HostPartnerLinks.jsx";
 import { colors } from "../theme/colors.js";
 import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { authenticatedFetch } from "../lib/api.js";
@@ -357,6 +356,31 @@ function RosterStrip({ roster, inBar = false }) {
   );
 }
 
+// The guest's face of the same presence bar — the phase-narrowed room roster
+// the server already seeWho-gated (co-present people, viewer excluded). Before
+// the doors that's everyone coming; once the event starts, who pulled up.
+function GuestPresenceStrip({ people, lobbyOpen }) {
+  if (!people?.length) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+      <div style={{ display: "flex" }}>
+        {people.slice(0, 5).map((p, i) => (
+          <div key={p.id} title={p.name} style={{ marginLeft: i === 0 ? 0 : "-7px", borderRadius: "50%", boxShadow: "0 0 0 2px #fff" }}>
+            <FaceAvatar name={p.name} size={26} />
+          </div>
+        ))}
+        {people.length > 5 && (
+          <div style={{ marginLeft: "-7px", width: 26, height: 26, borderRadius: "50%", boxShadow: "0 0 0 2px #fff", background: colors.surfaceMuted, color: colors.textMuted, fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>+{people.length - 5}</div>
+        )}
+      </div>
+      <span style={{ fontSize: "12.5px", fontWeight: 700, color: colors.accent }}>
+        {people.length} {lobbyOpen ? "coming" : "pulled up"}
+      </span>
+      <span style={{ fontSize: "12.5px", fontWeight: 600, color: colors.textFaded }}>· and you</span>
+    </div>
+  );
+}
+
 // The host's "Team" fold-down — assign roles to other arrangers right inside
 // the room, next to Room access. Mirrors RoomAccessSettings' pill+fold so the
 // two host controls read as one toolbar. Reuses EventHostsSection (add by
@@ -541,7 +565,7 @@ export default function EventRoomPage() {
   // chief-of-staff surface; everyone else gets the room they earned. `role`
   // refines the host side so analytics/reception don't get the wrong chrome.
   const { user } = useAuth();
-  const { loading, level, role, realHost, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent, products: viewProducts, content: viewContent, contentCan: viewContentCan, pages: viewPages } = useEventRoomView(id);
+  const { loading, level, role, reason, permissions, event, personId: mePersonId, roster: viewRoster, channels: viewChannels, messages: viewMessages, coPresent: viewCoPresent, products: viewProducts, content: viewContent, contentCan: viewContentCan, pages: viewPages } = useEventRoomView(id);
   const [roster, setRoster] = useState(null);
   const [managingProducts, setManagingProducts] = useState(false); // event-room product manager
   const isHost = level === "host";
@@ -574,52 +598,14 @@ export default function EventRoomPage() {
   const canEditEvent = EVENT_ADMIN_ROLES.includes(role);
   // The welcome card: owner/admin + room curator (mirrors canEditRoomWelcome).
   const canEditWelcome = WELCOME_EDIT_ROLES.includes(role);
-  // One-time intro banner explaining what the Room is, in the Room's own accent
-  // so the identity is unmistakable. Dismissible; stays gone once seen.
-  const [showRoomIntro, setShowRoomIntro] = useState(() => {
-    try { return localStorage.getItem("pullup_room_intro_seen") !== "1"; } catch { return true; }
-  });
-  const dismissRoomIntro = () => {
-    try { localStorage.setItem("pullup_room_intro_seen", "1"); } catch { /* ignore */ }
-    setShowRoomIntro(false);
-  };
-
-  // The intro banner is a one-time, self-advancing nudge through the three
-  // moves that warm a room: greet → seed it with a post → bring the team in.
-  // It DRIVES controls that live elsewhere on the page (the welcome editor
-  // below, the feed below that, the Team fold-down in the toolbar), so their
-  // open state is lifted here. Each step clears as it's done — welcome from a
-  // real save, post/team from a local ack — so acting moves the nudge forward
-  // instead of dismissing it; only the × dismisses for good. scrollRef is the
-  // page's scroll container; welcomeRef/feedRef carry the host to what opened.
   const [welcomeEditing, setWelcomeEditing] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [vipOpen, setVipOpen] = useState(false);
   const [sharing, setSharing] = useState(false); // → EventShareModal (page + room links)
-  const [welcomeSaved, setWelcomeSaved] = useState(false);
-  const [ackedPost, setAckedPost] = useState(false);
-  const [ackedTeam, setAckedTeam] = useState(false);
-  const scrollRef = useRef(null);
-  const welcomeRef = useRef(null);
-  const feedRef = useRef(null);
   // The room is now tabbed (Wall · Chat · Shop). Wall is the hero + default;
   // which others appear is the host's Pages config (live-overridable on save).
   const [activeTab, setActiveTab] = useState("wall");
   const [pagesOverride, setPagesOverride] = useState(null);
-  const openWelcomeEditor = () => {
-    setWelcomeEditing(true);
-    setTimeout(() => welcomeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
-  };
-  const goPost = () => {
-    setAckedPost(true);
-    setActiveTab("chat"); // posting lives in the Chat tab now
-    setTimeout(() => feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-  };
-  const openTeam = () => {
-    setTeamOpen(true);
-    setAckedTeam(true);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 60);
-  };
 
   // The host view needs the roster data; load it once the gate confirms we own
   // the event. A GUEST gets no management nav (no myRole → no Guests/Insights/
@@ -737,7 +723,7 @@ export default function EventRoomPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", paddingTop: "calc(58px + env(safe-area-inset-top, 0px))", boxSizing: "border-box" }}>
-      <div ref={scrollRef} style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
+      <div style={{ flex: "1 1 100%", overflowY: "auto", minWidth: 0 }}>
         <div style={{ maxWidth: "1040px", margin: "0 auto", padding: "28px 20px 60px" }}>
           {/* Top actions — sit ABOVE the event so they read as a toolbar of
               things you DO to it, not part of the event content. Quick CTAs
@@ -772,66 +758,6 @@ export default function EventRoomPage() {
 
           {sharing && event && <EventShareModal event={event} onClose={() => setSharing(false)} />}
 
-          {/* Make-the-most-of-your-room nudge — host-only (owner/admin),
-              dismissible, in the Room's own pink. NOT a description of the room:
-              it walks the host through the three moves that warm it, one at a
-              time, showing only the next one that's still undone:
-                1. welcome  — the door-opener guests land on
-                2. post     — seed the feed so the room isn't empty on arrival
-                3. team     — bring people in to help run it
-              Tapping a step opens that control and carries the host to it; the
-              step clears (real save / local ack) so the nudge advances. When all
-              three are done — or the host taps × — it's gone. */}
-          {canEditEvent && showRoomIntro && (() => {
-            const hasWelcome = !!event?.roomWelcome || welcomeSaved;
-            const hasPosts = (viewMessages?.length || 0) > 0 || ackedPost;
-            const nudge = !hasWelcome
-              ? { Icon: Sparkles, title: "Open the door with a welcome.", sub: "The first thing guests see when they land — say hi and set the tone.", cta: "Write a welcome", action: openWelcomeEditor }
-              : !hasPosts
-              ? { Icon: MessageSquare, title: "Post the first thing.", sub: "Seed the room so it feels alive when guests arrive — a hello, a plan, a photo.", cta: "Post to the room", action: goPost }
-              : !ackedTeam
-              ? { Icon: Users, title: "Bring your team into the room.", sub: "Give people a role so they can help you run it — add them by email.", cta: "Add team", action: openTeam }
-              : null;
-            if (!nudge) return null;
-            const { Icon } = nudge;
-            return (
-              <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 12px 13px 15px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: "#fff", border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon size={16} color={colors.accent} strokeWidth={2.3} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: colors.accentText, lineHeight: 1.3 }}>
-                    {nudge.title}
-                  </div>
-                  <div style={{ fontSize: "12.5px", color: colors.textMuted, marginTop: 2, lineHeight: 1.4 }}>
-                    {nudge.sub}
-                  </div>
-                  <button
-                    onClick={nudge.action}
-                    style={{ marginTop: 9, padding: "6px 14px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: SF, boxShadow: colors.accentShadow }}
-                  >
-                    {nudge.cta}
-                  </button>
-                </div>
-                <button
-                  onClick={dismissRoomIntro}
-                  aria-label="Dismiss"
-                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, border: "none", background: "transparent", color: colors.accent, cursor: "pointer" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = colors.accentSoftStrong; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            );
-          })()}
-
-          {/* Owner-commercial partner CTAs ("buy for YOUR event") — show ONLY to
-              the real host AND only at host level. So they're hidden both on an
-              event you don't own while forcing "Host" (realHost=false), AND when
-              you preview your OWN event at a lower status like RSVP/lobby
-              (isHost=false under that lens). Never below host. */}
-          {realHost && isHost && <HostPartnerLinks event={event} />}
           {/* Event identity — ONE unified banner: cover backdrop + scrim,
               title/meta overlaid, an attached presence bar for the roster. A
               missing cover falls back to the soft gradient with ink text. */}
@@ -857,15 +783,20 @@ export default function EventRoomPage() {
               <div style={{ padding: "11px 20px", background: colors.surface, borderTop: `1px solid ${colors.borderFaint}` }}>
                 <RosterStrip roster={roster} inBar />
               </div>
+            ) : !isHost && permissions?.seeWho === true && (viewCoPresent || []).length > 0 ? (
+              /* Guests get the same presence bar when the host's Room access
+                 allows it (seeWho) — who's coming before the doors, who pulled
+                 up after. Server-gated list; the client only renders it. */
+              <div style={{ padding: "11px 20px", background: colors.surface, borderTop: `1px solid ${colors.borderFaint}` }}>
+                <GuestPresenceStrip people={viewCoPresent} lobbyOpen={lobbyOpen} />
+              </div>
             ) : null}
           </div>
 
           {/* The host's greeting — sits right under the banner, ABOVE the page
               tabs (it's the room's hello, not one of the pages). Everyone who
               lands sees it; the host edits it inline. */}
-          <div ref={welcomeRef}>
-            <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditWelcome} editing={welcomeEditing} setEditing={setWelcomeEditing} onSavedChange={setWelcomeSaved} host={event?.host} />
-          </div>
+          <RoomWelcomeCard eventId={id} initial={event?.roomWelcome} canEdit={canEditWelcome} editing={welcomeEditing} setEditing={setWelcomeEditing} host={event?.host} />
 
           {/* ── PAGE TABS — jump between the room's surfaces. The Wall is the hero
               and the default; Chat & Shop appear per the host's Pages config (the
@@ -917,7 +848,7 @@ export default function EventRoomPage() {
 
                 {/* CHAT — the live conversation, at a readable measure */}
                 {tab === "chat" && showChat && (
-                  <div ref={feedRef} style={{ maxWidth: 760, margin: "0 auto" }}>
+                  <div style={{ maxWidth: 760, margin: "0 auto" }}>
                     <RoomSpace eventId={id} roster={roster} isHost={isHost} permissions={permissions} meName={meName} mePersonId={mePersonId} lobbyOpen={lobbyOpen} initialChannels={viewChannels} initialMessages={viewMessages} initialCoPresent={viewCoPresent} />
                   </div>
                 )}

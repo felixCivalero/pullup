@@ -24,8 +24,6 @@ import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { authenticatedFetch } from "../lib/api.js";
 import { EventShareModal } from "../components/EventShareModal.jsx";
-import ProfileSetup from "../components/room/ProfileSetup.jsx";
-import LookingBack from "../components/room/LookingBack.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { useRoomRealtime } from "../lib/useRoomRealtime.js";
 import { useAudienceFilter, PEOPLE_LENSES, ATTENDANCE, CHANNEL_KEYS, CHANNEL_LABELS } from "../lib/useAudienceFilter.js";
@@ -1629,7 +1627,7 @@ export function OwnerConsole({ room: roomProp }) {
   const [selectedId, setSelectedId] = useState(null);
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
   const [managingProducts, setManagingProducts] = useState(false); // main-room product manager
-  // Local copy so ProfileSetup patches + event deletion update in place without
+  // Local copy so event deletion updates in place without
   // a refetch. Re-seed if the parent hands a fresh payload.
   const [room, setRoom] = useState(roomProp);
   useEffect(() => { setRoom(roomProp); }, [roomProp]);
@@ -1637,7 +1635,6 @@ export function OwnerConsole({ room: roomProp }) {
   const HOST = room?.host || { peopleCount: 0 };
   const EVENTS = room?.events || [];
   const MEMBER_ROOMS = room?.memberRooms || [];
-  const MOMENTS = room?.moments || [];
   const PEOPLE = room?.people || [];
   const COMMUNITY = room?.community || null;
   const PRODUCTS = room?.products || [];
@@ -1647,18 +1644,6 @@ export function OwnerConsole({ room: roomProp }) {
   return (
     <>
       <style>{`@keyframes roomShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } } @keyframes roomPanelDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } } @keyframes roomSheetUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }`}</style>
-
-      {/* Make-it-yours — fills the gaps (photo, bio, Instagram, brief). Self-hides
-          when done or dismissed. */}
-      <ProfileSetup onHostPatch={(patch) => setRoom((r) => (r ? { ...r, host: { ...r.host, ...patch } } : r))} />
-
-      {/* Looking back — the legacy layer. The world they built, read back to
-          them. Warmth, not actions; only shows when there's a real moment. */}
-      <LookingBack
-        moments={MOMENTS}
-        onOpenPerson={(id) => { setBulkPeople(null); setSelectedId(id); }}
-        onCreate={() => navigate("/create")}
-      />
 
       {/* The events banner — your content, up top. One shelf, two faces:
           Hosting (the wall you run) and Going (rooms you joined), switched by

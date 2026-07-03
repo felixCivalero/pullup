@@ -93,11 +93,15 @@ export async function getUserProfile(userId) {
 //      and prevents the admin sales view from showing both the original
 //      lead row AND a duplicate auto-surfaced "user" row for the same person.
 export async function createDefaultProfile(userId) {
-  // Pull the auth user's email — service-role only, OK in this backend.
+  // Pull the auth user's email + metadata — service-role only, OK in this
+  // backend. The metadata is the identity seed: Google OAuth puts full_name/
+  // avatar there, and our own RSVP account-creation writes full_name too.
   let authEmail = null;
+  let authMeta = {};
   try {
     const { data: authUser } = await supabase.auth.admin.getUserById(userId);
     authEmail = authUser?.user?.email?.toLowerCase().trim() || null;
+    authMeta = authUser?.user?.user_metadata || {};
   } catch (err) {
     console.warn("[createDefaultProfile] auth lookup failed:", err.message);
   }
@@ -107,28 +111,47 @@ export async function createDefaultProfile(userId) {
   // guest on the RSVP path; otherwise they came through the front door. This
   // runs exactly once per account, at the only moment the answer is knowable
   // by construction — no inference flag needed.
+  // The same person row doubles as an identity source: they told us their
+  // name / Instagram when they RSVP'd, so a brand-new host account starts
+  // pre-filled instead of as "SOMEONE" — Settings lets them overrule.
   let signupOrigin = "landing";
+  let person = null;
   try {
     const { data: personRow } = await supabase
       .from("people")
-      .select("id")
+      .select("id, name, instagram")
       .eq("auth_user_id", userId)
       .limit(1)
       .maybeSingle();
-    if (personRow) signupOrigin = "rsvp";
+    if (personRow) { signupOrigin = "rsvp"; person = personRow; }
+    else if (authEmail) {
+      // Not auth-linked (yet) but we may still know them from an RSVP under
+      // the same email — good enough to seed a display name from.
+      const { data: byEmail } = await supabase
+        .from("people")
+        .select("id, name, instagram")
+        .ilike("email", authEmail)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (byEmail) person = byEmail;
+    }
   } catch (err) {
     console.warn("[createDefaultProfile] origin lookup failed:", err.message);
   }
 
+  const trimmed = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const seededName = trimmed(authMeta.full_name) || trimmed(authMeta.name) || trimmed(person?.name);
+
   const defaultProfile = {
     id: userId,
-    name: null,
+    name: seededName,
     brand: null,
     bio: null,
     profile_picture_url: null,
     mobile_number: null,
     branding_links: {
-      instagram: "",
+      instagram: trimmed(person?.instagram) || "",
       x: "",
       youtube: "",
       tiktok: "",
@@ -238,6 +261,7 @@ function mapProfileFromDb(dbProfile) {
     isAdmin: dbProfile.is_admin || false,
     signupOrigin: dbProfile.signup_origin || null,
     signupOriginInferred: dbProfile.signup_origin_inferred || false,
+    uiPrefs: dbProfile.ui_prefs || {},
     hostBrief: dbProfile.host_brief || "",
     // Phone-as-identity + WhatsApp host preferences (migrations 037 + 044).
     // Surfaced under both camelCase and snake_case so the settings UI
@@ -300,6 +324,10 @@ function mapProfileToDb(profile) {
   // The admin flag is granted out-of-band via scripts/grant_admin.js, which
   // writes the column directly.
   if (profile.hostBrief !== undefined) dbProfile.host_brief = profile.hostBrief;
+  // Per-host UI prefs (mig 117) — a small jsonb bag (banner dismissals etc.).
+  // The client sends the whole object; last write wins.
+  if (profile.uiPrefs !== undefined && typeof profile.uiPrefs === "object" && profile.uiPrefs !== null)
+    dbProfile.ui_prefs = profile.uiPrefs;
   // WhatsApp host prefs (migration 044). Accept either camelCase or
   // snake_case so the settings UI can save with the DB column names
   // directly without an extra mapping layer on the frontend.

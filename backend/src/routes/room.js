@@ -230,21 +230,24 @@ export function registerRoomRoutes(app) {
       // (profiles row, id == auth user) or a bare PERSON (people row, a guest who
       // hasn't claimed an account yet). Either id resolves here so the world list
       // can link to anyone, account or not.
+      const profileSelect = "id, name, bio, city, profile_picture_url, branding_links, contact_email, whatsapp_signature, ui_prefs";
       let { data: profile } = await supabase
-        .from("profiles").select("id, name, bio, profile_picture_url, branding_links").eq("id", hostId).maybeSingle();
+        .from("profiles").select(profileSelect).eq("id", hostId).maybeSingle();
       let personRow = null;
       if (!profile) {
-        const { data: pr } = await supabase.from("people").select("id, name, auth_user_id").eq("id", hostId).maybeSingle();
+        const { data: pr } = await supabase.from("people").select("id, name, email, auth_user_id").eq("id", hostId).maybeSingle();
         if (!pr) return res.status(404).json({ error: "not_found" });
         personRow = pr;
         // If this person has since claimed an account, prefer the account identity.
         if (pr.auth_user_id) {
-          const { data: p2 } = await supabase.from("profiles").select("id, name, bio, profile_picture_url, branding_links").eq("id", pr.auth_user_id).maybeSingle();
+          const { data: p2 } = await supabase.from("profiles").select(profileSelect).eq("id", pr.auth_user_id).maybeSingle();
           if (p2) profile = p2;
         }
       }
       const accountId = profile?.id || null;                 // drives hosted events (host_id)
-      const nodeName = profile?.name || personRow?.name || "Someone";
+      // No name anywhere → fall back to the email they signed up with, never a
+      // faceless "Someone" (their room header should always be recognizably theirs).
+      const nodeName = profile?.name || personRow?.name || profile?.contact_email || personRow?.email || "Someone";
       // PUBLIC bio only — never the internal host_brief (that's the AI-coach's
       // strategy notes; showing it would leak sponsor plans to guests).
       const nodeBio = profile?.bio || null;
@@ -440,6 +443,31 @@ export function registerRoomRoutes(app) {
         }
       }
 
+      // Owner-only profile-setup meter: how much of their public identity is
+      // filled in. Avatar counts the EFFECTIVE one (an OAuth picture is a real
+      // face on the room — nagging about it would be noise). Drives the setup
+      // banner at the top of the main room, which links to Settings. Once the
+      // host closes that banner it stays closed forever, on every device —
+      // the dismissal lives on the profile row (ui_prefs, mig 117).
+      let profileSetup = null;
+      if (effectiveOwner && accountId && !profile?.ui_prefs?.profileSetupDismissed) {
+        const filled = (v) => !!(typeof v === "string" ? v.trim() : v);
+        const hasSocial = Object.values(profile?.branding_links || {}).some(filled);
+        const checks = {
+          name: filled(profile?.name),
+          avatar: filled(nodeAvatar),
+          bio: filled(profile?.bio),
+          city: filled(profile?.city),
+          social: hasSocial,
+          whatsappSignature: filled(profile?.whatsapp_signature),
+        };
+        const done = Object.values(checks).filter(Boolean).length;
+        profileSetup = {
+          percent: Math.round((done / Object.keys(checks).length) * 100),
+          missing: Object.keys(checks).filter((k) => !checks[k]),
+        };
+      }
+
       // The MAIN-room product showcase — the host's live, non-hidden products.
       // Owner sees manage fields + stats; visitors see live, buy-safe cards.
       let products = [];
@@ -460,6 +488,7 @@ export function registerRoomRoutes(app) {
         people: showPeople ? people : [],
         products,
         console: consolePayload,
+        profileSetup,
       });
     } catch (err) {
       console.error("[node-profile] error:", err.message);

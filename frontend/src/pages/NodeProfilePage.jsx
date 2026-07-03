@@ -22,7 +22,7 @@ import { PullupEyes } from "../components/PullupEyes.jsx";
 import { LoadingScreen } from "../components/LoadingScreen.jsx";
 import { AppHeader } from "../components/AppHeader.jsx";
 import { OwnerConsole } from "./RoomPage.jsx";
-import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe } from "lucide-react";
+import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe, X } from "lucide-react";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -50,13 +50,16 @@ function Socials({ socials }) {
 // The public face — shown to everyone (the IG-style header). Content below is gated.
 function Masthead({ node, onCount, ownerAction }) {
   const c = node.counts || {};
+  // The name can fall back to an email (better than a faceless "Someone") —
+  // don't shout an email address in uppercase.
+  const nameIsEmail = String(node.name || "").includes("@");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 22, position: "relative" }}>
       <div style={{ width: 80, height: 80, borderRadius: "50%", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg,#ff45ad,#ec178f)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff", border: `1px solid ${colors.borderFaint}` }}>
         {node.avatar ? <img src={transformedImageUrl(node.avatar, { width: 120 })} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(node.name)}
       </div>
       <div style={{ minWidth: 0 }}>
-        <h1 style={{ fontSize: 27, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px", textTransform: "uppercase", color: colors.text }}>{node.name}</h1>
+        <h1 style={{ fontSize: nameIsEmail ? 21 : 27, fontWeight: 800, letterSpacing: "-0.02em", margin: "0 0 8px", textTransform: nameIsEmail ? "none" : "uppercase", color: colors.text, overflowWrap: "anywhere" }}>{node.name}</h1>
         <div style={{ display: "flex", gap: 6, fontSize: 13.5, color: colors.textMuted, flexWrap: "wrap" }}>
           <CountChip n={c.people ?? 0} label="people" onClick={onCount ? () => onCount("people") : undefined} />
           <span style={{ color: colors.textFaded }}>·</span>
@@ -76,6 +79,39 @@ function Masthead({ node, onCount, ownerAction }) {
   );
 }
 
+// What each unfilled profileSetup key means to a human, in "add …" phrasing.
+const SETUP_LABELS = { name: "your name", avatar: "a photo", bio: "a short bio", city: "your city", social: "a social link", whatsappSignature: "a WhatsApp signature" };
+
+// Owner-only setup banner — top of the main room, above the identity face.
+// The whole card walks to Settings; the × removes it forever (persisted on the
+// profile, so it stays gone on every device).
+function ProfileSetupBanner({ setup, onGo, onDismiss }) {
+  const missing = (setup.missing || []).map((k) => SETUP_LABELS[k]).filter(Boolean);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, padding: "11px 12px 11px 14px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}` }}>
+      <span style={{ width: 30, height: 30, borderRadius: "50%", background: `conic-gradient(${colors.accent} ${setup.percent * 3.6}deg, rgba(236,23,143,0.15) 0deg)`, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span style={{ width: 21, height: 21, borderRadius: "50%", background: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8.5, fontWeight: 800, color: colors.accentText }}>{setup.percent}%</span>
+      </span>
+      <button onClick={onGo} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: colors.accentText, lineHeight: 1.3 }}>Your profile is {setup.percent}% set up</div>
+        {missing.length > 0 && (
+          <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 1.5, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            Add {missing.slice(0, 3).join(", ")} in Settings so guests recognize you.
+          </div>
+        )}
+      </button>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss forever"
+        title="Don't show this again"
+        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, border: "none", background: "transparent", color: colors.accent, cursor: "pointer" }}
+      >
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+
 function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?"; }
 function firstName(n = "") { return String(n).trim().split(/\s+/)[0] || "they"; }
 function whenLabel(iso) { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
@@ -89,6 +125,7 @@ export default function NodeProfilePage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(false);
   const [popup, setPopup] = useState(null); // "people" | "hosted" | "pulledUp" | null
+  const [setupDismissed, setSetupDismissed] = useState(false); // profile-setup banner, closed this session
   const [shown, setShown] = useState(8); // events grid: 4×2, then "Load more"
 
   useEffect(() => {
@@ -155,6 +192,22 @@ export default function NodeProfilePage() {
   // inside vs. outside. Everyone else sees the public face + the events slider.
   const showConsole = isOwner && !asEmail && !!data.console;
 
+  // "Never again" is optimistic-local first, then persisted onto the profile
+  // (read-merge-write so future ui_prefs tenants survive). The backend stops
+  // shipping profileSetup once the flag is set.
+  const dismissSetupBanner = async () => {
+    setSetupDismissed(true);
+    try {
+      const r = await authenticatedFetch("/host/profile");
+      const prof = r.ok ? await r.json() : null;
+      await authenticatedFetch("/host/profile", {
+        method: "PUT",
+        body: JSON.stringify({ uiPrefs: { ...(prof?.uiPrefs || {}), profileSetupDismissed: true } }),
+      });
+    } catch { /* best-effort: hidden this session either way */ }
+  };
+  const showSetupBanner = showConsole && !setupDismissed && data.profileSetup && data.profileSetup.percent < 100;
+
   // The count popups behind the masthead numbers — shared across both views.
   const popups = (
     <>
@@ -188,6 +241,9 @@ export default function NodeProfilePage() {
         <AppHeader />
         <div style={{ minHeight: "100dvh", background: colors.background, color: colors.text, fontFamily: SF }}>
           <div style={{ maxWidth: 740, margin: "0 auto", padding: "calc(78px + env(safe-area-inset-top, 0px)) 20px calc(80px + env(safe-area-inset-bottom, 0px))" }}>
+            {showSetupBanner && (
+              <ProfileSetupBanner setup={data.profileSetup} onGo={() => navigate("/settings")} onDismiss={dismissSetupBanner} />
+            )}
             <Masthead node={node} onCount={setPopup} />
             <OwnerConsole room={data.console} />
           </div>

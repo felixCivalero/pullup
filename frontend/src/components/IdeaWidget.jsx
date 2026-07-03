@@ -10,6 +10,7 @@ import { useMcpStatus } from "../lib/useMcpStatus.js";
 import { AI_CREATE_ENABLED } from "../lib/featureFlags.js";
 import { colors } from "../theme/colors.js";
 import { CanvasChat } from "./CanvasChat.jsx";
+import { useMessagesStore } from "../contexts/useMessagesStore.js";
 
 // Tiny face-pile tints for the Messages trigger (mirrors DockMessages avatars).
 const FACE_TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];
@@ -227,20 +228,20 @@ export function IdeaWidget() {
     };
   }, [inAiMode, resource]);
 
-  // A few faces for the Messages trigger — needs-you first. Lightweight read.
-  const [roomFaces, setRoomFaces] = useState([]);
+  // Faces for the Messages trigger come from the SAME contacts store the dock
+  // renders from — prewarmed here on mount. So the face-pile appearing IS the
+  // signal that the dock will open instantly from cache (no second fetch, no
+  // "Loading…" after the click). Needs-you first, like the dock's list.
+  const { people: storePeople, ensureLoaded: ensureContactsLoaded } = useMessagesStore();
   useEffect(() => {
-    let alive = true;
-    authenticatedFetch("/host/room")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!alive || !d) return;
-        const ppl = [...(d.people || [])].sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0));
-        setRoomFaces(ppl.slice(0, 3));
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
+    if (user) ensureContactsLoaded();
+  }, [user, ensureContactsLoaded]);
+  const roomFaces = useMemo(() => {
+    if (!Array.isArray(storePeople)) return []; // null = store not loaded yet
+    return [...storePeople]
+      .sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0))
+      .slice(0, 3);
+  }, [storePeople]);
 
   // Close the panel when mode flips so the host doesn't see stale chrome.
   useEffect(() => {
@@ -441,10 +442,11 @@ export function IdeaWidget() {
         )}
 
         {/* Trigger pill — "Messages" (your people) by default; "PullUp" sparkle in
-            AI-build mode. Hidden whenever the dock is open (the panel has its own
-            close) — on desktop it used to stay visible and float over the panel's
-            footer "Write to N" button. */}
-        {!open && (
+            AI-build mode. Stays put under the open panel (the panel floats at
+            bottom:56, clear of the pill) so opening doesn't make it vanish;
+            clicking it again closes. Hidden only under the mobile full-screen
+            sheet, which covers it anyway. */}
+        {(!open || !fullScreen) && (
         <button
           ref={triggerRef}
           onClick={() => setOpen((prev) => !prev)}

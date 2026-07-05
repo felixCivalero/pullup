@@ -12,34 +12,21 @@ import { meteringEnabled } from "../../config/billing.js";
 // ── Pure fee math ───────────────────────────────────────────────────────────
 //
 // PullUp earns on EXACTLY two things:
-//   (1) a per-PAID-ticket transaction fee (computeTicketFee) — usage-based,
-//       $0 on free tickets;
-//   (2) a % markup on the creator's OWN Supabase storage tier
-//       (computeStorageServiceFee) — the recurring "service on top of the
-//       plug" line, dormant until the BYO graduation gives each creator a
-//       billable Supabase project.
+//   (1) the Creator subscription — 125 SEK/month flat while you host anything
+//       (collected by Stripe Billing, not computed here);
+//   (2) a per-PAID-ticket transaction fee (computeTicketFee) — usage-based,
+//       $0 on free tickets.
 // Pull-ups and RSVPs are NEVER billed — they're counted (for the host's own
-// scale dashboard) and that's all.
+// scale dashboard) and that's all. Storage is NEVER billed: a BYO creator's
+// Supabase invoice is theirs, PullUp adds nothing on top.
 
 // Ticket fee in cents: basis points of the gross ticket motion.
-// 250 bps = 2.5% — vs Eventbrite ~11% all-in; the fee IS the pitch.
+// 300 bps = 3% flat — vs Eventbrite ~11% all-in; the fee IS the pitch.
 export function computeTicketFee(amountCents, plan) {
-  const bps = plan?.ticketFeeBps ?? 250;
+  const bps = plan?.ticketFeeBps ?? 300;
   const amount = Number(amountCents) || 0;
   if (amount <= 0) return 0;
   return Math.round((amount * bps) / 10000);
-}
-
-// Storage service fee in cents: markup_bps of the creator's monthly Supabase
-// bill. 3000 bps = 30% on top of what they already pay Supabase. The % is a
-// cost-reflective proxy (server cost ∝ data+traffic ∝ their tier) and stays
-// transparent because the creator already sees their Supabase invoice.
-// storageTierCents is 0 until BYO, so this returns 0 today.
-export function computeStorageServiceFee(storageTierCents, markupBps) {
-  const cents = Number(storageTierCents) || 0;
-  const bps = markupBps ?? 3000;
-  if (cents <= 0) return 0;
-  return Math.round((cents * bps) / 10000);
 }
 
 // The DPCS party math — same rules the legacy Stripe path applies, factored
@@ -141,30 +128,5 @@ export async function meterTicketSale({
     });
   } catch (e) {
     console.error("[feeEngine] ticket metering failed (non-blocking):", e?.message);
-  }
-}
-
-// The recurring storage-markup line: PullUp's % on top of the creator's own
-// Supabase tier. Metered once per host per month — the dedupe_key keys the run
-// so a daily scheduler tick only bills once. Accrual only (Phase A); collecting
-// it (a host subscription) is Phase B.
-export async function meterStorageFee({ hostId, storageTierCents, markupBps, currency = "usd", monthKey }) {
-  if (!meteringEnabled()) return { skipped: true };
-  if (!hostId || !monthKey) return { skipped: true, reason: "missing_key" };
-  const feeCents = computeStorageServiceFee(storageTierCents, markupBps);
-  if (feeCents <= 0) return { skipped: true, reason: "zero_fee" };
-  try {
-    return await meterMotion({
-      motion: "storage_service",
-      dedupeKey: `storage:${hostId}:${monthKey}`,
-      hostId,
-      amountCents: Number(storageTierCents) || 0, // the base (creator's Supabase bill)
-      feeCents, // PullUp's markup — the revenue line
-      currency,
-      metadata: { storageTierCents: Number(storageTierCents) || 0, markupBps: markupBps ?? 3000, monthKey },
-    });
-  } catch (e) {
-    console.error("[feeEngine] storage metering failed (non-blocking):", e?.message);
-    return { ok: false };
   }
 }

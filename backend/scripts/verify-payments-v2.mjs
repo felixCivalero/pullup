@@ -67,10 +67,10 @@ try {
   const pv2 = rsvpBody.paymentV2;
   ok(!!pv2?.required, "response carries paymentV2.required");
   ok((pv2?.rails || []).includes("mock"), `rails offered: ${(pv2?.rails || []).join(",")}`);
-  // party of 2 × 150 kr = 30000; fee 2.5% = 750; total 30750
+  // party of 2 × 150 kr = 30000; fee 3% = 900; total 30900
   ok(pv2?.breakdown?.ticketAmount === 30000, `gross priced (${pv2?.breakdown?.ticketAmount})`);
-  ok(pv2?.breakdown?.platformFeeAmount === 750, `fee = 2.5% (${pv2?.breakdown?.platformFeeAmount})`);
-  ok(pv2?.amount === 30750 && pv2?.currency === "sek", "guest total + currency right");
+  ok(pv2?.breakdown?.platformFeeAmount === 900, `fee = 3% (${pv2?.breakdown?.platformFeeAmount})`);
+  ok(pv2?.amount === 30900 && pv2?.currency === "sek", "guest total + currency right");
 
   const { data: rsvpRow } = await admin.from("rsvps").select("id, person_id, booking_status, payment_status").eq("event_id", eventId).maybeSingle();
   guestPersonId = rsvpRow?.person_id || null;
@@ -90,7 +90,7 @@ try {
   const { data: payRow } = await admin.from("payments").select("provider, provider_ref, status, amount, metadata").eq("id", paymentId).maybeSingle();
   providerRef = payRow?.provider_ref || null;
   ok(payRow?.provider === "mock" && payRow?.status === "pending", `payment row pending on mock rail`);
-  ok(payRow?.metadata?.feeCents === 750, `fee stamped in metadata (${payRow?.metadata?.feeCents})`);
+  ok(payRow?.metadata?.feeCents === 900, `fee stamped in metadata (${payRow?.metadata?.feeCents})`);
 
   // 3. settle (the mock rail's webhook)
   const confirmRes = await fetch(`${API}${charge.instructions.confirmPath}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -109,7 +109,7 @@ try {
   const { data: ledger } = await admin.from("transaction_ledger").select("motion, amount_cents, fee_cents, currency").eq("event_id", eventId);
   ok((ledger || []).some((l) => l.motion === "rsvp"), "ledger has the rsvp motion");
   const sale = (ledger || []).find((l) => l.motion === "ticket_sale");
-  ok(!!sale && sale.fee_cents === 750 && sale.amount_cents === 30000, `ticket_sale metered gross=30000 fee=750 (${sale?.amount_cents}/${sale?.fee_cents})`);
+  ok(!!sale && sale.fee_cents === 900 && sale.amount_cents === 30000, `ticket_sale metered gross=30000 fee=900 (${sale?.amount_cents}/${sale?.fee_cents})`);
 
   // 7. replayed settlement is a true no-op
   const replay = await fetch(`${API}${charge.instructions.confirmPath}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json());
@@ -118,12 +118,12 @@ try {
   ok(saleCount === 1, `still exactly one ticket_sale row (${saleCount})`);
 
   // 8. the host billing summary read path — the two-revenue-line model:
-  //    ticket fees counted, storage service line present (0 today, 30% ready).
+  //    ticket fees counted, subscription state present, NO storage line.
   const sum = await fetch(`${API}/host/billing/summary`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
   ok(sum?.month?.ticketSales >= 1, `billing summary counts the ticket sale (${sum?.month?.ticketSales})`);
-  ok(sum?.storageService?.markupBps === 3000, `storage service line = 30% markup (${sum?.storageService?.markupBps} bps)`);
-  ok(sum?.storageService?.feeCents === 0, `storage fee is 0 pre-BYO (tier 0) (${sum?.storageService?.feeCents})`);
-  ok(!("pullupFee" in (sum?.plan || {})) && sum?.plan?.markupBps === 3000, "plan exposes markup, not the removed per-pull-up fee");
+  ok(!("storageService" in (sum || {})), "storage markup line is gone from the summary");
+  ok(sum?.plan?.ticketFeeBps === 300, `plan ticket fee is 3% (${sum?.plan?.ticketFeeBps} bps)`);
+  ok(typeof sum?.plan?.subscriptionStatus === "string", `plan carries subscription status (${sum?.plan?.subscriptionStatus})`);
 } catch (e) {
   failures++;
   console.error("❌ threw:", e.message);

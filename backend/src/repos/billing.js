@@ -7,56 +7,106 @@
 
 import { supabase } from "../supabase.js";
 
-// No plan row = the starter defaults. A row exists only once a host upgrades
-// or a concierge deal is cut, so the table stays tiny and honest.
+// No plan row = the creator defaults (subscribes to host). A row exists for
+// founding hosts (plan 'early', stamped by mig 118) and for anyone who has
+// touched Stripe, so the table stays tiny and honest.
 //
-// Two revenue knobs, the ONLY two: ticketFeeBps (per paid ticket) and
-// markupBps (the % on top of the creator's own Supabase storage tier).
-// storageTierCents is what the creator pays Supabase that month — 0 until the
-// BYO graduation gives them their own billable project, so the recurring line
-// is dormant today.
-export const STARTER_PLAN = Object.freeze({
-  plan: "starter",
-  ticketFeeBps: 250, // 2.5% of the ticket motion
-  storageTierCents: 0, // their monthly Supabase bill (0 until BYO)
-  markupBps: 3000, // 30% on top of that bill
+// Two revenue lines, the ONLY two: the Creator subscription (125 SEK/month
+// while you host anything) and ticketFeeBps on paid tickets. A BYO creator's
+// Supabase bill is between them and Supabase — PullUp adds nothing on top.
+export const DEFAULT_PLAN = Object.freeze({
+  plan: "creator",
+  ticketFeeBps: 300, // 3% of the ticket motion — same number the live Stripe path charges
   feeCurrency: "usd",
   carePlan: null,
   byoSupabase: false,
+  subscriptionStatus: "none", // none | active | past_due | canceled
+  stripeCustomerId: null,
+  stripeSubscriptionId: null,
+  currentPeriodEnd: null,
 });
 
+function mapPlanRow(data) {
+  if (!data) return { ...DEFAULT_PLAN };
+  return {
+    plan: data.plan || DEFAULT_PLAN.plan,
+    ticketFeeBps: data.ticket_fee_bps ?? DEFAULT_PLAN.ticketFeeBps,
+    feeCurrency: data.fee_currency || DEFAULT_PLAN.feeCurrency,
+    carePlan: data.care_plan || null,
+    byoSupabase: !!data.byo_supabase,
+    subscriptionStatus: data.subscription_status || "none",
+    stripeCustomerId: data.stripe_customer_id || null,
+    stripeSubscriptionId: data.stripe_subscription_id || null,
+    currentPeriodEnd: data.current_period_end || null,
+  };
+}
+
 export async function getPlanForHost(hostId) {
-  if (!hostId) return { ...STARTER_PLAN };
+  if (!hostId) return { ...DEFAULT_PLAN };
   const { data } = await supabase
     .from("creator_billing_plans")
     .select("*")
     .eq("host_id", hostId)
     .maybeSingle();
-  if (!data) return { ...STARTER_PLAN };
-  return {
-    plan: data.plan || STARTER_PLAN.plan,
-    ticketFeeBps: data.ticket_fee_bps ?? STARTER_PLAN.ticketFeeBps,
-    storageTierCents: data.storage_tier_cents ?? STARTER_PLAN.storageTierCents,
-    markupBps: data.markup_bps ?? STARTER_PLAN.markupBps,
-    feeCurrency: data.fee_currency || STARTER_PLAN.feeCurrency,
-    carePlan: data.care_plan || null,
-    byoSupabase: !!data.byo_supabase,
-  };
+  return mapPlanRow(data);
 }
 
-// Persist the creator's current monthly Supabase tier cost — the base the 30%
-// markup is taken on. Upsert so a brand-new BYO creator's plan row is created
-// with default knobs (ticket_fee_bps, markup_bps=3000) and just this field set.
-export async function updateStorageTierCents(hostId, cents) {
-  if (!hostId) return { ok: false, reason: "missing_host" };
+// ── Subscription state (written by Stripe webhooks + checkout sync) ─────────
+
+// Remember the host's Stripe customer id the moment it's minted, so a checkout
+// abandoned halfway still reuses the same customer next time.
+export async function setStripeCustomerId(hostId, customerId) {
+  if (!hostId || !customerId) return { ok: false, reason: "missing_key" };
   const { error } = await supabase
     .from("creator_billing_plans")
-    .upsert(
-      { host_id: hostId, storage_tier_cents: Math.max(0, Math.round(Number(cents) || 0)) },
-      { onConflict: "host_id" },
-    );
+    .upsert({ host_id: hostId, stripe_customer_id: customerId, updated_at: new Date().toISOString() }, { onConflict: "host_id" });
   if (error) return { ok: false, reason: error.message };
   return { ok: true };
+}
+
+// Idempotent by nature: writing the same subscription state twice is a no-op,
+// so replayed webhooks are harmless.
+export async function updateSubscriptionState(
+  hostId,
+  { status, customerId = null, subscriptionId = null, currentPeriodEnd = null },
+) {
+  if (!hostId || !status) return { ok: false, reason: "missing_key" };
+  const patch = {
+    host_id: hostId,
+    subscription_status: status,
+    subscription_updated_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (customerId) patch.stripe_customer_id = customerId;
+  if (subscriptionId) patch.stripe_subscription_id = subscriptionId;
+  if (currentPeriodEnd) patch.current_period_end = currentPeriodEnd;
+  const { error } = await supabase
+    .from("creator_billing_plans")
+    .upsert(patch, { onConflict: "host_id" });
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true };
+}
+
+// Webhook → host resolution: subscription events carry the subscription (or
+// customer) id, not our host id.
+export async function findHostByStripeSubscription({ subscriptionId = null, customerId = null }) {
+  if (subscriptionId) {
+    const { data } = await supabase
+      .from("creator_billing_plans")
+      .select("host_id")
+      .eq("stripe_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (data?.host_id) return data.host_id;
+  }
+  if (customerId) {
+    const { data } = await supabase
+      .from("creator_billing_plans")
+      .select("host_id")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+    if (data?.host_id) return data.host_id;
+  }
+  return null;
 }
 
 // Append one metered motion. Idempotent: a duplicate dedupe_key is swallowed
@@ -100,7 +150,7 @@ export async function meterMotion({
 
 // The host-facing month picture: motions counted (scale, never billed), ticket
 // money moved + ticket fees (grouped by currency — a Nairobi+Stockholm host
-// legitimately has both), and the recurring storage service line.
+// legitimately has both), and the subscription state.
 export async function getBillingSummary(hostId) {
   const plan = await getPlanForHost(hostId);
   const monthStart = new Date();
@@ -126,25 +176,9 @@ export async function getBillingSummary(hostId) {
     month.byCurrency[cur].feeCents += r.fee_cents || 0;
   }
 
-  // The recurring line: PullUp's % on top of the creator's Supabase bill.
-  // 0 today (storageTierCents is 0 until BYO); shape is ready for the panel.
-  // (Inlined rather than importing feeEngine — that module imports this repo,
-  // and the math is one line. Mirrors feeEngine.computeStorageServiceFee.)
-  const storageFeeCents =
-    plan.storageTierCents > 0
-      ? Math.round((plan.storageTierCents * (plan.markupBps ?? 3000)) / 10000)
-      : 0;
-  const storageService = {
-    tierCents: plan.storageTierCents,
-    markupBps: plan.markupBps,
-    feeCents: storageFeeCents,
-    currency: plan.feeCurrency,
-  };
-
   return {
     plan,
     month,
-    storageService,
     recent: (rows || []).slice(0, 25).map((r) => ({
       motion: r.motion,
       amountCents: r.amount_cents,

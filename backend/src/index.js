@@ -40,6 +40,7 @@ import { registerPaymentsV2Routes } from "./routes/paymentsV2.js";
 import { registerProductDeliveryRoutes } from "./routes/productDelivery.js";
 import { registerProductPlacementRoutes } from "./routes/productPlacement.js";
 import { registerBillingRoutes } from "./routes/billing.js";
+import { registerSubscriptionRoutes, registerSubscriptionWebhookRoutes } from "./routes/subscriptions.js";
 import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
 import { registerByoOauthRoutes } from "./routes/byoOauth.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
@@ -162,6 +163,7 @@ app.use((req, res, next) => {
 app.use(requestMetrics);
 
 registerStripeWebhookRoutes(app);
+registerSubscriptionWebhookRoutes(app); // Creator-tier subscription events — raw body, own secret
 
 // /mcp JSON-RPC bodies get a stricter cap than the global json parser —
 // MCP messages are normally <100KB, occasional inline base64 images may
@@ -294,6 +296,7 @@ registerProductDeliveryRoutes(app);
 registerProductPlacementRoutes(app);
 
 registerBillingRoutes(app);
+registerSubscriptionRoutes(app);
 
 // BYO-Supabase (creator owns their data) — connect/status/disconnect spine.
 // Inert until BYO_SUPABASE_ENABLED flips.
@@ -889,22 +892,6 @@ app.listen(PORT, HOST, async () => {
     }
   }
   setInterval(runDigestTick, DIGEST_INTERVAL_MS);
-
-  /* Storage-markup billing (Phase A): once a day, sync each live BYO creator's
-   * Supabase tier → storage_tier_cents and accrue the month's 30% markup into
-   * the ledger (deduped per host per month). Self-gated — a no-op unless BYO +
-   * metering are enabled, so it's inert until BYO graduates. Collection is
-   * Phase B. */
-  const STORAGE_BILLING_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
-  async function runStorageBillingTick() {
-    try {
-      const { runStorageBilling } = await import("./jobs/storageBillingRun.js");
-      await runStorageBilling();
-    } catch (err) {
-      console.error("[storageBilling] Unexpected error in tick:", err.message);
-    }
-  }
-  setInterval(runStorageBillingTick, STORAGE_BILLING_INTERVAL_MS);
 
   /* Owned-schema sync (BYO): once a day, re-apply PullUp's current owned schema
    * to every connected creator DB so schema changes (new tables/columns)

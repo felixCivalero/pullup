@@ -6,12 +6,10 @@
 // official versioned API, and the exact surface OAuth wraps later (PAT now →
 // OAuth token later, same calls).
 //
-// Two uses:
+// Primary use:
 //   runProjectSql  — run DDL (provision the schema) / arbitrary SQL on the
 //                    creator's project. The service key (PostgREST) CAN'T do
 //                    DDL; this can.
-//   getProjectTier — read the project's subscription tier / usage, which feeds
-//                    the 30% storage-markup billing line.
 //
 // The token is the creator's Management API PAT (or, later, an OAuth access
 // token), stored encrypted in creator_databases.encrypted_mgmt_token. Never
@@ -104,20 +102,3 @@ export async function deleteProject(token, ref) {
   return mgmtFetch(token, `/v1/projects/${ref}`, { method: "DELETE" });
 }
 
-// The project's tier/usage → the base the 30% storage markup is taken on. The
-// Management API exposes subscription + usage endpoints; we surface a normalized
-// monthly-cost-cents figure for creator_billing_plans.storage_tier_cents. Best
-// effort: returns null if the API shape isn't available (billing line stays 0).
-export async function getProjectTier(projectRef, token) {
-  try {
-    const sub = await mgmtFetch(token, `/v1/projects/${projectRef}/billing/subscription`).catch(() => null);
-    // Shape varies by plan; we read the most stable signal we can and leave the
-    // precise cents mapping to the billing job that consumes this.
-    return {
-      tier: sub?.plan?.id || sub?.tier || null,
-      raw: sub || null,
-    };
-  } catch {
-    return null;
-  }
-}

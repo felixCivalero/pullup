@@ -39,31 +39,6 @@ export async function getCreatorDatabase(hostId) {
   return mapSafe(data);
 }
 
-// Billable BYO creators for the storage-markup job: connected, with a project
-// ref + service key (the Metrics API authenticates with the service-role key).
-// Returns the DECRYPTED service key — internal billing job only (like
-// getCreatorDatabaseWithKey, never surfaced through an API). Bounded set (one
-// row per connected creator).
-export async function listBillableCreatorDatabases() {
-  const { data } = await supabase
-    .from("creator_databases")
-    .select("host_id, project_ref, encrypted_service_key, status")
-    .in("status", ["connected", "provisioning", "mirroring", "live"]) // safe-query: ok — bounded literal status set
-    .not("project_ref", "is", null);
-  if (!data) return [];
-  return data
-    .map((row) => {
-      let serviceKey = null;
-      try {
-        serviceKey = row.encrypted_service_key ? decryptSecret(row.encrypted_service_key) : null;
-      } catch {
-        serviceKey = null;
-      }
-      return { hostId: row.host_id, projectRef: row.project_ref, status: row.status, serviceKey };
-    })
-    .filter((c) => c.serviceKey && c.projectRef);
-}
-
 // Host ids of every connected creator (has a project ref + mgmt token), for the
 // daily schema-sync job. Just ids — syncOwnedSchema() re-reads the row + decrypts
 // the mgmt token itself. Bounded set (one row per connected creator).

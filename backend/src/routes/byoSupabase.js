@@ -13,12 +13,14 @@ import { byoEnabledForHost, byoOauthConfigured } from "../config/byo.js";
 import { hasEncryptionKey } from "../utils/encryption.js";
 import {
   getCreatorDatabase,
+  getCreatorDatabaseWithKey,
   connectCreatorDatabase,
   disconnectCreatorDatabase,
 } from "../repos/creatorDatabases.js";
 import { invalidateHost } from "../db/router.js";
 import { mirrorHostData, verifyMirror } from "../services/byo/mirror.js";
 import { provisionOwnedProject } from "../services/byo/provisioner.js";
+import { getProjectUsage } from "../services/byo/projectUsage.js";
 
 // Reachability + auth probe for a creator's project, using ONLY the data-plane
 // service key (no management token needed): hit the PostgREST root with the
@@ -133,6 +135,27 @@ export function registerByoSupabaseRoutes(app) {
     } catch (e) {
       console.error("[byo] verify failed:", e?.message);
       return res.status(500).json({ error: "verify_failed" });
+    }
+  });
+
+  // Real usage from the creator's OWN project, read live from its Metrics API
+  // — shown against Supabase's own tier ladder in the Own-your-data panel.
+  // Purely informational: PullUp never bills on storage; the number exists so
+  // the creator can see where they sit on SUPABASE's pricing (free 500 MB →
+  // Pro $25/mo). Best-effort: usage null just means "unavailable right now".
+  app.get("/host/byo/usage", requireAuth, async (req, res) => {
+    if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
+    try {
+      const row = await getCreatorDatabaseWithKey(req.user.id);
+      if (!row?.projectRef || !row?.serviceKey) return res.json({ connected: false, usage: null });
+      const usage = await getProjectUsage(row.projectRef, row.serviceKey);
+      return res.json({
+        connected: true,
+        usage: usage ? { dbBytes: usage.dbBytes } : null,
+      });
+    } catch (e) {
+      console.error("[byo] usage read failed:", e?.message);
+      return res.json({ connected: true, usage: null });
     }
   });
 

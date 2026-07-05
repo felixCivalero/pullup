@@ -1,12 +1,12 @@
 // Read a connected creator's REAL usage from their Supabase project Metrics API
 // — the per-project Prometheus endpoint, HTTP Basic auth with the service-role
 // key (which we already store, encrypted). v1 reads DATABASE SIZE: a gauge of
-// current stored bytes, the smooth basis the 30% markup is taken on (matches
-// the "your data" slider). Egress (a counter needing month-deltas) is a later
-// add once the metric names are confirmed against a live endpoint.
+// current stored bytes, shown to the creator against Supabase's own tier
+// ladder ("320 MB of your free 500 MB") in the Own-your-data panel. PullUp
+// never bills on this — the creator's Supabase invoice is theirs alone.
 //
 // Best-effort by design: returns null on any failure and 0 for a metric we
-// can't find, so a creator is NEVER over-charged from a shape we didn't expect.
+// can't find, so the panel degrades to "usage unavailable", never a wrong number.
 //
 // Endpoint: https://<ref>.supabase.co/customer/v1/privileged/metrics
 // Auth:     Basic base64("service_role:<service key>")

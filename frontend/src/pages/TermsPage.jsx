@@ -52,14 +52,20 @@ export function TermsPage() {
           You are responsible for handling your guest data in accordance with applicable privacy laws, including GDPR. You may email your own guests about your own future events on the basis of legitimate interest — keep it occasional and relevant, and honour every opt-out. You may not use guest data for unrelated purposes, or share it with other parties, without a lawful basis.
         </p>
 
-        <h2 style={s.h2}>5. Payments and tickets</h2>
+        <h2 style={s.h2}>5. Fees, payments and tickets</h2>
+        <p style={s.p}>
+          Hosting on PullUp (publishing events, community pages or products) requires the Creator subscription: 125 SEK per month, cancelled anytime. When you cancel, you keep hosting until the end of the period you've paid for; after that your pages stay online read-only and new sign-ups pause until you resubscribe. Your data remains yours and exportable at all times, subscription or not. Being a guest — browsing and signing up for other people's events — is always free.
+        </p>
         <p style={s.p}>Paid ticketing is processed by Stripe. When you sell tickets:</p>
         <ul style={s.ul}>
           <li style={s.li}>You must connect a Stripe account to receive payouts</li>
-          <li style={s.li}>PullUp charges a platform fee of 2.5% on paid tickets</li>
+          <li style={s.li}>PullUp charges a platform fee of 3% on paid tickets</li>
           <li style={s.li}>Stripe's own processing fees apply in addition</li>
           <li style={s.li}>You are responsible for any tax obligations on ticket revenue</li>
         </ul>
+        <p style={s.p}>
+          If you connect your own database ("Own your data"), Supabase bills you directly at their own prices — PullUp adds no markup and takes no cut of that bill.
+        </p>
 
         <h2 style={s.h2}>6. Refunds</h2>
         <p style={s.p}>

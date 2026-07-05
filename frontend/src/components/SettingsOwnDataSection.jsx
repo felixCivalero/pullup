@@ -35,6 +35,7 @@ export function SettingsOwnDataSection() {
   const [welcomeOpen, setWelcomeOpen] = useState(false); // the "it worked" return-from-auth modal
   const [autoRan, setAutoRan] = useState(false); // mirror auto-kicked once after provision
   const [mirroredPeople, setMirroredPeople] = useState(null); // count to celebrate in the modal
+  const [usage, setUsage] = useState(null); // real DB size from the creator's own project
 
   // The OAuth callback bounces back to /settings?byo=<code>. On the happy path
   // (provisioning) we float the welcome modal over the page and read the setup
@@ -69,6 +70,22 @@ export function SettingsOwnDataSection() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // Once connected, read the project's real size so the pricing preview can say
+  // "your database today: 320 MB → Free tier". Best-effort, purely informational.
+  useEffect(() => {
+    if (!state?.connected) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await authenticatedFetch("/host/byo/usage");
+        if (!r.ok) return;
+        const b = await r.json().catch(() => ({}));
+        if (alive && b?.usage) setUsage(b.usage);
+      } catch { /* panel shows the slider only */ }
+    })();
+    return () => { alive = false; };
+  }, [state?.connected]);
 
   // After the OAuth bounce-back (or any 'provisioning' state), poll finalize:
   // it returns ready once the creator's project is healthy + the schema is in.
@@ -274,7 +291,7 @@ export function SettingsOwnDataSection() {
         )}
       </div>
 
-      <PricingPreview />
+      <PricingPreview realDbBytes={usage?.dbBytes} />
     </div>
   );
 }
@@ -299,39 +316,66 @@ function DormantExplainer() {
   );
 }
 
-// The revenue model, explained right under the connect: a small per-ticket fee
-// plus 30% on top of the host's own Supabase bill, with an interactive preview
-// of the storage line at each Supabase tier. Real numbers replace this (here and
-// in Billing) once a Supabase is connected. Mirrors backend storageTiers.js.
-// $0.15 / GB-month — mirrors the backend rate card (services/billing/storageTiers).
-const STORAGE_RATE_CENTS_PER_GB = 15;
-const MARKUP = 0.3;
-function previewMoney(cents) {
-  return `$${(cents / 100).toFixed(2)}`;
+// What owning your data costs = SUPABASE'S OWN PRICE LIST, nothing else.
+// PullUp takes no cut of the creator's Supabase bill — the slider below is an
+// honest preview of the invoice SUPABASE will send them (USD, their currency).
+// Numbers mirror supabase.com/pricing (checked 2026-07-05):
+//   Free: $0 — up to 500 MB database, 1 GB files, 5 GB bandwidth
+//   Pro:  $25/mo — includes 8 GB database, 100 GB files, 250 GB bandwidth,
+//         then $0.125/GB database overage
+const SUPABASE_PRICING = {
+  free: { dbGb: 0.5, filesGb: 1, egressGb: 5 },
+  pro: { monthlyUsd: 25, dbGb: 8, filesGb: 100, egressGb: 250, dbOverageUsdPerGb: 0.125 },
+};
+
+function supabaseMonthlyUsd(dbGb) {
+  if (dbGb <= SUPABASE_PRICING.free.dbGb) return 0;
+  const overageGb = Math.max(0, dbGb - SUPABASE_PRICING.pro.dbGb);
+  return SUPABASE_PRICING.pro.monthlyUsd + overageGb * SUPABASE_PRICING.pro.dbOverageUsdPerGb;
+}
+
+function supabaseTierName(dbGb) {
+  return dbGb <= SUPABASE_PRICING.free.dbGb ? "Free" : "Pro";
+}
+
+function previewMoney(usd) {
+  return usd % 1 === 0 ? `$${usd}` : `$${usd.toFixed(2)}`;
 }
 function fmtData(gb) {
   if (gb < 1) return `${Math.round(gb * 1000)} MB`;
   return `${gb % 1 === 0 ? gb : gb.toFixed(1)} GB`;
 }
-function PricingPreview() {
+
+function PricingPreview({ realDbBytes }) {
   const [gb, setGb] = useState(10);
-  const costCents = STORAGE_RATE_CENTS_PER_GB * gb;
-  const feeCents = Math.round(costCents * MARKUP);
+  const costUsd = supabaseMonthlyUsd(gb);
+  const tier = supabaseTierName(gb);
+  const realGb = Number.isFinite(realDbBytes) && realDbBytes > 0 ? realDbBytes / 1e9 : null;
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ marginBottom: 12 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 2, color: colors.text }}>
-          What PullUp costs when you own your data
+          What owning your data costs
         </h3>
         <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.5 }}>
-          Simple: <strong>30%</strong> on top of what your data costs — metered from your real usage, smooth from zero
-          up. You pay Supabase directly; PullUp is the service on top.
+          Your database is billed by Supabase, to you, at Supabase's own prices.{" "}
+          <strong>PullUp adds nothing on top</strong> — this is their price list, not ours.
         </p>
       </div>
       <div style={{ padding: 18, background: colors.surface, borderRadius: 14, border: `1px solid ${colors.borderFaint}` }}>
+        {realGb !== null && (
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, color: colors.text, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${colors.borderFaint}` }}>
+            <span>
+              <strong>Your database today:</strong> {fmtData(realGb)}
+            </span>
+            <span style={{ fontWeight: 700 }}>
+              {supabaseTierName(realGb)} tier · ~{previewMoney(supabaseMonthlyUsd(realGb))}/mo from Supabase
+            </span>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Drag to see it at your usage
+            Drag to see Supabase's bill at any size
           </span>
           <span style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>{fmtData(gb)}</span>
         </div>
@@ -345,15 +389,21 @@ function PricingPreview() {
           style={{ width: "100%", accentColor: colors.accent, marginBottom: 16, cursor: "pointer" }}
         />
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, color: colors.textMuted, marginBottom: 5 }}>
-          <span>Your data ({fmtData(gb)})</span>
-          <span>~{previewMoney(costCents)}/mo cost</span>
+          <span>
+            Supabase {tier} tier
+            {tier === "Pro" && gb > SUPABASE_PRICING.pro.dbGb ? ` (+${fmtData(gb - SUPABASE_PRICING.pro.dbGb)} over the included ${SUPABASE_PRICING.pro.dbGb} GB)` : ""}
+          </span>
+          <span>{previewMoney(costUsd)}/mo, billed by Supabase</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: colors.accent }}>
-          <span>PullUp service (30%)</span>
-          <span>{previewMoney(feeCents)}/mo</span>
+          <span>PullUp's cut of this bill</span>
+          <span>$0. Always.</span>
         </div>
         <p style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5, margin: "12px 0 0" }}>
-          A preview — your real usage and bill appear here (and in Billing) once your Supabase is connected.
+          Free covers {fmtData(SUPABASE_PRICING.free.dbGb)} of database and {SUPABASE_PRICING.free.filesGb} GB of files —
+          plenty to start. Pro ($25/mo) includes {SUPABASE_PRICING.pro.dbGb} GB database, {SUPABASE_PRICING.pro.filesGb} GB
+          files and {SUPABASE_PRICING.pro.egressGb} GB bandwidth. Prices from supabase.com/pricing; the bill arrives in
+          your name — that's the point.
         </p>
       </div>
     </div>

@@ -38,6 +38,7 @@ export function DesktopEventLayout({
   instantWaitlist = false,
   isEventPast = false,
   isSoldOut = false,
+  rsvpsPaused = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -151,6 +152,7 @@ export function DesktopEventLayout({
     instantWaitlist,
     isEventPast,
     isSoldOut,
+    rsvpsPaused,
   });
 
   const formattedDate = useMemo(() => {

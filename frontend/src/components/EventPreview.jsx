@@ -46,6 +46,7 @@ export function EventPreview({
   instantWaitlist = false,
   isEventPast = false,
   isSoldOut = false,
+  rsvpsPaused = false,
   rsvpContent,
   autoShowRsvp = false,
   activeStep,
@@ -194,7 +195,7 @@ export function EventPreview({
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [hoveredSection]);
 
-  const buttonLabel = getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut });
+  const buttonLabel = getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, instantWaitlist, isEventPast, isSoldOut, rsvpsPaused });
   // Eyebrow + button labels with host overrides (mig 096); fall back to the
   // kind-derived defaults when the host hasn't set custom text.
   const defaultEyebrow = kind === "community"

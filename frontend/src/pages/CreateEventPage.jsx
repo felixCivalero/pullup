@@ -91,6 +91,7 @@ import {
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { parseCoordinates, formatCoordinates } from "../lib/urlUtils";
 import { hasEventEnded, sameInstant } from "../lib/eventLifecycle.js";
+import SubscriptionPaywall from "../components/SubscriptionPaywall.jsx";
 
 // Paste-coordinates field for the location editor. Lets a host who has the exact
 // pin (but no precise street address) type/paste "59.3293, 18.0686" and have it
@@ -787,6 +788,7 @@ export function CreateEventPage() {
   });
   const [profileChecked, setProfileChecked] = useState(true);
   const [showPublishAuth, setShowPublishAuth] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false); // publish came back 402 subscription_required
   const [pendingPublishAfterAuth, setPendingPublishAfterAuth] = useState(false);
   const [detailsTabPulse, setDetailsTabPulse] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2753,6 +2755,10 @@ export function CreateEventPage() {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
+          if (res.status === 402 && err?.error === "subscription_required") {
+            setShowPaywall(true); // work is safe as a draft; sheet takes it from here
+            return;
+          }
           throw new Error(err.error || "Failed to update event");
         }
 
@@ -2855,6 +2861,10 @@ export function CreateEventPage() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
+          if (res.status === 402 && err?.error === "subscription_required") {
+            setShowPaywall(true); // draft (and its media) stays; publish again after subscribing
+            return;
+          }
           throw new Error(err.error || "Failed to publish event");
         }
         finalEvent = await res.json();
@@ -2903,6 +2913,10 @@ export function CreateEventPage() {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
+          if (res.status === 402 && err?.error === "subscription_required") {
+            setShowPaywall(true); // local draft persists (cleared only on success)
+            return;
+          }
           throw new Error(err.error || "Failed to create event");
         }
 
@@ -6525,6 +6539,11 @@ export function CreateEventPage() {
           onAuthed={() => setShowPublishAuth(false)}
         />
       )}
+
+      {/* Creator-tier paywall — ALWAYS mounted (renders nothing while closed):
+          its hook also completes a returning checkout, so a host who just paid
+          lands back here unlocked and only has to hit publish again. */}
+      <SubscriptionPaywall open={showPaywall} onClose={() => setShowPaywall(false)} />
 
       {/* Delete event confirmation */}
       {showDeleteConfirm && (

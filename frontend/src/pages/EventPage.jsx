@@ -936,7 +936,10 @@ export function EventPage() {
     return [new File([blob], `${event.title || "event"}.${ext}`, { type: blob.type || "image/jpeg" })];
   }
 
-  const isDisabled = loading || !event || isEventPast || isSoldOut;
+  // Lapsed-host degradation: backend says sign-ups are paused (page stays up).
+  const rsvpsPaused = !!event?.rsvpsPaused;
+
+  const isDisabled = loading || !event || isEventPast || isSoldOut || rsvpsPaused;
 
   return (
     <>
@@ -1028,6 +1031,7 @@ export function EventPage() {
             ticketCurrency: event?.ticketCurrency,
             isEventPast,
             isSoldOut,
+            rsvpsPaused,
             instagram: event?.instagram,
             spotify: event?.spotify,
             tiktok: event?.tiktok,

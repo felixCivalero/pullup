@@ -6,7 +6,9 @@ import { Button } from "./ui/Button";
 export const EVENT_CTA_HEIGHT = 72;
 
 /** Compute the CTA label from page kind + ticket config */
-export function getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist } = {}) {
+export function getCtaLabel({ kind, ticketType, ticketPrice, ticketCurrency, isEventPast, isSoldOut, instantWaitlist, rsvpsPaused } = {}) {
+  // Lapsed-host degradation: the page stays up, the form closes (all kinds).
+  if (rsvpsPaused) return "Sign-ups are paused";
   // Non-event page kinds carry their own CTA (community → "Join", etc.).
   if (kind === "community") return "Join the community";
   if (kind === "product") return "Buy now";

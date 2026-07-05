@@ -8,7 +8,6 @@ import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
-import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
 import { WebGLHero } from "../components/WebGLHero.jsx";
 import { transformedImageUrl } from "../lib/imageUtils.js";
 
@@ -639,9 +638,6 @@ function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
         <Reveal delay={0.24}>
           <div className="mk-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "center" }}>
             {cta("hero")}
-            {/* Secondary, never primary: only appears on devices that can
-                actually install (Android/Chromium or iOS Safari). */}
-            <InstallPrompt placement="inline" cta="Get the app" />
           </div>
         </Reveal>
         <Reveal delay={0.3}>

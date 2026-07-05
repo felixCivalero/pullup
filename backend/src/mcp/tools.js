@@ -673,18 +673,40 @@ function buildFormFieldsFromExtras(extras) {
   return [...locked, ...custom];
 }
 
+// Publishing is where the Creator subscription kicks in (typed 402 from the
+// API). The MCP never dead-ends on it: work lands as a DRAFT and the host gets
+// a warm, exact pointer instead of a raw error.
+const SUBSCRIPTION_NOTE =
+  "Publishing needs an active PullUp subscription (Creator — 125 kr/month, cancel anytime; " +
+  "founding hosts from before July 2026 host free). Your draft is saved and nothing is lost: " +
+  "subscribe at https://pullup.se/start or Settings → Billing, then publish again.";
+
+function isSubscriptionRequired(e) {
+  return e?.status === 402 || e?.body?.error === "subscription_required";
+}
+
 function buildHandlers(api, hostId) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
 
   async function createEvent(args) {
-    const status = args.status || "DRAFT";
+    let status = args.status || "DRAFT";
     const { extraRsvpFields, ...rest } = args;
     const payload = { ...rest, status };
     if (extraRsvpFields !== undefined) {
       payload.formFields = buildFormFieldsFromExtras(extraRsvpFields);
     }
     if (Array.isArray(payload.sections)) payload.sections = normalizeSections(payload.sections);
-    const event = await api("POST", "/events", { body: payload });
+    let event;
+    let paywallNote = null;
+    try {
+      event = await api("POST", "/events", { body: payload });
+    } catch (e) {
+      if (!isSubscriptionRequired(e)) throw e;
+      // Land the work as a draft instead of losing it, then say why.
+      status = "DRAFT";
+      event = await api("POST", "/events", { body: { ...payload, status: "DRAFT" } });
+      paywallNote = SUBSCRIPTION_NOTE;
+    }
     const { completeness, performance, top } = await buildEventCoaching(event);
 
     const preview = editUrlForEventId(event.id);
@@ -695,9 +717,10 @@ function buildHandlers(api, hostId) {
       shareUrl: status === "PUBLISHED" ? shareUrlForSlug(event.slug) : null,
       rsvpsUrl: rsvpsDashboardForId(event.id),
       note:
-        status === "DRAFT"
+        paywallNote ||
+        (status === "DRAFT"
           ? `To publish: call publish_event with slug "${event.slug}", or update first.`
-          : null,
+          : null),
       completeness,
       performance,
       nextSuggestion: top,
@@ -716,7 +739,17 @@ function buildHandlers(api, hostId) {
     }
     // Host-customizable visual theming was removed; `brand` is no longer an
     // editable field (the AI hero lives at events.scene via set_event_scene).
-    const updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
+    let updated;
+    let paywallNote = null;
+    try {
+      updated = await api("PUT", `/host/events/${existing.id}`, { body: patch });
+    } catch (e) {
+      if (!isSubscriptionRequired(e) || patch.status !== "PUBLISHED") throw e;
+      // Save the edits without the publish flip, then say why.
+      const { status: _dropped, ...withoutStatus } = patch;
+      updated = await api("PUT", `/host/events/${existing.id}`, { body: withoutStatus });
+      paywallNote = SUBSCRIPTION_NOTE;
+    }
 
     const newSlug = updated.slug || slug;
     const status = updated.status || existing.status;
@@ -732,7 +765,7 @@ function buildHandlers(api, hostId) {
         previewUrl: editUrlForEventId(updated.id || existing.id),
         shareUrl: status === "PUBLISHED" ? shareUrlForSlug(newSlug) : null,
         rsvpsUrl: rsvpsDashboardForId(updated.id || existing.id),
-        note: "Updated.",
+        note: paywallNote ? `Updated (still a draft). ${paywallNote}` : "Updated.",
         completeness,
         performance,
         nextSuggestion: top,
@@ -785,7 +818,15 @@ function buildHandlers(api, hostId) {
 
   async function publishEvent(args) {
     const existing = await resolveEventBySlug(args.slug);
-    const updated = await api("PUT", `/host/events/${existing.id}/publish`);
+    let updated;
+    try {
+      updated = await api("PUT", `/host/events/${existing.id}/publish`);
+    } catch (e) {
+      if (!isSubscriptionRequired(e)) throw e;
+      return toolResultText(
+        `Not published — ${SUBSCRIPTION_NOTE}\nPreview (draft, safe): ${editUrlForEventId(existing.id)}`,
+      );
+    }
     return toolResultText(
       eventBanner({
         title: updated.title || existing.title,
@@ -1179,6 +1220,54 @@ function buildHandlers(api, hostId) {
   function pct(n) {
     if (n === null || n === undefined) return "—";
     return `${Number(n).toFixed(1)}%`;
+  }
+
+  // The host's plan + billing state — the MCP twin of Settings → Billing.
+  async function getBillingStatus() {
+    const [s, sum] = await Promise.all([
+      api("GET", "/host/subscription"),
+      api("GET", "/host/billing/summary"),
+    ]);
+    const plan = s?.plan || {};
+    const ent = s?.entitlement || {};
+    const fmtDay = (iso) => {
+      try { return new Date(iso).toISOString().slice(0, 10); } catch { return "soon"; }
+    };
+    const lines = [];
+    if (ent.reason === "early" || plan.plan === "early") {
+      lines.push("Plan: Founding member — hosting is free for this host, forever. Only the ticket fee ever applies.");
+    } else if (plan.subscriptionStatus === "active") {
+      const tierName = s?.tier?.name === "agency" ? "Agency" : "Creator";
+      lines.push(
+        `Plan: ${tierName} — ${s?.tier?.priceSek ?? 125} kr/month · ` +
+          (plan.cancelAtPeriodEnd
+            ? `cancelled, hosting until ${fmtDay(plan.currentPeriodEnd)} (resume anytime from Settings → Billing).`
+            : `active, renews ${fmtDay(plan.currentPeriodEnd)}.`),
+      );
+      if (plan.founding) lines.push("Also a founding member: cancelling just returns them to hosting free.");
+    } else if (plan.subscriptionStatus === "past_due") {
+      lines.push("Plan: payment retrying — hosting continues during the grace window. Fix the card in Settings → Billing.");
+    } else if (!s?.enforced) {
+      lines.push("Plan: hosting is open on this deployment (subscriptions not enforced).");
+    } else {
+      lines.push(
+        "Plan: not subscribed. Drafting is free; PUBLISHING needs the Creator subscription — 125 kr/month, cancel anytime — at https://pullup.se/start or Settings → Billing.",
+      );
+    }
+    lines.push(
+      `Ticket fee: ${((sum?.plan?.ticketFeeBps ?? 300) / 100).toFixed(0)}% on paid tickets — the only usage fee. Agency (for teams) is coming soon via hello@pullup.se.`,
+    );
+    const byCur = Object.entries(sum?.month?.byCurrency || {}).filter(
+      ([, v]) => (v.grossCents || 0) > 0 || (v.feeCents || 0) > 0,
+    );
+    if (byCur.length) {
+      for (const [cur, v] of byCur) {
+        lines.push(`This month: sold ${fmtMoney(v.grossCents || 0, cur)} in tickets · PullUp fee ${fmtMoney(v.feeCents || 0, cur)}.`);
+      }
+    } else {
+      lines.push("This month: no ticket sales yet.");
+    }
+    return toolResultText(lines.join("\n"));
   }
 
   async function getRevenueSummary(args) {
@@ -1969,6 +2058,7 @@ function buildHandlers(api, hostId) {
     listCoverImageGallery,
     getCrmSummary,
     getRevenueSummary,
+    getBillingStatus,
     getAttendanceTrends,
     getAudienceSegments,
     getRecentActivity,
@@ -2197,7 +2287,7 @@ function inferMediaTypeFromBase64(s) {
 // and every future one — declares its blast radius.
 const READ_ONLY_TOOLS = new Set([
   "list_events", "get_event", "list_rsvps", "list_cover_image_gallery",
-  "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
+  "get_crm_summary", "get_revenue_summary", "get_billing_status", "get_attendance_trends",
   "get_audience_segments", "get_recent_activity",
   "get_event_analytics", "find_person", "get_person", "query_people",
   "find_matches",
@@ -2251,7 +2341,7 @@ const TOOL_PROFILES = {
     "find_matches",
     "add_person_note", "get_crm_summary", "get_crm_signals",
     "get_audience_segments", "get_attendance_trends",
-    "get_revenue_summary", "refund_payment", "list_rsvps",
+    "get_revenue_summary", "get_billing_status", "refund_payment", "list_rsvps",
     "update_rsvp", "list_events", "get_event", "get_event_analytics",
     "audit_customer_journey", "get_recent_activity", "get_recent_actions",
     "get_host_brief",
@@ -2375,9 +2465,17 @@ export function buildTools(ctx) {
       name: "get_revenue_summary",
       title: "Get a revenue summary",
       description:
-        "Returns gross/net revenue, refund totals, payment count, unique payers, and top-revenue events — all from Stripe payments tied to the host's events. Use this for 'how much have I made', 'what's my revenue', 'top-grossing events', refund questions, etc.",
+        "Returns gross/net revenue, refund totals, payment count, unique payers, and top-revenue events — all from Stripe payments tied to the host's events. Use this for 'how much have I made', 'what's my revenue', 'top-grossing events', refund questions, etc. (Ticket money only — for what the host PAYS PullUp, use get_billing_status.)",
       inputSchema: RevenueSummaryInput,
       handler: h.getRevenueSummary,
+    },
+    {
+      name: "get_billing_status",
+      title: "Get the host's PullUp plan & billing state",
+      description:
+        "The MCP twin of Settings → Billing: which plan the host is on (Creator 125 kr/month · Agency for teams coming soon · founding members host free forever), subscription status with renewal or end date, the 3% paid-ticket fee, and this month's ticket sales + fees. Use for 'am I subscribed', 'what does PullUp cost me', 'when does it renew', or whenever a publish came back subscription-required.",
+      inputSchema: {},
+      handler: h.getBillingStatus,
     },
     {
       name: "get_attendance_trends",

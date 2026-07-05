@@ -21,7 +21,7 @@ const byName = new Map(tools.map((t) => [t.name, t]));
 // suggest_campaign_improvements — were removed when campaigns were cut.)
 const EXPECTED_READ_ONLY = new Set([
   "list_events", "get_event", "list_rsvps", "list_cover_image_gallery",
-  "get_crm_summary", "get_revenue_summary", "get_attendance_trends",
+  "get_crm_summary", "get_revenue_summary", "get_billing_status", "get_attendance_trends",
   "get_audience_segments", "get_recent_activity",
   "get_event_analytics", "find_person", "get_person", "query_people",
   "find_matches", "suggest_event_improvements",

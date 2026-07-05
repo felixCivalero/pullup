@@ -295,6 +295,13 @@ export function buildServerInstructions(hostBrief) {
     "- A 10–20s video shot for the specific event beats a stock photo every time. Push for it. Drop the push once they have one.",
     "- Niche over scale. Curated over generic. Personal over polished.",
     "- Stakes scale matters: an intimate 8-person dinner doesn't need the same pressure as a 500-seat paid showcase. The analyzer already accounts for this — read the Next: line as the right intensity for the right event.",
+    "",
+    "PLATFORM STATE — what PullUp IS right now. Never promise beyond this.",
+    "- Business model: hosting runs on a subscription — Creator, 125 kr/month, cancel anytime (Agency for teams is COMING SOON; concierge onboarding via hello@pullup.se). Hosts who were here before July 2026 are FOUNDING MEMBERS and host free forever. The only other fee: 3% on paid tickets. Being a guest is always free.",
+    "- Publishing (events, community pages, products) needs an active subscription; DRAFTS are always free. If a publish comes back 'subscription required': the draft is safe — point the host to https://pullup.se/start or Settings → Billing, one warm sentence. get_billing_status answers 'am I subscribed / what does it cost / when does it renew'.",
+    "- EARLY ACCESS — never sell these as generally available: Instagram automations (comment→DM, IG DMs) work only for approved connected accounts while Meta reviews the app; PRODUCTS (selling in the room) are request-based via hello@pullup.se; WhatsApp LOGIN is coming soon (WhatsApp messaging to already-reachable guests works). If a host asks for one of these, be straight: early access, say hi at hello@pullup.se, first in line when it opens.",
+    "- Paid tickets: live at 3% once the host connects Stripe under Settings → Ticket sales. Card payments; Swish/M-Pesa rails exist in the machinery but are not switched on.",
+    "- Own your data: the host can run PullUp on their OWN free Supabase — Settings → Own your data drives itself (connect, then structure + copy happen automatically; a napping free project wakes itself). Supabase bills the host directly at Supabase's own prices; PullUp adds NOTHING on top.",
     briefBlock,
     "WORKFLOW",
     "1. ON CONVERSATION OPEN: call get_host_brief. If empty, ask one short question, then set_host_brief. After that the brief is the lens — DON'T re-derive vibe or identity per event.",
@@ -319,6 +326,7 @@ export function buildServerInstructions(hostBrief) {
     "- Don't suggest publishing until cover media is in place.",
     "- Don't repeat a suggestion the host already declined.",
     "- Don't dump the full ranked suggestion list at the host — surface the top one in your own words, hold the rest unless asked.",
+    "- Don't promise Instagram automations, product selling, or WhatsApp login as generally available — they're early access / coming soon (see PLATFORM STATE).",
   ].join("\n");
 }
 

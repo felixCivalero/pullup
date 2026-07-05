@@ -24,6 +24,7 @@ import { SES_FROM_EMAIL } from "../email/config.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { dispatch } from "../messaging/dispatch.js";
 import { supabase } from "../supabase.js";
+import { canHost } from "./billing/entitlements.js";
 
 // Build a "Name <addr>" From header from a display name. The address part
 // always comes from SES_FROM_EMAIL — the host display name is the only thing
@@ -227,6 +228,11 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const loc = location && location.url ? { label: (location.label || "Location").trim() || "Location", url: location.url } : null;
   if (!hostId || !personId) return { ok: false, error: "bad_request" };
   if (!body && !atts.length && !eventId && !loc) return { ok: false, error: "empty" };
+
+  // Paywall: sending to your people is hosting — lapsed subscription pauses
+  // outbound. (Transactional guest mail — RSVP confirmations, reminders for
+  // already-committed guests — is NOT gated; this is host-initiated only.)
+  if (!(await canHost(hostId))) return { ok: false, error: "subscription_required" };
 
   // Scope: a host may only message someone already in their world.
   const allowed = await personBelongsToHost(personId, hostId);

@@ -26,6 +26,7 @@ import {
   getCommunityMemberSummary,
 } from "../repos/communities.js";
 import { ensureCommunityPage } from "../repos/events.js";
+import { getEntitlement, paywallResponse } from "../services/billing/entitlements.js";
 
 function shareUrl(slug) {
   return `${APP_BASE_URL.replace(/\/$/, "")}/c/${slug}`;
@@ -94,6 +95,13 @@ export function registerCommunityRoutes(app) {
       if (slug !== undefined) fields.slug = slug;
       if (coverImageUrl !== undefined) fields.coverImageUrl = coverImageUrl;
       if (status !== undefined) fields.status = status;
+
+      // Paywall: publishing (or enabling) the community door is hosting.
+      // Editing a draft/disabled door stays free.
+      if (fields.status === "published" || fields.enabled === true) {
+        const ent = await getEntitlement(req.user.id);
+        if (!ent.canHost) return paywallResponse(res, ent);
+      }
 
       const result = await updateCommunityForHost(req.user.id, fields);
       if (result?.error === "slug_taken") return res.status(409).json({ error: "slug_taken" });

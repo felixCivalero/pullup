@@ -19,6 +19,7 @@ import { isCrawler, generateOgHtmlForEvent } from "../lib/og.js";
 import { logger } from "../logger.js";
 import { verifyWaitlistToken } from "../utils/waitlistTokens.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
+import { getEntitlement, canHost, paywallResponse } from "../services/billing/entitlements.js";
 
 export function registerEventRoutes(app) {
   // ---------------------------
@@ -178,10 +179,18 @@ export function registerEventRoutes(app) {
         }
       }
 
+      // Lapsed-host degradation: the page stays up, but the RSVP form shows a
+      // paused state instead of failing on submit. Cached ~60s in-process.
+      let rsvpsPaused = false;
+      try {
+        rsvpsPaused = event.hostId ? !(await canHost(event.hostId)) : false;
+      } catch { /* fail open — never let the paywall check break a guest page */ }
+
       res.json({
         ...publicEvent,
         hostName: hostIdentity.hostName,
         signature: hostIdentity.signature,
+        rsvpsPaused,
         _attendance: {
           confirmed,
           waitlist,
@@ -508,6 +517,14 @@ export function registerEventRoutes(app) {
     }
     if (!hideDate && endsAt && new Date(endsAt) < new Date()) {
       return res.status(400).json({ error: "Event end date cannot be in the past" });
+    }
+
+    // Paywall: creating a DRAFT is always free; creating straight to PUBLISHED
+    // (this route's default) is hosting and needs an active tier. The typed 402
+    // lets the client keep the draft flow and open the subscribe sheet.
+    if ((status || "PUBLISHED") === "PUBLISHED") {
+      const ent = await getEntitlement(req.user.id);
+      if (!ent.canHost) return paywallResponse(res, ent);
     }
 
     // Create the event first to get its ID (with host_id from authenticated user).

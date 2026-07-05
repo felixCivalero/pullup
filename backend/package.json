@@ -18,7 +18,8 @@
     "probe:byo-mirror": "node scripts/verify-byo-mirror.mjs",
     "probe:byo-provision": "node scripts/verify-byo-provision.mjs",
     "probe:byo-live": "node scripts/verify-byo-live.mjs",
-    "probe:byo-mgmt": "node scripts/verify-byo-mgmt.mjs"
+    "probe:byo-mgmt": "node scripts/verify-byo-mgmt.mjs",
+    "probe:subscriptions": "node scripts/verify-subscriptions.mjs"
   },
   "keywords": [],
   "author": "",

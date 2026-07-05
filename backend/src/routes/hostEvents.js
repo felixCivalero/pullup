@@ -44,6 +44,7 @@ import {
 import { generateWaitlistToken } from "../utils/waitlistTokens.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
+import { getEntitlement, paywallResponse } from "../services/billing/entitlements.js";
 
 // Build full host list for an event: owner first (from events.host_id), then event_hosts. Owner is never removable.
 async function getHostsForEvent(event) {
@@ -1361,6 +1362,14 @@ app.put(
       });
     }
 
+    // Paywall: editing a draft is always free; FLIPPING to published is
+    // hosting and needs an active tier (founding hosts pass). Checked on the
+    // event's OWNER — an admin acting on a lapsed host doesn't bypass it.
+    if (status === "PUBLISHED" && currentEvent.status !== "PUBLISHED") {
+      const ent = await getEntitlement(currentEvent.hostId || req.user.id);
+      if (!ent.canHost) return paywallResponse(res, ent);
+    }
+
     // Check if ticket price or currency changed (for Stripe Price update)
     const priceChanged =
       ticketType === "paid" &&
@@ -1481,6 +1490,13 @@ app.put("/host/events/:id/publish", requireAuth, async (req, res) => {
       error: "Forbidden",
       message: "Only the event owner or admin can publish events.",
     });
+  }
+
+  // Paywall: publishing is hosting — needs an active tier (founding hosts
+  // pass free; typed 402 opens the subscribe sheet client-side).
+  {
+    const ent = await getEntitlement(event.hostId || req.user.id);
+    if (!ent.canHost) return paywallResponse(res, ent);
   }
 
   // Reach floor: a published event MUST require a way to reach its guests — at

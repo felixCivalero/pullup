@@ -34,6 +34,7 @@ import { logPersonEvent } from "../services/personTimeline.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { hasEventEnded } from "../lib/eventLifecycle.js";
+import { canHost } from "../services/billing/entitlements.js";
 import { paymentsV2Enabled } from "../config/billing.js";
 import { railsForEvent } from "../services/payments/index.js";
 import { getPlanForHost } from "../repos/billing.js";
@@ -84,6 +85,16 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
       return res.status(400).json({
         error: "event_ended",
         message: "This event has ended — sign-ups are closed.",
+      });
+    }
+
+    // Lapsed-host degradation: the page stays up (never a 404 for guests), but
+    // new sign-ups close while the host's subscription is inactive. Cached
+    // ~60s, so this adds no real weight to the hot path.
+    if (!(await canHost(eventForGate.hostId))) {
+      return res.status(403).json({
+        error: "rsvps_paused",
+        message: "Sign-ups are paused for this event right now.",
       });
     }
 

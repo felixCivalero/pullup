@@ -284,6 +284,22 @@ export async function handleStripeWebhook(event) {
     case "charge.refunded":
       return await handleChargeRefunded(event.data.object);
 
+    // Creator-tier subscription lifecycle. These normally arrive on the
+    // dedicated /webhooks/stripe/subscriptions endpoint; delegating here too
+    // means a dashboard config that points them at THIS endpoint still works.
+    // Non-subscription checkouts fall through harmlessly (ignored).
+    case "checkout.session.completed":
+    case "customer.subscription.created":
+    case "customer.subscription.updated":
+    case "customer.subscription.deleted":
+    case "invoice.payment_failed":
+    case "invoice.paid": {
+      const { handleSubscriptionWebhookEvent } = await import(
+        "./services/billing/subscriptions.js"
+      );
+      return await handleSubscriptionWebhookEvent(event);
+    }
+
     default:
       return {
         processed: false,

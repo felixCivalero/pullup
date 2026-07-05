@@ -28,6 +28,7 @@ import {
   syncCheckoutSession,
   handleSubscriptionWebhookEvent,
   cancelSubscriptionForHost,
+  changeSubscriptionTier,
 } from "../services/billing/subscriptions.js";
 import { getPlanForHost } from "../repos/billing.js";
 import { supabase } from "../supabase.js";
@@ -58,6 +59,7 @@ export function registerSubscriptionRoutes(app) {
           plan: plan.plan,
           subscriptionStatus: plan.subscriptionStatus,
           currentPeriodEnd: plan.currentPeriodEnd,
+          cancelAtPeriodEnd: plan.cancelAtPeriodEnd,
           hasStripeCustomer: !!plan.stripeCustomerId,
         },
       });
@@ -80,6 +82,25 @@ export function registerSubscriptionRoutes(app) {
       }
       console.error("[subscriptions] checkout failed:", error?.message);
       res.status(500).json({ error: "checkout_failed" });
+    }
+  });
+
+  // Upgrade/downgrade in place — Stripe prorates, the plan flips immediately.
+  app.post("/host/subscription/change-tier", requireAuth, async (req, res) => {
+    try {
+      const cfg = subscriptionConfig();
+      if (!cfg.configured) return res.status(503).json({ error: "subscriptions_not_configured" });
+      const tier = req.body?.tier;
+      if (!tier || !TIERS[tier]) return res.status(400).json({ error: "unknown_tier" });
+      const result = await changeSubscriptionTier(req.user.id, tier);
+      res.json({ ok: true, plan: result.plan || tier, unchanged: !!result.unchanged });
+    } catch (error) {
+      const known = ["tier_not_configured", "no_subscription", "unknown_tier"];
+      if (known.includes(error?.message)) {
+        return res.status(error.message === "no_subscription" ? 409 : 503).json({ error: error.message });
+      }
+      console.error("[subscriptions] change-tier failed:", error?.message);
+      res.status(500).json({ error: "change_tier_failed" });
     }
   });
 

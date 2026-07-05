@@ -157,6 +157,7 @@ export async function applyStripeSubscription(sub, hostIdHint = null) {
     customerId: typeof sub.customer === "string" ? sub.customer : sub.customer?.id || null,
     subscriptionId: sub.id,
     currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    cancelAtPeriodEnd: !!sub.cancel_at_period_end,
   });
   invalidateEntitlement(hostId);
   return { ...result, hostId, status, plan };
@@ -224,6 +225,31 @@ export async function handleSubscriptionWebhookEvent(event) {
     default:
       return { processed: false, ignored: true };
   }
+}
+
+// Upgrade/downgrade in place: swap the live subscription's price to the other
+// tier. Stripe prorates the difference automatically (credit for unused time,
+// charge for the remainder at the new rate) on the next invoice. The updated
+// subscription flows through the same applyStripeSubscription funnel, so the
+// plan value flips immediately and the entitlement cache is invalidated.
+export async function changeSubscriptionTier(hostId, tier) {
+  if (!TIERS[tier]) throw new Error("unknown_tier");
+  const newPriceId = priceIdForTier(tier);
+  if (!newPriceId) throw new Error("tier_not_configured");
+  const plan = await getPlanForHost(hostId);
+  if (!plan.stripeSubscriptionId) throw new Error("no_subscription");
+  if (!["active", "past_due"].includes(plan.subscriptionStatus)) throw new Error("no_subscription");
+  if (plan.plan === tier) return { ok: true, unchanged: true, plan: tier };
+
+  const stripe = stripeClient();
+  const sub = await stripe.subscriptions.retrieve(plan.stripeSubscriptionId);
+  const item = sub.items?.data?.[0];
+  if (!item) throw new Error("subscription_item_missing");
+  const updated = await stripe.subscriptions.update(sub.id, {
+    items: [{ id: item.id, price: newPriceId }],
+    proration_behavior: "create_prorations",
+  });
+  return applyStripeSubscription(updated, hostId);
 }
 
 // Account deletion: nobody keeps paying for an account they've asked us to

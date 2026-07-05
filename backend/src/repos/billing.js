@@ -38,6 +38,7 @@ function mapPlanRow(data) {
     stripeCustomerId: data.stripe_customer_id || null,
     stripeSubscriptionId: data.stripe_subscription_id || null,
     currentPeriodEnd: data.current_period_end || null,
+    cancelAtPeriodEnd: !!data.cancel_at_period_end,
   };
 }
 
@@ -68,7 +69,7 @@ export async function setStripeCustomerId(hostId, customerId) {
 // so replayed webhooks are harmless.
 export async function updateSubscriptionState(
   hostId,
-  { status, plan = null, customerId = null, subscriptionId = null, currentPeriodEnd = null },
+  { status, plan = null, customerId = null, subscriptionId = null, currentPeriodEnd = null, cancelAtPeriodEnd = null },
 ) {
   if (!hostId || !status) return { ok: false, reason: "missing_key" };
   const patch = {
@@ -81,6 +82,7 @@ export async function updateSubscriptionState(
   if (customerId) patch.stripe_customer_id = customerId;
   if (subscriptionId) patch.stripe_subscription_id = subscriptionId;
   if (currentPeriodEnd) patch.current_period_end = currentPeriodEnd;
+  if (cancelAtPeriodEnd !== null) patch.cancel_at_period_end = !!cancelAtPeriodEnd;
   const { error } = await supabase
     .from("creator_billing_plans")
     .upsert(patch, { onConflict: "host_id" });

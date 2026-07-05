@@ -78,10 +78,10 @@ export function useSubscription() {
     return () => { alive = false; };
   }, [fetchStatus]);
 
-  const startCheckout = useCallback(async (returnTo) => {
+  const startCheckout = useCallback(async ({ returnTo, tier } = {}) => {
     const r = await authenticatedFetch("/host/subscription/checkout", {
       method: "POST",
-      body: JSON.stringify({ returnTo: returnTo || currentReturnPath() }),
+      body: JSON.stringify({ returnTo: returnTo || currentReturnPath(), ...(tier ? { tier } : {}) }),
     });
     const b = await r.json().catch(() => ({}));
     if (r.ok && b.url) {
@@ -90,6 +90,19 @@ export function useSubscription() {
     }
     return false;
   }, []);
+
+  // Upgrade/downgrade in place (Stripe prorates). Resolves with the fresh
+  // status so the pane re-renders on the new tier without a page trip.
+  const changeTier = useCallback(async (tier) => {
+    const r = await authenticatedFetch("/host/subscription/change-tier", {
+      method: "POST",
+      body: JSON.stringify({ tier }),
+    });
+    if (!r.ok) return false;
+    const data = await fetchStatus();
+    if (data) setSub(data);
+    return true;
+  }, [fetchStatus]);
 
   const openPortal = useCallback(async (returnTo) => {
     const r = await authenticatedFetch("/host/subscription/portal", {
@@ -104,5 +117,5 @@ export function useSubscription() {
     return false;
   }, []);
 
-  return { sub, loading, refresh, startCheckout, openPortal };
+  return { sub, loading, refresh, startCheckout, openPortal, changeTier };
 }

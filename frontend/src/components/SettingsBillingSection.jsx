@@ -64,16 +64,25 @@ const ghostBtn = {
   cursor: "pointer",
 };
 
-// The plan card: which tier, what it costs, and the one action that matters
-// right now (subscribe / manage / fix payment).
-function PlanCard({ sub, busy, onSubscribe, onPortal }) {
+const TIER_LABEL = { creator: "Creator", agency: "Agency" };
+const TIER_DESC = {
+  creator: "Solo — your own events and people",
+  agency: "For teams and agencies (2+ people)",
+};
+
+// The plan card: which tier, what it costs, where the period stands, and every
+// action a subscriber needs — subscribe, switch tier (prorated by Stripe),
+// update card / invoices / cancel via the Stripe portal.
+function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
   const tier = sub?.tier || { name: "creator", priceSek: 125 };
-  const tierLabel = tier.name === "agency" ? "Agency" : "Creator";
+  const tiers = sub?.tiers || { creator: { name: "creator", priceSek: 125 }, agency: { name: "agency", priceSek: 450 } };
   const plan = sub?.plan || {};
   const status = plan.subscriptionStatus || "none";
   const isEarly = plan.plan === "early";
   const active = status === "active";
   const pastDue = status === "past_due";
+  const ending = active && plan.cancelAtPeriodEnd;
+  const otherTier = tier.name === "agency" ? tiers.creator : tiers.agency;
 
   if (isEarly) {
     return (
@@ -89,56 +98,90 @@ function PlanCard({ sub, busy, onSubscribe, onPortal }) {
     );
   }
 
+  // ── Subscriber: period, switch tier, Stripe portal ────────────────────────
+  if (active || pastDue) {
+    return (
+      <div style={block}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>{TIER_LABEL[tier.name] || "Creator"}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{tier.priceSek} kr/month</span>
+        </div>
+
+        {pastDue && (
+          <div style={{ margin: "10px 0", padding: "10px 12px", borderRadius: 10, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", fontSize: 13, color: "#b91c1c", lineHeight: 1.5 }}>
+            Your last payment didn't go through. You can keep hosting while we retry — update your card to stay live.
+          </div>
+        )}
+
+        <div style={{ ...muted, marginBottom: 12 }}>
+          {pastDue ? (
+            <>Payment retrying{plan.currentPeriodEnd ? ` · period ends ${fmtDate(plan.currentPeriodEnd)}` : ""}.</>
+          ) : ending ? (
+            <>
+              <strong>Cancelled</strong> — you keep hosting until{" "}
+              <strong>{plan.currentPeriodEnd ? fmtDate(plan.currentPeriodEnd) : "the period ends"}</strong>, then your pages go
+              read-only. Changed your mind? Resume from "Manage in Stripe" below.
+            </>
+          ) : (
+            <>
+              Active · current period runs until <strong>{plan.currentPeriodEnd ? fmtDate(plan.currentPeriodEnd) : "—"}</strong>,
+              when it renews. Cancel anytime — you host until the period ends, your data stays yours either way.
+            </>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={onPortal} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
+            {pastDue ? "Update card" : "Manage in Stripe"}
+          </button>
+          {!ending && (
+            <button onClick={() => onChangeTier(otherTier.name)} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
+              Switch to {TIER_LABEL[otherTier.name]} — {otherTier.priceSek} kr/month
+            </button>
+          )}
+        </div>
+        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 8, lineHeight: 1.5 }}>
+          Manage in Stripe = card details, receipts, cancel or resume. Switching tier is prorated automatically.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Not subscribed: pick a tier ───────────────────────────────────────────
   return (
     <div style={block}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>{tierLabel}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{tier.priceSek} kr/month</span>
+      <div style={{ ...muted, marginBottom: 12 }}>
+        {status === "canceled"
+          ? "Your subscription ended — your pages are up read-only and new sign-ups are paused. Resubscribe and everything switches back on, nothing lost."
+          : "Hosting on PullUp — publishing events, a community page, products — runs on one flat subscription. Cancel anytime; being a guest is always free."}
       </div>
-
-      {pastDue && (
-        <div style={{ margin: "10px 0", padding: "10px 12px", borderRadius: 10, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", fontSize: 13, color: "#b91c1c", lineHeight: 1.5 }}>
-          Your last payment didn't go through. You can keep hosting while we retry — update your card to stay live.
-        </div>
-      )}
-
-      {active || pastDue ? (
-        <>
-          <div style={{ ...muted, marginBottom: 12 }}>
-            {active ? (
-              <>Active{plan.currentPeriodEnd ? ` · renews ${fmtDate(plan.currentPeriodEnd)}` : ""}. Cancel anytime — you host until the period ends, your data stays yours either way.</>
-            ) : (
-              <>Payment retrying{plan.currentPeriodEnd ? ` · period ends ${fmtDate(plan.currentPeriodEnd)}` : ""}.</>
-            )}
-          </div>
-          <button onClick={onPortal} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
-            {pastDue ? "Update card" : "Manage subscription"}
-          </button>
-        </>
-      ) : (
-        <>
-          <div style={{ ...muted, marginBottom: 12 }}>
-            {status === "canceled"
-              ? "Your subscription ended — your pages are up read-only and new sign-ups are paused. Resubscribe and everything switches back on, nothing lost."
-              : "Hosting on PullUp — publishing events, a community page, products — runs on one flat subscription. Cancel anytime; being a guest is always free."}
-          </div>
-          {sub?.configured ? (
-            <button onClick={onSubscribe} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "Opening checkout…" : status === "canceled" ? "Resubscribe" : `Start hosting — ${tier.priceSek} kr/month`}
-            </button>
-          ) : (
-            <div style={{ fontSize: 12.5, color: colors.textSubtle }}>
-              Subscriptions aren't switched on for this deployment yet — hosting is open meanwhile.
+      {sub?.configured ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {["creator", "agency"].map((name) => (
+            <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surface }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>
+                  {TIER_LABEL[name]} · {tiers[name]?.priceSek} kr/month
+                </div>
+                <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
+              </div>
+              <button onClick={() => onSubscribe(name)} disabled={busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
+                {busy ? "Opening…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
+              </button>
             </div>
-          )}
-        </>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12.5, color: colors.textSubtle }}>
+          Subscriptions aren't switched on for this deployment yet — hosting is open meanwhile.
+        </div>
       )}
     </div>
   );
 }
 
 export function SettingsBillingSection() {
-  const { sub, startCheckout, openPortal } = useSubscription();
+  const { sub, startCheckout, openPortal, changeTier } = useSubscription();
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -158,10 +201,10 @@ export function SettingsBillingSection() {
   const ticketsSold = month.ticketSales ?? 0;
   const soldCurrencies = currencies.filter(([, v]) => (v.grossCents || 0) > 0 || (v.feeCents || 0) > 0);
 
-  const act = (fn) => async () => {
+  const act = (fn) => async (...args) => {
     setBusy(true);
     try {
-      const ok = await fn();
+      const ok = await fn(...args);
       if (!ok) setBusy(false);
     } catch {
       setBusy(false);
@@ -169,17 +212,36 @@ export function SettingsBillingSection() {
     // On success the browser navigates to Stripe — no need to reset.
   };
 
+  // Switching stays in-app (Stripe prorates server-side), so busy always resets.
+  const handleChangeTier = async (tierName) => {
+    const label = tierName === "agency" ? "Agency — 450 kr/month" : "Creator — 125 kr/month";
+    if (!window.confirm(`Switch to ${label}? Stripe prorates the difference automatically on your next invoice.`)) return;
+    setBusy(true);
+    try {
+      const ok = await changeTier(tierName);
+      if (!ok) window.alert("Couldn't switch tier — try again in a moment, or use Manage in Stripe.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: "16px" }}>
         <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "4px", color: colors.text }}>Billing</h2>
         <p style={{ fontSize: "14px", color: colors.textMuted }}>
-          Two things, nothing else: the Creator subscription while you host, and {ticketFeePct}% on paid tickets. RSVPs, pull-ups and your data are always free.
+          Two things, nothing else: your hosting subscription, and {ticketFeePct}% on paid tickets. RSVPs, pull-ups and your data are always free.
         </p>
       </div>
 
       <div style={{ padding: "20px", background: colors.surface, borderRadius: "14px", border: `1px solid ${colors.borderFaint}` }}>
-        <PlanCard sub={sub} busy={busy} onSubscribe={act(() => startCheckout())} onPortal={act(() => openPortal())} />
+        <PlanCard
+          sub={sub}
+          busy={busy}
+          onSubscribe={act((tierName) => startCheckout({ tier: tierName }))}
+          onPortal={act(() => openPortal())}
+          onChangeTier={handleChangeTier}
+        />
 
         {/* Ticket sales — a fee only on money that actually moved */}
         <div style={block}>

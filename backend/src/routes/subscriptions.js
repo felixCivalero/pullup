@@ -75,8 +75,9 @@ export function registerSubscriptionRoutes(app) {
       const cfg = subscriptionConfig();
       if (!cfg.configured) return res.status(503).json({ error: "subscriptions_not_configured" });
       const tier = req.body?.tier && TIERS[req.body.tier] ? req.body.tier : undefined;
-      const { url } = await createCheckoutSession(req.user.id, { returnTo: req.body?.returnTo, tier });
-      res.json({ url });
+      const embedded = req.body?.embedded === true;
+      const result = await createCheckoutSession(req.user.id, { returnTo: req.body?.returnTo, tier, embedded });
+      res.json(result); // { url } for hosted, { clientSecret } for embedded
     } catch (error) {
       if (error?.message === "tier_not_configured") {
         return res.status(503).json({ error: "tier_not_configured" });

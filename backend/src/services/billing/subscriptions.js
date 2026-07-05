@@ -86,7 +86,7 @@ export async function getOrCreateSubscriptionCustomer(hostId) {
   return customer.id;
 }
 
-export async function createCheckoutSession(hostId, { returnTo, tier } = {}) {
+export async function createCheckoutSession(hostId, { returnTo, tier, embedded = false } = {}) {
   const cfg = subscriptionConfig();
   if (!cfg.configured) throw new Error("subscriptions_not_configured");
   // Which tier: explicit ask wins; otherwise a host already marked 'agency'
@@ -102,19 +102,34 @@ export async function createCheckoutSession(hostId, { returnTo, tier } = {}) {
   const customer = await getOrCreateSubscriptionCustomer(hostId);
   const base = getFrontendUrl();
   const path = sanitizeReturnPath(returnTo);
-  const session = await stripe.checkout.sessions.create({
+  // {CHECKOUT_SESSION_ID} is Stripe's template — the return page trades it
+  // for an immediate server-side sync, so hosting unlocks without waiting
+  // for the webhook.
+  const successUrl = `${base}${appendQuery(path, { subscribed: "1", session_id: "{CHECKOUT_SESSION_ID}" })}`;
+  const common = {
     mode: "subscription",
     customer,
     line_items: [{ price: priceId, quantity: 1 }],
-    // {CHECKOUT_SESSION_ID} is Stripe's template — the return page trades it
-    // for an immediate server-side sync, so hosting unlocks without waiting
-    // for the webhook.
-    success_url: `${base}${appendQuery(path, { subscribed: "1", session_id: "{CHECKOUT_SESSION_ID}" })}`,
-    cancel_url: `${base}${appendQuery(path, { subscribed: "0" })}`,
     client_reference_id: hostId,
     metadata: { pullupHostId: hostId },
     subscription_data: { metadata: { pullupHostId: hostId } },
     allow_promotion_codes: true,
+  };
+  if (embedded) {
+    // The payment form lives INSIDE our page (/start): Stripe renders into a
+    // container we mount, and on completion navigates to return_url. No
+    // cancel_url — backing out is just staying on our page.
+    const session = await stripe.checkout.sessions.create({
+      ...common,
+      ui_mode: "embedded",
+      return_url: successUrl,
+    });
+    return { clientSecret: session.client_secret };
+  }
+  const session = await stripe.checkout.sessions.create({
+    ...common,
+    success_url: successUrl,
+    cancel_url: `${base}${appendQuery(path, { subscribed: "0" })}`,
   });
   return { url: session.url };
 }

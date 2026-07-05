@@ -306,6 +306,8 @@ export function AuthCard({
     const v = (p || "").trim().replace(/[^\d+]/g, "");
     return v.startsWith("+") ? v : `+${v}`;
   };
+  // Kept for the coming-soon flip-back (the WA button is disabled right now).
+  // eslint-disable-next-line no-unused-vars
   const openWa = () => {
     if (signingIn) return;
     setFormError("");
@@ -383,18 +385,22 @@ export function AuthCard({
     }
     if (m === "whatsapp") {
       if (!waEnabled) return null; // never offer an undeliverable rail
+      // COMING SOON (2026-07-06, Felix): visible so people know the rail is
+      // arriving, but not tappable — nobody's first PullUp moment should ride
+      // a channel we haven't hardened. Flip back by restoring onClick={openWa}.
       return (
         <button
           key="whatsapp"
           type="button"
-          onClick={openWa}
-          disabled={signingIn}
-          style={optionButtonStyle(t)}
-          onMouseEnter={hover}
-          onMouseLeave={unhover}
+          disabled
+          aria-disabled="true"
+          style={{ ...optionButtonStyle(t), opacity: 0.55, cursor: "default" }}
         >
           <FaWhatsapp size={18} color="#25D366" />
           <span>Continue with WhatsApp</span>
+          <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
+            Coming soon
+          </span>
         </button>
       );
     }

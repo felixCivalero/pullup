@@ -126,14 +126,15 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
             <div style={{ fontSize: 17, fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
               {scope === "event" ? "Products in this room" : "Your products"}
               <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
-                Beta
+                Early access
               </span>
             </div>
             <div style={{ fontSize: 13, color: colors.textMuted, marginTop: 3, lineHeight: 1.4 }}>
               {scope === "event"
                 ? "Pick which products appear in this event's room. Guests buy without leaving."
                 : "Live products show in your main room automatically. Hide any you'd rather keep to specific event rooms."}
-              {" "}Products are in beta — we're polishing the buying flow; tell us anything that feels off.
+              {" "}Products are in early access while we make the buying flow bulletproof —{" "}
+              <a href="mailto:hello@pullup.se?subject=Products%20early%20access" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a> to join.
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: colors.textSubtle, cursor: "pointer", padding: 4 }}>
@@ -206,14 +207,17 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
               })}
             </div>
 
-            <button
-              type="button"
-              onClick={() => navigate("/create?kind=product")}
-              style={{ marginTop: 16, width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 12,
-                border: `1px solid ${colors.border}`, background: colors.surface, color: colors.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
+            {/* EARLY ACCESS (2026-07-06, Felix): creating new products is
+                request-based until the buying flow is 100% — existing products
+                stay fully manageable. Flip back: restore the /create?kind=product
+                navigate button. */}
+            <a
+              href="mailto:hello@pullup.se?subject=Products%20early%20access"
+              style={{ marginTop: 16, width: "100%", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 12,
+                border: `1px dashed ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 14, fontWeight: 700, textDecoration: "none", fontFamily: SF }}
             >
-              <Plus size={16} /> New product
-            </button>
+              <Plus size={16} /> New products are in early access — say hi to join
+            </a>
           </>
         )}
       </div>

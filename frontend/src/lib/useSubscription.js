@@ -44,10 +44,16 @@ export function useSubscription() {
   const checkoutReturn = useRef(undefined); // undefined = not read yet
 
   const fetchStatus = useCallback(async (sessionId) => {
-    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
-    const r = await authenticatedFetch(`/host/subscription${qs}`);
-    if (!r.ok) return null;
-    return r.json().catch(() => null);
+    try {
+      const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+      const r = await authenticatedFetch(`/host/subscription${qs}`);
+      if (!r.ok) return null;
+      return r.json().catch(() => null);
+    } catch {
+      // No session (authenticatedFetch THROWS on missing auth, it doesn't 401)
+      // — surfaces like /start render logged-out with sub = null. Not an error.
+      return null;
+    }
   }, []);
 
   const refresh = useCallback(async () => {

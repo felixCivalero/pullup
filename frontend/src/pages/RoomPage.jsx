@@ -1208,7 +1208,7 @@ function CommunityCard({ community }) {
     // cards beside it — the two read as one tidy grid row.
     <div style={{ display: "flex", flexDirection: "column", width: "100%" }}>
       <SectionHeader
-        title="Your community"
+        title="Community"
         hint="people who join through your link"
         badge={c && !live && (
           <span style={{
@@ -1677,7 +1677,7 @@ export function OwnerConsole({ room: roomProp }) {
           isHost
           theme="light"
           scope="main"
-          heading="Your products"
+          heading="Products"
           hint="what you sell beyond tickets"
           homeHeader
           onManage={() => setManagingProducts(true)}
@@ -1850,7 +1850,7 @@ function EventsBanner({ events, memberRooms = [], onOpenEvent, onOpenRoom, onCre
   return (
     <div style={{ marginBottom: "26px", position: "relative" }}>
       <SectionHeader
-        title="Your events"
+        title="Events"
         count={memberRooms.length > 0 ? null : (published.length || null)}
         badge={memberRooms.length > 0 && (
           // The switch — two labelled pills with the counts baked in, so the

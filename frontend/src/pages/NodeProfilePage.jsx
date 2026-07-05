@@ -25,6 +25,8 @@ import { OwnerConsole } from "./RoomPage.jsx";
 import { Instagram, Music2, Twitter, Youtube, Linkedin, Globe, X } from "lucide-react";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { useAuth } from "../contexts/AuthContext";
+import { useSubscription } from "../lib/useSubscription.js";
+import SubscriptionPaywall from "../components/SubscriptionPaywall.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
@@ -127,6 +129,11 @@ export default function NodeProfilePage() {
   const [popup, setPopup] = useState(null); // "people" | "hosted" | "pulledUp" | null
   const [setupDismissed, setSetupDismissed] = useState(false); // profile-setup banner, closed this session
   const [shown, setShown] = useState(8); // events grid: 4×2, then "Load more"
+  // Create needs the tier — the owner's Create card raises the subscribe sheet
+  // instead of walking an unpaid host into the editor. Fails open while loading.
+  const { sub, loading: subLoading } = useSubscription();
+  const createLocked = !subLoading && !!sub?.enforced && sub?.entitlement?.canHost === false;
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     setShown(8); // reset the events grid limit when the room changes
@@ -265,7 +272,7 @@ export default function NodeProfilePage() {
       {/* Events slider — "your events" inside, "[Name]'s events" outside */}
       <SectionLabel>{isOwner ? "Your events" : `${firstName(node.name)}'s events`}</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-        {isOwner && <CreateCard onClick={() => navigate("/create")} />}
+        {isOwner && <CreateCard onClick={() => (createLocked ? setShowPaywall(true) : navigate("/create"))} />}
         {hosted.slice(0, shown).map((e) => <EventCard key={e.id} e={e} onClick={() => enter(e)} />)}
         {hosted.length === 0 && !isOwner && <div style={{ fontSize: 13, color: colors.textFaded }}>No events yet.</div>}
       </div>
@@ -298,6 +305,9 @@ export default function NodeProfilePage() {
       </div>
 
       {popups}
+
+      {/* Subscribe sheet the Create card raises for unpaid hosts. */}
+      <SubscriptionPaywall open={showPaywall} onClose={() => setShowPaywall(false)} title="Creating is where hosting starts" closeLabel="Not now" />
     </Shell>
   );
 }

@@ -13,7 +13,7 @@ import { useState } from "react";
 import { useSubscription } from "../lib/useSubscription.js";
 import { colors } from "../theme/colors.js";
 
-export default function SubscriptionPaywall({ open, onClose, title }) {
+export default function SubscriptionPaywall({ open, onClose, title, closeLabel }) {
   const { sub, startCheckout } = useSubscription();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -106,7 +106,7 @@ export default function SubscriptionPaywall({ open, onClose, title }) {
           onClick={onClose}
           style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 12, border: "none", background: "none", color: colors.textMuted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
         >
-          Not now — keep it as a draft
+          {closeLabel || "Not now — keep it as a draft"}
         </button>
         <p style={{ fontSize: 11.5, color: colors.textFaded, textAlign: "center", margin: "10px 0 0" }}>
           Secure payment by Stripe. Manage or cancel from Settings → Billing.

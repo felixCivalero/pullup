@@ -30,6 +30,8 @@ import { useAudienceFilter, PEOPLE_LENSES, ATTENDANCE, CHANNEL_KEYS, CHANNEL_LAB
 import MessageStatusTicks from "../components/room/MessageStatusTicks.jsx";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
+import { useSubscription } from "../lib/useSubscription.js";
+import SubscriptionPaywall from "../components/SubscriptionPaywall.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const newClientId = () => (globalThis.crypto?.randomUUID?.() || `c_${Date.now()}_${Math.random().toString(36).slice(2)}`);
@@ -1184,7 +1186,7 @@ function SectionHeader({ title, badge, count, hint, right }) {
 // stop bleeding into each other.
 const SECTION_BREAK = { marginTop: 34, paddingTop: 24, borderTop: `1px solid ${colors.borderFaint}` };
 
-function CommunityCard({ community }) {
+function CommunityCard({ community, guard = (go) => go() }) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const c = community;
@@ -1263,11 +1265,13 @@ function CommunityCard({ community }) {
         </div>
       ) : (
         // No page yet / still a draft → one clear CTA row (create or publish).
+        // Creating/finishing a page is hosting — the guard raises the subscribe
+        // sheet for unpaid hosts instead of walking them into the editor.
         <div
           role="button"
           tabIndex={0}
-          onClick={() => navigate("/community")}
-          onKeyDown={(e) => { if (e.key === "Enter") navigate("/community"); }}
+          onClick={() => guard(() => navigate("/community"))}
+          onKeyDown={(e) => { if (e.key === "Enter") guard(() => navigate("/community")); }}
           style={{
             display: "flex", alignItems: "center", gap: 13, width: "100%", flex: 1, boxSizing: "border-box",
             padding: "15px 16px", borderRadius: 16, cursor: "pointer",
@@ -1627,6 +1631,12 @@ export function OwnerConsole({ room: roomProp }) {
   const [selectedId, setSelectedId] = useState(null);
   const [bulkPeople, setBulkPeople] = useState(null); // when set, the right slot shows bulk-compose
   const [managingProducts, setManagingProducts] = useState(false); // main-room product manager
+  // Creating anything needs the tier — the Room's create CTAs meet the
+  // subscribe sheet HERE instead of bouncing an unpaid host to /create first.
+  const { sub, loading: subLoading } = useSubscription();
+  const createLocked = !subLoading && !!sub?.enforced && sub?.entitlement?.canHost === false;
+  const [showPaywall, setShowPaywall] = useState(false);
+  const guardCreate = (go) => (createLocked ? setShowPaywall(true) : go());
   // Local copy so event deletion updates in place without
   // a refetch. Re-seed if the parent hands a fresh payload.
   const [room, setRoom] = useState(roomProp);
@@ -1658,14 +1668,14 @@ export function OwnerConsole({ room: roomProp }) {
           navigate(ev?.status === "draft" ? `/app/events/${id}/edit` : `/events/${id}/room`);
         }}
         onOpenRoom={(id) => navigate(`/events/${id}/room`)}
-        onCreate={() => navigate("/create")}
+        onCreate={() => guardCreate(() => navigate("/create"))}
         onDeleted={(id) => setRoom((r) => (r ? { ...r, events: r.events.filter((e) => e.id !== id) } : r))}
       />
 
       {/* Your community — the full-width banner row (going-events moved up
           into the events shelf's Going face). */}
       <div style={{ ...SECTION_BREAK, display: "flex" }}>
-        <CommunityCard community={COMMUNITY} />
+        <CommunityCard community={COMMUNITY} guard={guardCreate} />
       </div>
 
       {/* Your products — under the community/rooms grid. The host's global product
@@ -1690,6 +1700,10 @@ export function OwnerConsole({ room: roomProp }) {
           onChanged={() => { /* optimistic; payload refreshes on next load */ }}
         />
       )}
+
+      {/* The subscribe sheet the create-CTAs raise. Kept mounted so a
+          returning checkout (?subscribed=1) finishes syncing on this page. */}
+      <SubscriptionPaywall open={showPaywall} onClose={() => setShowPaywall(false)} title="Creating is where hosting starts" closeLabel="Not now" />
 
       {/* Your people — the CRM, surfaced. Each card is the full profile: contact
           sheet, where-you-met, message, and inline dated notes. No click-open. */}

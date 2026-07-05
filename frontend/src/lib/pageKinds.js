@@ -58,7 +58,10 @@ export const PAGE_KINDS = {
     noun: "product",
     routePrefix: "/p",
     singleton: false,
-    comingSoon: false,
+    // Early access while the money rail hardens — the picker shows the card
+    // greyed with a "Coming soon" chip. Existing products stay manageable in
+    // RoomProductManager (its new-product flow is the say-hi early-access ask).
+    comingSoon: true,
     // Auto-DM included: a comment can drive a product buy (DM links to /p/:slug).
     parts: ["cover", "theme", "content", "price", "autoDm"],
     hideDate: true,

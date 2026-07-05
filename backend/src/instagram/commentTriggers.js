@@ -16,6 +16,7 @@ import { getLiveTriggersForHost } from "./repos/eventCommentTriggersRepo.js";
 import { sendPrivateReply, sendMessage } from "./providers/igGraphClient.js";
 import { APP_BASE_URL } from "../whatsapp/config.js";
 import { logger } from "../logger.js";
+import { canHost } from "../services/billing/entitlements.js";
 
 const PG_UNIQUE_VIOLATION = "23505";
 
@@ -118,6 +119,13 @@ export async function handleCommentEvent({ igAccountId, comment }) {
   // Never reply to the host's own comments.
   if (comment?.from?.id && String(comment.from.id) === String(ctx.igUserId)) {
     return { status: "skipped", reason: "self_comment" };
+  }
+
+  // Lapsed-host degradation: automations pause with everything else outbound —
+  // no point DMing a signup link to a form that answers "sign-ups paused".
+  // Cached ~60s; resubscribing resumes automatically.
+  if (!(await canHost(ctx.hostProfileId))) {
+    return { status: "skipped", reason: "subscription_lapsed" };
   }
 
   const mediaId = comment?.media?.id || comment?.media_id || null;
@@ -332,6 +340,11 @@ export async function handleDmKeywordEvent({
   if (!mid) return { status: "skipped", reason: "no_mid" };
   if (!text || !String(text).trim()) return { status: "skipped", reason: "no_text" };
   if (!hostProfileId || !accessToken) return { status: "skipped", reason: "host_not_connected" };
+
+  // Lapsed-host degradation — same pause as the comment surface above.
+  if (!(await canHost(hostProfileId))) {
+    return { status: "skipped", reason: "subscription_lapsed" };
+  }
 
   const liveTriggers = await getLiveTriggersForHost(hostProfileId, "dm_keyword");
   if (!liveTriggers.length) return { status: "skipped", reason: "no_triggers" };

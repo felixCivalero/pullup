@@ -11,7 +11,7 @@
 // keyless "Connect with Supabase" OAuth button lights up only once the OAuth
 // app is registered (status.oauthAvailable) — until then we lead with paste.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import OwnDataWelcomeModal from "./OwnDataWelcomeModal.jsx";
@@ -165,12 +165,81 @@ export function SettingsOwnDataSection() {
         }),
       })
     );
-  const provision = () => act("provision", () => authenticatedFetch("/host/byo/provision", { method: "POST" }));
   const mirror = () => act("mirror", () => authenticatedFetch("/host/byo/mirror", { method: "POST" }));
-  const verify = () => act("verify", () => authenticatedFetch("/host/byo/verify"));
   const disconnect = () => {
     if (!window.confirm("Disconnect your database? PullUp falls back to its shared storage; your project and its data stay yours.")) return;
     act("disconnect", () => authenticatedFetch("/host/byo/disconnect", { method: "POST" }));
+  };
+
+  // ── AUTOPILOT ──────────────────────────────────────────────────────────────
+  // The system knows the next step, so it TAKES it: connected → structure →
+  // copy → live, no 1·2·3 buttons. A paused free-tier project answers
+  // 'project_waking' (the backend already kicked the restore) — we show that
+  // and retry until it's up. Errors stop the pilot; one Try-again resumes from
+  // wherever it actually is. The OAuth welcome modal drives its own advance,
+  // so the pilot stands down while it's open.
+  const [waking, setWaking] = useState(false);
+  const pilotBusy = useRef(false);
+  const pilotAttempts = useRef(0);
+  const [pilotError, setPilotError] = useState("");
+
+  const dbStatus = state?.db?.status;
+  const dbSchema = state?.db?.schemaVersion;
+  const nextStage =
+    !state?.connected || !dbStatus || ["revoked"].includes(dbStatus) ? null
+    : dbStatus === "error" ? "error"
+    : !dbSchema ? "structure"
+    : dbStatus !== "live" ? "copy"
+    : "done";
+
+  useEffect(() => {
+    if (welcomeOpen || busy || pilotBusy.current) return;
+    if (nextStage !== "structure" && nextStage !== "copy") return;
+    if (pilotAttempts.current >= 15) return; // ~5 min of waking retries, then stop
+    let cancelled = false;
+    pilotBusy.current = true;
+    (async () => {
+      pilotAttempts.current += 1;
+      try {
+        const path = nextStage === "structure" ? "/host/byo/provision" : "/host/byo/mirror";
+        const r = await authenticatedFetch(path, { method: "POST" });
+        const b = await r.json().catch(() => ({}));
+        if (cancelled) return;
+        if (r.status === 202 && b?.reason === "project_waking") {
+          setWaking(true);
+          setTimeout(() => { if (!cancelled) { pilotBusy.current = false; refresh(); } }, 20000);
+          return;
+        }
+        setWaking(false);
+        if (!r.ok) setPilotError(b?.reason || b?.error || "Something went wrong");
+        else setPilotError("");
+        if (b?.counts && Number.isFinite(b.counts.people)) setMirroredPeople(b.counts.people);
+        pilotBusy.current = false;
+        refresh();
+      } catch (e) {
+        if (!cancelled) {
+          setPilotError(e?.message || "Something went wrong");
+          pilotBusy.current = false;
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [nextStage, welcomeOpen, busy, refresh]);
+
+  const retryPilot = () => {
+    pilotAttempts.current = 0;
+    setPilotError("");
+    // an 'error' status blocks the stage derivation — nudge the row back into
+    // the flow by re-running whichever step its data says comes next
+    (async () => {
+      const hasSchema = !!dbSchema;
+      setBusy(hasSchema ? "mirror" : "provision");
+      try {
+        await authenticatedFetch(hasSchema ? "/host/byo/mirror" : "/host/byo/provision", { method: "POST" });
+      } catch { /* status reflects it */ }
+      setBusy(null);
+      refresh();
+    })();
   };
 
   // Retry the failed step from inside the welcome modal: if the structure is
@@ -277,12 +346,59 @@ export function SettingsOwnDataSection() {
               </div>
               <span style={{ width: 10, height: 10, borderRadius: "50%", background: db?.status === "live" ? "#22c55e" : db?.status === "error" ? "#ef4444" : "#f59e0b" }} />
             </div>
-            {db?.lastError && <div style={errStyle}>{db.lastError}</div>}
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button onClick={provision} disabled={!!busy} style={stepBtn}>{busy === "provision" ? "Setting up…" : "1 · Set up structure"}</button>
-              <button onClick={mirror} disabled={!!busy} style={stepBtn}>{busy === "mirror" ? "Copying…" : "2 · Copy my data"}</button>
-              <button onClick={verify} disabled={!!busy} style={stepBtn}>{busy === "verify" ? "Checking…" : "3 · Verify"}</button>
+
+            {/* The autopilot's readout — the system takes each step itself. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 16px", borderRadius: 12, border: `1px solid ${colors.borderFaint}`, background: colors.backgroundCard }}>
+              {[
+                { label: "Connected to Supabase", s: "done" },
+                { label: "Setting up your structure", s: dbSchema ? "done" : nextStage === "error" ? "error" : "active" },
+                { label: "Copying your world in", s: dbStatus === "live" ? "done" : !dbSchema ? "pending" : nextStage === "error" ? "error" : "active" },
+              ].map((row) => (
+                <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 800, flexShrink: 0,
+                    background: row.s === "done" ? "#22c55e" : row.s === "error" ? "#ef4444" : colors.surface,
+                    color: row.s === "done" || row.s === "error" ? "#fff" : colors.textSubtle,
+                    border: row.s === "active" || row.s === "pending" ? `1px solid ${colors.border}` : "none",
+                  }}>
+                    {row.s === "done" ? "✓" : row.s === "error" ? "!" : ""}
+                  </span>
+                  <span style={{ fontSize: 13.5, fontWeight: row.s === "active" ? 700 : 500, color: row.s === "pending" ? colors.textFaded : colors.text }}>
+                    {row.label}
+                    {row.s === "active" && <span style={{ color: colors.textMuted, fontWeight: 500 }}> — working on it…</span>}
+                  </span>
+                </div>
+              ))}
             </div>
+
+            {waking && (
+              <div style={{ ...errStyle, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", color: "#b45309" }}>
+                Your database was napping (free Supabase projects pause when idle). We're waking it —
+                takes a minute or two, and everything continues automatically.
+              </div>
+            )}
+
+            {(nextStage === "error" || pilotError) && (
+              <div style={errStyle}>
+                {db?.lastError || pilotError || "Something went wrong."}
+                <button onClick={retryPilot} disabled={!!busy} style={{ display: "block", marginTop: 8, padding: "8px 14px", borderRadius: 8, border: "none", background: colors.text, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {nextStage === "done" && (
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: "#16a34a" }}>
+                  It's yours — your world lives in your own database.
+                </span>
+                <button onClick={mirror} disabled={!!busy} style={stepBtn}>
+                  {busy === "mirror" ? "Syncing…" : "Sync latest data"}
+                </button>
+              </div>
+            )}
+
             {msg && <div style={{ ...errStyle, background: colors.surface, color: colors.textMuted }}>{msg}</div>}
             <button onClick={disconnect} disabled={!!busy} style={{ marginTop: "16px", background: "none", border: "none", color: "#ef4444", fontSize: "13px", fontWeight: 600, cursor: "pointer", padding: 0 }}>
               Disconnect (kill switch)

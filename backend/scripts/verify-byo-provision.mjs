@@ -50,7 +50,9 @@ try {
   r = await prov.provisionOwnedProject(hostId);
   ok(!r.ok && r.reason === "no_mgmt_token", `gates when no mgmt token (${r.reason})`);
 
-  ok(prov.OWNED_SCHEMA_VERSION === 87, `schema version stamped (${prov.OWNED_SCHEMA_VERSION})`);
+  // The version bumps whenever the owned schema evolves (87 → 107 → …); the
+  // invariant is that it exists and never regresses below the first release.
+  ok(Number.isInteger(prov.OWNED_SCHEMA_VERSION) && prov.OWNED_SCHEMA_VERSION >= 87, `schema version stamped (v${prov.OWNED_SCHEMA_VERSION})`);
 } catch (e) {
   failures++;
   console.error("❌ threw:", e.message);

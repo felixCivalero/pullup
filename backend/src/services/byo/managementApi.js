@@ -102,3 +102,11 @@ export async function deleteProject(token, ref) {
   return mgmtFetch(token, `/v1/projects/${ref}`, { method: "DELETE" });
 }
 
+// Wake a paused project. Free-tier Supabase projects pause after ~a week of
+// inactivity — SQL/API calls then just time out. Restore is async: fire it and
+// poll getProject until ACTIVE_HEALTHY (COMING_UP → RESTORING → healthy takes
+// a couple of minutes).
+export async function restoreProject(token, ref) {
+  return mgmtFetch(token, `/v1/projects/${ref}/restore`, { method: "POST", body: {} });
+}
+

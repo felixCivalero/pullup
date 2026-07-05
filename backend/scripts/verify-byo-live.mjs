@@ -70,7 +70,10 @@ try {
 
   // 4. PROVISION the owned schema into the second project (Management API)
   const pr = await prov.provisionOwnedProject(hostId);
-  ok(pr.ok && pr.schemaVersion === 87, `provisioned owned schema (${pr.ok ? "v" + pr.schemaVersion : pr.reason})`);
+  ok(
+    pr.ok && pr.schemaVersion === prov.OWNED_SCHEMA_VERSION,
+    `provisioned owned schema (${pr.ok ? `v${pr.schemaVersion}, want v${prov.OWNED_SCHEMA_VERSION}` : pr.reason})`,
+  );
 
   // 5. tables really exist on the OTHER database
   const { error: tblErr } = await owned.from("people").select("id", { count: "exact", head: true });

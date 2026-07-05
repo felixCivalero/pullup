@@ -19,7 +19,7 @@ import {
 } from "../repos/creatorDatabases.js";
 import { invalidateHost } from "../db/router.js";
 import { mirrorHostData, verifyMirror } from "../services/byo/mirror.js";
-import { provisionOwnedProject } from "../services/byo/provisioner.js";
+import { provisionOwnedProject, ensureProjectAwake } from "../services/byo/provisioner.js";
 import { getProjectUsage } from "../services/byo/projectUsage.js";
 
 // Reachability + auth probe for a creator's project, using ONLY the data-plane
@@ -102,6 +102,11 @@ export function registerByoSupabaseRoutes(app) {
     if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
       const result = await provisionOwnedProject(req.user.id);
+      // A paused (free-tier) project is being woken — the client shows
+      // "waking your database…" and retries; 202 = accepted, not failed.
+      if (!result.ok && result.reason === "project_waking") {
+        return res.status(202).json({ ok: false, reason: "project_waking" });
+      }
       if (!result.ok) return res.status(409).json({ error: "provision_failed", reason: result.reason });
       return res.json(result);
     } catch (e) {
@@ -116,6 +121,10 @@ export function registerByoSupabaseRoutes(app) {
   app.post("/host/byo/mirror", requireAuth, async (req, res) => {
     if (!byoEnabledForHost(req.user.id)) return res.status(503).json({ error: "byo_disabled" });
     try {
+      // Same wake pre-flight as provision: the mirror rides the data plane,
+      // which times out identically against a napping free-tier project.
+      const wake = await ensureProjectAwake(req.user.id);
+      if (!wake.awake) return res.status(202).json({ ok: false, reason: "project_waking" });
       const result = await mirrorHostData(req.user.id);
       if (!result.ok) return res.status(409).json({ error: "mirror_failed", reason: result.reason });
       return res.json(result);

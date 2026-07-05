@@ -11,11 +11,43 @@
 
 import { supabase } from "../../supabase.js";
 import { decryptSecret } from "../../utils/encryption.js";
-import { runProjectSql } from "./managementApi.js";
+import { runProjectSql, getProject, restoreProject } from "./managementApi.js";
 import {
   getCreatorDatabaseWithKey,
   setCreatorDatabaseStatus,
 } from "../../repos/creatorDatabases.js";
+
+// A creator's free-tier project PAUSES after ~a week idle — every call then
+// just times out (found the hard way: the live probe hit mgmt_api_544 on a
+// napping test project). When we hold a mgmt token, check first; if it's
+// asleep, kick the restore and answer 'project_waking' so the UI can show
+// "waking your database…" and retry — instead of dead-ending on a timeout.
+// Fail OPEN on any doubt: an unreadable status must not block a healthy op.
+export async function ensureProjectAwake(hostId) {
+  const row = await getCreatorDatabaseWithKey(hostId);
+  if (!row?.project_ref || !row?.encrypted_mgmt_token) return { awake: true };
+  let token;
+  try {
+    token = decryptSecret(row.encrypted_mgmt_token);
+  } catch {
+    return { awake: true };
+  }
+  try {
+    const p = await getProject(token, row.project_ref);
+    const status = p?.status || "UNKNOWN";
+    if (status === "ACTIVE_HEALTHY") return { awake: true };
+    if (status === "INACTIVE") {
+      restoreProject(token, row.project_ref).catch(() => {}); // idempotent kick
+      return { awake: false, reason: "project_waking", projectStatus: status };
+    }
+    if (/COMING_UP|RESTORING|PAUSING|RESTARTING/i.test(status)) {
+      return { awake: false, reason: "project_waking", projectStatus: status };
+    }
+    return { awake: true };
+  } catch {
+    return { awake: true };
+  }
+}
 
 // Bump when the owned schema changes — stamped per project on (re)provision /
 // sync. The DDL (mig 107) is self-evolving (CREATE IF NOT EXISTS + ALTER ADD
@@ -67,6 +99,11 @@ export async function provisionOwnedProject(hostId) {
   } catch {
     return { ok: false, reason: "mgmt_token_unreadable" };
   }
+
+  // Paused (free-tier) project? Kick the restore and let the UI retry rather
+  // than burning the retry budget on guaranteed timeouts.
+  const wake = await ensureProjectAwake(hostId);
+  if (!wake.awake) return { ok: false, reason: "project_waking" };
 
   await setCreatorDatabaseStatus(hostId, "provisioning").catch(() => {});
   try {

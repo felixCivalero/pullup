@@ -21,6 +21,7 @@ import { Instagram, Plus, X, MessageCircle, Calendar, AlertCircle } from "lucide
 import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "../components/Toast";
+import { InstagramEarlyAccess, ComingSoonChip } from "../components/InstagramEarlyAccess.jsx";
 import { AutoDmFlowFields, emptyFlowDraft, toFlowPayload } from "../components/AutoDmFlowFields.jsx";
 
 const wrap = {
@@ -263,15 +264,10 @@ export function AutoDmPage() {
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 10 }}>
             <span style={gradientText}>Auto-DM</span>
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "3px 9px" }}>
-              Early access
-            </span>
+            <ComingSoonChip />
           </h1>
           <p style={{ fontSize: 14, color: colors.textMuted, margin: "2px 0 0" }}>
-            Turn Instagram comments into RSVPs — automatically. Instagram is
-            approving our app for general use: connected accounts work today —{" "}
-            <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
-            to be first in line.
+            Turn Instagram comments into RSVPs — automatically.
           </p>
         </div>
       </div>
@@ -321,7 +317,7 @@ export function AutoDmPage() {
     );
   }
 
-  // ── Not connected: send them into the connect flow ──
+  // ── Not connected: the early-access ask (testers connect via its link) ──
   if (!igConnected) {
     return (
       <div style={wrap}>
@@ -348,25 +344,11 @@ export function AutoDmPage() {
             Once connected, PullUp watches for keyword comments on your posts and DMs the right event
             link the instant someone asks.
           </p>
-          <button
-            onClick={connectInstagram}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 24px",
-              borderRadius: 999,
-              border: "none",
-              background: colors.gradientInstagram,
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: "0 8px 24px rgba(214,36,159,0.32)",
-            }}
-          >
-            <Instagram size={17} /> Connect Instagram
-          </button>
+          {/* Meta review pending: the structured early-access ask replaces a
+              Connect that would fail for everyone but approved testers. */}
+          <div style={{ maxWidth: 460, margin: "0 auto", textAlign: "left" }}>
+            <InstagramEarlyAccess onConnect={connectInstagram} showToast={showToast} />
+          </div>
         </div>
       </div>
     );

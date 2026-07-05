@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Instagram, X } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
+import { InstagramEarlyAccess, ComingSoonChip } from "./InstagramEarlyAccess.jsx";
 
 const cardFlat = {
   background: colors.surface,
@@ -64,30 +65,22 @@ export function SettingsInstagramSection({ showToast, onStatus }) {
       <div style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, color: colors.text, display: "flex", alignItems: "center", gap: 10 }}>
           Instagram
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
-            Early access
-          </span>
+          <ComingSoonChip />
         </h2>
         <p style={{ fontSize: 14, color: colors.textMuted }}>
           Connect your Instagram to reach guests in their DMs from your Room; Auto-DM flows are set up per event, community, or product page.
-          Instagram is approving our app for general use — connected accounts work today, and if the connect doesn't go through for yours yet,{" "}
-          <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
-          and we'll onboard you the moment they say yes.
         </p>
       </div>
 
+      {/* Not connected → the early-access ask (Meta review pending); testers
+          who are already added connect through its quiet link. Connected
+          accounts keep the full management card. */}
+      {ig != null && !account ? (
+        <InstagramEarlyAccess onConnect={connectInstagram} showToast={showToast} />
+      ) : (
       <div style={cardFlat}>
         {ig == null ? (
           <div style={{ padding: 16, fontSize: 13, color: colors.textSubtle }}>Checking…</div>
-        ) : !account ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 16 }}>
-            <span style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.surfaceMuted, color: colors.textMuted }}><Instagram size={20} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: colors.text }}>Instagram</div>
-              <div style={{ fontSize: 12.5, color: colors.textMuted }}>Not connected yet</div>
-            </div>
-            <button type="button" onClick={connectInstagram} style={{ padding: "10px 20px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Connect</button>
-          </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
             <span style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: colors.accentSoft, color: colors.accent }}><Instagram size={18} /></span>
@@ -105,6 +98,7 @@ export function SettingsInstagramSection({ showToast, onStatus }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

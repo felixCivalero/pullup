@@ -31,6 +31,7 @@ import { colors } from "../theme/colors.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { useToast } from "./Toast";
 import { AutoDmFlowFields, emptyFlowDraft, toFlowPayload } from "./AutoDmFlowFields.jsx";
+import { InstagramEarlyAccess, ComingSoonChip } from "./InstagramEarlyAccess.jsx";
 
 const input = {
   width: "100%",
@@ -420,16 +421,10 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode, kind = "eve
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
         <Instagram size={18} color={colors.instagram} />
         <span style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>Instagram automations</span>
-        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
-          Early access
-        </span>
+        <ComingSoonChip />
       </div>
       <p style={{ fontSize: 13, color: colors.textMuted, margin: 0, lineHeight: 1.5 }}>
         Turn comments and RSVPs into DMs — sent automatically, in your voice.
-        Instagram is approving our app for general use: connected accounts work
-        today, and everyone else joins the moment they say yes —{" "}
-        <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
-        to be first in line.
       </p>
     </div>
   );
@@ -459,15 +454,9 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode, kind = "eve
     return (
       <div>
         {heading}
-        <Notice
-          action={
-            <button type="button" onClick={connectInstagram} style={igBtn}>
-              <Instagram size={15} /> Connect Instagram
-            </button>
-          }
-        >
-          Connect your Instagram account to start turning comments and RSVPs into DMs.
-        </Notice>
+        {/* Meta review pending: the structured early-access ask replaces a
+            Connect that would fail for everyone but approved testers. */}
+        <InstagramEarlyAccess compact onConnect={connectInstagram} showToast={showToast} />
       </div>
     );
   }

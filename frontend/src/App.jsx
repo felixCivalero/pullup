@@ -59,6 +59,7 @@ import { lazyPage } from "./lib/lazyPage.js";
 import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
+const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
 const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"), "ResetPasswordPage");
 const NewsletterPage = lazyPage(() => import("./pages/NewsletterPage"), "NewsletterPage");
@@ -128,7 +129,8 @@ function App() {
             horizontal slide between the hero, login, and onboarding
             panels instead of a hard page swap. */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/start" element={<LandingPage />} />
+        {/* /start = the creator onboarding line: account → subscribe → build. */}
+        <Route path="/start" element={<StartHostingPage />} />
         <Route path="/waitlist" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />

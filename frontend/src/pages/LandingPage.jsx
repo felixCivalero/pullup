@@ -854,7 +854,7 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
                 onStartHosting();
               }}
             >
-              Start hosting — your first event is free to build
+              Start hosting — 125 kr/month
               <ArrowRight size={17} />
             </button>
             <button
@@ -945,8 +945,7 @@ export function LandingPage() {
   // a legacy /waitlist or /start URL still lands somewhere sensible.
   useEffect(() => {
     const wantsJoin =
-      location.pathname === "/waitlist" ||
-      location.pathname === "/start" ||
+      location.pathname === "/waitlist" || // legacy links land on the pricing beat
       Boolean(location.state?.joinEmail);
     if (!wantsJoin) return;
     const t = setTimeout(() => {
@@ -1012,14 +1011,13 @@ export function LandingPage() {
     <div className="landing-root">
       <style>{STYLES}</style>
 
-      {/* Marketing always renders; pricing is INLINE in it (#join), so
-          "Start hosting" scrolls there first — the price is stated before the
-          door. Only login floats over as a modal. */}
+      {/* Marketing always renders; the pricing section (#join) stays as the
+          story's closing beat, but EVERY "Start hosting" goes straight to the
+          /start onboarding: account → subscribe → build. One line, no
+          scroll-to-a-second-CTA. Only login floats over as a modal. */}
       <MarketingScroll
-        onGetStarted={() =>
-          document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" })
-        }
-        onStartHosting={() => navigate("/create")}
+        onGetStarted={() => navigate("/start")}
+        onStartHosting={() => navigate("/start")}
         onLogin={() => navigate("/login")}
       />
       {view === "login" && (
@@ -1030,7 +1028,7 @@ export function LandingPage() {
           // Self-serve is open (the subscription is the gate now, not a
           // waitlist): someone new who lands on Log in is sent to build their
           // first event — the account is created at publish time.
-          onSignupIntent={() => navigate("/create")}
+          onSignupIntent={() => navigate("/start")}
         />
       )}
     </div>

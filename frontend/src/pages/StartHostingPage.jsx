@@ -1,14 +1,17 @@
-// /start — THE creator onboarding, one straight line: account → 125 kr/month
-// → build. Every landing CTA lands here (no more scroll-to-a-second-CTA), and
-// each visit resumes wherever the person actually is:
-//   no session            → auth (Google / email), returning right here
-//   signed in, can't host → the subscribe card → Stripe Checkout → back here
-//   signed in, can host   → straight to /create (founders, subscribers, and
-//                           deployments where the paywall isn't switched on)
-// The publish-time paywall stays as the backstop for people who wander into
-// /create directly — this page is the front door, not the only door.
+// /start — THE creator onboarding, one straight line: plan → account → pay →
+// build. Friction-ordered for someone who has already decided (every landing
+// CTA lands here):
+//   1. The plan card shows IMMEDIATELY — no auth wall before the pitch.
+//   2. "Subscribe" is the one click. No session? Auth opens, and because the
+//      intent is remembered across the OAuth round-trip, checkout launches
+//      AUTOMATICALLY after sign-in — nobody is asked twice.
+//   3. Stripe returns here; the moment the subscription lands they're
+//      forwarded into /create to build their first event.
+// Already-entitled visitors (founders, subscribers, paywall-off deployments)
+// skip straight through to /create. The publish-time paywall stays as the
+// backstop for people who wander into /create directly.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
@@ -16,24 +19,32 @@ import { useSubscription } from "../lib/useSubscription.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { colors } from "../theme/colors.js";
 
+// Survives the Google OAuth round-trip (same tab): "they already clicked
+// Subscribe — don't ask again, go straight to checkout after auth".
+const PAY_INTENT_KEY = "pullup_start_pay_intent";
+
+function readPayIntent() {
+  try { return sessionStorage.getItem(PAY_INTENT_KEY) === "1"; } catch { return false; }
+}
+function setPayIntent(on) {
+  try {
+    if (on) sessionStorage.setItem(PAY_INTENT_KEY, "1");
+    else sessionStorage.removeItem(PAY_INTENT_KEY);
+  } catch { /* private mode — flow degrades to one extra click */ }
+}
+
 export function StartHostingPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { sub, loading: subLoading, startCheckout } = useSubscription();
   const [busy, setBusy] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const [error, setError] = useState("");
+  const autoFired = useRef(false);
 
-  const ready = !authLoading && (!user || !subLoading);
   const canHost = !!sub && (!sub.enforced || sub.entitlement?.canHost);
 
-  // Signed in and allowed to host (paid, founder, or paywall off) → the whole
-  // point of this page is behind them; go build.
-  useEffect(() => {
-    if (!ready || !user || !sub) return;
-    if (canHost) navigate("/create", { replace: true });
-  }, [ready, user, sub, canHost, navigate]);
-
-  async function subscribe() {
+  const launchCheckout = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
@@ -46,39 +57,42 @@ export function StartHostingPage() {
       setError("Couldn't open checkout — try again in a moment.");
       setBusy(false);
     }
+  }, [startCheckout]);
+
+  // Signed in and allowed to host (paid, founder, or paywall off) → go build.
+  // Signed in with a remembered Subscribe click → straight into checkout.
+  useEffect(() => {
+    if (authLoading || !user || subLoading || !sub) return;
+    if (canHost) {
+      setPayIntent(false);
+      navigate("/create", { replace: true });
+      return;
+    }
+    if (readPayIntent() && !autoFired.current) {
+      autoFired.current = true;
+      setPayIntent(false);
+      launchCheckout();
+    }
+  }, [authLoading, user, subLoading, sub, canHost, navigate, launchCheckout]);
+
+  function subscribe() {
+    if (!user) {
+      // Remember the intent, collect the account, then checkout fires itself.
+      setPayIntent(true);
+      setShowAuth(true);
+      return;
+    }
+    launchCheckout();
   }
 
-  // ── Step 1: account ────────────────────────────────────────────────────────
-  if (!authLoading && !user) {
-    return (
-      <AuthGate
-        initialMode="login"
-        redirectTo="/start"
-        onDismiss={() => navigate("/")}
-      />
-    );
-  }
+  const resolvingEntitled = !!user && (subLoading || !sub || canHost);
 
-  // ── Loading (session or subscription state resolving) ─────────────────────
-  if (!ready || !sub || canHost) {
-    return (
-      <div style={{ minHeight: "100dvh", background: colors.background, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, color: colors.textMuted }}>
-          <div style={{ width: 26, height: 26, borderRadius: "50%", border: `2px solid ${colors.border}`, borderTopColor: colors.accent, animation: "startSpin 0.8s linear infinite" }} />
-          <div style={{ fontSize: 13 }}>Setting things up…</div>
-          <style>{`@keyframes startSpin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Step 2: the Creator plan ───────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100dvh", background: colors.background, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "min(460px, 100%)", textAlign: "center" }}>
-        <PullupEyes variant="big" style={{ margin: "0 auto 18px" }} />
+        <PullupEyes variant="big" style={{ width: 92, height: 80, margin: "0 auto 16px" }} />
         <div style={{ fontSize: 12, fontWeight: 800, color: colors.accent, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-          Last step
+          {user ? "Last step" : "Start hosting"}
         </div>
         <h1 style={{ fontSize: "clamp(24px, 4.5vw, 32px)", fontWeight: 800, lineHeight: 1.15, color: colors.text, margin: "0 0 10px" }}>
           Set up your Creator account
@@ -117,17 +131,23 @@ export function StartHostingPage() {
 
           <button
             onClick={subscribe}
-            disabled={busy}
+            disabled={busy || resolvingEntitled}
             style={{
               width: "100%", padding: "13px 18px", borderRadius: 12, border: "none",
               background: colors.text, color: "#fff", fontSize: 14.5, fontWeight: 800,
-              cursor: "pointer", opacity: busy ? 0.6 : 1,
+              cursor: "pointer", opacity: busy || resolvingEntitled ? 0.65 : 1,
             }}
           >
-            {busy ? "Opening secure checkout…" : "Subscribe & start hosting — 125 kr/month"}
+            {busy
+              ? "Taking you to secure checkout…"
+              : resolvingEntitled
+                ? "One moment…"
+                : "Subscribe & start hosting — 125 kr/month"}
           </button>
           <p style={{ fontSize: 11.5, color: colors.textFaded, textAlign: "center", margin: "10px 0 0" }}>
-            Secure payment by Stripe. Manage or cancel anytime from Settings → Billing.
+            {user
+              ? "Secure payment by Stripe. Manage or cancel anytime from Settings → Billing."
+              : "You'll sign in with Google or email first — checkout opens right after, automatically."}
           </p>
         </div>
 
@@ -135,11 +155,20 @@ export function StartHostingPage() {
           Team or agency? The Agency plan is coming soon —{" "}
           <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
           and we'll onboard you personally.{" "}
-          <button type="button" onClick={() => navigate("/create")} style={{ background: "none", border: "none", padding: 0, color: colors.textSubtle, fontSize: 12.5, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit" }}>
+          <button type="button" onClick={() => { setPayIntent(false); navigate("/create"); }} style={{ background: "none", border: "none", padding: 0, color: colors.textSubtle, fontSize: 12.5, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit" }}>
             Just browsing? Draft an event first
           </button>
         </p>
       </div>
+
+      {showAuth && (
+        <AuthGate
+          initialMode="login"
+          redirectTo="/start"
+          onAuthed={() => setShowAuth(false)}
+          onDismiss={() => { setPayIntent(false); setShowAuth(false); }}
+        />
+      )}
     </div>
   );
 }

@@ -35,11 +35,13 @@ console.log("🧪 creator tier follows the subscription");
   assert(computeEntitlement(null, true).canHost === false, "no plan row at all → paywall (the new-host default)");
 }
 
-console.log("🧪 future tiers slot in without a rewrite");
+console.log("🧪 agency + future tiers slot in without a rewrite");
 {
-  // an unknown tier behaves like creator: the subscription decides
-  assert(computeEntitlement(plan("organisation", "active"), true).canHost === true, "organisation + active hosts");
-  assert(computeEntitlement(plan("organisation", "none"), true).canHost === false, "organisation unsubscribed paywalls");
+  // any paid tier behaves like creator: the subscription decides
+  assert(computeEntitlement(plan("agency", "active"), true).canHost === true, "agency + active hosts");
+  assert(computeEntitlement(plan("agency", "past_due"), true).reason === "grace", "agency gets the same grace");
+  assert(computeEntitlement(plan("agency", "none"), true).canHost === false, "agency unsubscribed paywalls");
+  assert(computeEntitlement(plan("organisation", "active"), true).canHost === true, "unknown future tier + active hosts");
 }
 
 if (failures > 0) {

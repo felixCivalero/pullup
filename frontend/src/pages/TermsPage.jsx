@@ -54,7 +54,7 @@ export function TermsPage() {
 
         <h2 style={s.h2}>5. Fees, payments and tickets</h2>
         <p style={s.p}>
-          Hosting on PullUp (publishing events, community pages or products) requires the Creator subscription: 125 SEK per month, cancelled anytime. When you cancel, you keep hosting until the end of the period you've paid for; after that your pages stay online read-only and new sign-ups pause until you resubscribe. Your data remains yours and exportable at all times, subscription or not. Being a guest — browsing and signing up for other people's events — is always free.
+          Hosting on PullUp (publishing events, community pages or products) requires a subscription: the Creator tier at 125 SEK per month for individual creators, or the Agency tier at 450 SEK per month for teams and agencies. Either can be cancelled anytime. When you cancel, you keep hosting until the end of the period you've paid for; after that your pages stay online read-only and new sign-ups pause until you resubscribe. Your data remains yours and exportable at all times, subscription or not. Being a guest — browsing and signing up for other people's events — is always free.
         </p>
         <p style={s.p}>Paid ticketing is processed by Stripe. When you sell tickets:</p>
         <ul style={s.ul}>

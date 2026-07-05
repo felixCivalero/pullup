@@ -20,7 +20,7 @@ import Stripe from "stripe";
 import { requireAuth } from "../middleware/auth.js";
 import { isDevelopment } from "../lib/urls.js";
 import { getStripeSecretKey } from "../stripe.js";
-import { subscriptionConfig, CREATOR_TIER } from "../config/subscriptions.js";
+import { subscriptionConfig, tierForPlan, TIERS } from "../config/subscriptions.js";
 import { getEntitlement, invalidateEntitlement } from "../services/billing/entitlements.js";
 import {
   createCheckoutSession,
@@ -49,7 +49,8 @@ export function registerSubscriptionRoutes(app) {
       invalidateEntitlement(req.user.id); // this endpoint is the "am I in yet?" poll — always fresh
       const [entitlement, plan] = [await getEntitlement(req.user.id), await getPlanForHost(req.user.id)];
       res.json({
-        tier: CREATOR_TIER,
+        tier: tierForPlan(plan.plan), // the host's own tier (agency → 450, else creator)
+        tiers: TIERS,
         configured: cfg.configured,
         enforced: cfg.enforced,
         entitlement,
@@ -70,9 +71,13 @@ export function registerSubscriptionRoutes(app) {
     try {
       const cfg = subscriptionConfig();
       if (!cfg.configured) return res.status(503).json({ error: "subscriptions_not_configured" });
-      const { url } = await createCheckoutSession(req.user.id, { returnTo: req.body?.returnTo });
+      const tier = req.body?.tier && TIERS[req.body.tier] ? req.body.tier : undefined;
+      const { url } = await createCheckoutSession(req.user.id, { returnTo: req.body?.returnTo, tier });
       res.json({ url });
     } catch (error) {
+      if (error?.message === "tier_not_configured") {
+        return res.status(503).json({ error: "tier_not_configured" });
+      }
       console.error("[subscriptions] checkout failed:", error?.message);
       res.status(500).json({ error: "checkout_failed" });
     }

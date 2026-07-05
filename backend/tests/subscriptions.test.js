@@ -1,7 +1,9 @@
-// Pure parts of the Creator-tier subscription service: the Stripe→ours status
-// map, checkout return-path hygiene (open-redirect guard), and query splicing
-// around #fragments (the router loses params placed after the hash).
+// Pure parts of the subscription service: the Stripe→ours status map, checkout
+// return-path hygiene (open-redirect guard), query splicing around #fragments
+// (the router loses params placed after the hash), and the tier↔price mapping
+// that keeps creator (125) and agency (450) on one set of rails.
 import { mapStripeStatus, sanitizeReturnPath, appendQuery } from "../src/services/billing/subscriptions.js";
+import { TIERS, tierForPlan, priceIdForTier, planFromPriceId } from "../src/config/subscriptions.js";
 
 let failures = 0;
 function assert(cond, msg) {
@@ -42,6 +44,27 @@ console.log("🧪 query params splice BEFORE the #fragment");
     "existing query appends with & and the Stripe template survives unencoded",
   );
   assert(appendQuery("/settings", { subscribed: "0" }) === "/settings?subscribed=0", "bare path gets ?");
+}
+
+console.log("🧪 tiers: creator 125, agency 450, one set of rails");
+{
+  assert(TIERS.creator.priceSek === 125, "creator tier is 125 SEK");
+  assert(TIERS.agency.priceSek === 450, "agency tier is 450 SEK");
+  assert(tierForPlan("agency").priceSek === 450, "agency plan → agency tier");
+  assert(tierForPlan("creator").priceSek === 125, "creator plan → creator tier");
+  assert(tierForPlan("early").priceSek === 125, "early is creator-shaped (free anyway)");
+  assert(tierForPlan("something_future").priceSek === 125, "unknown plan falls back to creator");
+
+  process.env.STRIPE_CREATOR_PRICE_ID = "price_creator_test";
+  process.env.STRIPE_AGENCY_PRICE_ID = "price_agency_test";
+  assert(priceIdForTier("creator") === "price_creator_test", "creator tier → creator price id");
+  assert(priceIdForTier("agency") === "price_agency_test", "agency tier → agency price id");
+  assert(planFromPriceId("price_agency_test") === "agency", "agency price on the webhook → plan 'agency'");
+  assert(planFromPriceId("price_creator_test") === "creator", "creator price on the webhook → plan 'creator'");
+  assert(planFromPriceId("price_unknown") === null, "unknown price stamps nothing");
+  delete process.env.STRIPE_AGENCY_PRICE_ID;
+  assert(priceIdForTier("agency") === null, "agency unconfigured → no price id (checkout answers 503)");
+  delete process.env.STRIPE_CREATOR_PRICE_ID;
 }
 
 if (failures > 0) {

@@ -21,7 +21,7 @@
 
 import Stripe from "stripe";
 import { getStripeSecretKey } from "../../stripe.js";
-import { subscriptionConfig } from "../../config/subscriptions.js";
+import { subscriptionConfig, priceIdForTier, planFromPriceId, TIERS } from "../../config/subscriptions.js";
 import {
   getPlanForHost,
   setStripeCustomerId,
@@ -86,9 +86,18 @@ export async function getOrCreateSubscriptionCustomer(hostId) {
   return customer.id;
 }
 
-export async function createCheckoutSession(hostId, { returnTo } = {}) {
+export async function createCheckoutSession(hostId, { returnTo, tier } = {}) {
   const cfg = subscriptionConfig();
   if (!cfg.configured) throw new Error("subscriptions_not_configured");
+  // Which tier: explicit ask wins; otherwise a host already marked 'agency'
+  // (e.g. onboarded from the agency waitlist) renews as agency; default creator.
+  let tierName = tier && TIERS[tier] ? tier : null;
+  if (!tierName) {
+    const plan = await getPlanForHost(hostId);
+    tierName = plan.plan === "agency" ? "agency" : "creator";
+  }
+  const priceId = priceIdForTier(tierName);
+  if (!priceId) throw new Error("tier_not_configured");
   const stripe = stripeClient();
   const customer = await getOrCreateSubscriptionCustomer(hostId);
   const base = getFrontendUrl();
@@ -96,7 +105,7 @@ export async function createCheckoutSession(hostId, { returnTo } = {}) {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer,
-    line_items: [{ price: cfg.priceId, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     // {CHECKOUT_SESSION_ID} is Stripe's template — the return page trades it
     // for an immediate server-side sync, so hosting unlocks without waiting
     // for the webhook.
@@ -135,14 +144,22 @@ export async function applyStripeSubscription(sub, hostIdHint = null) {
     return { ok: false, reason: "host_unresolved" };
   }
   const status = mapStripeStatus(sub.status);
+  // Which tier was bought — read off the subscription's price. Never
+  // overwrite 'early': a founding host stays founding whatever they buy.
+  let plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+  if (plan) {
+    const existing = await getPlanForHost(hostId);
+    if (existing.plan === "early") plan = null;
+  }
   const result = await updateSubscriptionState(hostId, {
     status,
+    plan,
     customerId: typeof sub.customer === "string" ? sub.customer : sub.customer?.id || null,
     subscriptionId: sub.id,
     currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
   });
   invalidateEntitlement(hostId);
-  return { ...result, hostId, status };
+  return { ...result, hostId, status, plan };
 }
 
 // The return-from-checkout sync: the success URL carries the session id; we

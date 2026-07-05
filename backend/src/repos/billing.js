@@ -68,7 +68,7 @@ export async function setStripeCustomerId(hostId, customerId) {
 // so replayed webhooks are harmless.
 export async function updateSubscriptionState(
   hostId,
-  { status, customerId = null, subscriptionId = null, currentPeriodEnd = null },
+  { status, plan = null, customerId = null, subscriptionId = null, currentPeriodEnd = null },
 ) {
   if (!hostId || !status) return { ok: false, reason: "missing_key" };
   const patch = {
@@ -77,6 +77,7 @@ export async function updateSubscriptionState(
     subscription_updated_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+  if (plan) patch.plan = plan; // which tier was bought (callers guard 'early')
   if (customerId) patch.stripe_customer_id = customerId;
   if (subscriptionId) patch.stripe_subscription_id = subscriptionId;
   if (currentPeriodEnd) patch.current_period_end = currentPeriodEnd;

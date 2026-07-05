@@ -114,11 +114,20 @@ try {
   const guestView2 = await fetch(`${API}/events/${slug}`).then((r) => r.json());
   ok(guestView2?.rsvpsPaused === false, "guest page live again after resubscribe");
 
-  // 7. early tier trumps everything
+  // 7. agency tier: same rails, its own price — the status endpoint reports
+  // the host's OWN tier (450) once the plan says agency
+  const sAgency = await setSubState(token, hostUserId, { plan: "agency", subscription_status: "active" });
+  ok(sAgency.entitlement?.canHost === true, "agency + active → hosts");
+  ok(sAgency.tier?.name === "agency" && sAgency.tier?.priceSek === 450, `agency host sees the 450 SEK tier (${sAgency.tier?.priceSek})`);
+  ok(sAgency.tiers?.creator?.priceSek === 125 && sAgency.tiers?.agency?.priceSek === 450, "both tiers advertised");
+  const sAgencyLapsed = await setSubState(token, hostUserId, { subscription_status: "canceled" });
+  ok(sAgencyLapsed.entitlement?.canHost === false, "agency lapse paywalls like creator");
+
+  // 8. early tier trumps everything
   const sEarly = await setSubState(token, hostUserId, { plan: "early", subscription_status: "canceled" });
   ok(sEarly.entitlement?.canHost === true && sEarly.entitlement?.reason === "early", "early host hosts free, whatever Stripe says");
 
-  // 8. deletion request: durable row, ok:true (no Stripe sub here → cancel skips)
+  // 9. deletion request: durable row, ok:true (no Stripe sub here → cancel skips)
   const del = await fetch(`${API}/me/deletion-request`, { method: "POST", headers: authed(token), body: "{}" });
   const delBody = await del.json().catch(() => ({}));
   ok(del.ok && delBody.ok === true, "deletion request accepted");

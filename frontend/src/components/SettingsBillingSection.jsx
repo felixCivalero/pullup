@@ -67,7 +67,8 @@ const ghostBtn = {
 // The plan card: which tier, what it costs, and the one action that matters
 // right now (subscribe / manage / fix payment).
 function PlanCard({ sub, busy, onSubscribe, onPortal }) {
-  const tier = sub?.tier || { priceSek: 125 };
+  const tier = sub?.tier || { name: "creator", priceSek: 125 };
+  const tierLabel = tier.name === "agency" ? "Agency" : "Creator";
   const plan = sub?.plan || {};
   const status = plan.subscriptionStatus || "none";
   const isEarly = plan.plan === "early";
@@ -91,7 +92,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal }) {
   return (
     <div style={block}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>Creator</span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>{tierLabel}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: colors.text }}>{tier.priceSek} kr/month</span>
       </div>
 
@@ -123,7 +124,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal }) {
           </div>
           {sub?.configured ? (
             <button onClick={onSubscribe} disabled={busy} style={{ ...primaryBtn, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "Opening checkout…" : status === "canceled" ? "Resubscribe" : "Start hosting — 125 kr/month"}
+              {busy ? "Opening checkout…" : status === "canceled" ? "Resubscribe" : `Start hosting — ${tier.priceSek} kr/month`}
             </button>
           ) : (
             <div style={{ fontSize: 12.5, color: colors.textSubtle }}>

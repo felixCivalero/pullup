@@ -2,6 +2,7 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download, Database, KeyRound, TrendingUp, LogOut } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
+import { WaitlistForm } from "../components/auth/WaitlistForm.jsx";
 import { supabase } from "../lib/supabase.js";
 import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
@@ -518,8 +519,13 @@ function McpScene() {
 // their room) or goes straight to their room URL. Keeping the public page
 // auth-agnostic is what makes it stable — no optimistic redirect off a token
 // that might be dead.
-function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
+function MarketingScroll({ onGetStarted, onLogin, joinEmail = "" }) {
   const [scrolled, setScrolled] = useState(false);
+
+  // Social proof on the waitlist CTA. Seeded once per page view (placeholder
+  // until wired to the real creator_waitlist count) so it doesn't flicker on
+  // re-render. Early-stage believable range.
+  const [signups] = useState(() => 214 + Math.floor(Math.random() * 233)); // ~214–446
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -558,7 +564,7 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
     return () => observer.disconnect();
   }, []);
 
-  const cta = (location, label = "Start hosting") => (
+  const cta = (location, label = "Join waitlist") => (
     <button
       type="button"
       className="mk-cta"
@@ -603,7 +609,7 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
               onGetStarted();
             }}
           >
-            Start hosting
+            Join waitlist
           </button>
         </div>
       </header>
@@ -641,7 +647,7 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         <Reveal delay={0.3}>
           <p className="mk-hero-proof">
             <span className="mk-hero-proof-dot" />
-            Free to attend · <strong>125 kr/month</strong>&nbsp;to host · cancel anytime
+            <strong>{signups.toLocaleString()}</strong>&nbsp;creators &amp; agencies already on the waitlist
           </p>
         </Reveal>
         <Reveal delay={0.4}>
@@ -820,50 +826,29 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         <McpScene />
       </section>
 
-      {/* ─── JOIN (pricing — one honest number, then the door. The old
-          waitlist is retired: the subscription IS the gate now.) ─── */}
+      {/* ─── JOIN (inline waitlist — the conversion happens on the page,
+          no modal) ─── */}
       <section id="join" className="mk-final mk-final--pre" data-mk-section="join" data-mk-order="10">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
         <Reveal delay={0.08}>
           <h2 className="mk-final-h">
-            Free to attend.<br />
-            <span className="pink">125 kr a month to host.</span>
+            Everyone else is automating.<br />
+            <span className="pink">You'll own something real.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.14}>
           <p className="mk-final-sub">
-            Being in someone's room costs nothing, ever. When you're ready to
-            host — events live, a community page open, products selling — it's
-            one flat subscription plus 3% on paid tickets. No per-guest
-            metering, no reach to buy back. Cancel anytime; your people and
-            your data stay yours either way.
+            We're onboarding creators and agencies one by one, on a database you
+            own from day one. Tell us where to reach you and we'll bring you in.
           </p>
         </Reveal>
         <Reveal delay={0.2}>
-          <div className="mk-join" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-            <button
-              type="button"
-              className="mk-cta"
-              onClick={() => {
-                trackEvent("cta_click", { location: "join_pricing" });
-                onStartHosting();
-              }}
-            >
-              Start hosting — your first event is free to build
-              <ArrowRight size={17} />
-            </button>
-            <button
-              type="button"
-              className="mk-nav-login"
-              onClick={() => {
-                trackEvent("cta_click", { location: "join_login" });
-                onLogin();
-              }}
-            >
-              Already hosting? Log in
-            </button>
+          <div className="mk-join">
+            {/* keyed on joinEmail so a login "no account" hand-off remounts the
+                form with the email prefilled (it always-renders otherwise). */}
+            <WaitlistForm key={joinEmail || "fresh"} source="landing" initialEmail={joinEmail} onLogin={onLogin} />
           </div>
         </Reveal>
       </section>
@@ -938,8 +923,12 @@ export function LandingPage() {
     return "hero";
   }, [location.pathname]);
 
-  // Auto-scroll to the pricing section when arriving via a join intent:
-  // a legacy /waitlist or /start URL still lands somewhere sensible.
+  // An email handed off from the login screen's "no account" pivot, used to
+  // prefill the inline join form. Arrives as router state.
+  const joinEmail = location.state?.joinEmail || "";
+
+  // Auto-scroll to the inline join form when arriving via a join intent:
+  // a /waitlist or /start URL, or the login no-account hand-off.
   useEffect(() => {
     const wantsJoin =
       location.pathname === "/waitlist" ||
@@ -1009,25 +998,26 @@ export function LandingPage() {
     <div className="landing-root">
       <style>{STYLES}</style>
 
-      {/* Marketing always renders; pricing is INLINE in it (#join), so
-          "Start hosting" scrolls there first — the price is stated before the
-          door. Only login floats over as a modal. */}
+      {/* Marketing always renders; the join form is INLINE in it (#join), so
+          "Get started" just scrolls there. Only login floats over as a modal. */}
       <MarketingScroll
         onGetStarted={() =>
           document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "start" })
         }
-        onStartHosting={() => navigate("/create")}
         onLogin={() => navigate("/login")}
+        joinEmail={joinEmail}
       />
       {view === "login" && (
         <AuthGate
           initialMode="login"
           redirectTo={resolveNext(searchParams)}
           onDismiss={() => navigate("/")}
-          // Self-serve is open (the subscription is the gate now, not a
-          // waitlist): someone new who lands on Log in is sent to build their
-          // first event — the account is created at publish time.
-          onSignupIntent={() => navigate("/create")}
+          // BYO rule: login is for existing accounts only. An unknown email (or
+          // "new here?") is steered to the inline join form, carrying the typed
+          // email so it lands prefilled.
+          onSignupIntent={(email) =>
+            navigate("/waitlist", { state: email ? { joinEmail: email } : undefined })
+          }
         />
       )}
     </div>

@@ -420,9 +420,16 @@ export function EventAutoDmPanel({ eventId, eventStatus, isEditMode, kind = "eve
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 4 }}>
         <Instagram size={18} color={colors.instagram} />
         <span style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>Instagram automations</span>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
+          Early access
+        </span>
       </div>
       <p style={{ fontSize: 13, color: colors.textMuted, margin: 0, lineHeight: 1.5 }}>
         Turn comments and RSVPs into DMs — sent automatically, in your voice.
+        Instagram is approving our app for general use: connected accounts work
+        today, and everyone else joins the moment they say yes —{" "}
+        <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
+        to be first in line.
       </p>
     </div>
   );

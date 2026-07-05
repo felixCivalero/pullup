@@ -261,11 +261,17 @@ export function AutoDmPage() {
           <Instagram size={22} color="#fff" />
         </span>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 10 }}>
             <span style={gradientText}>Auto-DM</span>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "3px 9px" }}>
+              Early access
+            </span>
           </h1>
           <p style={{ fontSize: 14, color: colors.textMuted, margin: "2px 0 0" }}>
-            Turn Instagram comments into RSVPs — automatically.
+            Turn Instagram comments into RSVPs — automatically. Instagram is
+            approving our app for general use: connected accounts work today —{" "}
+            <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
+            to be first in line.
           </p>
         </div>
       </div>

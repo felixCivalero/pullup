@@ -62,9 +62,17 @@ export function SettingsInstagramSection({ showToast, onStatus }) {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, color: colors.text }}>Instagram</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4, color: colors.text, display: "flex", alignItems: "center", gap: 10 }}>
+          Instagram
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
+            Early access
+          </span>
+        </h2>
         <p style={{ fontSize: 14, color: colors.textMuted }}>
-          Connect your Instagram to reach guests in their DMs from your Room. Auto-DM flows are set up per event, community, or product page.
+          Connect your Instagram to reach guests in their DMs from your Room; Auto-DM flows are set up per event, community, or product page.
+          Instagram is approving our app for general use — connected accounts work today, and if the connect doesn't go through for yours yet,{" "}
+          <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
+          and we'll onboard you the moment they say yes.
         </p>
       </div>
 

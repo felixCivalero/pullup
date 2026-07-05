@@ -123,11 +123,17 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
       }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{scope === "event" ? "Products in this room" : "Your products"}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
+              {scope === "event" ? "Products in this room" : "Your products"}
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
+                Beta
+              </span>
+            </div>
             <div style={{ fontSize: 13, color: colors.textMuted, marginTop: 3, lineHeight: 1.4 }}>
               {scope === "event"
                 ? "Pick which products appear in this event's room. Guests buy without leaving."
                 : "Live products show in your main room automatically. Hide any you'd rather keep to specific event rooms."}
+              {" "}Products are in beta — we're polishing the buying flow; tell us anything that feels off.
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: colors.textSubtle, cursor: "pointer", padding: 4 }}>

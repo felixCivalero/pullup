@@ -8,7 +8,7 @@
 // (mock rail is automatic outside production). If the flags are off the probe
 // reports SKIP (exit 2) rather than failing — it's a v2 probe, not a v1 one.
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv.mjs";
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API, grantHosting, revokeHosting } from "./probeEnv.mjs";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
@@ -31,6 +31,7 @@ try {
   // throwaway host with a real session
   const { data: created } = await admin.auth.admin.createUser({ email: hostEmail, email_confirm: true });
   hostUserId = created.user.id;
+  await grantHosting(admin, hostUserId); // paywall: throwaway host must be allowed to publish
   const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email: hostEmail });
   const { data: sess } = await anon.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
   const token = sess.session.access_token;
@@ -153,6 +154,7 @@ try {
   if (guestPersonId) await admin.from("people").delete().eq("id", guestPersonId);
   if (guestAuthId) await admin.auth.admin.deleteUser(guestAuthId).catch(() => {});
   await admin.from("people").delete().eq("email", hostEmail.toLowerCase());
+  await revokeHosting(admin, hostUserId);
   if (hostUserId) await admin.auth.admin.deleteUser(hostUserId).catch(() => {});
   console.log("🧹 cleaned host, guest, paid event, payment, ledger");
 }

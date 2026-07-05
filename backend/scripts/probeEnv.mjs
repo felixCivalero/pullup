@@ -35,4 +35,25 @@ for (const [k, v] of Object.entries({ SUPABASE_URL, SERVICE_KEY, ANON_KEY })) {
   }
 }
 
+// The Creator-tier paywall is live on prod-shaped configs: publishing needs an
+// active subscription, so every probe's THROWAWAY host must be granted hosting
+// right after creation or its publish comes back 402 and the deploy gate goes
+// red (exactly what happened on the first paywall deploy, 2026-07-05). The
+// grant is a plan row shaped like what the Stripe webhook writes; revoke it in
+// cleanup. No-ops harmlessly when enforcement is off.
+// (verify-subscriptions.mjs deliberately does NOT use this — probing the
+// paywall itself is its whole job.)
+export async function grantHosting(admin, hostId) {
+  if (!hostId) return;
+  await admin.from("creator_billing_plans").upsert(
+    { host_id: hostId, plan: "creator", subscription_status: "active", notes: "probe throwaway" },
+    { onConflict: "host_id" },
+  );
+}
+
+export async function revokeHosting(admin, hostId) {
+  if (!hostId) return;
+  await admin.from("creator_billing_plans").delete().eq("host_id", hostId);
+}
+
 // gate-path verification run 2026-06-12 (no-op)

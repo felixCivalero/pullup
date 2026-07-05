@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
+import CoverDropzone from "./CoverDropzone.jsx";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
@@ -54,6 +55,9 @@ export function EventPreview({
   // Editor-only: point at a part of the preview to open its editor.
   // onEditPart({ kind: "cover" | "section" | "rsvp", index? }).
   onEditPart = null,
+  // Editor-only: files dropped/picked on the EMPTY cover land here (the
+  // preview doubles as the upload dropzone until media exists).
+  onCoverFiles = null,
   // Editor-only: hover a part of the preview to peek its editor open.
   // onHoverPart({ kind }) on enter, onHoverPart(null) on leave.
   onHoverPart = null,
@@ -366,6 +370,12 @@ export function EventPreview({
                 }} />
               );
             })()}
+
+            {/* Editor-only: the empty hero IS the upload target — click or
+                drop media right where it will appear. */}
+            {onCoverFiles && !design && !(media && media.length > 0) && !imagePreview && (
+              <CoverDropzone onFiles={onCoverFiles} />
+            )}
 
             {/* Drag-to-reposition overlay (editor only, crop modes only) */}
             {onFocusDrag && phoneCrops && (

@@ -25,6 +25,7 @@ import {
   X,
   Star,
   Film,
+  Images,
   GripVertical,
   Layers,
   ArrowRight,
@@ -68,7 +69,6 @@ import { ChannelBadge, CHANNEL_BRAND } from "../components/ChannelBadge.jsx";
 import {
   formatRelativeTime,
   formatReadableDateTime,
-  formatEventTime,
 } from "../lib/dateUtils.js";
 import {
   uploadEventImage,
@@ -92,6 +92,7 @@ import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { parseCoordinates, formatCoordinates } from "../lib/urlUtils";
 import { hasEventEnded, sameInstant } from "../lib/eventLifecycle.js";
 import SubscriptionPaywall from "../components/SubscriptionPaywall.jsx";
+import DinnerSlotsEditor from "../components/DinnerSlotsEditor.jsx";
 
 // Paste-coordinates field for the location editor. Lets a host who has the exact
 // pin (but no precise street address) type/paste "59.3293, 18.0686" and have it
@@ -2073,14 +2074,10 @@ export function CreateEventPage() {
     }
   }
 
+  // Slots are plain HH:mm until publish (which requires a date anyway), so
+  // enabling doesn't need startsAt — the wizard configures slots before the
+  // design step, sometimes before a date exists.
   function handleToggleDinnerEnabled(nextValue) {
-    if (nextValue && !startsAt) {
-      showToast(
-        "Set an event start date and time before adding food serving slots.",
-        "warning",
-      );
-      return;
-    }
     setDinnerEnabled(nextValue);
     setDinnerSlotsConfig((prev) => {
       if (!nextValue) {
@@ -2099,39 +2096,6 @@ export function CreateEventPage() {
     });
   }
 
-  function handleAddDinnerSlot() {
-    if (!dinnerEnabled) return;
-    setDinnerSlotsConfig((prev) => {
-      const last = prev[prev.length - 1] || {
-        time: "18:00",
-        maxSeats: dinnerMaxSeatsPerSlot || "20",
-        maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "4",
-      };
-      // Auto-increment by 1 hour from last slot
-      let nextTime = "18:00";
-      if (last.time) {
-        const [h, m] = last.time.split(":");
-        const nextH = String(parseInt(h, 10) + 1).padStart(2, "0");
-        nextTime = `${nextH}:${m}`;
-      }
-      return [
-        ...prev,
-        {
-          time: nextTime,
-          maxSeats: last.maxSeats,
-          maxGuestsPerBooking: last.maxGuestsPerBooking,
-        },
-      ];
-    });
-  }
-
-  function handleRemoveDinnerSlot() {
-    if (!dinnerEnabled) return;
-    setDinnerSlotsConfig((prev) => {
-      if (prev.length <= 1) return prev;
-      return prev.slice(0, prev.length - 1);
-    });
-  }
 
   // Patch one media item in place (by local id).
   const patchMediaItem = (id, patch) =>
@@ -3041,7 +3005,11 @@ export function CreateEventPage() {
         instantWaitlist={instantWaitlist} setInstantWaitlist={setInstantWaitlist}
         allowPlusOnes={allowPlusOnes} setAllowPlusOnes={setAllowPlusOnes}
         maxPlusOnesPerGuest={maxPlusOnesPerGuest} setMaxPlusOnesPerGuest={setMaxPlusOnesPerGuest}
-        dinnerEnabled={dinnerEnabled} setDinnerEnabled={setDinnerEnabled}
+        dinnerEnabled={dinnerEnabled} setDinnerEnabled={handleToggleDinnerEnabled}
+        dinnerSlotsConfig={dinnerSlotsConfig} setDinnerSlotsConfig={setDinnerSlotsConfig}
+        dinnerDefaultSeats={dinnerMaxSeatsPerSlot || "20"} dinnerDefaultPerBooking={dinnerMaxGuestsPerBooking || "4"}
+        hideDinnerRemaining={hideDinnerRemaining} setHideDinnerRemaining={setHideDinnerRemaining}
+        dinnerBookingEmail={dinnerBookingEmail} setDinnerBookingEmail={setDinnerBookingEmail}
         onDone={() => {
           setWizardDone(true);
           setStepDirection("forward");
@@ -3472,8 +3440,10 @@ export function CreateEventPage() {
                       background: isDragging ? colors.accentSoft : colors.surface,
                     }}
                   >
-                    <div style={{ color: isDragging ? colors.accent : colors.textFaded }}>
-                      <ImageIcon size={32} />
+                    <div style={{ display: "flex", gap: "14px", color: isDragging ? colors.accent : colors.textFaded }}>
+                      <ImageIcon size={26} />
+                      <Images size={26} />
+                      <Film size={26} />
                     </div>
                     <div
                       style={{
@@ -3494,7 +3464,7 @@ export function CreateEventPage() {
                         padding: "0 16px",
                       }}
                     >
-                      Image, multiple images, or video
+                      Image · carousel of images · video
                     </div>
                   </div>
                 )}
@@ -5728,278 +5698,16 @@ export function CreateEventPage() {
                 />
 
                 {dinnerEnabled && (
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      padding: "16px",
-                      borderRadius: "12px",
-                      border: `1px solid ${colors.border}`,
-                      background: "#fff",
-                      boxShadow: "0 2px 8px rgba(10,10,10,0.04)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <SilverIcon as={UtensilsCrossed} size={20} />
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.1em",
-                          color: colors.text,
-                          flex: 1,
-                        }}
-                      >
-                        Cuisine Configuration
-                      </div>
-                    </div>
-
-                    {/* Slot cards */}
-                    <style>{`
-                      .cuisine-time-input::-webkit-calendar-picker-indicator,
-                      .cuisine-time-input::-webkit-inner-spin-button,
-                      .cuisine-time-input::-webkit-clear-button {
-                        display: none !important;
-                        -webkit-appearance: none !important;
-                      }
-                    `}</style>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                      {(() => {
-                        const slotCount = Math.max(1, dinnerSlotsConfig.length || 0);
-
-                        const getSlotTimeDisplay = (index) => {
-                          const timeValue = dinnerSlotsConfig[index]?.time;
-                          if (!timeValue || !startsAt) return null;
-                          const localEventStart = isoToLocalDateTime(startsAt);
-                          if (!localEventStart) return timeValue;
-                          const [eventDatePart] = localEventStart.split("T");
-                          return formatEventTime(new Date(`${eventDatePart}T${timeValue}`), timezone);
-                        };
-
-                        const updateSlotField = (index, field, value) => {
-                          setDinnerSlotsConfig((prev) => {
-                            const next = [...prev];
-                            const current = next[index] || {
-                              time: "18:00",
-                              maxSeats: dinnerMaxSeatsPerSlot || "20",
-                              maxGuestsPerBooking: dinnerMaxGuestsPerBooking || "4",
-                            };
-                            next[index] = { ...current, [field]: value };
-                            return next;
-                          });
-                        };
-
-                        const stepValue = (index, field, delta, min, max) => {
-                          const raw = dinnerSlotsConfig[index]?.[field] ||
-                            (field === "maxSeats" ? dinnerMaxSeatsPerSlot : dinnerMaxGuestsPerBooking) || "0";
-                          const current = parseInt(raw, 10) || 0;
-                          const next = current + delta;
-                          if (next < min) {
-                            if (field === "maxSeats") updateSlotField(index, field, "");
-                            return;
-                          }
-                          if (max !== undefined && next > max) return;
-                          updateSlotField(index, field, String(next));
-                        };
-
-                        const MiniStepper = ({ label, value, onMinus, onPlus, disableMinus, disablePlus, labelExtra }) => (
-                          <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                              <span style={{ fontSize: "10px", color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
-                              {labelExtra}
-                            </div>
-                            <div style={{
-                              display: "flex", alignItems: "center", gap: "2px",
-                              background: colors.surface, borderRadius: "8px",
-                              border: `1px solid ${colors.border}`, padding: "2px",
-                            }}>
-                              <button type="button" onClick={onMinus} disabled={disableMinus} style={{
-                                width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                                background: disableMinus ? "transparent" : colors.accentSoft,
-                                color: colors.text, fontSize: "16px", fontWeight: 600, cursor: disableMinus ? "not-allowed" : "pointer",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                opacity: disableMinus ? 0.3 : 1, transition: "all 0.15s ease",
-                              }}>−</button>
-                              <div style={{
-                                flex: 1, textAlign: "center", fontSize: "14px",
-                                fontWeight: 600, color: colors.text, padding: "0 4px",
-                              }}>{value || "—"}</div>
-                              <button type="button" onClick={onPlus} disabled={disablePlus} style={{
-                                width: "28px", height: "28px", borderRadius: "6px", border: "none",
-                                background: disablePlus ? "transparent" : colors.accentSoft,
-                                color: colors.text, fontSize: "16px", fontWeight: 600, cursor: disablePlus ? "not-allowed" : "pointer",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                opacity: disablePlus ? 0.3 : 1, transition: "all 0.15s ease",
-                              }}>+</button>
-                            </div>
-                          </div>
-                        );
-
-                        return (
-                          <>
-                            {Array.from({ length: slotCount }).map((_, index) => {
-                              const seatsVal = dinnerSlotsConfig[index]?.maxSeats ?? dinnerMaxSeatsPerSlot ?? "";
-                              const guestsVal = dinnerSlotsConfig[index]?.maxGuestsPerBooking ?? dinnerMaxGuestsPerBooking ?? "";
-                              const seatsNum = parseInt(seatsVal, 10) || 0;
-                              const guestsNum = parseInt(guestsVal, 10) || 0;
-
-                              return (
-                                <div key={index} style={{
-                                  background: colors.surface, borderRadius: "12px",
-                                  border: `1px solid ${colors.border}`, padding: "12px",
-                                  display: "flex", flexDirection: "column", gap: "10px",
-                                }}>
-                                  {/* Row 1: Time input */}
-                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                    <div style={{
-                                      fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-                                      letterSpacing: "0.05em", color: colors.textSubtle, minWidth: "16px",
-                                    }}>
-                                      {slotCount > 1 ? `${index + 1}` : ""}
-                                    </div>
-                                    {(() => {
-                                      const timeVal = dinnerSlotsConfig[index]?.time || "18:00";
-                                      const [hh, mm] = timeVal.split(":");
-                                      const selStyle = {
-                                        flex: 1, height: "38px", borderRadius: "10px",
-                                        border: `1px solid ${colors.border}`,
-                                        background: "#fff",
-                                        color: colors.text, fontSize: "14px", fontWeight: 600,
-                                        textAlign: "center", cursor: "pointer",
-                                        outline: "none", appearance: "none",
-                                        WebkitAppearance: "none", MozAppearance: "none",
-                                        padding: "0 8px",
-                                      };
-                                      return (
-                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1 }}>
-                                          <SilverIcon as={Clock} size={16} style={{ opacity: 0.6, flexShrink: 0 }} />
-                                          <select
-                                            value={hh}
-                                            onChange={(e) => updateSlotField(index, "time", `${e.target.value}:${mm}`)}
-                                            style={selStyle}
-                                          >
-                                            {Array.from({ length: 24 }, (_, i) => {
-                                              const h = String(i).padStart(2, "0");
-                                              return <option key={h} value={h}>{h}</option>;
-                                            })}
-                                          </select>
-                                          <span style={{ fontSize: "16px", fontWeight: 700, color: colors.textSubtle }}>:</span>
-                                          <select
-                                            value={mm}
-                                            onChange={(e) => updateSlotField(index, "time", `${hh}:${e.target.value}`)}
-                                            style={selStyle}
-                                          >
-                                            {["00", "10", "20", "30", "40", "50"].map((m) => (
-                                              <option key={m} value={m}>{m}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                      );
-                                    })()}
-                                    {slotCount > 1 && index === slotCount - 1 && (
-                                      <button type="button" onClick={handleRemoveDinnerSlot} style={{
-                                        width: "28px", height: "28px", borderRadius: "8px", border: "none",
-                                        background: colors.dangerRgba, color: colors.danger,
-                                        fontSize: "14px", cursor: "pointer", display: "flex",
-                                        alignItems: "center", justifyContent: "center", flexShrink: 0,
-                                      }}>×</button>
-                                    )}
-                                  </div>
-
-                                  {/* Row 2: Seats + Max guests inline */}
-                                  <div style={{ display: "flex", gap: "12px", paddingLeft: slotCount > 1 ? "26px" : "0" }}>
-                                    <MiniStepper
-                                      label="Seats"
-                                      value={seatsVal}
-                                      onMinus={() => stepValue(index, "maxSeats", -1, 0)}
-                                      onPlus={() => stepValue(index, "maxSeats", 1)}
-                                      disableMinus={seatsNum <= 0}
-                                      labelExtra={index === 0 ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => setHideDinnerRemaining(!hideDinnerRemaining)}
-                                          title={hideDinnerRemaining ? "Show remaining seats to guests" : "Hide remaining seats from guests"}
-                                          style={{
-                                            background: "none", border: "none", padding: "2px",
-                                            cursor: "pointer", display: "flex", alignItems: "center",
-                                            color: hideDinnerRemaining ? colors.textFaded : colors.textSubtle,
-                                            transition: "all 0.15s ease",
-                                          }}
-                                        >
-                                          <EyeOff size={11} />
-                                        </button>
-                                      ) : undefined}
-                                    />
-                                    <MiniStepper
-                                      label="Per booking"
-                                      value={guestsVal}
-                                      onMinus={() => stepValue(index, "maxGuestsPerBooking", -1, 1)}
-                                      onPlus={() => stepValue(index, "maxGuestsPerBooking", 1, undefined, 12)}
-                                      disableMinus={guestsNum <= 1}
-                                      disablePlus={guestsNum >= 12}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Add slot button */}
-                            <button
-                              type="button"
-                              onClick={handleAddDinnerSlot}
-                              style={{
-                                padding: "8px 14px", borderRadius: "10px", border: `1px dashed ${colors.border}`,
-                                background: "transparent", color: colors.textMuted, fontSize: "13px",
-                                fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center",
-                                justifyContent: "center", gap: "6px", transition: "all 0.2s ease",
-                              }}
-                            >
-                              <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span>
-                              <span>Add slot</span>
-                            </button>
-                          </>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Booking email */}
-                    <div>
-                      <label style={{
-                        display: "block", fontSize: "11px", fontWeight: 500,
-                        textTransform: "uppercase", letterSpacing: "0.05em",
-                        color: colors.textSubtle, marginBottom: "8px",
-                      }}>
-                        Booking contact email
-                      </label>
-                      <input
-                        type="email"
-                        value={dinnerBookingEmail}
-                        onChange={(e) => setDinnerBookingEmail(e.target.value)}
-                        placeholder="e.g. bookings@yourrestaurant.com"
-                        style={{
-                          ...inputStyle,
-                          fontSize: "14px",
-                          padding: "10px 14px",
-                          background: "#fff",
-                          border: `1px solid ${colors.border}`,
-                          borderRadius: "10px",
-                        }}
-                      />
-                      <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "6px" }}>
-                        Shown to guests for large or specific bookings
-                      </div>
-                    </div>
-                  </div>
+                  <DinnerSlotsEditor
+                    slots={dinnerSlotsConfig}
+                    onChange={setDinnerSlotsConfig}
+                    defaultSeats={dinnerMaxSeatsPerSlot || "20"}
+                    defaultPerBooking={dinnerMaxGuestsPerBooking || "4"}
+                    hideRemaining={hideDinnerRemaining}
+                    onToggleHideRemaining={setHideDinnerRemaining}
+                    bookingEmail={dinnerBookingEmail}
+                    onBookingEmailChange={setDinnerBookingEmail}
+                  />
                 )}
               </div>
             </div>
@@ -6310,6 +6018,7 @@ export function CreateEventPage() {
                   hoveredSection,
                   onEditPart: handleEditPart,
                   onHoverPart: handleHoverPart,
+                  onCoverFiles: handleMediaAdd,
                   hideLocation,
                   hideDate,
                   revealHint: revealHint || null,
@@ -6435,6 +6144,7 @@ export function CreateEventPage() {
             hideSignup={signupHidden}
             signupLabel={signupLabelText.trim() || null}
             signupCta={signupCtaText.trim() || null}
+            onCoverFiles={handleMediaAdd}
             rsvpContent={({ onClose }) => (
               <RsvpForm
                 preview

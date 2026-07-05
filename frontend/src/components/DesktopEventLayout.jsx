@@ -4,6 +4,7 @@ import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
 import { getCtaLabel } from "./EventCTA";
+import CoverDropzone from "./CoverDropzone.jsx";
 import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
@@ -43,6 +44,9 @@ export function DesktopEventLayout({
   autoShowRsvp = false,
   activeStep,
   onFocusDrag,
+  // Editor-only: files dropped/picked on the EMPTY cover land here (the
+  // preview doubles as the upload dropzone until media exists).
+  onCoverFiles = null,
   kind = "event",
   // Host control over the on-page sign-up surface (mig 096). hideSignup
   // suppresses BOTH the inline block and the pinned bottom bar; the two
@@ -302,6 +306,10 @@ export function DesktopEventLayout({
                   pointerEvents: "none",
                 }}
               />
+            ) : onCoverFiles ? (
+              // Editor-only: the empty hero IS the upload target — click or
+              // drop media right where it will appear.
+              <CoverDropzone onFiles={onCoverFiles} />
             ) : null}
 
             {/* Drag-to-reposition overlay (editor only; crop modes only) */}

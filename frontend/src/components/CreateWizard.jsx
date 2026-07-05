@@ -9,6 +9,7 @@ import { PullupEyes } from "./PullupEyes.jsx";
 import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { colors } from "../theme/colors.js";
 import { ChannelBadge, CHANNEL_BRAND } from "./ChannelBadge.jsx";
+import DinnerSlotsEditor from "./DinnerSlotsEditor.jsx";
 
 // The guided first-run for a BRAND-NEW event. It fronts the skeleton — name,
 // when, where, who-can-join — one focused question at a time, each skippable,
@@ -194,6 +195,10 @@ export function CreateWizard(props) {
     allowPlusOnes, setAllowPlusOnes,
     maxPlusOnesPerGuest, setMaxPlusOnesPerGuest,
     dinnerEnabled, setDinnerEnabled,
+    dinnerSlotsConfig, setDinnerSlotsConfig,
+    dinnerDefaultSeats, dinnerDefaultPerBooking,
+    hideDinnerRemaining, setHideDinnerRemaining,
+    dinnerBookingEmail, setDinnerBookingEmail,
     // control
     onDone,
   } = props;
@@ -493,9 +498,23 @@ export function CreateWizard(props) {
                 <OptionRow
                   icon={<UtensilsCrossed size={19} />}
                   label="Offer a food serving slot"
-                  description="Seated dinner with timed slots — configure in the editor."
+                  description="Seated dinner with timed slots and limited seats."
                   right={<Toggle checked={dinnerEnabled} onChange={setDinnerEnabled} />}
                 />
+                {/* The FULL slot configuration, right here in the flow — the
+                    same editor the design step uses, so nothing is deferred. */}
+                {dinnerEnabled && (
+                  <DinnerSlotsEditor
+                    slots={dinnerSlotsConfig}
+                    onChange={setDinnerSlotsConfig}
+                    defaultSeats={dinnerDefaultSeats}
+                    defaultPerBooking={dinnerDefaultPerBooking}
+                    hideRemaining={hideDinnerRemaining}
+                    onToggleHideRemaining={setHideDinnerRemaining}
+                    bookingEmail={dinnerBookingEmail}
+                    onBookingEmailChange={setDinnerBookingEmail}
+                  />
+                )}
               </div>
             </div>
           )}

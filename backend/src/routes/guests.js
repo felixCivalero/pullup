@@ -217,10 +217,13 @@ export function registerGuestRoutes(app) {
         ].join(",");
       });
 
-      const csv = [headers.join(","), ...rows].join("\n");
+      // UTF-8 BOM so Excel (and phone previews) decode å/ä/ö correctly —
+      // without it Excel guesses a legacy codepage and mangles non-ASCII names.
+      // Google Sheets ignores the BOM, so one file works everywhere.
+      const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
 
       // Set headers for CSV download
-      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="event-guests-${event.slug || event.id}-${

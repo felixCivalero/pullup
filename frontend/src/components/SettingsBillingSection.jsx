@@ -72,6 +72,8 @@ const TIER_DESC = {
 
 // Pick-a-tier rows, shared by the unsubscribed state and the early member's
 // optional upgrade.
+// busy is WHICH action is loading (e.g. "tier:creator", "portal") — only the
+// pressed button shows its spinner text; the rest just disable.
 function TierChooser({ tiers, busy, onSubscribe, cta }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -83,8 +85,8 @@ function TierChooser({ tiers, busy, onSubscribe, cta }) {
             </div>
             <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
           </div>
-          <button onClick={() => onSubscribe(name)} disabled={busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
-            {busy ? "Opening…" : cta}
+          <button onClick={() => onSubscribe(name)} disabled={!!busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
+            {busy === `tier:${name}` ? "Opening…" : cta}
           </button>
         </div>
       ))}
@@ -164,12 +166,12 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={onPortal} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
-            {pastDue ? "Update card" : "Manage in Stripe"}
+          <button onClick={onPortal} disabled={!!busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
+            {busy === "portal" ? "Opening…" : pastDue ? "Update card" : "Manage in Stripe"}
           </button>
           {!ending && (
-            <button onClick={() => onChangeTier(otherTier.name)} disabled={busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
-              Switch to {TIER_LABEL[otherTier.name]} — {otherTier.priceSek} kr/month
+            <button onClick={() => onChangeTier(otherTier.name)} disabled={!!busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
+              {busy === "switch" ? "Switching…" : `Switch to ${TIER_LABEL[otherTier.name]} — ${otherTier.priceSek} kr/month`}
             </button>
           )}
         </div>
@@ -203,7 +205,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
 export function SettingsBillingSection() {
   const { sub, startCheckout, openPortal, changeTier } = useSubscription();
   const [summary, setSummary] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(null); // which action is loading: "tier:<name>" | "portal" | "switch"
 
   useEffect(() => {
     let alive = true;
@@ -221,13 +223,15 @@ export function SettingsBillingSection() {
   const ticketsSold = month.ticketSales ?? 0;
   const soldCurrencies = currencies.filter(([, v]) => (v.grossCents || 0) > 0 || (v.feeCents || 0) > 0);
 
-  const act = (fn) => async (...args) => {
-    setBusy(true);
+  // key names WHICH button is loading (so its neighbors just disable, never
+  // show a phantom spinner). A function key derives it from the args.
+  const act = (key, fn) => async (...args) => {
+    setBusy(typeof key === "function" ? key(...args) : key);
     try {
       const ok = await fn(...args);
-      if (!ok) setBusy(false);
+      if (!ok) setBusy(null);
     } catch {
-      setBusy(false);
+      setBusy(null);
     }
     // On success the browser navigates to Stripe — no need to reset.
   };
@@ -236,12 +240,12 @@ export function SettingsBillingSection() {
   const handleChangeTier = async (tierName) => {
     const label = tierName === "agency" ? "Agency — 450 kr/month" : "Creator — 125 kr/month";
     if (!window.confirm(`Switch to ${label}? Stripe prorates the difference automatically on your next invoice.`)) return;
-    setBusy(true);
+    setBusy("switch");
     try {
       const ok = await changeTier(tierName);
       if (!ok) window.alert("Couldn't switch tier — try again in a moment, or use Manage in Stripe.");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -258,8 +262,8 @@ export function SettingsBillingSection() {
         <PlanCard
           sub={sub}
           busy={busy}
-          onSubscribe={act((tierName) => startCheckout({ tier: tierName }))}
-          onPortal={act(() => openPortal())}
+          onSubscribe={act((tierName) => `tier:${tierName}`, (tierName) => startCheckout({ tier: tierName }))}
+          onPortal={act("portal", () => openPortal())}
           onChangeTier={handleChangeTier}
         />
 

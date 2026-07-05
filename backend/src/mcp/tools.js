@@ -1253,7 +1253,7 @@ function buildHandlers(api, hostId) {
       lines.push("Plan: hosting is open on this deployment (subscriptions not enforced).");
     } else {
       lines.push(
-        "Plan: not subscribed. Drafting is free; PUBLISHING needs the Creator subscription — 125 kr/month, cancel anytime — at https://pullup.se/start or Settings → Billing.",
+        "Plan: not subscribed. Creating and publishing pages needs the Creator subscription — 125 kr/month, cancel anytime — at https://pullup.se/start or Settings → Billing.",
       );
     }
     lines.push(

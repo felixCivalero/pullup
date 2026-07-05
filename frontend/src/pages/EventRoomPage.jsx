@@ -34,7 +34,7 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 import { RoomAccessSettings } from "../components/RoomAccessSettings.jsx";
 import RoomConversation from "../components/room/RoomConversation.jsx";
 import { InstallPrompt } from "../components/pwa/InstallPrompt.jsx";
-import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star, Share2 } from "lucide-react";
+import { MessageSquare, Plus, X, Sparkles, Pencil, Users, ChevronDown, Images, ShoppingBag, Star, Share2, ExternalLink } from "lucide-react";
 import { EventShareModal } from "../components/EventShareModal.jsx";
 import { RoomPagesSettings } from "../components/RoomPagesSettings.jsx";
 import { EventHostsSection } from "../components/EventHostsSection.jsx";
@@ -737,6 +737,26 @@ export default function EventRoomPage() {
               location={event?.location}
               trailing={canManageRoom ? (
                 <>
+                  {/* THE page — what the host just made, one pink click away.
+                      Far left + accent shade on purpose: "show me my event" is
+                      the first instinct after creating it. */}
+                  {event?.slug && (
+                    <a
+                      href={`/e/${event.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        ...TOOLBAR_PILL,
+                        textDecoration: "none",
+                        background: colors.accentSoft,
+                        border: `1px solid ${colors.accentBorder}`,
+                        color: colors.accent,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <ExternalLink size={15} /> Event page
+                    </a>
+                  )}
                   <RoomAccessSettings eventId={id} />
                   <RoomPagesSettings eventId={id} pages={pagesOverride || viewPages} onChange={setPagesOverride} />
                   {canEditEvent && <RoomTeamSettings eventId={id} open={teamOpen} setOpen={setTeamOpen} />}

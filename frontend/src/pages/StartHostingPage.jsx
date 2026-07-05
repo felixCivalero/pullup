@@ -7,11 +7,13 @@
 //             step, not a login interruption. The Google round-trip remembers
 //             the intent and comes back straight into…
 //   pay     — Stripe Embedded Checkout mounted in-page (card, Link, wallets).
-//             Completion returns here, syncs, and forwards into /create.
+//             Completion returns here, syncs, and lands them in the Room —
+//             their home surface, where the next move (create an event, open
+//             a community, explore) is theirs, never forced.
 //
 // Profile details are NOT collected here — the profile-setup banner prompts
 // for them later, after the person is in. Already-entitled visitors skip
-// straight to /create; the publish-time paywall stays the backstop.
+// straight to the Room; the publish-time paywall stays the backstop.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -189,7 +191,9 @@ export function StartHostingPage() {
     if (authLoading || !user || subLoading || !sub) return;
     if (canHost) {
       setPayIntent(false);
-      navigate("/create", { replace: true });
+      // Land in the Room — the home surface where every next move is theirs
+      // (create an event, open a community page, explore). Never force a flow.
+      navigate("/room", { replace: true });
       return;
     }
     if (readPayIntent() && !autoFired.current) {

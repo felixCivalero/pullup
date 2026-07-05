@@ -831,10 +831,17 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         <Reveal delay={0.14}>
           <p className="mk-final-sub">
             Being in someone's room costs nothing, ever. When you're ready to
-            host — events live, a community page open, products selling — it's
-            one flat subscription plus 3% on paid tickets. No per-guest
-            metering, no reach to buy back. Cancel anytime; your people and
-            your data stay yours either way.
+            host — events live, a community page open, products selling — the
+            Creator plan is <strong>125 kr/month</strong> plus 3% on paid
+            tickets. No per-guest metering, no reach to buy back. Cancel
+            anytime; your people and your data stay yours either way.
+          </p>
+        </Reveal>
+        <Reveal delay={0.17}>
+          <p className="mk-final-sub" style={{ opacity: 0.65, fontSize: "0.92em" }}>
+            Running a team or agency? The Agency plan is coming soon —{" "}
+            <a href="mailto:hello@pullup.se" style={{ color: "inherit", fontWeight: 600 }}>say hi</a>{" "}
+            and we'll onboard you personally meanwhile.
           </p>
         </Reveal>
         <Reveal delay={0.2}>

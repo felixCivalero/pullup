@@ -114,6 +114,9 @@ export async function createCheckoutSession(hostId, { returnTo, tier, embedded =
     metadata: { pullupHostId: hostId },
     subscription_data: { metadata: { pullupHostId: hostId } },
     allow_promotion_codes: true,
+    // The price is 125 kr, full stop. Stripe's Adaptive Pricing would show a
+    // localized currency (with a 4% FX fee!) to non-SEK visitors — off.
+    adaptive_pricing: { enabled: false },
   };
   if (embedded) {
     // The payment form lives INSIDE our page (/start): Stripe renders into a

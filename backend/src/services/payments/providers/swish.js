@@ -40,7 +40,7 @@ function tlsAgent(cfg) {
 }
 
 // Minimal https-with-client-cert request (fetch can't carry client certs).
-function swishRequest(cfg, method, path, body = null) {
+function swishRequest(cfg, method, path, body = null, contentType = "application/json") {
   const url = new URL(`${BASE[cfg.env]}${path}`);
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -49,7 +49,7 @@ function swishRequest(cfg, method, path, body = null) {
         hostname: url.hostname,
         path: url.pathname,
         agent: tlsAgent(cfg),
-        headers: body ? { "Content-Type": "application/json" } : {},
+        headers: body ? { "Content-Type": contentType } : {},
       },
       (res) => {
         let data = "";
@@ -139,12 +139,70 @@ export const swishProvider = {
         : {
             type: "swish_mcommerce",
             token,
-            appUrl: token
-              ? `swish://paymentrequest?token=${token}&callbackurl=`
-              : null,
+            // The client appends &callbackurl=<its own page URL> so the Swish
+            // app can bounce the guest straight back after approving.
+            appUrl: token ? `swish://paymentrequest?token=${token}` : null,
+            // Desktop guests scan instead of tapping — served by our QR proxy.
+            qrPath: token ? `/payments/v2/swish/qr/${encodeURIComponent(token)}` : null,
             message: "Tap to open Swish and approve the payment.",
           },
     };
+  },
+
+  // Official Swish commerce QR for an m-commerce token — the desktop flow:
+  // the guest scans with the Swish app (or phone camera) and the payment
+  // opens pre-filled. Public generator endpoint, no mTLS.
+  async qrPngForToken(token, size = 300) {
+    const res = await fetch("https://mpc.getswish.net/qrg-swish/api/v1/commerce", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, format: "png", size }),
+    });
+    if (!res.ok) throw new Error(`swish_qr_failed: ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  },
+
+  // Cancel a still-pending request (guest picked another way to pay / the
+  // request timed out client-side). Swish takes a JSON-Patch. Best-effort by
+  // contract: an already-paid/expired request just refuses, which is fine.
+  async cancel(providerRef) {
+    const cfg = swishConfig();
+    if (!cfg.configured) return { ok: false, reason: "swish_not_configured" };
+    const res = await swishRequest(
+      cfg,
+      "PATCH",
+      `/api/v1/paymentrequests/${providerRef}`,
+      [{ op: "replace", path: "/status", value: "cancelled" }],
+      "application/json-patch+json",
+    );
+    return { ok: res.status === 200, status: res.status };
+  },
+
+  // Refund a PAID request back to the payer — merchant-initiated, so WE are
+  // the payerAlias here. Needs the paymentReference Swish minted for the
+  // original payment (fetched live, never stored stale).
+  async refund({ providerRef, amountCents, message = "PullUp refund" }) {
+    const cfg = swishConfig();
+    if (!cfg.configured) throw new Error("swish_not_configured");
+    const orig = await swishRequest(cfg, "GET", `/api/v1/paymentrequests/${providerRef}`);
+    const paymentReference = orig?.body?.paymentReference;
+    if (orig.status !== 200 || !paymentReference) {
+      throw new Error(`swish_refund_no_reference: ${orig.status}`);
+    }
+    const instructionId = crypto.randomUUID().replace(/-/g, "").toUpperCase();
+    const res = await swishRequest(cfg, "PUT", `/api/v1/refunds/${instructionId}`, {
+      originalPaymentReference: paymentReference,
+      callbackUrl: cfg.callbackUrl,
+      payerAlias: cfg.payeeAlias,
+      currency: "SEK",
+      amount: ((Number(amountCents) || 0) / 100).toFixed(2),
+      message: String(message).slice(0, 50),
+    });
+    if (res.status !== 201) {
+      const msg = Array.isArray(res.body) ? res.body.map((e) => e.errorCode).join(",") : res.status;
+      throw new Error(`swish_refund_failed: ${msg}`);
+    }
+    return { ok: true, refundRef: instructionId };
   },
 
   // Callback → normalized hint. Settlement re-verifies via fetchStatus before

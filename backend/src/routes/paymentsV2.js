@@ -43,6 +43,55 @@ export function registerPaymentsV2Routes(app) {
   });
 
   // ---------------------------
+  // PUBLIC: the Swish commerce QR for an m-commerce token — the desktop flow.
+  // The token is the capability (short-lived, minted seconds ago for this
+  // guest). Proxies Swish's official QR generator so the image the guest
+  // scans is exactly what the Swish app expects.
+  // ---------------------------
+  app.get("/payments/v2/swish/qr/:token", async (req, res) => {
+    try {
+      const provider = getProvider("swish");
+      const size = Math.min(600, Math.max(120, parseInt(req.query.size, 10) || 300));
+      const png = await provider.qrPngForToken(req.params.token, size);
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "private, max-age=180"); // requests expire in ~3 min anyway
+      return res.send(png);
+    } catch (e) {
+      console.error("[paymentsV2] swish qr failed:", e?.message);
+      return res.status(502).json({ error: "qr_unavailable" });
+    }
+  });
+
+  // ---------------------------
+  // PUBLIC: cancel a still-pending rail payment (guest picked another way to
+  // pay, or the request timed out on their screen). paymentId is the
+  // capability — same trust model as the public status endpoint. Only rails
+  // that support cancel do anything; already-settled payments refuse.
+  // ---------------------------
+  app.post("/payments/v2/:paymentId/cancel", async (req, res) => {
+    try {
+      const { findPaymentById, updatePayment } = await import("../data.js");
+      const payment = await findPaymentById(req.params.paymentId);
+      if (!payment) return res.status(404).json({ error: "not_found" });
+      if (payment.status !== "pending") {
+        return res.status(409).json({ error: "not_pending", status: payment.status });
+      }
+      const provider = getProvider(payment.provider);
+      if (!provider?.cancel || !payment.providerRef) {
+        return res.status(400).json({ error: "cancel_unsupported" });
+      }
+      const result = await provider.cancel(payment.providerRef);
+      if (result.ok) {
+        await updatePayment(payment.id, { status: "canceled" }).catch(() => {});
+      }
+      return res.json({ ok: !!result.ok });
+    } catch (e) {
+      console.error("[paymentsV2] cancel failed:", e?.message);
+      return res.status(500).json({ error: "cancel_failed" });
+    }
+  });
+
+  // ---------------------------
   // PUBLIC: charge a pending paid RSVP on a chosen rail.
   // The rsvpId is the capability (a fresh UUID the guest just received) —
   // the same trust model as the existing public payment-status endpoint.
@@ -70,7 +119,7 @@ export function registerPaymentsV2Routes(app) {
       }
 
       const hostProfile = await getUserProfile(event.hostId);
-      const offered = railsForEvent({ event, hostProfile });
+      const offered = await railsForEvent({ event, hostProfile });
       if (!offered.includes(rail)) {
         return res.status(400).json({ error: "rail_not_available", offered });
       }

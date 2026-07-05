@@ -30,14 +30,20 @@ export function getProvider(key) {
 }
 
 // The rails offered for THIS event, preferred-first. Local rail (matched to
-// the ticket currency) leads; card backs it up when the host can take cards;
-// mock trails in dev so every flow stays exercisable.
-export function railsForEvent({ event, hostProfile }) {
+// the ticket currency) leads; card backs it up when the host can ACTUALLY
+// take cards (charges_enabled, cached ~5min — a mid-onboarding account has an
+// id but every charge would fail); mock trails in dev so every flow stays
+// exercisable.
+export async function railsForEvent({ event, hostProfile }) {
   const currency = (event?.ticketCurrency || "usd").toLowerCase();
   const rails = [];
   if (currency === "kes" && mpesaProvider.available()) rails.push("mpesa");
   if (currency === "sek" && swishProvider.available()) rails.push("swish");
-  if (stripeCardProvider.available() && hostProfile?.stripeConnectedAccountId) {
+  if (
+    stripeCardProvider.available() &&
+    hostProfile?.stripeConnectedAccountId &&
+    (await stripeCardProvider.readyFor(hostProfile.stripeConnectedAccountId))
+  ) {
     rails.push("card");
   }
   if (mockProvider.available()) rails.push("mock");

@@ -105,6 +105,10 @@ function mapPaymentFromDb(dbPayment) {
     stripeCustomerId: dbPayment.stripe_customer_id,
     stripeChargeId: dbPayment.stripe_charge_id,
     stripeCheckoutSessionId: dbPayment.stripe_checkout_session_id,
+    // v2 rail identity (mig 083): which rail moved the money + its reference
+    // (Swish instructionId / M-Pesa CheckoutRequestID / stripe intent id).
+    provider: dbPayment.provider || null,
+    providerRef: dbPayment.provider_ref || null,
     amount: dbPayment.amount,
     currency: dbPayment.currency,
     status: dbPayment.status,

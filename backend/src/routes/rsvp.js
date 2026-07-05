@@ -957,7 +957,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           getPlanForHost(result.event.hostId),
           getUserProfile(result.event.hostId),
         ]);
-        const rails = railsForEvent({
+        const rails = await railsForEvent({
           event: result.event,
           hostProfile: hostProfileForRails,
         });

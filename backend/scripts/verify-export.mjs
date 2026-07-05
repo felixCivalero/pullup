@@ -3,7 +3,7 @@
 // section shape, redactions and the Content-Disposition attachment header,
 // then cleans everything up.
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv.mjs";
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API, grantHosting, revokeHosting } from "./probeEnv.mjs";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
@@ -15,6 +15,7 @@ const ok = (c, l) => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failure
 try {
   const { data: created } = await admin.auth.admin.createUser({ email, email_confirm: true });
   userId = created.user.id;
+  await grantHosting(admin, userId); // paywall: creating a draft needs an active tier
   const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const { data: sess } = await anon.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
   const token = sess.session.access_token;
@@ -51,6 +52,7 @@ try {
 } finally {
   // Cleanup: event first (FK), then profile + auth user.
   try { if (eventId) await admin.from("events").delete().eq("id", eventId); } catch { /* best-effort */ }
+  try { if (userId) await revokeHosting(admin, userId); } catch { /* best-effort */ }
   try { if (userId) await admin.from("profiles").delete().eq("id", userId); } catch { /* best-effort */ }
   try { if (userId) await admin.auth.admin.deleteUser(userId); } catch { /* best-effort */ }
 }

@@ -1,8 +1,9 @@
 // Probe GET /events/:id/access (refactored to shared resolver — must keep its
 // shape) and the new GET /events/:id/room-view composed payload. Creates a
 // throwaway host + draft event, checks both endpoints, cleans everything up.
+// Drafts sit behind the paywall too now, so the throwaway host gets a grant.
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv.mjs";
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API, grantHosting, revokeHosting } from "./probeEnv.mjs";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
@@ -14,6 +15,7 @@ const ok = (c, l) => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failure
 try {
   const { data: created } = await admin.auth.admin.createUser({ email, email_confirm: true });
   userId = created.user.id;
+  await grantHosting(admin, userId); // paywall: draft creation needs an active tier
   const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const { data: sess } = await anon.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
   const token = sess.session.access_token;
@@ -52,6 +54,6 @@ try {
   console.error("❌ threw:", e.message);
 } finally {
   if (eventId) { await admin.from("event_channels").delete().eq("event_id", eventId); await admin.from("events").delete().eq("id", eventId); console.log("🧹 event deleted"); }
-  if (userId) { await admin.from("people").delete().eq("email", email.toLowerCase()); await admin.auth.admin.deleteUser(userId); console.log("🧹 user deleted"); }
+  if (userId) { await revokeHosting(admin, userId); await admin.from("people").delete().eq("email", email.toLowerCase()); await admin.auth.admin.deleteUser(userId); console.log("🧹 user deleted"); }
 }
 process.exit(failures ? 1 : 0);

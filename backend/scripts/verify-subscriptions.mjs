@@ -1,10 +1,11 @@
 // Contract probe: the Creator-tier paywall end-to-end over real HTTP.
 //
-// A brand-new host (post-cutoff, no plan row) must: draft freely, get a typed
-// 402 on publish, publish once 'active', keep hosting on 'past_due' (grace),
-// and degrade to read-only on 'canceled' — with the guest side showing
-// rsvpsPaused and refusing new RSVPs. An 'early' host must pass everything,
-// free. Subscription states are written directly to creator_billing_plans
+// A brand-new host (post-cutoff, no plan row) must: get a typed 402 on ANY
+// page creation — draft or published — draft and publish once 'active', keep
+// hosting on 'past_due' (grace), and degrade to read-only on 'canceled' —
+// with the guest side showing rsvpsPaused and refusing new RSVPs. An 'early'
+// host must pass everything, free. Subscription states are written directly
+// to creator_billing_plans
 // (what the Stripe webhooks write); GET /host/subscription is called between
 // flips because it invalidates the entitlement cache — exactly what the
 // webhook does in-process.
@@ -61,23 +62,22 @@ try {
     createdVia: "create",
   });
 
-  // 1. drafts are free
-  const draft = await fetch(`${API}/events`, { method: "POST", headers: authed(token), body: JSON.stringify(eventBody("DRAFT", "Subs probe draft")) }).then((r) => r.json());
-  draftId = draft.id;
-  ok(!!draftId && draft.status === "DRAFT", "unsubscribed host can save a draft");
+  // 1. drafts sit behind the wall too — creating ANY page needs the tier
+  const draftTry = await fetch(`${API}/events`, { method: "POST", headers: authed(token), body: JSON.stringify(eventBody("DRAFT", "Subs probe draft")) });
+  const draftTryBody = await draftTry.json().catch(() => ({}));
+  ok(draftTry.status === 402 && draftTryBody.error === "subscription_required", `unsubscribed draft create → 402 subscription_required (${draftTry.status})`);
 
-  // 2. publish attempts → typed 402 (both the create-published and the flip path)
+  // 2. create-as-published → same typed 402
   const createPub = await fetch(`${API}/events`, { method: "POST", headers: authed(token), body: JSON.stringify(eventBody("PUBLISHED", "Subs probe direct")) });
   const createPubBody = await createPub.json().catch(() => ({}));
   ok(createPub.status === 402 && createPubBody.error === "subscription_required", `create-as-published → 402 subscription_required (${createPub.status})`);
 
-  const flip = await fetch(`${API}/host/events/${draftId}/publish`, { method: "PUT", headers: authed(token) });
-  const flipBody = await flip.json().catch(() => ({}));
-  ok(flip.status === 402 && flipBody.error === "subscription_required", `draft→publish → 402 subscription_required (${flip.status})`);
-
-  // 3. subscription active (what the webhook writes) → publish works
+  // 3. subscription active (what the webhook writes) → draft + publish work
   const sActive = await setSubState(token, hostUserId, { plan: "creator", subscription_status: "active" });
   ok(sActive.entitlement?.canHost === true && sActive.entitlement?.reason === "subscribed", "active subscription → can host");
+  const draft = await fetch(`${API}/events`, { method: "POST", headers: authed(token), body: JSON.stringify(eventBody("DRAFT", "Subs probe draft")) }).then((r) => r.json());
+  draftId = draft.id;
+  ok(!!draftId && draft.status === "DRAFT", "subscribed host can save a draft");
   const pub = await fetch(`${API}/host/events/${draftId}/publish`, { method: "PUT", headers: authed(token) });
   ok(pub.ok, `publish succeeds while active (${pub.status})`);
   publishedId = draftId;

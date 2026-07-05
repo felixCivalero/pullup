@@ -519,10 +519,10 @@ export function registerEventRoutes(app) {
       return res.status(400).json({ error: "Event end date cannot be in the past" });
     }
 
-    // Paywall: creating a DRAFT is always free; creating straight to PUBLISHED
-    // (this route's default) is hosting and needs an active tier. The typed 402
-    // lets the client keep the draft flow and open the subscribe sheet.
-    if ((status || "PUBLISHED") === "PUBLISHED") {
+    // Paywall: creating a page — draft or published — is hosting and needs an
+    // active tier. The Create picker walls this off in the UI; the typed 402
+    // is the real lock and opens the subscribe sheet client-side.
+    {
       const ent = await getEntitlement(req.user.id);
       if (!ent.canHost) return paywallResponse(res, ent);
     }

@@ -92,6 +92,7 @@ import { fetchTimezoneForLocation } from "../lib/timezone.js";
 import { parseCoordinates, formatCoordinates } from "../lib/urlUtils";
 import { hasEventEnded, sameInstant } from "../lib/eventLifecycle.js";
 import SubscriptionPaywall from "../components/SubscriptionPaywall.jsx";
+import { useSubscription } from "../lib/useSubscription.js";
 import DinnerSlotsEditor from "../components/DinnerSlotsEditor.jsx";
 
 // Paste-coordinates field for the location editor. Lets a host who has the exact
@@ -789,7 +790,17 @@ export function CreateEventPage() {
   });
   const [profileChecked, setProfileChecked] = useState(true);
   const [showPublishAuth, setShowPublishAuth] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false); // publish came back 402 subscription_required
+  const [showPaywall, setShowPaywall] = useState(false); // a write came back 402 subscription_required
+
+  // Creating any page — even a draft — needs an active tier now. The Create
+  // picker walls this off upstream; this covers landing on /create directly.
+  // Lock only when the status affirmatively says no (fails open while loading).
+  const { sub: hostSub, loading: hostSubLoading } = useSubscription();
+  const creationLocked =
+    !isEditMode && !hostSubLoading && !!hostSub?.enforced && hostSub?.entitlement?.canHost === false;
+  useEffect(() => {
+    if (creationLocked) setShowPaywall(true);
+  }, [creationLocked]);
   const [pendingPublishAfterAuth, setPendingPublishAfterAuth] = useState(false);
   const [detailsTabPulse, setDetailsTabPulse] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2112,6 +2123,12 @@ export function CreateEventPage() {
     // null: media stays held locally and uploads once the event is named/published.
     const realTitle = (title || "").trim();
     if (!realTitle || realTitle === "Event Name") return null;
+    // Behind the paywall → don't mint a server draft; the sheet is already up
+    // (or comes up now). Work stays in the localStorage draft, callers get null.
+    if (creationLocked) {
+      setShowPaywall(true);
+      return null;
+    }
     if (draftCreationRef.current) return draftCreationRef.current;
 
     draftCreationRef.current = (async () => {
@@ -2144,6 +2161,9 @@ export function CreateEventPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 402 && err?.error === "subscription_required") {
+          setShowPaywall(true); // stale/unloaded status raced us — the server said no
+        }
         throw new Error(err.error || "Failed to start draft");
       }
       const created = await res.json();
@@ -2167,6 +2187,9 @@ export function CreateEventPage() {
   // and debounced so we don't POST on every keystroke.
   useEffect(() => {
     if (isEditMode) return;
+    // Paywalled: no server draft to autosave (and don't nag the sheet back open
+    // on every keystroke — explicit actions like publish re-raise it instead).
+    if (creationLocked) return;
     const named = (title || "").trim();
     if (!named || named === "Event Name") return;
     if (draftEventIdRef.current || draftCreationRef.current) return;
@@ -2175,7 +2198,7 @@ export function CreateEventPage() {
     }, 900);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, isEditMode]);
+  }, [title, isEditMode, creationLocked]);
 
   // Flush media that was added BEFORE the event had a name (so it had no draft
   // to upload to). The moment a draft is born — i.e. once you name the event —

@@ -1587,6 +1587,10 @@ app.post("/host/events/:id/duplicate", requireAuth, async (req, res) => {
       });
     }
 
+    // Duplicating mints a new page (born DRAFT) — same paywall as POST /events.
+    const ent = await getEntitlement(req.user.id);
+    if (!ent.canHost) return paywallResponse(res, ent);
+
     // Strip identity / lifecycle so createEvent starts a clean record. Also drop
     // the computed fields findEventById tacks on (they aren't event columns).
     const {

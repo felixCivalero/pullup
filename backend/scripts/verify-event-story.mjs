@@ -2,7 +2,7 @@
 // throwaway host + draft→published event, checks the ownership gate, the
 // payload shape and the phase logic, then cleans everything up.
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv.mjs";
+import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API, grantHosting, revokeHosting } from "./probeEnv.mjs";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
@@ -23,6 +23,7 @@ async function tokenFor(email) {
 try {
   const host = await tokenFor(hostEmail);
   hostId = host.userId;
+  await grantHosting(admin, hostId); // paywall: creating a draft needs an active tier
   const stranger = await tokenFor(strangerEmail);
   strangerId = stranger.userId;
 
@@ -60,6 +61,7 @@ try {
 } finally {
   try { if (eventId) await admin.from("events").delete().eq("id", eventId); } catch { /* best-effort */ }
   for (const uid of [hostId, strangerId]) {
+    try { if (uid) await revokeHosting(admin, uid); } catch { /* best-effort */ }
     try { if (uid) await admin.from("profiles").delete().eq("id", uid); } catch { /* best-effort */ }
     try { if (uid) await admin.auth.admin.deleteUser(uid); } catch { /* best-effort */ }
   }

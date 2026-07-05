@@ -673,13 +673,19 @@ function buildFormFieldsFromExtras(extras) {
   return [...locked, ...custom];
 }
 
-// Publishing is where the Creator subscription kicks in (typed 402 from the
-// API). The MCP never dead-ends on it: work lands as a DRAFT and the host gets
-// a warm, exact pointer instead of a raw error.
-const SUBSCRIPTION_NOTE =
+// Creating and publishing pages is where the Creator subscription kicks in
+// (typed 402 from the API — and per Felix 2026-07-06, CREATION itself is
+// gated, drafts included). The MCP never dead-ends on it: the host gets a
+// warm, exact pointer instead of a raw error.
+const SUBSCRIPTION_NOTE_PUBLISH =
   "Publishing needs an active PullUp subscription (Creator — 125 kr/month, cancel anytime; " +
   "founding hosts from before July 2026 host free). Your draft is saved and nothing is lost: " +
   "subscribe at https://pullup.se/start or Settings → Billing, then publish again.";
+const SUBSCRIPTION_NOTE_CREATE =
+  "Creating pages on PullUp needs an active subscription (Creator — 125 kr/month, cancel " +
+  "anytime; founding hosts from before July 2026 host free). Nothing was created yet: " +
+  "subscribe at https://pullup.se/start or Settings → Billing, then ask again and I'll set " +
+  "it up in one go.";
 
 function isSubscriptionRequired(e) {
   return e?.status === 402 || e?.body?.error === "subscription_required";
@@ -689,7 +695,7 @@ function buildHandlers(api, hostId) {
   const resolveEventBySlug = resolveEventBySlugVia(api);
 
   async function createEvent(args) {
-    let status = args.status || "DRAFT";
+    const status = args.status || "DRAFT";
     const { extraRsvpFields, ...rest } = args;
     const payload = { ...rest, status };
     if (extraRsvpFields !== undefined) {
@@ -697,15 +703,12 @@ function buildHandlers(api, hostId) {
     }
     if (Array.isArray(payload.sections)) payload.sections = normalizeSections(payload.sections);
     let event;
-    let paywallNote = null;
     try {
       event = await api("POST", "/events", { body: payload });
     } catch (e) {
       if (!isSubscriptionRequired(e)) throw e;
-      // Land the work as a draft instead of losing it, then say why.
-      status = "DRAFT";
-      event = await api("POST", "/events", { body: { ...payload, status: "DRAFT" } });
-      paywallNote = SUBSCRIPTION_NOTE;
+      // Creation itself is behind the tier — no draft fallback exists.
+      return toolResultText(`Not created — ${SUBSCRIPTION_NOTE_CREATE}`);
     }
     const { completeness, performance, top } = await buildEventCoaching(event);
 
@@ -717,10 +720,9 @@ function buildHandlers(api, hostId) {
       shareUrl: status === "PUBLISHED" ? shareUrlForSlug(event.slug) : null,
       rsvpsUrl: rsvpsDashboardForId(event.id),
       note:
-        paywallNote ||
-        (status === "DRAFT"
+        status === "DRAFT"
           ? `To publish: call publish_event with slug "${event.slug}", or update first.`
-          : null),
+          : null,
       completeness,
       performance,
       nextSuggestion: top,
@@ -748,7 +750,7 @@ function buildHandlers(api, hostId) {
       // Save the edits without the publish flip, then say why.
       const { status: _dropped, ...withoutStatus } = patch;
       updated = await api("PUT", `/host/events/${existing.id}`, { body: withoutStatus });
-      paywallNote = SUBSCRIPTION_NOTE;
+      paywallNote = SUBSCRIPTION_NOTE_PUBLISH;
     }
 
     const newSlug = updated.slug || slug;
@@ -824,7 +826,7 @@ function buildHandlers(api, hostId) {
     } catch (e) {
       if (!isSubscriptionRequired(e)) throw e;
       return toolResultText(
-        `Not published — ${SUBSCRIPTION_NOTE}\nPreview (draft, safe): ${editUrlForEventId(existing.id)}`,
+        `Not published — ${SUBSCRIPTION_NOTE_PUBLISH}\nPreview (draft, safe): ${editUrlForEventId(existing.id)}`,
       );
     }
     return toolResultText(

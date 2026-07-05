@@ -1,12 +1,18 @@
-import { useEffect } from "react";
-import { Calendar, DoorOpen, ShoppingBag, ArrowRight, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Calendar, DoorOpen, ShoppingBag, ArrowRight, X, Lock } from "lucide-react";
 import { PAGE_KIND_LIST } from "../lib/pageKinds.js";
+import { useSubscription } from "../lib/useSubscription.js";
 import { colors } from "../theme/colors.js";
 
 // ════════════════════════════════════════════════════════════════════════
 // PageTypePicker — the "what do you want to create?" modal behind the Create
 // menu. Reads the page-kind registry, so new page types appear here for free.
 // Event/Community are live; Product is "coming soon" (non-clickable).
+//
+// The paywall meets the host HERE, not at publish: without an active tier
+// (or the founding gift) the card swaps its options for an upgrade view, so
+// nobody drafts a page they can't take live. Publish routes still 402 —
+// this is the front door, the backend stays the lock.
 //
 //   onPick(kindId)  — a buildable kind was chosen
 //   onClose()       — dismissed
@@ -20,11 +26,35 @@ const DESCRIPTIONS = {
 };
 
 export function PageTypePicker({ onPick, onClose }) {
+  const { sub, loading, startCheckout } = useSubscription();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Only lock when we KNOW they can't host — while the status loads (or if it
+  // fails) the options show, and the publish-time 402 remains the real gate.
+  const locked = !loading && !!sub?.enforced && sub?.entitlement?.canHost === false;
+  const price = sub?.tier?.priceSek ?? 125;
+
+  async function subscribe() {
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await startCheckout(); // navigates to Stripe; returns false on failure
+      if (!ok) {
+        setError("Couldn't open checkout — try again in a moment.");
+        setBusy(false);
+      }
+    } catch {
+      setError("Couldn't open checkout — try again in a moment.");
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="ptp-backdrop" onClick={onClose}>
@@ -32,12 +62,31 @@ export function PageTypePicker({ onPick, onClose }) {
       <div className="ptp-card" role="dialog" aria-modal="true" aria-label="Create a page" onClick={(e) => e.stopPropagation()}>
         <div className="ptp-head">
           <div>
-            <p className="ptp-kicker">Create</p>
-            <h2 className="ptp-title">What are you making?</h2>
+            <p className="ptp-kicker">{locked ? "Creator tier" : "Create"}</p>
+            <h2 className="ptp-title">{locked ? "Upgrade to host" : "What are you making?"}</h2>
           </div>
           <button type="button" className="ptp-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 
+        {locked ? (
+          <div className="ptp-wall">
+            <p className="ptp-wall-copy">
+              Being a guest on PullUp is free, forever. Creating — event pages, your
+              community page, products — runs on one flat subscription.
+            </p>
+            <div className="ptp-wall-price">
+              <span className="ptp-wall-amount">{price} kr</span>
+              <span className="ptp-wall-per">/month · cancel anytime</span>
+            </div>
+            {error && <div className="ptp-wall-error">{error}</div>}
+            <button type="button" className="ptp-wall-cta" onClick={subscribe} disabled={busy}>
+              <Lock size={15} />
+              {busy ? "Opening secure checkout…" : `Subscribe — ${price} kr/month`}
+            </button>
+            <button type="button" className="ptp-wall-later" onClick={onClose}>Not now</button>
+            <p className="ptp-wall-fine">Secure payment by Stripe. Manage or cancel from Settings → Billing.</p>
+          </div>
+        ) : (
         <div className="ptp-list">
           {PAGE_KIND_LIST.map((k) => {
             const Icon = ICONS[k.id] || Calendar;
@@ -64,6 +113,7 @@ export function PageTypePicker({ onPick, onClose }) {
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );
@@ -97,4 +147,16 @@ const STYLES = `
   .ptp-desc { font-size: 13px; color: rgba(10,10,10,0.55); line-height: 1.4; }
   .ptp-arrow { flex: 0 0 auto; color: rgba(10,10,10,0.3); }
   .ptp-item:hover:not(.is-soon) .ptp-arrow { color: ${PINK}; }
+
+  .ptp-wall { display: flex; flex-direction: column; }
+  .ptp-wall-copy { margin: 0 0 16px; font-size: 14px; line-height: 1.55; color: rgba(10,10,10,0.62); }
+  .ptp-wall-price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
+  .ptp-wall-amount { font-size: 32px; font-weight: 900; color: #0a0a0a; }
+  .ptp-wall-per { font-size: 14px; color: rgba(10,10,10,0.55); }
+  .ptp-wall-error { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); font-size: 13px; color: #ef4444; }
+  .ptp-wall-cta { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 13px 18px; border-radius: 12px; border: none;
+    background: #0a0a0a; color: #fff; font: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer; }
+  .ptp-wall-cta:disabled { opacity: 0.6; cursor: default; }
+  .ptp-wall-later { width: 100%; margin-top: 8px; padding: 10px; border-radius: 12px; border: none; background: none; color: rgba(10,10,10,0.55); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .ptp-wall-fine { margin: 10px 0 0; font-size: 11.5px; color: rgba(10,10,10,0.4); text-align: center; }
 `;

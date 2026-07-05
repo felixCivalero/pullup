@@ -70,6 +70,28 @@ const TIER_DESC = {
   agency: "For teams and agencies (2+ people)",
 };
 
+// Pick-a-tier rows, shared by the unsubscribed state and the early member's
+// optional upgrade.
+function TierChooser({ tiers, busy, onSubscribe, cta }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {["creator", "agency"].map((name) => (
+        <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surface }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>
+              {TIER_LABEL[name]} · {tiers[name]?.priceSek} kr/month
+            </div>
+            <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
+          </div>
+          <button onClick={() => onSubscribe(name)} disabled={busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Opening…" : cta}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // The plan card: which tier, what it costs, where the period stands, and every
 // action a subscriber needs — subscribe, switch tier (prorated by Stripe),
 // update card / invoices / cancel via the Stripe portal.
@@ -86,15 +108,26 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
 
   if (isEarly) {
     return (
-      <div style={{ ...block, borderColor: colors.accentBorder, background: colors.accentSoft }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-          <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>Early member</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: colors.accent }}>Hosting free, forever</span>
+      <>
+        <div style={{ ...block, borderColor: colors.accentBorder, background: colors.accentSoft }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: colors.text }}>Early member</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: colors.accent }}>Hosting free, forever</span>
+          </div>
+          <div style={muted}>
+            You were here before subscriptions existed — so they don't exist for you. Only the 3% ticket fee ever applies.
+          </div>
         </div>
-        <div style={muted}>
-          You were here before subscriptions existed — so they don't exist for you. Only the 3% ticket fee ever applies.
-        </div>
-      </div>
+        {sub?.configured && (
+          <div style={{ ...block }}>
+            <div style={{ ...muted, marginBottom: 10 }}>
+              Want a paid tier anyway — to back the build, or for what Agency grows into? You can. Your founding status is
+              permanent: cancel whenever and you're back to hosting free.
+            </div>
+            <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta="Upgrade" />
+          </div>
+        )}
+      </>
     );
   }
 
@@ -142,6 +175,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
         </div>
         <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 8, lineHeight: 1.5 }}>
           Manage in Stripe = card details, receipts, cancel or resume. Switching tier is prorated automatically.
+          {plan.founding && <> <strong>Founding member:</strong> cancel anytime and you're back to hosting free, forever.</>}
         </div>
       </div>
     );
@@ -156,21 +190,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
           : "Hosting on PullUp — publishing events, a community page, products — runs on one flat subscription. Cancel anytime; being a guest is always free."}
       </div>
       {sub?.configured ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {["creator", "agency"].map((name) => (
-            <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surface }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>
-                  {TIER_LABEL[name]} · {tiers[name]?.priceSek} kr/month
-                </div>
-                <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
-              </div>
-              <button onClick={() => onSubscribe(name)} disabled={busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
-                {busy ? "Opening…" : status === "canceled" ? "Resubscribe" : "Subscribe"}
-              </button>
-            </div>
-          ))}
-        </div>
+        <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta={status === "canceled" ? "Resubscribe" : "Subscribe"} />
       ) : (
         <div style={{ fontSize: 12.5, color: colors.textSubtle }}>
           Subscriptions aren't switched on for this deployment yet — hosting is open meanwhile.

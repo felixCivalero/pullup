@@ -144,12 +144,14 @@ export async function applyStripeSubscription(sub, hostIdHint = null) {
     return { ok: false, reason: "host_unresolved" };
   }
   const status = mapStripeStatus(sub.status);
-  // Which tier was bought — read off the subscription's price. Never
-  // overwrite 'early': a founding host stays founding whatever they buy.
+  // Which tier was bought — read off the subscription's price. A founding
+  // (early) host MAY buy a tier: plan flips to what they bought while it's
+  // live, and snaps back to 'early' when the subscription ends — the founding
+  // gift (the `founding` flag) is permanent either way.
   let plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
-  if (plan) {
+  if (status === "canceled") {
     const existing = await getPlanForHost(hostId);
-    if (existing.plan === "early") plan = null;
+    if (existing.founding) plan = "early";
   }
   const result = await updateSubscriptionState(hostId, {
     status,

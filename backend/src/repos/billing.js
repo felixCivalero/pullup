@@ -20,6 +20,7 @@ export const DEFAULT_PLAN = Object.freeze({
   feeCurrency: "usd",
   carePlan: null,
   byoSupabase: false,
+  founding: false, // the permanent early-member gift; never cleared once set
   subscriptionStatus: "none", // none | active | past_due | canceled
   stripeCustomerId: null,
   stripeSubscriptionId: null,
@@ -34,6 +35,7 @@ function mapPlanRow(data) {
     feeCurrency: data.fee_currency || DEFAULT_PLAN.feeCurrency,
     carePlan: data.care_plan || null,
     byoSupabase: !!data.byo_supabase,
+    founding: !!data.founding,
     subscriptionStatus: data.subscription_status || "none",
     stripeCustomerId: data.stripe_customer_id || null,
     stripeSubscriptionId: data.stripe_subscription_id || null,

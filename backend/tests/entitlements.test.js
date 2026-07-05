@@ -24,6 +24,16 @@ console.log("🧪 founding hosts ('early') host free forever, whatever Stripe sa
   assert(computeEntitlement(plan("early", "none"), true).reason === "early", "early reason surfaces for the badge");
 }
 
+console.log("🧪 an early member may upgrade to paying — the gift survives");
+{
+  const founding = (p, s) => ({ plan: p, subscriptionStatus: s, founding: true });
+  assert(computeEntitlement(founding("creator", "active"), true).reason === "subscribed", "founder paying → labeled subscribed");
+  assert(computeEntitlement(founding("agency", "active"), true).canHost === true, "founder on agency hosts");
+  assert(computeEntitlement(founding("creator", "canceled"), true).canHost === true, "founder cancels the upgrade → still hosts");
+  assert(computeEntitlement(founding("creator", "canceled"), true).reason === "early", "…and is early again");
+  assert(computeEntitlement(founding("early", "none"), true).canHost === true, "plain founder unchanged");
+}
+
 console.log("🧪 creator tier follows the subscription");
 {
   assert(computeEntitlement(plan("creator", "active"), true).canHost === true, "active → hosts");

@@ -123,9 +123,14 @@ try {
   const sAgencyLapsed = await setSubState(token, hostUserId, { subscription_status: "canceled" });
   ok(sAgencyLapsed.entitlement?.canHost === false, "agency lapse paywalls like creator");
 
-  // 8. early tier trumps everything
-  const sEarly = await setSubState(token, hostUserId, { plan: "early", subscription_status: "canceled" });
+  // 8. early tier trumps everything — and the founding flag survives a paid
+  // upgrade + cancel (the "founder pays anyway" path)
+  const sEarly = await setSubState(token, hostUserId, { plan: "early", founding: true, subscription_status: "canceled" });
   ok(sEarly.entitlement?.canHost === true && sEarly.entitlement?.reason === "early", "early host hosts free, whatever Stripe says");
+  const sFounderPaying = await setSubState(token, hostUserId, { plan: "creator", subscription_status: "active" });
+  ok(sFounderPaying.entitlement?.reason === "subscribed", "founder who upgrades is a subscriber while paying");
+  const sFounderLapsed = await setSubState(token, hostUserId, { subscription_status: "canceled" });
+  ok(sFounderLapsed.entitlement?.canHost === true && sFounderLapsed.entitlement?.reason === "early", "founder cancels → hosting free again (founding flag)");
 
   // 9. deletion request: durable row, ok:true (no Stripe sub here → cancel skips)
   const del = await fetch(`${API}/me/deletion-request`, { method: "POST", headers: authed(token), body: "{}" });

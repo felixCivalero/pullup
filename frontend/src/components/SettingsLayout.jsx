@@ -67,7 +67,7 @@ export function SettingsLayout({ user, setUser, onSave, showToast }) {
       { key: "notifications", label: "Notifications", icon: Bell, group: "You", dot: notifDot,
         render: () => <SettingsNotificationsSection showToast={showToast} onEnabledChange={setNotifEnabled} /> },
 
-      { key: "payments", label: "Payments", icon: CreditCard, group: "Get paid & reach", dot: paymentsDot,
+      { key: "payments", label: "Ticket sales", icon: CreditCard, group: "Get paid & reach", dot: paymentsDot,
         render: () => <SettingsPaymentsSection showToast={showToast} onStatus={(s) => setStripe({ connected: s.connected, chargesEnabled: s.chargesEnabled })} /> },
       { key: "whatsapp", label: "WhatsApp", icon: MessageCircle, group: "Get paid & reach", dot: whatsappDot,
         render: () => <SettingsWhatsappSection user={user} setUser={setUser} onSave={onSave} showToast={showToast} /> },

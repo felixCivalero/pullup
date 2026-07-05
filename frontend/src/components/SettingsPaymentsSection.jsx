@@ -158,10 +158,10 @@ export function SettingsPaymentsSection({ showToast, onStatus }) {
     <div>
       <div style={{ marginBottom: "16px" }}>
         <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "4px", color: colors.text }}>
-          Payments
+          Ticket sales
         </h2>
         <p style={{ fontSize: "14px", color: colors.textMuted }}>
-          Connect Stripe to sell tickets, take payments, and process refunds.
+          Connect Stripe to sell tickets and process refunds — this is where YOUR ticket money lands. (PullUp's own subscription lives under Billing.)
         </p>
       </div>
 

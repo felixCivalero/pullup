@@ -57,6 +57,7 @@ export function registerSubscriptionRoutes(app) {
         entitlement,
         plan: {
           plan: plan.plan,
+          founding: plan.founding,
           subscriptionStatus: plan.subscriptionStatus,
           currentPeriodEnd: plan.currentPeriodEnd,
           cancelAtPeriodEnd: plan.cancelAtPeriodEnd,

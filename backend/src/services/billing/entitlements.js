@@ -31,14 +31,17 @@ export function computeEntitlement(plan, enforced) {
   }
   const tier = plan?.plan || "creator";
   const status = plan?.subscriptionStatus || "none";
-  if (tier === "early") {
-    return { canHost: true, reason: "early", plan: tier, subscriptionStatus: status };
-  }
+  // A live subscription wins the label even for founders (they chose to pay).
   if (status === "active") {
     return { canHost: true, reason: "subscribed", plan: tier, subscriptionStatus: status };
   }
   if (status === "past_due") {
     return { canHost: true, reason: "grace", plan: tier, subscriptionStatus: status };
+  }
+  // The founding gift is permanent: an early member hosts free whatever their
+  // subscription did — including after cancelling a paid upgrade.
+  if (tier === "early" || plan?.founding) {
+    return { canHost: true, reason: "early", plan: tier, subscriptionStatus: status };
   }
   return { canHost: false, reason: "subscription_required", plan: tier, subscriptionStatus: status };
 }

@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./api.js";
+import { useAuth } from "../contexts/AuthContext";
 
 function readCheckoutReturn() {
   try {
@@ -39,6 +40,7 @@ export function currentReturnPath() {
 }
 
 export function useSubscription() {
+  const { user, loading: authLoading } = useAuth();
   const [sub, setSub] = useState(null);
   const [loading, setLoading] = useState(true);
   const checkoutReturn = useRef(undefined); // undefined = not read yet
@@ -64,6 +66,16 @@ export function useSubscription() {
 
   useEffect(() => {
     let alive = true;
+    // No session yet → don't call the API at all (surfaces like /start render
+    // logged-out by design; asking would just log a 401 in every console).
+    // Re-runs when auth resolves, so signing in fetches immediately.
+    if (authLoading) return undefined;
+    if (!user) {
+      setSub(null);
+      setLoading(false);
+      return undefined;
+    }
+    setLoading(true);
     (async () => {
       if (checkoutReturn.current === undefined) checkoutReturn.current = readCheckoutReturn();
       const ret = checkoutReturn.current;
@@ -82,7 +94,7 @@ export function useSubscription() {
       }
     })();
     return () => { alive = false; };
-  }, [fetchStatus]);
+  }, [fetchStatus, user, authLoading]);
 
   const startCheckout = useCallback(async ({ returnTo, tier } = {}) => {
     const r = await authenticatedFetch("/host/subscription/checkout", {

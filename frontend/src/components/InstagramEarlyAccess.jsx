@@ -1,9 +1,9 @@
 // Instagram early access — the structured ask that replaces the "say hi"
 // mailto. While Meta reviews the app, only accounts added as internal testers
 // in the Meta app can connect. This card collects exactly what that takes
-// (IG handle + a contact) into ig_access_requests and pings hello@; the host
-// sees a clear "you're in line" state. Testers who are already added keep a
-// quiet Connect path underneath.
+// (IG handle + a contact) into access_requests and opens the host's PullUp
+// thread — the reply happens there, no email involved. Testers who are
+// already added keep a quiet Connect path underneath.
 //
 //   compact    — tighter paddings for the editor rail
 //   onConnect  — the surface's existing connect flow (shown as the tester path)
@@ -33,9 +33,13 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
 
   useEffect(() => {
     let alive = true;
-    authenticatedFetch("/instagram/early-access")
+    authenticatedFetch("/host/access-requests/instagram")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setRequest(d?.request || null); })
+      .then((d) => {
+        if (!alive) return;
+        const r = d?.request;
+        setRequest(r ? { ig_handle: r.payload?.igHandle, email: r.payload?.email, status: r.status } : null);
+      })
       .catch(() => { if (alive) setRequest(null); });
     return () => { alive = false; };
   }, []);
@@ -52,7 +56,7 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
     if (!ig) { showToast?.("Add your Instagram handle", "error"); return; }
     setBusy(true);
     try {
-      const res = await authenticatedFetch("/instagram/early-access", {
+      const res = await authenticatedFetch("/host/access-requests/instagram", {
         method: "POST",
         body: JSON.stringify({
           igHandle: ig,
@@ -60,12 +64,6 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
           name: user?.user_metadata?.full_name || user?.user_metadata?.name || "",
         }),
       });
-      if (res.status === 402) {
-        // Early access rides the Creator tier — the concierge loop only works
-        // for hosts who can actually host.
-        showToast?.("Early access is for Creator members — set up your plan at pullup.se/start first", "error");
-        return;
-      }
       if (!res.ok) throw new Error();
       setRequest({ ig_handle: ig, email: email.trim(), status: "pending" });
       showToast?.("Request sent — you're in line", "success");
@@ -99,8 +97,8 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
           </span>
         </div>
         <p style={{ fontSize: 12.5, color: colors.textMuted, margin: 0, lineHeight: 1.5 }}>
-          Your request is with <strong>felix@pullup.se</strong> — you'll get a personal reply
-          {request.email ? ` at ${request.email}` : ""} (it lands in your PullUp Messages too), and we'll
+          Your request is with Felix — you'll get a personal reply in your{" "}
+          <strong>PullUp Messages</strong> (the PullUp thread, top of your inbox), and we'll
           let you know the moment "Connect your Instagram" works for your account.
         </p>
         <p style={{ fontSize: 11.5, color: colors.textFaded, margin: "8px 0 0", lineHeight: 1.5 }}>

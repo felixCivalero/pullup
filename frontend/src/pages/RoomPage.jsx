@@ -1645,7 +1645,8 @@ export function OwnerConsole({ room: roomProp }) {
   const HOST = room?.host || { peopleCount: 0 };
   const EVENTS = room?.events || [];
   const MEMBER_ROOMS = room?.memberRooms || [];
-  const PEOPLE = room?.people || [];
+  // PullUp (the system contact) lives in the Messages dock, not the people CRM.
+  const PEOPLE = (room?.people || []).filter((p) => !p.isSystem);
   const COMMUNITY = room?.community || null;
   const PRODUCTS = room?.products || [];
 

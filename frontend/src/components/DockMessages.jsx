@@ -70,7 +70,7 @@ function reachOf(p) { return p?.reachable?.length ? p.reachable : [p?.channel ||
 // PullUp itself in the inbox — threads with the platform's own addresses wear
 // the eyes and read as "PullUp", so system communication stands out from people.
 const SYSTEM_EMAILS = new Set(["felix@pullup.se", "hello@pullup.se"]);
-const isSystemPerson = (p) => SYSTEM_EMAILS.has(String(p?.email || "").toLowerCase().trim());
+const isSystemPerson = (p) => p?.isSystem || SYSTEM_EMAILS.has(String(p?.email || "").toLowerCase().trim());
 const dispName = (p) => (isSystemPerson(p) ? "PullUp" : p?.name);
 
 // Compact "how long ago" for the list rows (Instagram-style: now, 5m, 3h, 2d,
@@ -205,7 +205,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
 
   // The dock orders the filtered audience like an inbox (unread → recency).
+  // PullUp is pinned on top — writing to the platform is always one tap away,
+  // even before any conversation exists (the server injects the contact).
   const list = useMemo(() => [...af.list].sort((a, b) => {
+    const sysA = isSystemPerson(a) ? 1 : 0, sysB = isSystemPerson(b) ? 1 : 0;
+    if (sysA !== sysB) return sysB - sysA;
     const ra = msgRank(a), rb = msgRank(b);
     return ra[0] !== rb[0] ? ra[0] - rb[0] : rb[1] - ra[1];
   }), [af.list]);
@@ -577,6 +581,13 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
 
         <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
           {open.read && <div style={{ fontSize: 12, color: D.faint, lineHeight: 1.5, textAlign: "center", padding: "0 10px 4px" }}>{open.read}</div>}
+          {/* A fresh PullUp thread — say what this line is for before the first word. */}
+          {isSystemPerson(open) && thread.length === 0 && (
+            <div style={{ textAlign: "center", padding: "16px 16px 4px", color: D.muted, fontSize: 12.5, lineHeight: 1.55 }}>
+              This is your direct line to PullUp — questions, requests, feedback.
+              <br />Write anytime; we reply right here.
+            </div>
+          )}
           {thread.map((m, i) => {
             // A log entry (rsvp / pull-up / waitlist / payment…) — render it AS a
             // log woven into the flow, not as a host message bubble.
@@ -803,7 +814,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         {people === null && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>Loading…</div>}
         {people && list.length === 0 && <div style={{ fontSize: 13, color: D.faint, padding: 14 }}>No one here yet.</div>}
         {list.map((p) => {
-          const line = p.lastMessage?.text || p.relationship || "";
+          const line = p.lastMessage?.text || (isSystemPerson(p) ? "Your direct line — we reply here" : p.relationship || "");
           const sel = selected.includes(p.id);
           const baseBg = (selecting && sel) || (split && p.id === openId) ? D.hover : "none";
           return (

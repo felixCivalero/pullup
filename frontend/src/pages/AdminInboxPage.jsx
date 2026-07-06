@@ -280,7 +280,7 @@ export function AdminInboxPage() {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.host?.name || r.name || r.email || r.host_id}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>
-                  {r.kind === "instagram" ? `Instagram · ${r.label}` : `Tier · ${r.label}`}{r.note ? ` — ${r.note}` : ""} · {relTime(r.updated_at || r.created_at)}
+                  {r.kind === "instagram" ? `Instagram · ${r.label}` : r.kind === "product" ? "Products early access" : `Tier · ${r.label}`}{r.note ? ` — ${r.note}` : ""} · {relTime(r.updated_at || r.created_at)}
                 </div>
               </div>
               {statusChip(r.status)}

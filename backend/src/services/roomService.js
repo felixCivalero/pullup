@@ -28,6 +28,7 @@ import { IG_HUMAN_AGENT_APPROVED } from "../instagram/config.js";
 // Chunked id-filtered reads (shared safe-query toolkit) — a single oversized
 // .in() 400s, which once emptied the whole Room. fn(idsChunk) -> rows[].
 import { inChunks as chunkedByIds } from "../db/safeQuery.js";
+import { getSystemPersonId } from "../repos/systemPerson.js";
 import { listHostProducts } from "./productPlacement.js";
 
 // The host's own profile, shaped for the Room masthead — so the page reads as
@@ -415,6 +416,15 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   }
   if (!personIds.length) personIds = [...byPerson.keys()]; // fallback if the RPC is missing
 
+  // The PullUp thread is a permanent fixture of every host's Messages — inject
+  // the system person even before any contact, so "write to PullUp" always
+  // exists (the dock pins it; first contact needs a real person id to send to).
+  let systemPersonId = null;
+  try {
+    systemPersonId = await getSystemPersonId();
+    if (systemPersonId && !personIds.includes(systemPersonId)) personIds.push(systemPersonId);
+  } catch { /* no system person → the dock simply has nothing to pin */ }
+
   if (!personIds.length) {
     // No people yet — but the host may still have events (a fresh host). Render
     // those so the home is truthful from the first event, not only the first guest.
@@ -720,6 +730,9 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
 
     peopleOut.push({
       id: pid,
+      // PullUp itself — a service contact, not an audience member. The dock
+      // pins it; people-CRM surfaces and counts leave it out.
+      isSystem: pid === systemPersonId,
       name: person.name || disp.name || (person.email ? person.email.split("@")[0] : "Someone"),
       handle: person.instagram ? `@${String(person.instagram).replace(/^@/, "")}` : (disp.handle ? `@${disp.handle}` : (person.email || "")),
       initials: initials(person.name || disp.name, person.email),
@@ -802,7 +815,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   return {
     // Explicit, accurate counts WIN over any stale/capped value on hostProfile
     // (spread first, then override) — the masthead now shows the true world size.
-    host: { ...hostProfile, peopleCount: personIds.length, eventsCount: eventsOut.length, pullupsCount },
+    host: { ...hostProfile, peopleCount: personIds.filter((id) => id !== systemPersonId).length, eventsCount: eventsOut.length, pullupsCount },
     events: eventsOut,
     memberRooms,
     community,

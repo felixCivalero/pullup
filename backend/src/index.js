@@ -41,6 +41,7 @@ import { registerProductDeliveryRoutes } from "./routes/productDelivery.js";
 import { registerProductPlacementRoutes } from "./routes/productPlacement.js";
 import { registerBillingRoutes } from "./routes/billing.js";
 import { registerSubscriptionRoutes, registerSubscriptionWebhookRoutes } from "./routes/subscriptions.js";
+import { registerAccessRequestRoutes } from "./routes/accessRequests.js";
 import { registerByoSupabaseRoutes } from "./routes/byoSupabase.js";
 import { registerByoOauthRoutes } from "./routes/byoOauth.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
@@ -299,6 +300,9 @@ registerProductPlacementRoutes(app);
 
 registerBillingRoutes(app);
 registerSubscriptionRoutes(app);
+// Unified early-access requests (Instagram / Agency / Products) — one row +
+// a PullUp system-thread seed; the admin System inbox IS the notification.
+registerAccessRequestRoutes(app);
 
 // BYO-Supabase (creator owns their data) — connect/status/disconnect spine.
 // Inert until BYO_SUPABASE_ENABLED flips.

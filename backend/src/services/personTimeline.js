@@ -30,6 +30,7 @@ export const PERSON_EVENT_TYPES = new Set([
   "page_view", "rsvp", "rsvp_cancel", "waitlist_join", "attended", "payment",
   "message_in", "message_out", "auto_dm_sent", "host_logged",
   "identity_linked", "acquired", "note", "community_join",
+  "access_request", // early-access ask → ✦ log line in the PullUp thread (mig 125)
 ]);
 
 const CHANNELS = new Set(["instagram", "whatsapp", "email", "web", "phone", "system"]);

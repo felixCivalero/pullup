@@ -150,17 +150,29 @@ export function registerAdminSystemInboxRoutes(app) {
     }
   });
 
-  // ── Early-access requests queue ──────────────────────────────────────────
+  // ── Early-access requests queue (unified access_requests table) ──────────
   app.get("/admin/requests", requireAdmin, async (req, res) => {
     try {
-      const [ig, tiers] = await Promise.all([
-        supabase.from("ig_access_requests").select("host_id, ig_handle, email, name, note, status, created_at, updated_at"),
-        supabase.from("tier_access_requests").select("host_id, tier, note, status, created_at, updated_at"),
-      ]);
-      const items = [
-        ...(ig.data || []).map((r) => ({ kind: "instagram", label: `@${r.ig_handle}`, ...r })),
-        ...(tiers.data || []).map((r) => ({ kind: r.tier, label: `${r.tier} tier`, ...r })),
-      ];
+      const { data, error } = await supabase
+        .from("access_requests")
+        .select("host_id, kind, payload, status, created_at, updated_at");
+      if (error) throw error;
+      const items = (data || []).map((r) => ({
+        kind: r.kind,
+        label:
+          r.kind === "instagram" ? `@${r.payload?.igHandle || "?"}`
+          : r.kind === "product" ? "Products"
+          : `${r.kind} tier`,
+        host_id: r.host_id,
+        // Flattened for the list row — the raw payload rides along for detail.
+        name: r.payload?.name || null,
+        email: r.payload?.email || null,
+        note: r.payload?.note || null,
+        payload: r.payload || {},
+        status: r.status,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      }));
       const cards = await hostCards([...new Set(items.map((r) => r.host_id))]);
       for (const it of items) Object.assign(it, { host: cards.get(it.host_id) || null });
       items.sort((a, b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")));
@@ -178,9 +190,11 @@ export function registerAdminSystemInboxRoutes(app) {
         return res.status(400).json({ error: "bad_status" });
       }
       const { kind, hostId } = req.params;
-      const table = kind === "instagram" ? "ig_access_requests" : "tier_access_requests";
-      const q = supabase.from(table).update({ status, updated_at: new Date().toISOString() }).eq("host_id", hostId);
-      const { error } = kind === "instagram" ? await q : await q.eq("tier", kind);
+      const { error } = await supabase
+        .from("access_requests")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("host_id", hostId)
+        .eq("kind", kind);
       if (error) throw error;
       res.json({ ok: true });
     } catch (e) {

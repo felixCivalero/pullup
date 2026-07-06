@@ -29,6 +29,33 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
   const [assignedIds, setAssignedIds] = useState(new Set()); // event scope
   const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState("");
+  // Products early access — requesting opens the PullUp thread in Messages
+  // (the reply happens there; no email). undefined = still loading the state.
+  const [eaRequested, setEaRequested] = useState(undefined);
+  const [eaBusy, setEaBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    authenticatedFetch("/host/access-requests/product")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setEaRequested(!!d?.requested); })
+      .catch(() => { if (alive) setEaRequested(false); });
+    return () => { alive = false; };
+  }, []);
+
+  async function requestEarlyAccess() {
+    if (eaBusy || eaRequested) return;
+    setEaBusy(true);
+    try {
+      const r = await authenticatedFetch("/host/access-requests/product", { method: "POST", body: JSON.stringify({}) });
+      if (!r.ok) throw new Error();
+      setEaRequested(true);
+    } catch {
+      setErr("Couldn't send the request — try again in a moment.");
+    } finally {
+      setEaBusy(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -133,8 +160,7 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
               {scope === "event"
                 ? "Pick which products appear in this event's room. Guests buy without leaving."
                 : "Live products show in your main room automatically. Hide any you'd rather keep to specific event rooms."}
-              {" "}Products are in early access while we make the buying flow bulletproof —{" "}
-              <a href="mailto:hello@pullup.se?subject=Products%20early%20access" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a> to join.
+              {" "}Products are in early access while we make the buying flow bulletproof.
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: colors.textSubtle, cursor: "pointer", padding: 4 }}>
@@ -209,15 +235,27 @@ export function RoomProductManager({ scope = "main", eventId = null, onClose, on
 
             {/* EARLY ACCESS (2026-07-06, Felix): creating new products is
                 request-based until the buying flow is 100% — existing products
-                stay fully manageable. Flip back: restore the /create?kind=product
-                navigate button. */}
-            <a
-              href="mailto:hello@pullup.se?subject=Products%20early%20access"
-              style={{ marginTop: 16, width: "100%", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 12,
-                border: `1px dashed ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 14, fontWeight: 700, textDecoration: "none", fontFamily: SF }}
-            >
-              <Plus size={16} /> New products are in early access — say hi to join
-            </a>
+                stay fully manageable. The ask opens the PullUp thread in
+                Messages (access_requests row + admin System inbox); no email.
+                Flip back: restore the /create?kind=product navigate button. */}
+            {eaRequested ? (
+              <div style={{ marginTop: 16, width: "100%", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 12,
+                border: "1px solid rgba(22,163,74,0.28)", background: "rgba(22,163,74,0.06)", color: "#16a34a", fontSize: 13.5, fontWeight: 700, fontFamily: SF }}>
+                <Check size={15} /> Request sent — we'll reply in your Messages
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={requestEarlyAccess}
+                disabled={eaBusy || eaRequested === undefined}
+                style={{ marginTop: 16, width: "100%", boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 12,
+                  border: `1px dashed ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 14, fontWeight: 700, fontFamily: SF,
+                  cursor: eaBusy ? "default" : "pointer", opacity: eaBusy ? 0.6 : 1 }}
+              >
+                {eaBusy ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+                New products are in early access — request to join
+              </button>
+            )}
           </>
         )}
       </div>

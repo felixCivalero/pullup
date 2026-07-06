@@ -240,7 +240,7 @@ export function SettingsBillingSection() {
 
   useEffect(() => {
     let alive = true;
-    authenticatedFetch("/host/subscription/agency-interest")
+    authenticatedFetch("/host/access-requests/agency")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive && d?.requested) setAgencyRequested(true); })
       .catch(() => {});
@@ -276,7 +276,7 @@ export function SettingsBillingSection() {
   const requestAgency = async () => {
     setBusy("agency-interest");
     try {
-      const r = await authenticatedFetch("/host/subscription/agency-interest", { method: "POST", body: JSON.stringify({}) });
+      const r = await authenticatedFetch("/host/access-requests/agency", { method: "POST", body: JSON.stringify({}) });
       if (r.ok) setAgencyRequested(true);
       else window.alert("Couldn't send the request — try again in a moment.");
     } catch {

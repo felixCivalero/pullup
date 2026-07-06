@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { MediaCarousel } from "./MediaCarousel";
+import { MediaCarousel, BlurBackdrop } from "./MediaCarousel";
 import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
@@ -9,7 +9,7 @@ import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizeDesktopMode, heroFrameStyle, modeCrops, modeObjectFit, useMediaAspect } from "./mediaFormat";
+import { normalizeFit, fitObjectFit, fitUsesBackdrop, fitCrops, heroFrame, useCoverAspect } from "./mediaFormat";
 import { formatPrice } from "../lib/money.js";
 
 const CTA_BAR_HEIGHT = 62;
@@ -77,12 +77,12 @@ export function DesktopEventLayout({
 
   // Resolve the cover format up front — the drag hook depends on it.
   const desktopFormat = mediaSettings?.desktop || {};
-  const desktopMode = normalizeDesktopMode(desktopFormat, mediaSettings);
-  const desktopCrops = modeCrops(desktopMode);
-  const mediaAspect = useMediaAspect(media, imagePreview);
+  const desktopFit = normalizeFit(desktopFormat, mediaSettings);
+  const desktopCrops = fitCrops(desktopFit);
+  const coverAspect = useCoverAspect(media, imagePreview);
 
-  // Drag-to-reposition only applies to the cover-cropped modes (height/card).
-  // "width" shows the whole media, so there's nothing to pan.
+  // Drag-to-reposition only applies to "fill" (cover crops); "fit" shows the
+  // whole media, so there's nothing to pan.
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroFrameRef,
@@ -185,10 +185,14 @@ export function DesktopEventLayout({
   const eyebrowLabel = signupLabel || priceLabel;
   const ctaLabel = signupCta || buttonLabel;
 
-  // Per-screen focus (drag-to-reposition) — desktop view reads from .desktop,
-  // with graceful fallback to top-level fields (legacy events). The frame
-  // geometry comes from `desktopMode`/`mediaAspect`, resolved at the top.
-  const heroFrame = heroFrameStyle(desktopMode, mediaAspect);
+  // The hero frame follows the image's own ratio, clamped into the desktop band
+  // and reserved up front. maxHeight/maxWidth keep it inside the fixed-height
+  // left column (a tall portrait centers with side space rather than overflow).
+  const heroFrameStyle = {
+    ...heroFrame(coverAspect, "desktop"),
+    maxHeight: "100%",
+    maxWidth: "100%",
+  };
   // Support both numeric focusX/focusY and legacy "top"/"center"/"bottom"
   const legacyFocusY = mediaSettings?.focus === "top"
     ? 0
@@ -199,18 +203,19 @@ export function DesktopEventLayout({
   const desktopFocusY = typeof desktopFormat.focusY === "number" ? desktopFormat.focusY : legacyFocusY;
   const fallbackObjectPosition = `${desktopFocusX}% ${desktopFocusY}%`;
   // Scope the mediaSettings passed to MediaCarousel so it picks up desktop
-  // crop + focus rather than phone's. "width" and "card" hold ratio with no crop
-  // (contain) — card additionally pads so the page bg shows around it; only
-  // "height" fills and pans via focus.
-  const desktopFit = modeObjectFit(desktopMode);
+  // fit + focus rather than phone's. "fill" fills and pans via focus; "fit"
+  // contains the whole image with a blurred backdrop filling the gaps.
+  const desktopObjectFit = fitObjectFit(desktopFit);
+  const desktopBackdrop = fitUsesBackdrop(desktopFit);
   const desktopMediaSettings = useMemo(
     () => ({
       ...(mediaSettings || {}),
-      fit: desktopFit,
+      fit: desktopObjectFit,
+      backdrop: desktopBackdrop,
       focusX: desktopFocusX,
       focusY: desktopFocusY,
     }),
-    [mediaSettings, desktopFit, desktopFocusX, desktopFocusY],
+    [mediaSettings, desktopObjectFit, desktopBackdrop, desktopFocusX, desktopFocusY],
   );
 
   return (
@@ -254,16 +259,13 @@ export function DesktopEventLayout({
             justifyContent: "center",
             minWidth: 0,
             minHeight: 0,
-            // "card" floats with breathing room around it; the other modes use
-            // the full cell.
-            padding: desktopMode === "card" ? "28px" : 0,
             boxSizing: "border-box",
           }}
         >
           <div
             ref={heroFrameRef}
             style={{
-              ...heroFrame,
+              ...heroFrameStyle,
               borderRadius: "16px",
               overflow: "hidden",
               position: "relative",
@@ -290,22 +292,26 @@ export function DesktopEventLayout({
                 />
               </div>
             ) : imagePreview ? (
-              <img
-                src={transformedImageUrl(imagePreview, { width: heroWidth })}
-                alt={title || "Event"}
-                draggable={false}
-                loading="eager"
-                decoding="async"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: desktopFit,
-                  objectPosition: fallbackObjectPosition,
-                  pointerEvents: "none",
-                }}
-              />
+              <div style={{ position: "absolute", inset: 0 }}>
+                {desktopBackdrop && <BlurBackdrop url={imagePreview} displayWidth={heroWidth} />}
+                <img
+                  src={transformedImageUrl(imagePreview, { width: heroWidth })}
+                  alt={title || "Event"}
+                  draggable={false}
+                  loading="eager"
+                  decoding="async"
+                  style={{
+                    position: desktopBackdrop ? "relative" : "absolute",
+                    inset: desktopBackdrop ? undefined : 0,
+                    zIndex: desktopBackdrop ? 1 : undefined,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: desktopObjectFit,
+                    objectPosition: fallbackObjectPosition,
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
             ) : onCoverFiles ? (
               // Editor-only: the empty hero IS the upload target — click or
               // drop media right where it will appear.

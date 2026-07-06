@@ -2,36 +2,90 @@
 // runner: `node --test src/components/mediaFormat.test.js` (no React, no DOM).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { modeObjectFit, modeCrops } from "./mediaFormat.js";
+import {
+  clampAspect,
+  normalizeFit,
+  fitObjectFit,
+  fitUsesBackdrop,
+  fitCrops,
+  heroFrame,
+  storedAspect,
+  ASPECT_CLAMP,
+} from "./mediaFormat.js";
 
-// "Fit width" promises the whole media is shown, nothing cropped. The only way
-// to honor that when the hero frame's ratio can't perfectly match the media
-// (desktop clamps a tall poster's height) is object-fit: contain. Using cover
-// here is the bug that crops portrait posters on the live page.
-test("width mode never crops → contain", () => {
-  assert.equal(modeObjectFit("width"), "contain");
+// clampAspect keeps the frame inside each surface's band, so nothing renders
+// absurdly tall or wide regardless of what the host uploads.
+test("clampAspect holds an in-band ratio unchanged", () => {
+  assert.equal(clampAspect(1, "phone"), 1); // square is inside [9:16, 16:9]
 });
 
-test("card mode never crops → contain", () => {
-  assert.equal(modeObjectFit("card"), "contain");
+test("clampAspect clamps a super-tall image to the phone tall limit", () => {
+  assert.equal(clampAspect(0.2, "phone"), ASPECT_CLAMP.phone.min);
 });
 
-// "Fit height" is the deliberate fill-and-pan mode — it is meant to crop.
-test("height mode fills and crops → cover", () => {
-  assert.equal(modeObjectFit("height"), "cover");
+test("clampAspect clamps a panorama to the wide limit", () => {
+  assert.equal(clampAspect(5, "phone"), ASPECT_CLAMP.phone.max);
 });
 
-// Only height crops — keep this invariant aligned with modeObjectFit so the
-// drag-to-reposition affordance and the object-fit agree on which mode crops.
-test("the cropping mode and the cover mode are the same mode", () => {
-  for (const mode of ["width", "height", "card"]) {
-    assert.equal(modeCrops(mode), modeObjectFit(mode) === "cover");
-  }
+test("clampAspect falls back to a sane default for unknown ratios", () => {
+  assert.equal(clampAspect(null, "phone"), 4 / 5);
+  assert.equal(clampAspect(0, "phone"), 4 / 5);
+  assert.equal(clampAspect(-3, "phone"), 4 / 5);
 });
 
-// Unknown/legacy values fall back to the non-cropping default (contain) so a
-// bad value can never silently crop someone's media.
-test("unknown mode defaults to the safe non-cropping fit", () => {
-  assert.equal(modeObjectFit(undefined), "contain");
-  assert.equal(modeObjectFit("bogus"), "contain");
+test("desktop portraits are held to a taller floor than phone", () => {
+  // A 2:3 portrait (0.667) is allowed on phone but clamped up on desktop.
+  assert.equal(clampAspect(2 / 3, "desktop"), ASPECT_CLAMP.desktop.min);
+  assert.equal(clampAspect(2 / 3, "phone"), 2 / 3);
+});
+
+// normalizeFit maps every legacy mode onto the new fill/fit model so old events
+// keep rendering correctly with no data migration.
+test("normalizeFit passes through the new fit field", () => {
+  assert.equal(normalizeFit({ fit: "fit" }), "fit");
+  assert.equal(normalizeFit({ fit: "fill" }), "fill");
+});
+
+test("normalizeFit maps legacy modes: height→fill, width/card→fit", () => {
+  assert.equal(normalizeFit({ mode: "height" }), "fill");
+  assert.equal(normalizeFit({ mode: "width" }), "fit");
+  assert.equal(normalizeFit({ mode: "card" }), "fit");
+});
+
+test("normalizeFit maps legacy object-fit strings", () => {
+  assert.equal(normalizeFit({ fit: "contain" }), "fit");
+  assert.equal(normalizeFit({ fit: "cover" }), "fill");
+});
+
+test("normalizeFit defaults to the immersive fill", () => {
+  assert.equal(normalizeFit({}), "fill");
+  assert.equal(normalizeFit(undefined), "fill");
+});
+
+// fill fills + crops (cover, pannable); fit shows the whole image (contain) with
+// a blurred backdrop. Keep these three in agreement.
+test("fill → cover, crops, no backdrop", () => {
+  assert.equal(fitObjectFit("fill"), "cover");
+  assert.equal(fitCrops("fill"), true);
+  assert.equal(fitUsesBackdrop("fill"), false);
+});
+
+test("fit → contain, no crop, blurred backdrop", () => {
+  assert.equal(fitObjectFit("fit"), "contain");
+  assert.equal(fitCrops("fit"), false);
+  assert.equal(fitUsesBackdrop("fit"), true);
+});
+
+// heroFrame reserves the exact clamped-aspect box up front (no reflow).
+test("heroFrame reserves a clamped aspect-ratio box", () => {
+  assert.deepEqual(heroFrame(1, "phone"), { width: "100%", aspectRatio: "1" });
+  assert.equal(heroFrame(9 / 16, "phone").aspectRatio, String(9 / 16));
+});
+
+// storedAspect prefers dimensions persisted at upload (known before paint).
+test("storedAspect derives ratio from persisted width/height", () => {
+  assert.equal(storedAspect([{ width: 1000, height: 500 }]), 2);
+  assert.equal(storedAspect([{ width: 0, height: 0 }]), null);
+  assert.equal(storedAspect([]), null);
+  assert.equal(storedAspect(null), null);
 });

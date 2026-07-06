@@ -79,7 +79,7 @@ export function registerMediaLinkRoutes(app) {
   app.post("/media-link/:token/attach", async (req, res) => {
     try {
       const decoded = verifyMediaLinkToken(req.params.token);
-      const { storagePath, thumbnailStoragePath, mediaType, mimeType, position } =
+      const { storagePath, thumbnailStoragePath, mediaType, mimeType, position, width, height } =
         req.body || {};
 
       const result = await attachDirectUploadMedia({
@@ -89,6 +89,8 @@ export function registerMediaLinkRoutes(app) {
         mediaType,
         mimeType,
         position,
+        width,
+        height,
       });
 
       emitIntent({

@@ -6,12 +6,12 @@ import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
 import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
-import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
+import { MediaCarousel, CarouselDots, useCarouselSwipe, BlurBackdrop } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { formatPrice } from "../lib/money.js";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizePhoneMode, modeCrops, modeObjectFit, useMediaAspect } from "./mediaFormat";
+import { normalizeFit, fitObjectFit, fitUsesBackdrop, fitCrops, heroFrame, useCoverAspect } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -92,48 +92,15 @@ export function EventPreview({
     return () => ro.disconnect();
   }, []);
 
-  // Phone-scoped cover format. "width" takes the media's own aspect (whole, no
-  // crop); "height" fills the screen; "card" is a fixed 4:5 — both crop and
-  // support drag-to-reposition.
-  const phoneMode = normalizePhoneMode(mediaSettings?.phone, mediaSettings);
-  const phoneCrops = modeCrops(phoneMode);
-  const mediaAspect = useMediaAspect(media, imagePreview);
-  // "Fit width" derives its height from the first image itself (a hidden in-flow
-  // sizer rendered inside the hero), NOT from `mediaAspect`. `mediaAspect`
-  // resolves a beat AFTER first paint, so keying the frame's aspect-ratio off it
-  // makes the frame snap shape once the image loads — that snap is the black
-  // letterbox that flashes in on the live page. Letting the image lay itself out
-  // (width:100%, height:auto) means the frame is the image's true shape from the
-  // moment it loads: no fallback ratio, no snap, no border. Videos (nothing to
-  // lay out) keep the measured-aspect path.
-  const firstMedia = (Array.isArray(media) && media[0]) || null;
-  const widthSizerUrl =
-    phoneMode === "width"
-      ? ((firstMedia && firstMedia.mediaType !== "video" && firstMedia.url) || imagePreview || null)
-      : null;
-  // The hero frame: full-bleed when filling height; "width" takes the image's own
-  // height (via the sizer); "card" floats as a rounded 4:5 with space around it.
-  const heroFrameStyle =
-    phoneMode === "height"
-      ? { height: "100%", minHeight: "100%" }
-      : phoneMode === "card"
-        ? {
-            // "Card" — the media's OWN ratio, floated with space around every
-            // edge so the whole clip is visible inside the viewport, never
-            // cropped, regardless of shape.
-            width: "calc(100% - 36px)",
-            margin: "18px auto",
-            maxHeight: "calc(100% - 36px)",
-            aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5",
-            borderRadius: "18px",
-            overflow: "hidden",
-          }
-        : // "Fit width" — full width, L/R edges flush to the sides; height comes
-          // from the in-flow sizer image below (no aspect snap). Videos fall back
-          // to the measured ratio.
-          widthSizerUrl
-          ? { width: "100%" }
-          : { width: "100%", aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5" };
+  // Phone cover format (see mediaFormat.js). The hero's SHAPE follows the
+  // image's own aspect ratio, clamped into the phone band, and reserved up front
+  // with CSS aspect-ratio — so a 9:16 story fills the hero and a wide photo gets
+  // a wide hero, with no post-load reflow. "fill" fills + crops (focal point);
+  // "fit" shows the whole image with a blurred backdrop.
+  const phoneFit = normalizeFit(mediaSettings?.phone, mediaSettings);
+  const phoneCrops = fitCrops(phoneFit);
+  const coverAspect = useCoverAspect(media, imagePreview);
+  const heroFrameStyle = heroFrame(coverAspect, "phone");
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroRef,
@@ -284,25 +251,6 @@ export function EventPreview({
               touchAction: onFocusDrag && phoneCrops ? "none" : "pan-y",
             }}
           >
-            {/* "Fit width" height driver: a hidden, in-flow copy of the first
-                image at width:100%/height:auto. It gives the (position:relative)
-                hero its exact natural height the instant the image loads, so the
-                absolutely-positioned media below fills the full width at the
-                image's own ratio — no measured-aspect fallback, no shape snap,
-                no black-border flash. */}
-            {widthSizerUrl && (
-              <img
-                // A FIXED tiny width — the sizer is invisible and only needs the
-                // image's aspect ratio, which is identical at any resolution.
-                // Crucially this URL never changes with heroWidth, so the sizer
-                // never reloads and the hero never reflows/"pumps" after load.
-                src={transformedImageUrl(widthSizerUrl, { width: 64 })}
-                alt=""
-                aria-hidden
-                draggable={false}
-                style={{ width: "100%", height: "auto", display: "block", visibility: "hidden", pointerEvents: "none" }}
-              />
-            )}
             {/* Editor-only: point at the cover to open the media editor. Sits
                 above the drag layer with its own pointer target so it never
                 fights the reposition-drag. */}
@@ -338,10 +286,10 @@ export function EventPreview({
                   />
                 );
               }
-              // Fit modes: "width" shows the whole media at its own ratio,
-              // "card" shows it fully-visible + padded (page bg around it), and
-              // only "height" crops/pans via focusX/focusY (mediaSettings.phone
-              // .focusX/Y, legacy fallback to top-level focus).
+              // "fill" fills the frame and crops (pannable via focusX/focusY);
+              // "fit" contains the whole image with a blurred backdrop filling
+              // the gaps. Focus is read from mediaSettings.phone, with a legacy
+              // top-level fallback.
               const phoneFormat = mediaSettings?.phone || {};
               const legacyY = mediaSettings?.focus === "top"
                 ? 0
@@ -350,18 +298,16 @@ export function EventPreview({
                   : 50;
               const focusX = typeof phoneFormat.focusX === "number" ? phoneFormat.focusX : 50;
               const focusY = typeof phoneFormat.focusY === "number" ? phoneFormat.focusY : legacyY;
-              // "Fit width" and "Card" show the whole media, never cropped
-              // (contain); only "Fit height" fills + pans (cover). Sharing
-              // modeObjectFit keeps this identical to the desktop renderer.
-              const fitMode = modeObjectFit(phoneMode);
+              const objectFit = fitObjectFit(phoneFit);
+              const backdrop = fitUsesBackdrop(phoneFit);
+              const objectPosition = `${focusX}% ${focusY}%`;
               const phoneMediaSettings = {
                 ...(mediaSettings || {}),
-                fit: fitMode,
+                fit: objectFit,
+                backdrop,
                 focusX,
                 focusY,
               };
-              const objectFit = fitMode;
-              const objectPosition = `${focusX}% ${focusY}%`;
               if (media && media.length > 0) {
                 return (
                   <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
@@ -379,6 +325,7 @@ export function EventPreview({
               if (imagePreview) {
                 return (
                   <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+                    {backdrop && <BlurBackdrop url={imagePreview} displayWidth={heroWidth} />}
                     <img
                       src={transformedImageUrl(imagePreview, { width: heroWidth })}
                       alt="Event preview"
@@ -386,6 +333,8 @@ export function EventPreview({
                       loading="eager"
                       decoding="async"
                       style={{
+                        position: backdrop ? "relative" : undefined,
+                        zIndex: backdrop ? 1 : undefined,
                         width: "100%",
                         height: "100%",
                         objectFit,

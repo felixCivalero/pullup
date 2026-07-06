@@ -77,6 +77,8 @@ export async function listEventMedia(eventId) {
       position: m.position,
       isCover: m.is_cover,
       mimeType: m.mime_type,
+      width: m.width || null,
+      height: m.height || null,
     };
   });
 }
@@ -92,6 +94,8 @@ export async function attachDirectUploadMedia({
   mediaType = "image",
   mimeType = null,
   position = 0,
+  width = null,
+  height = null,
 }) {
   if (!storagePath || !storagePath.startsWith(`${eventId}/`)) {
     throw new Error("Invalid storage path");
@@ -124,6 +128,8 @@ export async function attachDirectUploadMedia({
       position: pos,
       is_cover: isCover,
       mime_type: mimeType || null,
+      width: Number.isFinite(width) ? Math.round(width) : null,
+      height: Number.isFinite(height) ? Math.round(height) : null,
     })
     .select()
     .single();
@@ -163,6 +169,8 @@ export async function attachDirectUploadMedia({
     position: pos,
     isCover,
     mimeType: mimeType || null,
+    width: mediaRow.width || null,
+    height: mediaRow.height || null,
   };
 }
 

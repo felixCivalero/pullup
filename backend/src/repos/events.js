@@ -131,6 +131,10 @@ export async function mapEventFromDb(dbEvent) {
           position: m.position,
           isCover: m.is_cover,
           mimeType: m.mime_type,
+          // Intrinsic pixel dimensions so the page can reserve the hero shape
+          // before the image loads (mediaFormat.js). Null for legacy rows.
+          width: m.width || null,
+          height: m.height || null,
         };
       });
     }

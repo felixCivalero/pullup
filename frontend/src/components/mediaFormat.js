@@ -1,82 +1,99 @@
 import { useEffect, useState } from "react";
 
-// The three cover formats, shared by the editor picker and both renderers:
-//   width  → media's L/R edges flush to the sides: full width, height by ratio,
-//            whole media shown, nothing cropped.
-//   height → media's T/B edges flush: fills the available height, width by ratio
-//            (a wider-than-frame clip crops its sides; drag-to-reposition).
-//   card   → media at its OWN ratio, floated with SPACE around every edge so the
-//            whole thing is visible inside the viewport (no crop).
-export const FORMAT_MODES = ["width", "height", "card"];
-
-// Normalize a stored phone format (new `mode`, or legacy `fit`) to a mode.
-// Legacy phone used objectFit: "cover" (fill+crop) / "contain" (show whole).
-export function normalizePhoneMode(phone = {}, top = {}) {
-  if (FORMAT_MODES.includes(phone?.mode)) return phone.mode;
-  const fit = phone?.fit || top?.fit;
-  if (fit === "contain") return "width"; // old "Real" = show the whole thing
-  return "height"; // old "Fit"/cover = fill & crop (the full-bleed default)
-}
-
-// Normalize a stored desktop format. Legacy desktop used mode "fit" (4:5 crop)
-// / "real" (16:9 crop), or an older `aspect` field.
-export function normalizeDesktopMode(desktop = {}, top = {}) {
-  if (FORMAT_MODES.includes(desktop?.mode)) return desktop.mode;
-  if (desktop?.mode === "real") return "height";
-  if (desktop?.mode === "fit") return "card";
-  const aspect = desktop?.aspect ?? top?.aspect;
-  if (aspect === "landscape") return "height";
-  return "card";
-}
-
-// Only "height" crops (fills height, sides overflow) → the one mode worth
-// dragging to reposition. "width" and "card" show the whole media, no crop.
-export const modeCrops = (mode) => mode === "height";
-
-// The object-fit a mode's media MUST use. This is the single source of truth for
-// both renderers — keep it here so the phone and desktop paths can't drift.
+// ─────────────────────────────────────────────────────────────────────────────
+// Cover media sizing — ONE model, shared by the phone hero, the desktop hero,
+// and the editor's format picker. This is how the best apps (Instagram, Luma,
+// Spotify, Resident Advisor) do it:
 //
-// "width" and "card" promise the WHOLE media, nothing cropped, so they use
-// `contain`: even when the hero frame's ratio can't match the media (e.g. the
-// desktop layout clamps a tall poster's height with maxHeight, breaking the
-// frame ratio), `contain` still shows every pixel. `cover` would crop there —
-// that was the bug where "Fit width" cropped portrait posters on the live page.
-// Only "height" — the deliberate fill-and-pan mode — uses `cover`.
-export const modeObjectFit = (mode) => (mode === "height" ? "cover" : "contain");
+//   • The hero's SHAPE follows the image's own aspect ratio, CLAMPED into a
+//     per-surface band so nothing renders absurdly tall or wide. A 9:16 story
+//     fills the mobile hero; a 16:9 photo gets a wide hero; the image drives it.
+//   • That ratio is known BEFORE paint — from dimensions stored at upload
+//     (media[i].width/height), or measured as a fallback — so the frame reserves
+//     its exact space with CSS `aspect-ratio`. No post-load reflow, no snap, no
+//     editor-vs-live drift. That single fact kills the whole class of bugs we
+//     used to fight (measure-then-reshape).
+//   • Within the frame the host picks how the image sits:
+//       fill → object-fit: cover — fills edge-to-edge, crops the overflow,
+//              draggable focal point. The immersive / reel look. DEFAULT.
+//       fit  → object-fit: contain — the whole image is always visible, and any
+//              gap is filled with a blurred, zoomed copy of the same image
+//              (the Spotify/RA trick) instead of dead black bars.
+//   When the image already fits inside the clamp band, fill and fit look
+//   identical — the blurred backdrop only ever shows for out-of-band ratios.
+// ─────────────────────────────────────────────────────────────────────────────
 
-// CSS for the hero frame given the mode and (for width) the media's measured
-// aspect ratio. `fillHeight` is what "fill the available height" resolves to in
-// the host layout (the phone viewport, the desktop column).
-export function heroFrameStyle(mode, mediaAspect, { fillHeight = "100%" } = {}) {
-  if (mode === "width") {
-    return {
-      width: "100%",
-      aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5",
-      maxHeight: "100%",
-      maxWidth: "100%",
-    };
-  }
-  if (mode === "height") {
-    return { width: "100%", height: fillHeight };
-  }
-  // card → media's own ratio (the renderer pads space around it).
-  return {
-    width: "100%",
-    aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5",
-    maxHeight: "100%",
-    maxWidth: "100%",
-  };
+// aspect = width / height. Per-surface clamp bands (min = tallest allowed,
+// max = widest allowed). Tunable — these are the product's guardrails.
+export const ASPECT_CLAMP = {
+  phone: { min: 9 / 16, max: 16 / 9 }, // 0.5625 (tall reel) … 1.778 (wide)
+  desktop: { min: 4 / 5, max: 16 / 9 }, // portraits stay sane on a big screen
+};
+
+// Fallback ratio when the image's true dimensions aren't known yet.
+export const DEFAULT_ASPECT = 4 / 5;
+
+// Clamp an aspect ratio into a surface's band. Always returns a positive number.
+export function clampAspect(aspect, surface = "phone") {
+  const band = ASPECT_CLAMP[surface] || ASPECT_CLAMP.phone;
+  const a = typeof aspect === "number" && aspect > 0 ? aspect : DEFAULT_ASPECT;
+  return Math.min(band.max, Math.max(band.min, a));
 }
 
-// Measure a cover's intrinsic aspect ratio (width / height). Handles image and
-// video covers; returns null until known so callers can fall back to 4:5.
-export function useMediaAspect(media, imagePreview) {
+// The two ways an image can sit in the frame.
+export const FIT_MODES = ["fill", "fit"];
+
+// Normalize stored settings → "fill" | "fit". Accepts the new `fit` field and
+// maps every legacy `mode` (width/height/card) and objectFit string onto it, so
+// events saved under the old model keep rendering correctly with no migration.
+export function normalizeFit(surface = {}, top = {}) {
+  if (FIT_MODES.includes(surface?.fit)) return surface.fit;
+  const mode = surface?.mode;
+  if (mode === "height") return "fill"; // old full-bleed crop
+  if (mode === "width" || mode === "card") return "fit"; // old whole-image modes
+  const legacy = surface?.fit || top?.fit; // old object-fit string
+  if (legacy === "contain") return "fit";
+  if (legacy === "cover") return "fill";
+  return "fill"; // default: immersive
+}
+
+// object-fit for a fit mode. fill → cover (fills + crops), fit → contain (whole).
+export const fitObjectFit = (fit) => (fit === "fit" ? "contain" : "cover");
+
+// Whether this fit paints a blurred backdrop behind the image (fit only).
+export const fitUsesBackdrop = (fit) => fit === "fit";
+
+// Whether this fit can crop → the focal-point drag affordance is meaningful.
+export const fitCrops = (fit) => fit === "fill";
+
+// The hero frame style: reserve the exact clamped-aspect box up front so there
+// is nothing to reflow once the image loads.
+export function heroFrame(aspect, surface = "phone") {
+  return { width: "100%", aspectRatio: String(clampAspect(aspect, surface)) };
+}
+
+// The first cover item's aspect from dimensions PERSISTED at upload
+// (media[i].width/height). Known before paint; prefer it over measuring.
+// Returns null when dimensions aren't available (legacy rows / imagePreview).
+export function storedAspect(media) {
+  const first = (Array.isArray(media) && media[0]) || null;
+  if (first && first.width > 0 && first.height > 0) {
+    return first.width / first.height;
+  }
+  return null;
+}
+
+// Measure a cover's intrinsic aspect ratio (width / height) — the FALLBACK for
+// media without stored dimensions. Handles image and video; returns null until
+// known so callers fall back to the clamp default. `skip` avoids the network
+// request when we already have stored dimensions.
+export function useMediaAspect(media, imagePreview, skip = false) {
   const first = (Array.isArray(media) && media[0]) || null;
   const url = first?.url || imagePreview || null;
   const isVideo = first?.mediaType === "video";
   const [aspect, setAspect] = useState(null);
   useEffect(() => {
-    if (!url || typeof document === "undefined") {
+    if (skip || !url || typeof document === "undefined") {
       setAspect(null);
       return;
     }
@@ -102,6 +119,14 @@ export function useMediaAspect(media, imagePreview) {
     return () => {
       alive = false;
     };
-  }, [url, isVideo]);
+  }, [url, isVideo, skip]);
   return aspect;
+}
+
+// Resolve the cover aspect: stored dimensions first (known before paint, no
+// reflow), else the measured value, else null (caller clamps to the default).
+export function useCoverAspect(media, imagePreview) {
+  const stored = storedAspect(media);
+  const measured = useMediaAspect(media, imagePreview, stored != null);
+  return stored ?? measured;
 }

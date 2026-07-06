@@ -49,7 +49,7 @@ import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
 import { EventPreview } from "../components/EventPreview";
 import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { VideoPlayer } from "../components/MediaCarousel";
-import { normalizePhoneMode, normalizeDesktopMode } from "../components/mediaFormat";
+import { normalizeFit } from "../components/mediaFormat";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
@@ -519,9 +519,11 @@ function FormatChoice({ value, onChange, options, thumb }) {
                 : "inset 0 0 0 1px rgba(10,10,10,0.05)",
               transition: "box-shadow 0.18s ease",
             }}>
-              {/* The window — shaped (4:5 / 16:9 / phone) per option */}
+              {/* The window — an illustrative fixed frame. "Fill" covers &
+                  crops; "Fit" contains the whole image over a blurred backdrop. */}
               <div style={{
                 ...opt.frameStyle,
+                position: "relative",
                 borderRadius: "5px",
                 overflow: "hidden",
                 background: "#0a0913",
@@ -529,17 +531,34 @@ function FormatChoice({ value, onChange, options, thumb }) {
                 flexShrink: 0,
               }}>
                 {thumb ? (
-                  <img
-                    src={thumb}
-                    alt=""
-                    draggable={false}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: opt.objectFit,
-                      display: "block",
-                    }}
-                  />
+                  <>
+                    {opt.backdrop && (
+                      <img
+                        src={thumb}
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                        style={{
+                          position: "absolute", inset: 0, width: "100%", height: "100%",
+                          objectFit: "cover", filter: "blur(9px) saturate(1.25)",
+                          transform: "scale(1.25)",
+                        }}
+                      />
+                    )}
+                    <img
+                      src={thumb}
+                      alt=""
+                      draggable={false}
+                      style={{
+                        position: opt.backdrop ? "relative" : undefined,
+                        zIndex: opt.backdrop ? 1 : undefined,
+                        width: "100%",
+                        height: "100%",
+                        objectFit: opt.objectFit,
+                        display: "block",
+                      }}
+                    />
+                  </>
                 ) : (
                   <div style={{
                     width: "100%",
@@ -991,10 +1010,10 @@ export function CreateEventPage() {
   //   card   → fixed 4:5 card, crop to fill (drag to reposition)
   // Focus is stored as percentages (0–100). 50/50 = center; only meaningful in
   // the crop modes (height/card).
-  const [phoneMode, setPhoneMode] = useState("height"); // width | height | card
+  const [phoneFit, setPhoneFit] = useState("fill"); // fill | fit
   const [phoneFocusX, setPhoneFocusX] = useState(50);
   const [phoneFocusY, setPhoneFocusY] = useState(50);
-  const [desktopMode, setDesktopMode] = useState("card"); // width | height | card
+  const [desktopFit, setDesktopFit] = useState("fill"); // fill | fit
   const [desktopFocusX, setDesktopFocusX] = useState(50);
   const [desktopFocusY, setDesktopFocusY] = useState(50);
 
@@ -1007,8 +1026,8 @@ export function CreateEventPage() {
         : {};
     return {
       ...playback,
-      phone: { mode: phoneMode, focusX: phoneFocusX, focusY: phoneFocusY },
-      desktop: { mode: desktopMode, focusX: desktopFocusX, focusY: desktopFocusY },
+      phone: { fit: phoneFit, focusX: phoneFocusX, focusY: phoneFocusY },
+      desktop: { fit: desktopFit, focusX: desktopFocusX, focusY: desktopFocusY },
     };
   }
 
@@ -1879,7 +1898,7 @@ export function CreateEventPage() {
         // Legacy "top"|"center"|"bottom" → numeric Y. X stays at 50 since the
         // old schema had no horizontal control.
         const focusStrToY = (s) => (s === "top" ? 0 : s === "bottom" ? 100 : 50);
-        setPhoneMode(normalizePhoneMode(phoneMs, ms));
+        setPhoneFit(normalizeFit(phoneMs, ms));
         setPhoneFocusX(
           typeof phoneMs.focusX === "number" ? phoneMs.focusX : 50,
         );
@@ -1888,9 +1907,8 @@ export function CreateEventPage() {
             ? phoneMs.focusY
             : focusStrToY(phoneMs.focus || ms.focus),
         );
-        // Desktop mode: read new "mode" field; map legacy fit/real/aspect onto
-        // the width|height|card model.
-        setDesktopMode(normalizeDesktopMode(desktopMs, ms));
+        // Desktop fit: new "fit" field, mapping legacy mode/objectFit onto it.
+        setDesktopFit(normalizeFit(desktopMs, ms));
         setDesktopFocusX(
           typeof desktopMs.focusX === "number" ? desktopMs.focusX : 50,
         );
@@ -4058,38 +4076,32 @@ export function CreateEventPage() {
                           justifyContent: "space-between",
                         }}>
                           <span>Phone</span>
-                          {phoneMode !== "width" && (
+                          {phoneFit === "fill" && (
                             <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
                           )}
                         </div>
                         <FormatChoice
-                          value={phoneMode}
+                          value={phoneFit}
                           thumb={mediaFiles[0]?.preview || imagePreview || null}
                           onChange={(v) => {
-                            setPhoneMode(v);
+                            setPhoneFit(v);
                             setDesktopPreviewMode("phone");
                           }}
                           options={[
                             {
-                              value: "width",
-                              label: "Fit width",
-                              caption: "Whole clip, no crop",
-                              objectFit: "contain",
-                              frameStyle: { height: "100%", aspectRatio: "4 / 5" },
-                            },
-                            {
-                              value: "height",
-                              label: "Fit height",
-                              caption: "Fills screen, crops sides",
+                              value: "fill",
+                              label: "Fill",
+                              caption: "Fills the hero, may crop",
                               objectFit: "cover",
-                              frameStyle: { height: "100%", aspectRatio: "9 / 16" },
+                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
                             },
                             {
-                              value: "card",
-                              label: "Card",
-                              caption: "Whole media, padded",
+                              value: "fit",
+                              label: "Fit",
+                              caption: "Whole image, blurred edges",
                               objectFit: "contain",
-                              frameStyle: { height: "100%", aspectRatio: "4 / 5", padding: "5px", boxSizing: "border-box" },
+                              backdrop: true,
+                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
                             },
                           ]}
                         />
@@ -4105,38 +4117,32 @@ export function CreateEventPage() {
                           justifyContent: "space-between",
                         }}>
                           <span>Desktop</span>
-                          {desktopMode !== "width" && (
+                          {desktopFit === "fill" && (
                             <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
                           )}
                         </div>
                         <FormatChoice
-                          value={desktopMode}
+                          value={desktopFit}
                           thumb={mediaFiles[0]?.preview || imagePreview || null}
                           onChange={(v) => {
-                            setDesktopMode(v);
+                            setDesktopFit(v);
                             setDesktopPreviewMode("desktop");
                           }}
                           options={[
                             {
-                              value: "width",
-                              label: "Fit width",
-                              caption: "Whole — frame fits it",
-                              objectFit: "contain",
+                              value: "fill",
+                              label: "Fill",
+                              caption: "Fills the hero, may crop",
+                              objectFit: "cover",
                               frameStyle: { width: "92%", aspectRatio: "16 / 9" },
                             },
                             {
-                              value: "height",
-                              label: "Fit height",
-                              caption: "Fills height, crops sides",
-                              objectFit: "cover",
-                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
-                            },
-                            {
-                              value: "card",
-                              label: "Card",
-                              caption: "Whole media, padded",
+                              value: "fit",
+                              label: "Fit",
+                              caption: "Whole image, blurred edges",
                               objectFit: "contain",
-                              frameStyle: { height: "100%", aspectRatio: "4 / 5", padding: "5px", boxSizing: "border-box" },
+                              backdrop: true,
+                              frameStyle: { width: "92%", aspectRatio: "16 / 9" },
                             },
                           ]}
                         />

@@ -1,6 +1,32 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { transformedImageUrl } from "../lib/imageUtils";
 
+// Blurred, zoomed copy of the cover, painted BEHIND a contained image so the
+// letterbox gaps read as an intentional backdrop instead of dead black bars
+// (the Spotify / Resident Advisor treatment). Low-res on purpose — it's blurred.
+export function BlurBackdrop({ url, displayWidth }) {
+  if (!url) return null;
+  return (
+    <img
+      src={transformedImageUrl(url, { width: Math.min(displayWidth || 320, 320) })}
+      alt=""
+      aria-hidden
+      draggable={false}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        filter: "blur(28px) saturate(1.25)",
+        transform: "scale(1.2)",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}
+    />
+  );
+}
+
 // Reactive video player that responds to setting changes
 export function VideoPlayer({ src, autoPlay, muted, loop, playsInline = true, style = {}, objectFit = "cover", objectPosition = "center center" }) {
   const videoRef = useRef(null);
@@ -375,6 +401,8 @@ export function MediaCarousel({
   // Supports both the legacy "top"/"center"/"bottom" focus and the new numeric
   // focusX/focusY (percentages 0–100).
   const fit = mediaSettings.fit === "contain" ? "contain" : "cover";
+  // Paint a blurred backdrop behind contained images (the "fit" cover mode).
+  const backdrop = !!mediaSettings.backdrop && fit === "contain";
   const focusX = typeof mediaSettings.focusX === "number" ? mediaSettings.focusX : 50;
   const legacyFocusY = mediaSettings.focus === "top"
     ? 0
@@ -560,23 +588,28 @@ export function MediaCarousel({
   if (count === 1) {
     const item = media[0];
     if (!item?.url) return null;
-    return item.mediaType === "video" ? (
-      <VideoPlayer
-        src={item.url}
-        autoPlay={autoplay}
-        muted={!audio}
-        loop={loopVideo}
-        objectFit={fit}
-        objectPosition={objectPosition}
-        style={style}
-      />
-    ) : (
+    if (item.mediaType === "video") {
+      return (
+        <VideoPlayer
+          src={item.url}
+          autoPlay={autoplay}
+          muted={!audio}
+          loop={loopVideo}
+          objectFit={fit}
+          objectPosition={objectPosition}
+          style={style}
+        />
+      );
+    }
+    const img = (
       <img
         src={transformedImageUrl(item.url, { width: displayWidth })}
         alt=""
         loading="lazy"
         decoding="async"
         style={{
+          position: backdrop ? "relative" : undefined,
+          zIndex: backdrop ? 1 : undefined,
           width: "100%",
           height: "100%",
           objectFit: fit,
@@ -585,6 +618,13 @@ export function MediaCarousel({
           ...style,
         }}
       />
+    );
+    if (!backdrop) return img;
+    return (
+      <div style={{ position: "relative", width: "100%", height: "100%", ...style }}>
+        <BlurBackdrop url={item.url} displayWidth={displayWidth} />
+        {img}
+      </div>
     );
   }
 
@@ -695,6 +735,7 @@ export function MediaCarousel({
               transitionDuration={transitionDuration}
               isVisible={isVisible}
               fit={fit}
+              backdrop={backdrop}
               objectPosition={objectPosition}
               displayWidth={displayWidth}
             />
@@ -740,7 +781,7 @@ export function MediaCarousel({
 }
 
 // Individual slide component that handles enter animation via two-frame mount
-function SlideRenderer({ item, phase, slideStyle, transitionType, direction, transitionDuration, isVisible, fit, objectPosition, displayWidth }) {
+function SlideRenderer({ item, phase, slideStyle, transitionType, direction, transitionDuration, isVisible, fit, backdrop, objectPosition, displayWidth }) {
   const ref = useRef(null);
   const hasAnimatedIn = useRef(false);
 
@@ -824,21 +865,26 @@ function SlideRenderer({ item, phase, slideStyle, transitionType, direction, tra
             style={{ width: "100%", height: "100%" }}
           />
         ) : (
-          <img
-            src={transformedImageUrl(item.url, { width: displayWidth })}
-            alt=""
-            draggable={false}
-            loading="lazy"
-            decoding="async"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: fit,
-              objectPosition,
-              display: "block",
-              pointerEvents: "none",
-            }}
-          />
+          <>
+            {backdrop && <BlurBackdrop url={item.url} displayWidth={displayWidth} />}
+            <img
+              src={transformedImageUrl(item.url, { width: displayWidth })}
+              alt=""
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+              style={{
+                position: backdrop ? "relative" : undefined,
+                zIndex: backdrop ? 1 : undefined,
+                width: "100%",
+                height: "100%",
+                objectFit: fit,
+                objectPosition,
+                display: "block",
+                pointerEvents: "none",
+              }}
+            />
+          </>
         )
       ) : (
         <div style={{ width: "100%", height: "100%", background: "#1a1a2e" }} />

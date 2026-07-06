@@ -64,6 +64,10 @@ export function registerEventMediaRoutes(app) {
         // Supabase Storage and supplies the resulting paths instead of base64.
         storagePath,
         thumbnailStoragePath,
+        // Intrinsic pixel dimensions the client measured at upload — persisted so
+        // the marketing page can reserve the hero shape before the image loads.
+        width,
+        height,
       } = req.body;
 
       const usingDirectUpload = !!storagePath;
@@ -160,6 +164,8 @@ export function registerEventMediaRoutes(app) {
           position: pos,
           is_cover: isCover,
           mime_type: mimeType || null,
+          width: Number.isFinite(width) ? Math.round(width) : null,
+          height: Number.isFinite(height) ? Math.round(height) : null,
         })
         .select()
         .single();
@@ -204,6 +210,8 @@ export function registerEventMediaRoutes(app) {
         position: pos,
         isCover,
         mimeType: mimeType || null,
+        width: mediaRow.width || null,
+        height: mediaRow.height || null,
       });
     } catch (error) {
       console.error("Error uploading event media:", error);
@@ -244,6 +252,8 @@ export function registerEventMediaRoutes(app) {
           position: m.position,
           isCover: m.is_cover,
           mimeType: m.mime_type,
+          width: m.width || null,
+          height: m.height || null,
         };
       });
 

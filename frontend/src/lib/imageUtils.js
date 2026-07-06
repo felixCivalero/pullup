@@ -256,6 +256,45 @@ function extensionFromMime(mime) {
 }
 
 /**
+ * Measure a media file's intrinsic pixel dimensions (width/height) so we can
+ * persist them at upload — the marketing page then reserves the exact hero shape
+ * before the image loads (see mediaFormat.js). Aspect ratio is what matters, and
+ * it survives resizing, so measuring the pre-upload file is fine. Never throws;
+ * returns { width: null, height: null } if it can't decode.
+ */
+export async function measureMediaDimensions(fileOrBlob, mediaType = "image") {
+  if (typeof document === "undefined" || !fileOrBlob) {
+    return { width: null, height: null };
+  }
+  const url = URL.createObjectURL(fileOrBlob);
+  const done = (res) => {
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return res;
+  };
+  try {
+    if (mediaType === "video") {
+      return await new Promise((resolve) => {
+        const v = document.createElement("video");
+        v.preload = "metadata";
+        v.onloadedmetadata = () =>
+          resolve(done({ width: v.videoWidth || null, height: v.videoHeight || null }));
+        v.onerror = () => resolve(done({ width: null, height: null }));
+        v.src = url;
+      });
+    }
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () =>
+        resolve(done({ width: img.naturalWidth || null, height: img.naturalHeight || null }));
+      img.onerror = () => resolve(done({ width: null, height: null }));
+      img.src = url;
+    });
+  } catch (_) {
+    return done({ width: null, height: null });
+  }
+}
+
+/**
  * End-to-end direct upload for one event-media item.
  * 1. Asks the backend for a signed upload URL.
  * 2. PUTs the (optionally processed) Blob straight to Supabase.
@@ -325,7 +364,8 @@ export async function uploadEventMediaDirect({
     }
   }
 
-  // 4) Record the media row.
+  // 4) Record the media row (with the file's intrinsic dimensions).
+  const { width, height } = await measureMediaDimensions(file, mediaType);
   const recordRes = await authenticatedFetch(`/host/events/${eventId}/media`, {
     method: "POST",
     body: JSON.stringify({
@@ -334,6 +374,8 @@ export async function uploadEventMediaDirect({
       mediaType,
       mimeType: file.type,
       position,
+      width,
+      height,
     }),
   });
   if (!recordRes.ok) {
@@ -414,13 +456,16 @@ export async function uploadEventMediaViaLink({
     }
   }
 
-  // 3) Record the media row.
+  // 3) Record the media row (with the file's intrinsic dimensions).
+  const { width, height } = await measureMediaDimensions(file, mediaType);
   const row = await post("/attach", {
     storagePath: main.path,
     thumbnailStoragePath: thumbnailPath,
     mediaType,
     mimeType: file.type,
     position,
+    width,
+    height,
   });
   if (onProgress) onProgress(100);
   return row;
@@ -879,6 +924,7 @@ export async function uploadEventMedia(eventId, file, position, options = {}) {
     }
   }
 
+  const { width, height } = await measureMediaDimensions(file, validation.mediaType);
   const res = await authenticatedFetch(`/host/events/${eventId}/media`, {
     method: "POST",
     body: JSON.stringify({
@@ -887,6 +933,8 @@ export async function uploadEventMedia(eventId, file, position, options = {}) {
       mimeType: file.type,
       position,
       thumbnailData,
+      width,
+      height,
     }),
   });
 

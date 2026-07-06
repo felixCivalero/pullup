@@ -67,6 +67,11 @@ function initials(n = "") { return String(n).trim().split(/\s+/).filter(Boolean)
 // The channels one person is reachable on — one human, several linked accounts.
 // Falls back to their preferred channel when the room didn't enumerate reach.
 function reachOf(p) { return p?.reachable?.length ? p.reachable : [p?.channel || "email"]; }
+// PullUp itself in the inbox — threads with the platform's own addresses wear
+// the eyes and read as "PullUp", so system communication stands out from people.
+const SYSTEM_EMAILS = new Set(["felix@pullup.se", "hello@pullup.se"]);
+const isSystemPerson = (p) => SYSTEM_EMAILS.has(String(p?.email || "").toLowerCase().trim());
+const dispName = (p) => (isSystemPerson(p) ? "PullUp" : p?.name);
 
 // Compact "how long ago" for the list rows (Instagram-style: now, 5m, 3h, 2d,
 // 1w, then a short date). Computed client-side off the ISO so it stays accurate.
@@ -121,9 +126,20 @@ function resolveActiveCh(p, picked) {
   return reach.filter((c) => chanOpen(p, c))[0] || preferred;
 }
 
-function Avatar({ name, size = 44, dot, src }) {
+function Avatar({ name, size = 44, dot, src, system }) {
   const c = TINTS[hashName(name) % TINTS.length];
   const [broken, setBroken] = useState(false);
+  if (system) {
+    // PullUp speaking — the eyes on white with a pink ring, never initials.
+    return (
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <div style={{ width: size, height: size, borderRadius: "50%", background: "#fff", border: `2px solid ${D.pink}`, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+          <img src="/pullup-smalleyes.svg" alt="PullUp" style={{ width: "68%", display: "block" }} />
+        </div>
+        {dot && <span style={{ position: "absolute", right: -1, bottom: -1, width: size * 0.28, height: size * 0.28, borderRadius: "50%", background: dot, border: `2px solid ${D.bg}` }} />}
+      </div>
+    );
+  }
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
       {src && !broken ? (
@@ -503,11 +519,11 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px", borderBottom: `1px solid ${D.line}` }}>
           {!split && <button onClick={() => setOpenId(null)} style={{ ...iconBtn, color: D.ink }} aria-label="Back"><ChevronLeft size={20} /></button>}
           <button onClick={() => { navigate(`/r/${open.id}`); onClose?.(); }} title="Open their room" style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", fontFamily: "inherit" }}>
-            <Avatar name={open.name} src={open.avatarUrl} size={34} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
+            <Avatar name={open.name} src={open.avatarUrl} size={34} system={isSystemPerson(open)} dot={open.channel === "whatsapp" && open.windowOpen ? D.green : null} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{open.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: isSystemPerson(open) ? D.pink : "inherit" }}>{dispName(open)}</div>
               <div style={{ fontSize: 11.5, color: D.muted, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {contactBits.length > 0 ? contactBits.join("  ·  ") : (open.relationship || "Tap to open their room")}
+                {isSystemPerson(open) ? "Official · " + (open.email || "PullUp") : contactBits.length > 0 ? contactBits.join("  ·  ") : (open.relationship || "Tap to open their room")}
               </div>
             </div>
           </button>
@@ -574,7 +590,7 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             const failed = m.status === "failed";
             return (
               <div key={m.id || m.clientId || i} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 7 }}>
-                {!mine && <Avatar name={open.name} src={open.avatarUrl} size={22} />}
+                {!mine && <Avatar name={open.name} src={open.avatarUrl} size={22} system={isSystemPerson(open)} />}
                 <div style={{ maxWidth: "74%", opacity: m.status === "sending" ? 0.72 : 1, transition: "opacity 0.2s" }} onClick={failed ? () => retry(m) : undefined} title={failed ? "Tap to retry" : undefined}>
                   {(m.atts || []).map((a, j) => a.isImage ? (
                     <img key={j} src={a.url} alt="" style={{ display: "block", maxWidth: "100%", borderRadius: 16, marginBottom: 4 }} />
@@ -781,10 +797,10 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
           return (
             <button key={p.id} onClick={() => (selecting ? toggleSel(p.id) : setOpenId(p.id))} onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = baseBg)}
               style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: baseBg, cursor: "pointer", textAlign: "left", transition: "background 0.12s" }}>
-              <Avatar name={p.name} src={p.avatarUrl} size={44} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
+              <Avatar name={p.name} src={p.avatarUrl} size={44} system={isSystemPerson(p)} dot={p.channel === "whatsapp" && p.windowOpen ? D.green : null} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{p.name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: isSystemPerson(p) ? D.pink : D.ink }}>{dispName(p)}</span>
                   {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
                 </div>
                 {/* Preview · time — inline, Instagram-style: the preview truncates, the time stays. */}

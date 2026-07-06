@@ -63,6 +63,30 @@ async function isHostOwnAddress(hostProfileId, fromEmail) {
   }
 }
 
+// Is this sender THE PERSON in the thread? When the from-address is the
+// person's own email, they are speaking — even if that address ALSO matches
+// one of the host's addresses (host testing their own loop, host messaging
+// themselves). The person outranks the host on their own address; the host
+// speaks as the host from any OTHER address of theirs (e.g. felix@pullup.se).
+async function isPersonOwnAddress(personId, fromEmail) {
+  const from = String(fromEmail || "").toLowerCase().trim();
+  if (!from || !personId) return false;
+  try {
+    const [{ data: person }, { data: ids }] = await Promise.all([
+      supabase.from("people").select("email").eq("id", personId).maybeSingle(),
+      supabase.from("person_identities").select("value_norm").eq("person_id", personId).eq("kind", "email"),
+    ]);
+    const candidates = new Set(
+      [person?.email, ...(ids || []).map((r) => r.value_norm)]
+        .filter(Boolean)
+        .map((e) => String(e).toLowerCase().trim()),
+    );
+    return candidates.has(from);
+  } catch {
+    return false;
+  }
+}
+
 async function alreadyProcessed(sesMessageId) {
   if (!sesMessageId) return false;
   const { data } = await supabase
@@ -139,7 +163,15 @@ export async function processInboundEmail({ parsed, token, toAddress, attachment
   // would put the host's words in the guest's mouth — instead DELIVER it to
   // the person as the host, through the normal send path: it emails them AND
   // lands in the chat thread, exactly as if typed in the dock.
-  if (hostProfileId && personId && (await isHostOwnAddress(hostProfileId, parsed.from))) {
+  // The person's own address outranks the host's: if the sender IS the person
+  // in this thread, it's them speaking (inbound), even when that address also
+  // belongs to the host — the same-human-both-sides case.
+  if (
+    hostProfileId &&
+    personId &&
+    !(await isPersonOwnAddress(personId, parsed.from)) &&
+    (await isHostOwnAddress(hostProfileId, parsed.from))
+  ) {
     try {
       const { sendRoomMessage } = await import("../../services/roomMessaging.js");
       const out = await sendRoomMessage({

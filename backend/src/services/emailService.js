@@ -1,6 +1,6 @@
 import { sendEmail as infraSendEmail } from "../email/index.js";
 
-export async function sendEmail({ to, subject, html, text, from, personId = null, hostProfileId = null }) {
+export async function sendEmail({ to, subject, html, text, from, personId = null, hostProfileId = null, campaignTag = null }) {
   return infraSendEmail({
     from: from || '"PullUp RSVP" <no-reply@pullup.se>',
     to,
@@ -12,6 +12,10 @@ export async function sendEmail({ to, subject, html, text, from, personId = null
     // (auth, receipts) omit them and stay correctly non-repliable.
     personId,
     hostProfileId,
+    // 'concierge_*' tags mark the reply chain as system communication: the
+    // host's reply to a tagged notification is delivered as PullUp
+    // (felix@pullup.se), not as an ordinary host message.
+    campaignTag,
   });
 }
 

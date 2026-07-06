@@ -27,7 +27,7 @@ async function resolveToken(token) {
   if (!token) return null;
   const { data } = await supabase
     .from("email_outbox")
-    .select("id, person_id, host_profile_id, to_email")
+    .select("id, person_id, host_profile_id, to_email, campaign_tag")
     .eq("tracking_id", token)
     .maybeSingle();
   return data || null;
@@ -174,12 +174,20 @@ export async function processInboundEmail({ parsed, token, toAddress, attachment
   ) {
     try {
       const { sendRoomMessage } = await import("../../services/roomMessaging.js");
+      // Sender identity for the delivered mail: pass through the mailbox the
+      // host actually wrote from (used only if it's their own platform-domain
+      // address). Concierge threads (replies to a concierge-tagged
+      // notification) always speak as PullUp — the system's own address —
+      // even when the host replied from a personal mailbox.
+      const conciergeThread = String(outboxRow?.campaign_tag || "").startsWith("concierge");
       const out = await sendRoomMessage({
         hostId: hostProfileId,
         personId,
         channel: "email",
         text: bodyText,
         subject: parsed.subject || undefined,
+        fromAddress: parsed.from || null,
+        systemVoice: conciergeThread,
       });
       await recordInbound({ ...baseRecord, status: out?.ok ? "host_sent" : "host_send_failed" });
       return { status: out?.ok ? "host_sent" : "host_send_failed", personId, hostProfileId };

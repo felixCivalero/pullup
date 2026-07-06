@@ -159,7 +159,7 @@ export function registerSubscriptionRoutes(app) {
           to: "hello@pullup.se",
           subject: `Agency tier interest: ${requesterName || requesterEmail || req.user.id}`,
           ...(conciergePersonId && conciergeHostId
-            ? { personId: conciergePersonId, hostProfileId: conciergeHostId }
+            ? { personId: conciergePersonId, hostProfileId: conciergeHostId, campaignTag: "concierge_access_request" }
             : {}),
           text: [
             `Agency tier early-access request`,

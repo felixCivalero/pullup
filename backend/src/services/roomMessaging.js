@@ -43,18 +43,20 @@ function buildFromHeader(displayName, address = null) {
   return address ? addr : SES_FROM_EMAIL;
 }
 
-// The host's own address on OUR sending domain, if they have one (profile
-// contact_email or additional_emails ending in @<our-domain>). Only addresses
-// on the platform domain are usable — Resend can only sign what we verify.
-function hostOwnSendAddress(profile) {
+// The host's own addresses on OUR sending domain (profile contact_email +
+// additional_emails ending in @<our-domain>). These are the ONLY addresses a
+// send may wear instead of the platform default — Resend can only sign what
+// we verify, and the header must never impersonate anyone. NOTE: ordinary
+// dock messages do NOT use these — a platform-domain address (felix@pullup.se)
+// is the SYSTEM's voice, opted into per-send via fromAddress/systemVoice.
+function hostPlatformAddresses(profile) {
   const dm = SES_FROM_EMAIL.match(/@([A-Za-z0-9.-]+)/);
   const domain = dm ? dm[1].replace(/[>"\s].*$/, "") : null;
-  if (!domain) return null;
+  if (!domain) return [];
   const candidates = [profile?.contactEmail, ...(Array.isArray(profile?.emails) ? profile.emails : [])];
-  const own = candidates.find(
-    (e) => typeof e === "string" && e.toLowerCase().trim().endsWith(`@${domain}`),
-  );
-  return own ? own.toLowerCase().trim() : null;
+  return candidates
+    .filter((e) => typeof e === "string" && e.toLowerCase().trim().endsWith(`@${domain}`))
+    .map((e) => e.toLowerCase().trim());
 }
 
 const FRONTEND_BASE =
@@ -193,7 +195,7 @@ const emailHtmlFor = (body, atts, event) => textToHtml(body, atts) + eventCardHt
 // so later status webhooks (provider_mid / tracking_id) can find it to upgrade
 // the tick. Awaited (was fire-and-forget) — the id is part of the send contract
 // now — but still swallows its own errors: a logging hiccup never fails a send.
-async function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null, providerMid = null, trackingId = null, status = null, clientId = null }) {
+async function logRoomEvent({ personId, hostId, channel, body, attachments = [], event = null, location = null, providerMid = null, trackingId = null, status = null, clientId = null, sentAs = null }) {
   const atts = Array.isArray(attachments) ? attachments : [];
   const at = new Date().toISOString();
   const res = await logPersonEvent({
@@ -216,6 +218,9 @@ async function logRoomEvent({ personId, hostId, channel, body, attachments = [],
       ...(clientId ? { client_id: clientId } : {}),
       ...(providerMid ? { provider_mid: providerMid } : {}),
       ...(trackingId ? { tracking_id: trackingId } : {}),
+      // The send wore the host's platform-domain address (system voice) — the
+      // dock badges these bubbles as PullUp speaking, not an ordinary message.
+      ...(sentAs ? { sent_as: sentAs } : {}),
       ...(event
         ? {
             event: {
@@ -239,7 +244,7 @@ async function logRoomEvent({ personId, hostId, channel, body, attachments = [],
  * specific event (eventId): an inline card on email, a link on WhatsApp/IG.
  * @returns {Promise<{ok:boolean, error?:string, channel?:string}>}
  */
-export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null, clientId = null, strict = false }) {
+export async function sendRoomMessage({ hostId, personId, channel = "email", text, subject, attachments = [], eventId = null, event = null, location = null, clientId = null, strict = false, fromAddress = null, systemVoice = false }) {
   const body = (text || "").trim();
   const atts = normalizeAttachments(attachments);
   const loc = location && location.url ? { label: (location.label || "Location").trim() || "Location", url: location.url } : null;
@@ -260,6 +265,20 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
 
   const profile = await getUserProfile(hostId).catch(() => null);
   const fromName = ((profile?.name || profile?.brand || "") || "").trim() || null;
+  // Email From header. Default: the platform sender wearing the host's display
+  // name — every ordinary dock message. Two opt-ins can put the host's OWN
+  // platform-domain address (felix@pullup.se) on the wire instead:
+  //   fromAddress — the mailbox the host actually replied from (passed through
+  //                 by the inbound-email loop), honored only if it's theirs;
+  //   systemVoice — concierge sends speak as PullUp even when the host replied
+  //                 from an off-domain mailbox (falls back to their first
+  //                 platform address).
+  const ownAddresses = hostPlatformAddresses(profile);
+  const wantedFrom = String(fromAddress || "").toLowerCase().trim();
+  const fromOverride =
+    (wantedFrom && ownAddresses.includes(wantedFrom) && wantedFrom) ||
+    (systemVoice && ownAddresses[0]) ||
+    null;
   const subj = (subject || "").trim() || `A note from ${fromName || "your host"}`;
   const evt = eventId ? (event || (await getEventForEmail(eventId))) : null;
   // Location renders as a clean clickable link, never a raw URL: an <a> on
@@ -310,7 +329,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
       subject: subj,
       htmlBody,
       textBody: textBodyWith(bodyForText, atts, evt),
-      fromEmail: buildFromHeader(fromName, hostOwnSendAddress(profile)),
+      fromEmail: buildFromHeader(fromName, fromOverride),
       category: "transactional",
     },
     humanComposed: true,
@@ -337,6 +356,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const trackingId = r.channel === "email" ? (r.row?.tracking_id || null) : null;
   const logged = await logRoomEvent({
     ...logArgs, channel: r.channel, providerMid, trackingId, status: "sent", clientId,
+    sentAs: r.channel === "email" ? fromOverride : null,
   });
   return { ok: true, channel: r.channel, messageId: logged.id, at: logged.at, status: "sent", clientId };
 }

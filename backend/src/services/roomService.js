@@ -1089,6 +1089,7 @@ function buildThread(evs, eventTitleById, igReadAtMs = null) {
       at: e.occurred_at || e.created_at || null, // ISO — for stable ordering/merge
       channel: e.channel || undefined,
       status, // 'sent' | 'delivered' | 'read' | 'failed' (undefined for inbound)
+      sentAs: e.metadata?.sent_as || undefined, // system-voiced send (e.g. felix@pullup.se)
     };
   });
 }

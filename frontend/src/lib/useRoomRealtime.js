@@ -17,7 +17,7 @@ const MESSAGE_TYPES = new Set(["message_in", "message_out", "auto_dm_sent"]);
 // Notable activity that should ping the notifications bell the instant it lands
 // (mirrors roomService NOTABLE_TYPES). Inbound only — the host's own outbound
 // rows aren't notifications.
-const NOTABLE_TYPES = new Set(["message_in", "waitlist_join", "rsvp", "attended"]);
+const NOTABLE_TYPES = new Set(["message_in", "waitlist_join", "rsvp", "attended", "access_request"]);
 
 // Raw person_events row → the thread-item shape the Room UIs already render
 // (matches roomService.buildThread, so realtime rows merge seamlessly).
@@ -35,6 +35,7 @@ export function mapEventRow(row) {
     location: md.location && md.location.url ? md.location : undefined,
     channel: row.channel || undefined,
     status: row.direction === "out" ? (md.status || "sent") : undefined,
+    sentAs: md.sent_as || undefined, // system-voiced send (concierge → PullUp badge)
     at: row.occurred_at || row.created_at || null,
     time: "now",
     type: row.type,

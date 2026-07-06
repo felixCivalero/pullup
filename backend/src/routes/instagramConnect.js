@@ -114,9 +114,10 @@ export function registerInstagramConnectRoutes(app) {
           subject: `IG early access request: @${igHandle}`,
           // personId + hostProfileId make this REPLIABLE: hitting reply sends
           // through the two-way rail and lands in the requester's inbox AND
-          // their PullUp Messages, from the concierge host.
+          // their PullUp Messages, from the concierge host. The concierge tag
+          // makes that reply speak as PullUp (felix@pullup.se), system-voiced.
           ...(conciergePersonId && conciergeHostId
-            ? { personId: conciergePersonId, hostProfileId: conciergeHostId }
+            ? { personId: conciergePersonId, hostProfileId: conciergeHostId, campaignTag: "concierge_access_request" }
             : {}),
           text: [
             `Instagram early-access request`,

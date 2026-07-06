@@ -621,6 +621,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
                           <Sparkles size={9} /> Auto-DM
                         </span>
                       )}
+                      {/* System-voiced sends (concierge) went out as PullUp, not a plain host note. */}
+                      {m.sentAs && (
+                        <span title={`Sent as ${m.sentAs}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, color: D.pink, fontWeight: 700 }}>
+                          <img src="/pullup-smalleyes.svg" alt="" style={{ width: 12, display: "block" }} /> PullUp
+                        </span>
+                      )}
                       {/* The label tracks the live delivery state of OUR messages. */}
                       <span>{failed ? "Not delivered · tap to retry" : m.status === "sending" ? "Sending…" : m.time === "now" ? "now" : m.time}</span>
                       {/* One tick language across WhatsApp / Instagram / email. */}

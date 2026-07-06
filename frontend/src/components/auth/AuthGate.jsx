@@ -90,9 +90,10 @@ function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding, onS
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // When a signup-intent handler is present (the landing's BYO rule), login is
-  // for existing accounts ONLY — an unknown email is sent to the waitlist, and
-  // the "New here?" link points there too, never into self-serve onboarding.
+  // When a signup-intent handler is present (the landing), login is for
+  // existing accounts ONLY — new people go through /start (plan + payment +
+  // account in one flow), so both the "New here?" link and an unknown email
+  // hand over to the signup intent instead of a dead-end code screen.
   const waitlistMode = typeof onSignupIntent === "function";
 
   const complete = useCallback(() => {
@@ -118,7 +119,7 @@ function LoginPanel({ redirectTo, onAuthed, onDismiss, onSwitchToOnboarding, onS
           className="auth-link-small auth-link-btn"
           onClick={waitlistMode ? () => onSignupIntent() : onSwitchToOnboarding}
         >
-          New here? <strong>{waitlistMode ? "Join the waitlist" : "Get started"}</strong>
+          New here? <strong>{waitlistMode ? "Create account" : "Get started"}</strong>
         </button>
       </div>
       <div className="auth-card-wrap">

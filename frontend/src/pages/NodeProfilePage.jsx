@@ -197,14 +197,14 @@ export default function NodeProfilePage() {
               You're in{justJoined.name ? `, ${String(justJoined.name).split(" ")[0]}` : ""} — welcome to {firstName(node.name)}'s community
             </p>
             <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
-              We emailed a sign-in link{justJoined.email ? ` to ${justJoined.email}` : ""} — one tap and you're inside the room.
+              Verify your email to step inside — tap the link we sent{justJoined.email ? ` to ${justJoined.email}` : ""} and the room opens as you.
             </p>
             <button
               onClick={resendSignInLink}
               disabled={resending || linkResent}
               style={{ padding: "11px 24px", borderRadius: 999, border: "none", background: linkResent ? colors.surfaceMuted : colors.accent, color: linkResent ? colors.textMuted : "#fff", fontSize: 14, fontWeight: 700, cursor: linkResent ? "default" : "pointer", fontFamily: SF, opacity: resending ? 0.6 : 1 }}
             >
-              {linkResent ? "Link sent — check your inbox" : resending ? "Sending…" : "Send the sign-in link again"}
+              {linkResent ? "Link sent — check your inbox" : resending ? "Sending…" : "Send the verification link again"}
             </button>
             <p style={{ fontSize: 12, color: colors.textFaded, margin: "12px 0 0" }}>
               <button onClick={() => navigate("/login")} style={{ background: "none", border: "none", padding: 0, color: colors.textFaded, fontSize: 12, textDecoration: "underline", cursor: "pointer", fontFamily: SF }}>

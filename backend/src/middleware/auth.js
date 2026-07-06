@@ -106,27 +106,28 @@ export async function optionalAuth(req, res, next) {
 }
 
 /**
- * Middleware to require that the authenticated user is an admin.
- * Uses profiles.is_admin flag for authorization.
+ * Middleware to require that the authenticated user is a platform admin.
+ * The admin world is platform_admins (@pullup.se accounts granted a row,
+ * mig 126) — profiles.is_admin is retired; hosts are just hosts.
  */
 export async function requireAdmin(req, res, next) {
   try {
-    // First ensure the user is authenticated
     await requireAuth(req, res, async () => {
       try {
-        const profile = await getUserProfile(req.user.id);
-        if (!profile?.isAdmin) {
+        const { getAdminByEmail, stampAdminUserId } = await import("../repos/platformAdmins.js");
+        const admin = await getAdminByEmail(req.user.email);
+        if (!admin) {
           return res.status(403).json({
             error: "forbidden",
             message: "Admin access required",
           });
         }
-
-        // Attach profile for downstream handlers if needed
-        req.profile = profile;
+        // First authenticated visit links the grant to the auth account.
+        if (!admin.userId) stampAdminUserId(req.user.email, req.user.id).catch(() => {});
+        req.admin = admin; // { email, role, scopes }
         next();
       } catch (error) {
-        console.error("requireAdmin error loading profile:", error);
+        console.error("requireAdmin error:", error);
         return res.status(500).json({
           error: "server_error",
           message: "Failed to verify admin access",
@@ -140,4 +141,14 @@ export async function requireAdmin(req, res, next) {
       message: "Failed to verify admin access",
     });
   }
+}
+
+/** Super admins only (grant/revoke other admins, see everything). */
+export async function requireSuperAdmin(req, res, next) {
+  await requireAdmin(req, res, () => {
+    if (req.admin?.role !== "super") {
+      return res.status(403).json({ error: "forbidden", message: "Super admin access required" });
+    }
+    next();
+  });
 }

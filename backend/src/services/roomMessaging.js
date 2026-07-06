@@ -251,14 +251,23 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   if (!hostId || !personId) return { ok: false, error: "bad_request" };
   if (!body && !atts.length && !eventId && !loc) return { ok: false, error: "empty" };
 
+  // Chatting with PullUp itself (the system person) is an internal service
+  // conversation: never paywalled (a past_due host asking about billing MUST
+  // get through), never scoped (any host may talk to the platform), and never
+  // emailed — the row is the delivery (see the internal branch below).
+  const { isSystemPerson } = await import("../repos/systemPerson.js");
+  const systemThread = await isSystemPerson(personId);
+
   // Paywall: sending to your people is hosting — lapsed subscription pauses
   // outbound. (Transactional guest mail — RSVP confirmations, reminders for
   // already-committed guests — is NOT gated; this is host-initiated only.)
-  if (!(await canHost(hostId))) return { ok: false, error: "subscription_required" };
+  if (!systemThread && !(await canHost(hostId))) return { ok: false, error: "subscription_required" };
 
   // Scope: a host may only message someone already in their world.
-  const allowed = await personBelongsToHost(personId, hostId);
-  if (!allowed) return { ok: false, error: "not_in_world" };
+  if (!systemThread) {
+    const allowed = await personBelongsToHost(personId, hostId);
+    if (!allowed) return { ok: false, error: "not_in_world" };
+  }
 
   const person = await findPersonById(personId);
   if (!person) return { ok: false, error: "no_person" };
@@ -296,6 +305,17 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
   const contentSig = crypto.createHash("sha256").update(`${body || ""}|${(atts || []).map((a) => a?.url || "").join(",")}`).digest("hex").slice(0, 16);
   const key = () => (clientId ? `room:${hostId}:${personId}:${clientId}` : `room:${hostId}:${personId}:${contentSig}:${Math.floor(Date.now() / 300000)}`);
   const logArgs = { personId, hostId, body, attachments: atts, event: evt, location: loc };
+
+  // ── Internal service chat: the database row IS the delivery. ──
+  // No dispatch, no Resend, no reply tokens — Realtime carries it to the
+  // admin dashboard (and the admin's reply back) instantly. Delivered on
+  // write, by definition.
+  if (systemThread) {
+    const logged = await logRoomEvent({
+      ...logArgs, channel: "email", providerMid: null, trackingId: null, status: "delivered", clientId,
+    });
+    return { ok: true, channel: "email", messageId: logged.id, at: logged.at, status: "delivered", clientId };
+  }
 
   // ── One unified route for every rail. dispatch() owns the channel choice
   //    and every per-channel constraint — WhatsApp (24h window → free text,
@@ -368,7 +388,11 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
  * @returns {Promise<{sent:number, noEmail:number, failed:number, byChannel:object}>}
  */
 export async function sendRoomBulk({ hostId, personIds, channel = "whatsapp", text, subject, attachments = [], eventId = null }) {
-  const ids = Array.isArray(personIds) ? personIds : [];
+  // "Write to everyone" must never broadcast at the platform itself — the
+  // system person is a contact for service chat, not an audience member.
+  const { getSystemPersonId } = await import("../repos/systemPerson.js");
+  const sysId = await getSystemPersonId();
+  const ids = (Array.isArray(personIds) ? personIds : []).filter((pid) => pid && pid !== sysId);
   const out = { sent: 0, noEmail: 0, failed: 0, byChannel: { email: 0, whatsapp: 0 } };
   // Resolve the included event ONCE for the whole send.
   const event = eventId ? await getEventForEmail(eventId) : null;

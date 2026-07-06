@@ -81,6 +81,7 @@ export function AppHeader() {
     { label: "Settings", path: "/settings" },
   ];
   const adminNavItems = [
+    { label: "Inbox", path: "/admin/inbox" },
     { label: "CRM", path: "/admin/crm" },
     { label: "Matches", path: "/admin/matches" },
     { label: "Analytics", path: "/admin/analytics" },

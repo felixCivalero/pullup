@@ -294,12 +294,12 @@ export async function resolvePerson({ userId = null, email = null }) {
   return null;
 }
 
-// Is this auth user an admin? Cheap check — only called when a view-as override
-// header is actually present, so it never touches the normal request path.
+// Is this auth user an admin? The admin world moved to platform_admins
+// (@pullup.se accounts, mig 126) — profiles.is_admin is retired. Cached.
 export async function isAdminUser(userId) {
   if (!userId) return false;
-  const { data } = await supabase.from("profiles").select("is_admin").eq("id", userId).maybeSingle();
-  return !!data?.is_admin;
+  const { getAdminByUserId } = await import("./platformAdmins.js");
+  return !!(await getAdminByUserId(userId));
 }
 
 // Admin "View as": resolve the EFFECTIVE viewer for a request. An admin may

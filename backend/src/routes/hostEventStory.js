@@ -16,8 +16,8 @@ export function registerHostEventStoryRoutes(app) {
       const { id } = req.params;
       const { isHost } = await isUserEventHost(req.user.id, id);
       if (!isHost) {
-        const profile = await getUserProfile(req.user.id);
-        if (!profile?.isAdmin) {
+        const { isAdminUser } = await import("../repos/people.js");
+        if (!(await isAdminUser(req.user.id))) {
           return res.status(403).json({ error: "Forbidden", message: "You don't have access to this event" });
         }
       }

@@ -142,6 +142,14 @@ function ProtectedLayoutInner() {
     }
   }, [profileChecked, isAdmin, location.pathname, navigate, showToast]);
 
+  // Admin accounts (@pullup.se, platform_admins) live in the dashboard, not
+  // the host Room — a fresh login landing on /room routes to the System inbox.
+  useEffect(() => {
+    if (profileChecked && isAdmin && location.pathname === "/room") {
+      navigate("/admin/inbox", { replace: true });
+    }
+  }, [profileChecked, isAdmin, location.pathname, navigate]);
+
   // On first authenticated load, link any existing newsletter subscriptions
   useEffect(() => {
     if (!loading && user) {
@@ -219,6 +227,7 @@ function ProtectedLayoutInner() {
 
   // Admin-only nav items
   const adminNavItems = [
+    { label: "Inbox", path: "/admin/inbox" },
     { label: "CRM", path: "/admin/crm" },
     { label: "Matching", path: "/admin/matches" },
     { label: "Analytics", path: "/admin/analytics" },

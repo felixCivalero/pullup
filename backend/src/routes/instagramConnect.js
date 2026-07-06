@@ -71,54 +71,45 @@ export function registerInstagramConnectRoutes(app) {
       );
       if (error) throw error;
 
-      // The concierge loop: make the requester a PERSON in the platform-
-      // concierge host's world (Felix's), so the notification below is a
-      // THREADED email — replying to it from his own mailbox is recognized as
-      // host-authored (processInboundEmail) and delivered to the requester by
-      // email + their PullUp Messages. Personal conversation, zero new UI.
-      let conciergePersonId = null;
-      const conciergeHostId =
-        process.env.CONCIERGE_HOST_PROFILE_ID || process.env.WHATSAPP_HOST_PROFILE_ID || null;
+      // The system chat: PullUp becomes a contact in the REQUESTER's Messages
+      // (eyes avatar, Official). The request is the ✦ log line; PullUp greets
+      // so the thread is born alive. Internal rows — the admin dashboard's
+      // System inbox answers here; no email is involved in the conversation.
       const requesterEmail = email || req.user.email || null;
-      if (conciergeHostId && requesterEmail) {
-        try {
-          const { findOrCreatePerson } = await import("../repos/people.js");
-          const person = await findOrCreatePerson(requesterEmail, name);
-          conciergePersonId = person?.id || null;
-          if (conciergePersonId) {
-            // The request IS the thread-starter: a system log line in the
-            // concierge dock (with the handle + note) that puts the requester
-            // in the concierge world so replies can flow. access_request, not
-            // message_in — the person didn't type these words.
-            const { logPersonEvent } = await import("../services/personTimeline.js");
-            await logPersonEvent({
-              personId: conciergePersonId,
-              hostId: conciergeHostId,
-              type: "access_request",
-              channel: "email",
-              body: `Requested Instagram early access — @${igHandle}${note ? `\n${note}` : ""}`,
-              metadata: { source: "ig_early_access", igHandle },
-            });
-          }
-        } catch (e) {
-          console.error("[ig-early-access] concierge person failed (non-blocking):", e?.message);
+      try {
+        const { getSystemPersonId } = await import("../repos/systemPerson.js");
+        const systemPersonId = await getSystemPersonId();
+        if (systemPersonId) {
+          const { logPersonEvent } = await import("../services/personTimeline.js");
+          await logPersonEvent({
+            personId: systemPersonId,
+            hostId: req.user.id,
+            type: "access_request",
+            channel: "email",
+            body: `Requested Instagram early access — @${igHandle}${note ? `\n${note}` : ""}`,
+            metadata: { source: "ig_early_access", igHandle },
+          });
+          await logPersonEvent({
+            personId: systemPersonId,
+            hostId: req.user.id,
+            type: "message_in",
+            channel: "email",
+            direction: "in",
+            body: "Got your Instagram request — Felix will reply to you right here once your account is added as a tester.",
+            metadata: { source: "system_auto" },
+          });
         }
+      } catch (e) {
+        console.error("[ig-early-access] system thread failed (non-blocking):", e?.message);
       }
 
-      // Tell Felix — the request is only useful if someone acts on it. Best
-      // effort: the durable row above is the source of truth either way.
+      // Plain heads-up ping to the shared mailbox (NOT the conversation — the
+      // admin dashboard's System inbox is where the reply happens).
       try {
         const { sendEmail } = await import("../services/emailService.js");
         await sendEmail({
           to: "hello@pullup.se",
           subject: `IG early access request: @${igHandle}`,
-          // personId + hostProfileId make this REPLIABLE: hitting reply sends
-          // through the two-way rail and lands in the requester's inbox AND
-          // their PullUp Messages, from the concierge host. The concierge tag
-          // makes that reply speak as PullUp (felix@pullup.se), system-voiced.
-          ...(conciergePersonId && conciergeHostId
-            ? { personId: conciergePersonId, hostProfileId: conciergeHostId, campaignTag: "concierge_access_request" }
-            : {}),
           text: [
             `Instagram early-access request`,
             ``,
@@ -126,13 +117,10 @@ export function registerInstagramConnectRoutes(app) {
             `Name: ${name || "—"}`,
             `Email: ${requesterEmail || "—"}`,
             `Note: ${note || "—"}`,
-            `Host id: ${req.user.id}`,
             `Tier: ${ent.plan}${ent.reason === "early" ? " (founding)" : ""}`,
             ``,
             `Add them as an internal tester in the Meta app.`,
-            conciergePersonId
-              ? `REPLY TO THIS EMAIL to answer them personally — your reply is delivered to their inbox and their PullUp Messages, as you.`
-              : `(Reply-threading unavailable for this request — answer them at ${requesterEmail || "their email"}.)`,
+            `Reply from the admin dashboard → System inbox: https://pullup.se/admin`,
           ].join("\n"),
         });
       } catch (e) {

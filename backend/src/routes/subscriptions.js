@@ -124,43 +124,45 @@ export function registerSubscriptionRoutes(app) {
         requesterName = profile?.name || profile?.brand || null;
       } catch { /* name is a nicety */ }
 
-      // Concierge loop: requester becomes a person in the concierge world,
-      // the request is the thread-starter, and the notification is repliable.
-      let conciergePersonId = null;
-      const conciergeHostId =
-        process.env.CONCIERGE_HOST_PROFILE_ID || process.env.WHATSAPP_HOST_PROFILE_ID || null;
-      if (conciergeHostId && requesterEmail) {
-        try {
-          const { findOrCreatePerson } = await import("../repos/people.js");
-          const person = await findOrCreatePerson(requesterEmail, requesterName);
-          conciergePersonId = person?.id || null;
-          if (conciergePersonId) {
-            const { logPersonEvent } = await import("../services/personTimeline.js");
-            await logPersonEvent({
-              personId: conciergePersonId,
-              hostId: conciergeHostId,
-              // A system log line in the thread (not person speech) that still
-              // counts as inbound contact awaiting the host's reply.
-              type: "access_request",
-              channel: "email",
-              body: `Requested Agency tier early access${note ? `\n${note}` : ""}`,
-              metadata: { source: "agency_tier_interest" },
-            });
-          }
-        } catch (e) {
-          console.error("[agency-interest] concierge person failed (non-blocking):", e?.message);
+      // The system chat: PullUp becomes a contact in the REQUESTER's Messages
+      // (eyes avatar, Official). The request is the ✦ log line; PullUp greets
+      // so the thread is born alive. Internal rows — the admin dashboard's
+      // System inbox answers here; no email is involved in the conversation.
+      try {
+        const { getSystemPersonId } = await import("../repos/systemPerson.js");
+        const systemPersonId = await getSystemPersonId();
+        if (systemPersonId) {
+          const { logPersonEvent } = await import("../services/personTimeline.js");
+          await logPersonEvent({
+            personId: systemPersonId,
+            hostId: req.user.id,
+            type: "access_request",
+            channel: "email",
+            body: `Requested Agency tier early access${note ? `\n${note}` : ""}`,
+            metadata: { source: "agency_tier_interest" },
+          });
+          await logPersonEvent({
+            personId: systemPersonId,
+            hostId: req.user.id,
+            type: "message_in",
+            channel: "email",
+            direction: "in",
+            body: "Got your Agency request — Felix will reply to you right here.",
+            metadata: { source: "system_auto" },
+          });
         }
+      } catch (e) {
+        console.error("[agency-interest] system thread failed (non-blocking):", e?.message);
       }
 
+      // Plain heads-up ping to the shared mailbox (NOT the conversation — the
+      // admin dashboard's System inbox is where the reply happens).
       try {
         const ent = await getEntitlement(req.user.id);
         const { sendEmail } = await import("../services/emailService.js");
         await sendEmail({
           to: "hello@pullup.se",
           subject: `Agency tier interest: ${requesterName || requesterEmail || req.user.id}`,
-          ...(conciergePersonId && conciergeHostId
-            ? { personId: conciergePersonId, hostProfileId: conciergeHostId, campaignTag: "concierge_access_request" }
-            : {}),
           text: [
             `Agency tier early-access request`,
             ``,
@@ -168,11 +170,8 @@ export function registerSubscriptionRoutes(app) {
             `Email: ${requesterEmail || "—"}`,
             `Current tier: ${ent.plan}${ent.reason === "early" ? " (founding)" : ""} · status ${ent.subscriptionStatus}`,
             `Note: ${note || "—"}`,
-            `Host id: ${req.user.id}`,
             ``,
-            conciergePersonId
-              ? `REPLY TO THIS EMAIL to answer them personally — your reply is delivered to their inbox and their PullUp Messages, as you.`
-              : `(Reply-threading unavailable — answer them at ${requesterEmail || "their email"}.)`,
+            `Reply from the admin dashboard → System inbox: https://pullup.se/admin`,
           ].join("\n"),
         });
       } catch (e) {

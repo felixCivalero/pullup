@@ -66,6 +66,7 @@ import { registerHostEventStoryRoutes } from "./routes/hostEventStory.js";
 import { registerAdminAnalyticsRoutes } from "./routes/adminAnalytics.js";
 import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminEcosystemRoutes } from "./routes/adminEcosystem.js";
+import { registerAdminSystemInboxRoutes } from "./routes/adminSystemInbox.js";
 import { registerAdminImpersonationRoutes } from "./routes/adminImpersonation.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
 import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
@@ -326,6 +327,8 @@ registerNewsletterRoutes(app);
 registerIdeaRoutes(app);
 
 registerAdminAnalyticsOverviewRoutes(app);
+
+registerAdminSystemInboxRoutes(app);
 
 registerHostAnalyticsRoutes(app);
 

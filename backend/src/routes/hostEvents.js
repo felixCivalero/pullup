@@ -139,8 +139,8 @@ app.get("/host/events/:id", requireAuth, async (req, res) => {
     const { isHost } = await isUserEventHost(req.user.id, event.id);
     let adminView = false;
     if (!isHost) {
-      const profile = await getUserProfile(req.user.id);
-      adminView = !!profile?.isAdmin;
+      const { isAdminUser } = await import("../repos/people.js");
+      adminView = await isAdminUser(req.user.id);
     }
     if (!isHost && !adminView) {
       return res.status(403).json({

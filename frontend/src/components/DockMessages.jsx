@@ -357,13 +357,19 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // Live bulk-send status: { groups: {channel:{total,done,failed}}, total, done, failed, complete }.
   const [sendProgress, setSendProgress] = useState(null);
   const selectedPeople = useMemo(() => (people || []).filter((p) => selected.includes(p.id)), [people, selected]);
-  function toggleSel(id) { setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])); }
+  // The system person (PullUp) is a contact for service chat, never an
+  // audience member — every bulk path works off this list, not `list`.
+  const broadcastList = useMemo(() => list.filter((p) => !isSystemPerson(p)), [list]);
+  function toggleSel(id) {
+    if ((people || []).some((p) => p.id === id && isSystemPerson(p))) return; // can't select PullUp
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
   function exitSelect() { setSelecting(false); setSelected([]); setBroadcast(false); setSendProgress(null); }
   // Select-all over the currently-filtered list (event/channel/search aware).
-  const allVisibleSelected = list.length > 0 && list.every((p) => selected.includes(p.id));
+  const allVisibleSelected = broadcastList.length > 0 && broadcastList.every((p) => selected.includes(p.id));
   function toggleSelectAll() {
-    if (allVisibleSelected) setSelected((s) => s.filter((id) => !list.some((p) => p.id === id)));
-    else setSelected((s) => [...new Set([...s, ...list.map((p) => p.id)])]);
+    if (allVisibleSelected) setSelected((s) => s.filter((id) => !broadcastList.some((p) => p.id === id)));
+    else setSelected((s) => [...new Set([...s, ...broadcastList.map((p) => p.id)])]);
   }
   async function sendBroadcast(e) {
     e.preventDefault();
@@ -401,8 +407,8 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // Without this, a filter only narrows the list with no way to message it —
   // the gap that made "where do I write?" unanswerable.
   function messageAudience() {
-    if (!list.length) return;
-    setSelected(list.map((p) => p.id));
+    if (!broadcastList.length) return;
+    setSelected(broadcastList.map((p) => p.id));
     setDraft(""); setSubject(""); setAttachments([]); setSmartOpen(false); setSendProgress(null);
     setSelecting(false);
     setBroadcast(true);
@@ -930,12 +936,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
             <button onClick={() => (selecting ? exitSelect() : setSelecting(true))} style={{ ...iconBtn, fontSize: 12.5, fontWeight: 700, color: selecting ? D.pink : D.muted, padding: "4px 8px" }}>{selecting ? "Done" : "Select"}</button>
           </div>
 
-          {list.length > 0 && !selecting && (
+          {broadcastList.length > 0 && !selecting && (
             <button onClick={messageAudience}
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "11px", borderRadius: 12, border: "none", background: D.youGrad, color: "#fff", fontWeight: 800, fontSize: 13.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(236,23,143,0.22)" }}>
               <PenLine size={16} /> {(activeFilterCount > 0 || q.trim())
-                ? `Write to these ${list.length} ${list.length === 1 ? "person" : "people"}`
-                : `Write to everyone · ${list.length}`}
+                ? `Write to these ${broadcastList.length} ${broadcastList.length === 1 ? "person" : "people"}`
+                : `Write to everyone · ${broadcastList.length}`}
             </button>
           )}
 

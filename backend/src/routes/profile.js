@@ -17,7 +17,12 @@ export function registerProfileRoutes(app) {
   app.get("/host/profile", requireAuth, async (req, res) => {
     try {
       const profile = await getUserProfile(req.user.id);
-      res.json(profile);
+      // isAdmin now means "platform admin" (a granted @pullup.se account,
+      // mig 126) — the whole frontend gates the gold nav on this one flag.
+      // profiles.is_admin is retired; hosts are just hosts.
+      const { getAdminByEmail } = await import("../repos/platformAdmins.js");
+      const admin = await getAdminByEmail(req.user.email);
+      res.json({ ...profile, isAdmin: !!admin, adminRole: admin?.role || null });
     } catch (error) {
       console.error("Error fetching profile:", error);
       res.status(500).json({ error: "Failed to fetch profile" });

@@ -80,6 +80,7 @@ const AnalyticsPage = lazyPage(() => import("./pages/AnalyticsPage"), "Analytics
 const IdeasPage = lazyPage(() => import("./pages/IdeasPage"), "IdeasPage");
 const AdminEventsPage = lazyPage(() => import("./pages/AdminEventsPage"), "AdminEventsPage");
 const AdminCrmPage = lazyPage(() => import("./pages/AdminCrmPage"), "AdminCrmPage");
+const AdminInboxPage = lazyPage(() => import("./pages/AdminInboxPage"), "AdminInboxPage");
 const AdminMatchesPage = lazyPage(() => import("./pages/AdminMatchesPage"), "AdminMatchesPage");
 const AdminPresentationPage = lazyPage(() => import("./pages/AdminPresentationPage"), "AdminPresentationPage");
 const EventAnalyticsPage = lazyPage(() => import("./pages/EventAnalyticsPage"), "EventAnalyticsPage");
@@ -213,6 +214,7 @@ function App() {
           <Route path="/crm" element={<Navigate to="/room" replace />} />
           <Route path="/crm/compose" element={<Navigate to="/room" replace />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/inbox" element={<AdminInboxPage />} />
           <Route path="/admin/discover" element={<DiscoverPage />} />
           <Route path="/admin/analytics" element={<AnalyticsPage />} />
           {/* /admin/sales was folded into /admin/crm — keep the URL as a

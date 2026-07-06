@@ -197,7 +197,7 @@ export default function NodeProfilePage() {
               You're in{justJoined.name ? `, ${String(justJoined.name).split(" ")[0]}` : ""} — welcome to {firstName(node.name)}'s community
             </p>
             <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
-              Verify your email to step inside — tap the link we sent{justJoined.email ? ` to ${justJoined.email}` : ""} and the room opens as you.
+              Verify your email to step inside — open the welcome we sent{justJoined.email ? ` to ${justJoined.email}` : ""} and tap "Open the room". That's it: verified, signed in, inside.
             </p>
             <button
               onClick={resendSignInLink}

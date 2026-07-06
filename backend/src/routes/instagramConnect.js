@@ -86,16 +86,16 @@ export function registerInstagramConnectRoutes(app) {
           const person = await findOrCreatePerson(requesterEmail, name);
           conciergePersonId = person?.id || null;
           if (conciergePersonId) {
-            // The request IS the thread-starter: it shows up in the concierge
-            // dock as an inbound message (with the handle + note), and it puts
-            // the requester in the concierge world so replies can flow.
+            // The request IS the thread-starter: a system log line in the
+            // concierge dock (with the handle + note) that puts the requester
+            // in the concierge world so replies can flow. access_request, not
+            // message_in — the person didn't type these words.
             const { logPersonEvent } = await import("../services/personTimeline.js");
             await logPersonEvent({
               personId: conciergePersonId,
               hostId: conciergeHostId,
-              type: "message_in",
+              type: "access_request",
               channel: "email",
-              direction: "in",
               body: `Requested Instagram early access — @${igHandle}${note ? `\n${note}` : ""}`,
               metadata: { source: "ig_early_access", igHandle },
             });

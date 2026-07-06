@@ -109,7 +109,7 @@ export function NotificationsBell() {
     setOpen(false);
     // Take the host to where they can act on it. A message / thank-a-guest →
     // pop their thread (the action is to reply).
-    if ((s.type === "message_in" || s.type === "attended") && s.personId) {
+    if ((s.type === "message_in" || s.type === "access_request" || s.type === "attended") && s.personId) {
       window.dispatchEvent(new CustomEvent("pullup:open-thread", { detail: { personId: s.personId } }));
       return;
     }

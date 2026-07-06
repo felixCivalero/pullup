@@ -26,18 +26,35 @@ import { dispatch } from "../messaging/dispatch.js";
 import { supabase } from "../supabase.js";
 import { canHost } from "./billing/entitlements.js";
 
-// Build a "Name <addr>" From header from a display name. The address part
-// always comes from SES_FROM_EMAIL — the host display name is the only thing
-// we override (a warmer From without exposing the domain config). Inlined here
-// when the campaign sender (its original home) was removed.
-function buildFromHeader(displayName) {
+// Build a "Name <addr>" From header from a display name. By default the
+// address comes from SES_FROM_EMAIL (the platform sender) and only the display
+// name is the host's. But a host who OWNS a mailbox on our sending domain
+// (felix@pullup.se) writes as themselves — pass their address and the email is
+// genuinely from them, not "the system wearing their name". That's the
+// difference between service communication and a person talking.
+function buildFromHeader(displayName, address = null) {
   const m = SES_FROM_EMAIL.match(/<([^>]+)>/);
-  const address = m ? m[1] : SES_FROM_EMAIL;
+  const platformAddress = m ? m[1] : SES_FROM_EMAIL;
+  const addr = address || platformAddress;
   if (displayName && typeof displayName === "string" && displayName.trim()) {
     const safe = displayName.replace(/["\r\n]/g, "").trim();
-    return `"${safe}" <${address}>`;
+    return `"${safe}" <${addr}>`;
   }
-  return SES_FROM_EMAIL;
+  return address ? addr : SES_FROM_EMAIL;
+}
+
+// The host's own address on OUR sending domain, if they have one (profile
+// contact_email or additional_emails ending in @<our-domain>). Only addresses
+// on the platform domain are usable — Resend can only sign what we verify.
+function hostOwnSendAddress(profile) {
+  const dm = SES_FROM_EMAIL.match(/@([A-Za-z0-9.-]+)/);
+  const domain = dm ? dm[1].replace(/[>"\s].*$/, "") : null;
+  if (!domain) return null;
+  const candidates = [profile?.contactEmail, ...(Array.isArray(profile?.emails) ? profile.emails : [])];
+  const own = candidates.find(
+    (e) => typeof e === "string" && e.toLowerCase().trim().endsWith(`@${domain}`),
+  );
+  return own ? own.toLowerCase().trim() : null;
 }
 
 const FRONTEND_BASE =
@@ -293,7 +310,7 @@ export async function sendRoomMessage({ hostId, personId, channel = "email", tex
       subject: subj,
       htmlBody,
       textBody: textBodyWith(bodyForText, atts, evt),
-      fromEmail: buildFromHeader(fromName),
+      fromEmail: buildFromHeader(fromName, hostOwnSendAddress(profile)),
       category: "transactional",
     },
     humanComposed: true,

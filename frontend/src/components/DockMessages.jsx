@@ -58,6 +58,7 @@ const LOG = {
   waitlist_join: { Icon: Hourglass, c: "#b45309" },
   rsvp_cancel: { Icon: X, c: "rgba(10,10,10,0.40)" },
   payment: { Icon: CreditCard, c: "#16a34a" },
+  access_request: { Icon: Sparkles, c: "#7c3aed" }, // "request early access" click — a log, not person speech
 };
 const logMeta = (type) => LOG[type] || { Icon: CircleDot, c: "rgba(10,10,10,0.40)" };
 const TINTS = ["#ec178f", "#0d9488", "#ea580c", "#7c3aed", "#1478c8", "#e11d48"];

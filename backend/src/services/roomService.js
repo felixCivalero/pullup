@@ -223,6 +223,7 @@ const TYPE_VERB = {
   attended: "Attended", payment: "Paid", page_view: "Viewed the page",
   message_in: "Messaged you", message_out: "You messaged", auto_dm_sent: "Auto-DM sent",
   host_logged: "You logged", acquired: "Found you", identity_linked: "Linked identity", note: "Note",
+  access_request: "Requested early access",
 };
 
 // The events table is now shared substrate for several page kinds (event /
@@ -700,7 +701,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     // if that's inbound, the host still owes them a reply ("unread").
     const lastMsgEv = evs.find((e) => MESSAGE_EVENT_TYPES.has(e.type));
     const lastMessageAt = lastMsgEv?.occurred_at || null;
-    const awaitingReply = lastMsgEv?.type === "message_in";
+    const awaitingReply = lastMsgEv?.type === "message_in" || lastMsgEv?.type === "access_request";
 
     // The two edges + derived segment for this person.
     const isCommunityMember = communityMemberIds.has(pid);
@@ -960,7 +961,10 @@ function describeRelationship({ attended, rsvps, eventsTouched, waitlisted, last
 // The timeline types that count as a written message (as opposed to a logged
 // action like rsvp/attended). Drives the messages-list ordering: a thread sorts
 // by its latest message, and "awaiting reply" = that latest message is inbound.
-const MESSAGE_EVENT_TYPES = new Set(["message_in", "message_out", "auto_dm_sent"]);
+// access_request counts too: a "request early access" click is inbound contact
+// — it must place the person in the Messages list and read as awaiting a reply,
+// even though the thread renders it as a system log line, not person speech.
+const MESSAGE_EVENT_TYPES = new Set(["message_in", "message_out", "auto_dm_sent", "access_request"]);
 
 function suggestMove({ waitlisted, attended, lastAt, rsvps }) {
   const days = lastAt ? (Date.now() - new Date(lastAt).getTime()) / 86400000 : 999;
@@ -1100,10 +1104,11 @@ function lineFor(e, eventTitleById) {
 // place that turns a raw event + resolved name/title into a signal — shared by
 // the Room payload (buildSignals) and the bell's feed (getNotificationsFeed) so
 // the wording never drifts between them.
-const NOTABLE_TYPES = ["message_in", "waitlist_join", "rsvp", "attended"];
+const NOTABLE_TYPES = ["message_in", "waitlist_join", "rsvp", "attended", "access_request"];
 function signalFromEvent(e, name, title) {
   let kind = "plain", text;
   if (e.type === "message_in") { kind = "urgent"; text = `${name} messaged you — reply while it's fresh.`; }
+  else if (e.type === "access_request") { kind = "urgent"; text = `${name} requested early access — reply while it's fresh.`; }
   else if (e.type === "waitlist_join") { kind = "urgent"; text = `${name} joined the waitlist${title ? ` for ${title}` : ""}.`; }
   else if (e.type === "attended") { kind = "warm"; text = `${name} came to ${title || "your event"} — worth a thank-you.`; }
   else { text = `${name} RSVP'd${title ? ` to ${title}` : ""}.`; }

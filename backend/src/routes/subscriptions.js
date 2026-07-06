@@ -139,9 +139,10 @@ export function registerSubscriptionRoutes(app) {
             await logPersonEvent({
               personId: conciergePersonId,
               hostId: conciergeHostId,
-              type: "message_in",
+              // A system log line in the thread (not person speech) that still
+              // counts as inbound contact awaiting the host's reply.
+              type: "access_request",
               channel: "email",
-              direction: "in",
               body: `Requested Agency tier early access${note ? `\n${note}` : ""}`,
               metadata: { source: "agency_tier_interest" },
             });

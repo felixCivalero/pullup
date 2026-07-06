@@ -237,7 +237,10 @@ export async function handleResendInboundEvent({ rawBody, body, headers }) {
   const parsed = {
     from: (d.from || "").toLowerCase().trim() || null,
     toAddresses: d.to || [],
-    subject: d.subject || null,
+    // The webhook metadata often omits subject — the fetched headers carry it.
+    // Host-authored replies reuse it ("Re: …"), so losing it turns a personal
+    // reply into a canned "A note from …".
+    subject: d.subject || hdrs.subject || null,
     text,
     // Resend's email_id is stable + unique → our idempotency / dedupe key.
     messageId: d.email_id || d.message_id || null,

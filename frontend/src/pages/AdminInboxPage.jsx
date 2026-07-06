@@ -101,6 +101,21 @@ export function AdminInboxPage() {
 
   const TITLES = { globe: "The world", requests: "Requests", admins: "Admins" };
 
+  if (me && !me.isAdmin) {
+    return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
+  }
+
+  async function setRequestStatus(item, status) {
+    await authenticatedFetch(`/admin/requests/${item.kind === "instagram" ? "instagram" : item.kind}/${item.host_id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    }).catch(() => {});
+    loadRequests();
+  }
+
+  const statusChip = (s) => (
+    <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 9px", borderRadius: 999, background: s === "onboarded" ? "rgba(22,163,74,0.1)" : s === "declined" ? "rgba(10,10,10,0.06)" : "rgba(180,83,9,0.1)", color: s === "onboarded" ? C.green : s === "declined" ? C.muted : C.amber }}>{s}</span>
+  );
+
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 60px", color: C.ink }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>

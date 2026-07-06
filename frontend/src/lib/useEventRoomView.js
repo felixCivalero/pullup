@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { authenticatedFetch } from "./api.js";
+import { authenticatedFetch, publicFetch } from "./api.js";
+import { supabase } from "./supabase.js";
 
 // Page-shaped load for the event Room: ONE call (GET /events/:id/room-view)
 // returns the access verdict PLUS everything the page needs for first paint —
@@ -11,6 +12,7 @@ export function useEventRoomView(eventId) {
   const [state, setState] = useState({
     loading: true,
     level: null,
+    verified: false,
     role: null,
     realHost: false,
     reason: null,
@@ -36,9 +38,20 @@ export function useEventRoomView(eventId) {
     let alive = true;
     const fail = () =>
       alive &&
-      setState({ loading: false, level: "no_access", role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null, products: null, content: null, contentCan: null, pages: null });
+      setState({ loading: false, level: "no_access", verified: false, role: null, realHost: false, reason: "error", phase: null, event: null, permissions: null, personId: null, roster: null, channels: null, messages: null, coPresent: null, products: null, content: null, contentCan: null, pages: null });
 
-    authenticatedFetch(`/events/${eventId}/room-view`)
+    // Signed in → authenticatedFetch (session drives the verdict). No session →
+    // publicFetch, so the endpoint can still answer with a read-only PREVIEW of
+    // the room shell (verify-to-step-in) instead of a hard wall. The server
+    // never trusts the anonymous caller with anything social.
+    (async () => {
+      let hasSession = false;
+      try {
+        const { data } = await supabase.auth.getSession();
+        hasSession = !!data?.session?.access_token;
+      } catch { /* treat as anonymous */ }
+      return (hasSession ? authenticatedFetch : publicFetch)(`/events/${eventId}/room-view`);
+    })()
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!alive) return;
@@ -47,6 +60,7 @@ export function useEventRoomView(eventId) {
         setState({
           loading: false,
           level: a.level,
+          verified: !!a.verified,
           role: a.role,
           realHost: !!a.realHost,
           reason: a.reason,

@@ -76,9 +76,15 @@ export async function resolveAccessPayload(req, eventId) {
     realHost = !!r.isHost;
   }
 
+  // Verified == holds a real session (host or a resolved guest person). A
+  // "preview" viewer is unverified — they see the shell, nothing social.
+  const verified = access.level === "host"
+    || ["guest_pullup", "guest_rsvp", "guest_waitlist"].includes(access.level);
+
   return {
     eventId,
-    level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | no_access
+    level: access.level, // host | guest_pullup | guest_rsvp | guest_waitlist | preview | no_access
+    verified, // true only with a verified session; false for preview/no_access
     role: access.role || null, // host sub-role: owner | co_host | editor | reception | analytics
     // The viewer's resolved person id (the impersonated person under a View-as
     // lens). The room uses it to know which posts are YOURS — reliably, by id,

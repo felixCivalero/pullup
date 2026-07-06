@@ -421,7 +421,30 @@ export async function resolveEventAccess({ userId = null, personId = null, event
     const { isHost, role } = await isUserEventHost(userId, eventId);
     if (isHost) return { level: "host", role: role || "owner", reason: null };
   }
-  if (!personId) return { level: "no_access", reason: "no_identity" };
+  if (!personId) {
+    // No verified session. A browser only holds one by proving the inbox
+    // (magic link) or logging in, so "no session" == "unverified". Offer a
+    // READ-ONLY PREVIEW of the room shell — but only when the room's lobby is
+    // readable; a host who closed lobby read wants a hard verify wall, not a
+    // peek. Preview NEVER carries a social capability: post/seeWho/upload/
+    // download all require a verified session, enforced by the state machine
+    // AND the write routes (which reject a request with no resolved person).
+    if (!userId) {
+      const { data: pv } = await supabase
+        .from("events").select("status, room_permissions").eq("id", eventId).maybeSingle();
+      // Never preview a draft — its shell (title/cover) isn't public yet. Only
+      // a PUBLISHED room, and only when its lobby is readable, gets the peek.
+      const published = String(pv?.status || "").toUpperCase() === "PUBLISHED";
+      if (published && resolveCapabilities(pv, "lobby").read === true) {
+        return {
+          level: "preview",
+          reason: "unverified",
+          permissions: { read: true, post: false, seeWho: false, upload: false, download: false },
+        };
+      }
+    }
+    return { level: "no_access", reason: "no_identity" };
+  }
   const room = await getRoomAccess(personId, eventId, nowMs);
   if (room.access === "pulledup") return { level: "guest_pullup", reason: null, phase: room.phase, permissions: room.permissions };
   if (room.access === "lobby") return { level: "guest_rsvp", reason: null, phase: room.phase, permissions: room.permissions };

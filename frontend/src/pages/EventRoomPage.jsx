@@ -45,6 +45,7 @@ import { hasEventEnded } from "../lib/eventLifecycle.js";
 import { RoomProductShowcase } from "../components/room/RoomProductShowcase.jsx";
 import { RoomProductManager } from "../components/room/RoomProductManager.jsx";
 import RoomContentWall from "../components/room/RoomContentWall.jsx";
+import RoomPreview from "../components/room/RoomPreview.jsx";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -606,6 +607,9 @@ export default function EventRoomPage() {
   // which others appear is the host's Pages config (live-overridable on save).
   const [activeTab, setActiveTab] = useState("wall");
   const [pagesOverride, setPagesOverride] = useState(null);
+  // An unverified viewer (no session) tapping "Verify my email" on the preview
+  // swaps to the real auth wall — the canonical verified-entry flow.
+  const [previewVerify, setPreviewVerify] = useState(false);
 
   // The host view needs the roster data; load it once the gate confirms we own
   // the event. A GUEST gets no management nav (no myRole → no Guests/Insights/
@@ -696,6 +700,14 @@ export default function EventRoomPage() {
   // A door scan is still resolving while we hold a live code or a stashed pass
   // and it hasn't failed — the effect above is recording the pull-up right now.
   const scanInFlight = (hasLiveCode || !!storedPass) && !scanFailed;
+  // Unverified (no session) but the room allows a peek → the read-only PREVIEW:
+  // the room's shell + a verify badge, every social surface locked. Tapping
+  // verify swaps to the real auth wall. A door scan mid-flight skips the peek —
+  // that path verifies via the light DoorVerify below and lands them inside.
+  if (level === "preview" && !scanInFlight) {
+    if (previewVerify) return <AuthGate redirectTo={`/events/${id}/room${typeof window !== "undefined" ? window.location.search : ""}`} />;
+    return <RoomPreview event={event} onVerify={() => setPreviewVerify(true)} />;
+  }
   if (!user || level === "no_session") {
     // At the door (a scan is in flight) → the light guest step-2: verify it's
     // you with an email code, never the host onboarding modal. Verifying mints a

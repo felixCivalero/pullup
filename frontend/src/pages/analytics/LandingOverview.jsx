@@ -19,27 +19,39 @@ import {
 // The landing page's beats, in scroll order — keep in sync with the
 // data-mk-section stamps in LandingPage.jsx.
 const SECTION_LABELS = {
-  hero: "Hero",
-  proof: "Proof wall",
-  room: "01 · The Room",
-  person: "02 · Every person",
-  chat: "03 · One chat",
-  fill: "04 · Fill the room",
-  mcp: "05 · No new app",
-  final_cta: "Final CTA",
-  showcase: "Showcase wall",
-  coda: "Founder's note",
+  // The hero-heavy redesign (Jul 2026) — beats in scroll order.
+  hero: "Hero — poster field",
+  proof: "Brand proof marquee",
+  story: "The journey (phone)",
+  flip: "The flip ticker",
+  feature_autodm: "Bento · Auto-DM",
+  feature_inbox: "Bento · One inbox",
+  feature_crm: "Bento · People CRM",
+  feature_db: "Bento · Own your data",
+  feature_mcp: "Bento · MCP",
+  join: "Join — pricing",
   footer: "Footer — the very bottom",
+  // Pre-redesign beats, kept for historical ranges.
+  room: "01 · The Room (old)",
+  person: "02 · Every person (old)",
+  chat: "03 · One chat (old)",
+  fill: "04 · Fill the room (old)",
+  mcp: "05 · No new app (old)",
+  final_cta: "Final CTA (old)",
+  showcase: "Showcase wall (old)",
+  coda: "Founder's note (old)",
 };
 
 // Human names for the cta_click location tags. The first four are the live
 // page; the two "retired" ones are buttons from the pre-Jun-4-2026 landing
 // layout that still show up in historical ranges.
 const CTA_META = {
-  nav: { label: "Get started", place: "top bar" },
+  nav: { label: "Start hosting", place: "top bar" },
   nav_login: { label: "Log in", place: "top bar" },
-  hero: { label: "Get started", place: "hero" },
-  final: { label: "Get started", place: "bottom CTA" },
+  hero: { label: "Start hosting", place: "hero" },
+  join_pricing: { label: "Start hosting", place: "join / pricing" },
+  join_login: { label: "Log in", place: "join / pricing" },
+  final: { label: "Get started", place: "old landing", retired: true },
   hero_events: { label: "Events path", place: "old landing", retired: true },
   hero_marketing: { label: "Creator path", place: "old landing", retired: true },
 };
@@ -96,11 +108,12 @@ export function LandingOverview({ dateRange }) {
     [visitDays]
   );
 
-  // The real front-door conversion now: creators joining the waitlist.
-  const waitlistJoinsByDate = useMemo(() => {
+  // The front-door conversion now: landing-born host accounts (waitlist gone).
+  const signupsByDate = useMemo(() => {
     const map = {};
-    for (const row of data?.waitlistSeries || []) {
-      map[row.day] = (map[row.day] || 0) + Number(row.joins || 0);
+    for (const row of data?.signupSeries || []) {
+      if ((row.origin || "landing") !== "landing") continue;
+      map[row.day] = (map[row.day] || 0) + Number(row.signups || 0);
     }
     return map;
   }, [data]);
@@ -139,8 +152,8 @@ export function LandingOverview({ dateRange }) {
   const k = data.kpis || {};
   const sessions = Number(k.sessions || 0);
   const bounceRate = sessions > 0 ? pct(Number(k.bouncedSessions || 0), sessions) : null;
-  const waitlistJoins = Number(k.waitlistJoins || 0);
-  const conversion = k.visitors ? ((waitlistJoins / k.visitors) * 100).toFixed(1) : "0.0";
+  const newSubscribers = Number(k.newSubscribers || 0);
+  const conversion = k.visitors ? ((Number(k.landingSignups || 0) / k.visitors) * 100).toFixed(1) : "0.0";
   const matrix = data.originMatrix || {};
   const funnel = data.ctaFunnel || {};
   const device = data.deviceSplit || {};
@@ -159,8 +172,8 @@ export function LandingOverview({ dateRange }) {
             color={colors.textMuted}
             hint={sessions === 0 ? "collecting from the new tracker" : null}
           />
-          <Kpi value={waitlistJoins.toLocaleString()} label="waitlist joins" color={colors.accent} change={pctChange(waitlistJoins, k.prevWaitlistJoins)} />
-          <Kpi value={`${conversion}%`} label="visit → waitlist" color={colors.secondary} />
+          <Kpi value={newSubscribers.toLocaleString()} label="new subscribers" color={colors.accent} change={pctChange(newSubscribers, k.prevNewSubscribers)} />
+          <Kpi value={`${conversion}%`} label="visit → account" color={colors.secondary} />
           <Kpi value={Number(k.landingSignups || 0).toLocaleString()} label="host signups" color={colors.textMuted} change={pctChange(k.landingSignups, k.prevLandingSignups)} />
           {(device.mobile > 0 || device.desktop > 0) && (
             <DeviceDonut mobile={Number(device.mobile || 0)} desktop={Number(device.desktop || 0)} />
@@ -176,9 +189,9 @@ export function LandingOverview({ dateRange }) {
             daily={visitDays}
             allSources={allSources}
             lineOverlay={{
-              byDate: waitlistJoinsByDate,
+              byDate: signupsByDate,
               color: colors.accent,
-              label: "waitlist joins",
+              label: "host signups",
             }}
           />
         </div>
@@ -192,7 +205,7 @@ export function LandingOverview({ dateRange }) {
 
       {/* ─── CTA funnel ─── */}
       <div style={{ marginBottom: 28 }}>
-        <SectionLabel>From visit to the waitlist</SectionLabel>
+        <SectionLabel>From visit to paying host</SectionLabel>
         <CtaFunnel funnel={funnel} locations={data.ctaLocations || []} />
       </div>
 
@@ -280,8 +293,10 @@ function ScrollStory({ sections, baseline }) {
 function CtaFunnel({ funnel, locations }) {
   const stages = [
     { key: "viewed", label: "Visited" },
-    { key: "ctaClicked", label: "Clicked “Join”" },
-    { key: "waitlistJoined", label: "Joined waitlist" },
+    { key: "ctaClicked", label: "Clicked a CTA" },
+    { key: "startReached", label: "Reached /start" },
+    { key: "signups", label: "Created account" },
+    { key: "subscribed", label: "Subscribed" },
   ];
   const base = Number(funnel.viewed || 0) || 1;
   return (

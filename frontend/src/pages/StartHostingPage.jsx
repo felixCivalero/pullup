@@ -19,6 +19,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { useAuth } from "../contexts/AuthContext";
 import { AuthCard } from "../components/AuthCard";
 import { useSubscription } from "../lib/useSubscription.js";
+import { trackPageView } from "../lib/track.js";
 import { authenticatedFetch } from "../lib/api.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { colors } from "../theme/colors.js";
@@ -94,6 +95,8 @@ function StepHeader({ active }) {
 
 export function StartHostingPage() {
   const navigate = useNavigate();
+  // The funnel step between a landing CTA and an account: reaching the wall.
+  useEffect(() => { trackPageView("start"); }, []);
   const { user, loading: authLoading } = useAuth();
   const { sub, loading: subLoading } = useSubscription(); // also finishes a returning payment (?session_id sync)
   const [checkoutInstance, setCheckoutInstance] = useState(null); // Stripe embedded checkout

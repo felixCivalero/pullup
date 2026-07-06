@@ -263,7 +263,7 @@ export function AuthCard({
   const handleEmailVerify = async () => {
     if (signingIn) return;
     const token = emailCode.trim();
-    if (token.length < 6) { setFormError("Enter the 6-digit code we sent."); return; }
+    if (token.length < 6) { setFormError("Enter the code from the email we sent."); return; }
     setFormError("");
     try {
       setSigningIn(true);
@@ -499,10 +499,10 @@ export function AuthCard({
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
+                maxLength={10}
                 value={emailCode}
-                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="6-digit code"
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="Code from the email"
                 tabIndex={emailOpen ? 0 : -1}
                 style={{ ...inputStyle, letterSpacing: "0.3em", fontSize: 18 }}
               />

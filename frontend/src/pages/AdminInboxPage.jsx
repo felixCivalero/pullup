@@ -117,7 +117,7 @@ function EventsMap({ events, onPick }) {
   return <div ref={el} style={{ height: 440, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.line}` }} />;
 }
 
-export default function AdminInboxPage() {
+export function AdminInboxPage() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [me, setMe] = useState(null); // { isAdmin, role }

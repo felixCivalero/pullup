@@ -87,6 +87,104 @@ export function registerSubscriptionRoutes(app) {
     }
   });
 
+  // ── Agency tier interest ───────────────────────────────────────────────
+  // Agency is functionally identical to Creator today, so it isn't directly
+  // purchasable — it's a "request early access" that measures desire and
+  // opens the concierge loop (dock thread + a repliable hello@ email, same
+  // as Instagram early access). Any signed-in host may raise their hand.
+  app.get("/host/subscription/agency-interest", requireAuth, async (req, res) => {
+    try {
+      const { data } = await supabase
+        .from("tier_access_requests")
+        .select("status, created_at")
+        .eq("host_id", req.user.id)
+        .eq("tier", "agency")
+        .maybeSingle();
+      res.json({ requested: !!data, request: data || null });
+    } catch (e) {
+      console.error("[agency-interest] status failed:", e?.message);
+      res.json({ requested: false, request: null }); // cosmetic read — fail soft
+    }
+  });
+
+  app.post("/host/subscription/agency-interest", requireAuth, async (req, res) => {
+    try {
+      const note = String(req.body?.note || "").trim().slice(0, 1000) || null;
+      const { error } = await supabase.from("tier_access_requests").upsert(
+        { host_id: req.user.id, tier: "agency", note, status: "pending", updated_at: new Date().toISOString() },
+        { onConflict: "host_id,tier" },
+      );
+      if (error) throw error;
+
+      const requesterEmail = req.user.email || null;
+      let requesterName = null;
+      try {
+        const { getUserProfile } = await import("../repos/profiles.js");
+        const profile = await getUserProfile(req.user.id);
+        requesterName = profile?.name || profile?.brand || null;
+      } catch { /* name is a nicety */ }
+
+      // Concierge loop: requester becomes a person in the concierge world,
+      // the request is the thread-starter, and the notification is repliable.
+      let conciergePersonId = null;
+      const conciergeHostId =
+        process.env.CONCIERGE_HOST_PROFILE_ID || process.env.WHATSAPP_HOST_PROFILE_ID || null;
+      if (conciergeHostId && requesterEmail) {
+        try {
+          const { findOrCreatePerson } = await import("../repos/people.js");
+          const person = await findOrCreatePerson(requesterEmail, requesterName);
+          conciergePersonId = person?.id || null;
+          if (conciergePersonId) {
+            const { logPersonEvent } = await import("../services/personTimeline.js");
+            await logPersonEvent({
+              personId: conciergePersonId,
+              hostId: conciergeHostId,
+              type: "message_in",
+              channel: "email",
+              direction: "in",
+              body: `Requested Agency tier early access${note ? `\n${note}` : ""}`,
+              metadata: { source: "agency_tier_interest" },
+            });
+          }
+        } catch (e) {
+          console.error("[agency-interest] concierge person failed (non-blocking):", e?.message);
+        }
+      }
+
+      try {
+        const ent = await getEntitlement(req.user.id);
+        const { sendEmail } = await import("../services/emailService.js");
+        await sendEmail({
+          to: "hello@pullup.se",
+          subject: `Agency tier interest: ${requesterName || requesterEmail || req.user.id}`,
+          ...(conciergePersonId && conciergeHostId
+            ? { personId: conciergePersonId, hostProfileId: conciergeHostId }
+            : {}),
+          text: [
+            `Agency tier early-access request`,
+            ``,
+            `Name: ${requesterName || "—"}`,
+            `Email: ${requesterEmail || "—"}`,
+            `Current tier: ${ent.plan}${ent.reason === "early" ? " (founding)" : ""} · status ${ent.subscriptionStatus}`,
+            `Note: ${note || "—"}`,
+            `Host id: ${req.user.id}`,
+            ``,
+            conciergePersonId
+              ? `REPLY TO THIS EMAIL to answer them personally — your reply is delivered to their inbox and their PullUp Messages, as you.`
+              : `(Reply-threading unavailable — answer them at ${requesterEmail || "their email"}.)`,
+          ].join("\n"),
+        });
+      } catch (e) {
+        console.error("[agency-interest] notify email failed:", e?.message);
+      }
+
+      res.json({ ok: true, requested: true });
+    } catch (e) {
+      console.error("[agency-interest] request failed:", e?.message);
+      res.status(500).json({ error: "request_failed" });
+    }
+  });
+
   // Upgrade/downgrade in place — Stripe prorates, the plan flips immediately.
   app.post("/host/subscription/change-tier", requireAuth, async (req, res) => {
     try {

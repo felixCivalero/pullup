@@ -74,22 +74,43 @@ const TIER_DESC = {
 // optional upgrade.
 // busy is WHICH action is loading (e.g. "tier:creator", "portal") — only the
 // pressed button shows its spinner text; the rest just disable.
-function TierChooser({ tiers, busy, onSubscribe, cta }) {
+// Agency is functionally identical to Creator today, so it isn't directly
+// purchasable — the row shows the price as a POTENTIAL tier and takes an
+// early-access request instead (the desire-meter).
+function TierChooser({ tiers, busy, onSubscribe, cta, agencyRequested, onRequestAgency }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {["creator", "agency"].map((name) => (
-        <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surface }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>
-              {TIER_LABEL[name]} · {tiers[name]?.priceSek} kr/month
+      {["creator", "agency"].map((name) => {
+        const isAgency = name === "agency";
+        return (
+          <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", borderRadius: 10, border: `1px solid ${colors.borderFaint}`, background: colors.surface, opacity: isAgency ? 0.9 : 1 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: colors.text }}>
+                {TIER_LABEL[name]} · {tiers[name]?.priceSek} kr/month
+                {isAgency && (
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b45309", background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 999, padding: "2px 8px" }}>
+                    Early access
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
             </div>
-            <div style={{ fontSize: 12.5, color: colors.textMuted }}>{TIER_DESC[name]}</div>
+            {isAgency ? (
+              agencyRequested ? (
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}>✓ Requested</span>
+              ) : (
+                <button onClick={onRequestAgency} disabled={!!busy} style={{ ...ghostBtn, whiteSpace: "nowrap", opacity: busy ? 0.6 : 1 }}>
+                  {busy === "agency-interest" ? "Sending…" : "Request early access"}
+                </button>
+              )
+            ) : (
+              <button onClick={() => onSubscribe(name)} disabled={!!busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
+                {busy === `tier:${name}` ? "Opening…" : cta}
+              </button>
+            )}
           </div>
-          <button onClick={() => onSubscribe(name)} disabled={!!busy} style={{ ...primaryBtn, padding: "9px 14px", opacity: busy ? 0.6 : 1 }}>
-            {busy === `tier:${name}` ? "Opening…" : cta}
-          </button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -97,7 +118,7 @@ function TierChooser({ tiers, busy, onSubscribe, cta }) {
 // The plan card: which tier, what it costs, where the period stands, and every
 // action a subscriber needs — subscribe, switch tier (prorated by Stripe),
 // update card / invoices / cancel via the Stripe portal.
-function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
+function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier, agencyRequested, onRequestAgency }) {
   const tier = sub?.tier || { name: "creator", priceSek: 125 };
   const tiers = sub?.tiers || { creator: { name: "creator", priceSek: 125 }, agency: { name: "agency", priceSek: 450 } };
   const plan = sub?.plan || {};
@@ -126,7 +147,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
               Want a paid tier anyway — to back the build, or for what Agency grows into? You can. Your founding status is
               permanent: cancel whenever and you're back to hosting free.
             </div>
-            <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta="Upgrade" />
+            <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta="Upgrade" agencyRequested={agencyRequested} onRequestAgency={onRequestAgency} />
           </div>
         )}
       </>
@@ -169,7 +190,16 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
           <button onClick={onPortal} disabled={!!busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
             {busy === "portal" ? "Opening…" : pastDue ? "Update card" : "Manage in Stripe"}
           </button>
-          {!ending && (
+          {!ending && otherTier.name === "agency" && (
+            agencyRequested ? (
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "#16a34a", alignSelf: "center" }}>✓ Agency early access requested</span>
+            ) : (
+              <button onClick={onRequestAgency} disabled={!!busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
+                {busy === "agency-interest" ? "Sending…" : `Agency (${otherTier.priceSek} kr/month) — request early access`}
+              </button>
+            )
+          )}
+          {!ending && otherTier.name !== "agency" && (
             <button onClick={() => onChangeTier(otherTier.name)} disabled={!!busy} style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>
               {busy === "switch" ? "Switching…" : `Switch to ${TIER_LABEL[otherTier.name]} — ${otherTier.priceSek} kr/month`}
             </button>
@@ -192,7 +222,7 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
           : "Hosting on PullUp — publishing events, a community page, products — runs on one flat subscription. Cancel anytime; being a guest is always free."}
       </div>
       {sub?.configured ? (
-        <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta={status === "canceled" ? "Resubscribe" : "Subscribe"} />
+        <TierChooser tiers={tiers} busy={busy} onSubscribe={onSubscribe} cta={status === "canceled" ? "Resubscribe" : "Subscribe"} agencyRequested={agencyRequested} onRequestAgency={onRequestAgency} />
       ) : (
         <div style={{ fontSize: 12.5, color: colors.textSubtle }}>
           Subscriptions aren't switched on for this deployment yet — hosting is open meanwhile.
@@ -205,10 +235,15 @@ function PlanCard({ sub, busy, onSubscribe, onPortal, onChangeTier }) {
 export function SettingsBillingSection() {
   const { sub, startCheckout, openPortal, changeTier } = useSubscription();
   const [summary, setSummary] = useState(null);
+  const [agencyRequested, setAgencyRequested] = useState(false);
   const [busy, setBusy] = useState(null); // which action is loading: "tier:<name>" | "portal" | "switch"
 
   useEffect(() => {
     let alive = true;
+    authenticatedFetch("/host/subscription/agency-interest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d?.requested) setAgencyRequested(true); })
+      .catch(() => {});
     authenticatedFetch("/host/billing/summary")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (alive) setSummary(data); })
@@ -234,6 +269,21 @@ export function SettingsBillingSection() {
       setBusy(null);
     }
     // On success the browser navigates to Stripe — no need to reset.
+  };
+
+  // Agency isn't purchasable yet — raising a hand opens the concierge loop
+  // (Felix sees the desire; his reply lands in your Messages).
+  const requestAgency = async () => {
+    setBusy("agency-interest");
+    try {
+      const r = await authenticatedFetch("/host/subscription/agency-interest", { method: "POST", body: JSON.stringify({}) });
+      if (r.ok) setAgencyRequested(true);
+      else window.alert("Couldn't send the request — try again in a moment.");
+    } catch {
+      window.alert("Couldn't send the request — try again in a moment.");
+    } finally {
+      setBusy(null);
+    }
   };
 
   // Switching stays in-app (Stripe prorates server-side), so busy always resets.
@@ -265,6 +315,8 @@ export function SettingsBillingSection() {
           onSubscribe={act((tierName) => `tier:${tierName}`, (tierName) => startCheckout({ tier: tierName }))}
           onPortal={act("portal", () => openPortal())}
           onChangeTier={handleChangeTier}
+          agencyRequested={agencyRequested}
+          onRequestAgency={requestAgency}
         />
 
         {/* Ticket sales — a fee only on money that actually moved */}

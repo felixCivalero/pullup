@@ -38,17 +38,25 @@ export function AdminGlobe({ events }) {
     })),
     [events, now],
   );
-  // One label per city, so names read like a route map, not noise.
+  // One label per PLACE (coords rounded to ~10km), named by the most common
+  // city string in that cluster — venue-flavored locations ("the viewpoint")
+  // stop fighting the real city name at the same spot.
   const labels = useMemo(() => {
-    const seen = new Map();
+    const clusters = new Map();
     for (const p of points) {
-      const c = cityOf(p.location);
-      if (!seen.has(c)) seen.set(c, { city: c, lat: p.lat, lng: p.lng, n: 0, upcoming: false });
-      const s = seen.get(c);
-      s.n += 1;
-      s.upcoming = s.upcoming || p.upcoming;
+      const key = `${p.lat.toFixed(1)},${p.lng.toFixed(1)}`;
+      if (!clusters.has(key)) clusters.set(key, { lat: p.lat, lng: p.lng, names: new Map(), upcoming: false });
+      const c = clusters.get(key);
+      const name = cityOf(p.location);
+      c.names.set(name, (c.names.get(name) || 0) + 1);
+      c.upcoming = c.upcoming || p.upcoming;
     }
-    return [...seen.values()];
+    return [...clusters.values()].map((c) => ({
+      lat: c.lat,
+      lng: c.lng,
+      upcoming: c.upcoming,
+      city: [...c.names.entries()].sort((a, b) => b[1] - a[1])[0][0],
+    }));
   }, [points]);
 
   useEffect(() => {
@@ -79,7 +87,7 @@ export function AdminGlobe({ events }) {
     g.polygonsData(land)
       .polygonCapColor(() => "#ffffff")
       .polygonSideColor(() => "rgba(0,0,0,0)")
-      .polygonStrokeColor(() => "rgba(10,10,10,0.55)")
+      .polygonStrokeColor(() => "#0a0a0a")
       .polygonAltitude(0.004);
   }, [land]);
 
@@ -89,21 +97,30 @@ export function AdminGlobe({ events }) {
     g.pointsData(points)
       .pointLat((d) => d.lat)
       .pointLng((d) => d.lng)
-      .pointColor((d) => (d.upcoming ? PINK : "rgba(10,10,10,0.45)"))
-      .pointAltitude((d) => (d.upcoming ? 0.09 : 0.015))
-      .pointRadius((d) => (d.upcoming ? 0.55 : 0.3))
+      .pointColor((d) => (d.upcoming ? "#ff2da0" : "rgba(10,10,10,0.35)"))
+      .pointAltitude(() => 0.002)
+      .pointRadius((d) => (d.upcoming ? 0.28 : 0.16))
       .pointLabel((d) => `<div style="font-family:-apple-system,sans-serif;font-size:12px;background:#fff;color:${INK};border:1px solid rgba(10,10,10,0.12);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(10,10,10,0.14);">
           <b>${String(d.title).replace(/</g, "&lt;")}</b><br/>
           ${cityOf(d.location)} · ${d.startsAt ? new Date(d.startsAt).toLocaleDateString() : ""}${d.coming ? ` · ${d.coming} coming` : ""}${d.host ? `<br/><span style=\"color:rgba(10,10,10,0.5)\">${String(d.host).replace(/</g, "&lt;")}</span>` : ""}
         </div>`)
       .onPointClick((d) => { if (d.slug) window.open(`/e/${d.slug}`, "_blank"); });
+    // The neon: soft rings breathing out of every upcoming event.
+    g.ringsData(points.filter((p) => p.upcoming))
+      .ringLat((d) => d.lat)
+      .ringLng((d) => d.lng)
+      .ringColor(() => (t) => `rgba(255,45,160,${Math.max(0, 0.65 * (1 - t))})`)
+      .ringMaxRadius(2.6)
+      .ringPropagationSpeed(1.6)
+      .ringRepeatPeriod(1300)
+      .ringAltitude(0.003);
     g.labelsData(labels)
       .labelLat((d) => d.lat)
       .labelLng((d) => d.lng)
       .labelText((d) => d.city)
-      .labelSize(0.55)
+      .labelSize(0.45)
       .labelDotRadius(0)
-      .labelColor((d) => (d.upcoming ? PINK : "rgba(10,10,10,0.65)"))
+      .labelColor((d) => (d.upcoming ? "#ff2da0" : "rgba(10,10,10,0.6)"))
       .labelAltitude(0.012)
       .labelResolution(2);
   }, [points, labels]);

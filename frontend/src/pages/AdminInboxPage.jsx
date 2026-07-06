@@ -129,17 +129,13 @@ export function AdminInboxPage() {
         <div>
           {/* The numbers, riding above the world — compact twins of Overview. */}
           {overview && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
               {[
                 [`${overview.subscriptions.mrrSek.toLocaleString()} kr`, "MRR"],
-                [overview.subscriptions.active, "subscribers"],
-                [overview.subscriptions.founding, "founding hosts"],
-                [overview.subscriptions.pastDue, "past due"],
-                [`${overview.ticketSales.last30Sek.toLocaleString()} kr`, "sales · 30d"],
-                [`${overview.ticketSales.allTimeSek.toLocaleString()} kr`, "sales · all time"],
+                [overview.subscriptions.active, "paying subscribers"],
                 [overview.connectedAccounts.count, "connected accounts"],
-                [overview.events.upcoming, "upcoming events"],
-                [overview.hosts.total ?? "—", "hosts"],
+                [`${overview.ticketSales.last30Sek.toLocaleString()} kr`, "ticket sales · 30d"],
+                [`${overview.ticketSales.allTimeSek.toLocaleString()} kr`, "ticket sales · since launch"],
               ].map(([v, l]) => (
                 <div key={l} style={{ border: `1px solid ${C.line}`, borderRadius: 14, background: "#fff", padding: "11px 14px" }}>
                   <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em" }}>{v}</div>

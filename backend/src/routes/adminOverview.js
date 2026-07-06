@@ -19,7 +19,7 @@ export function registerAdminOverviewRoutes(app) {
       const nowIso = new Date().toISOString();
       const [plans, payments, connects, eventsAgg, hostsCount] = await Promise.all([
         supabase.from("creator_billing_plans").select("host_id, plan, subscription_status, founding, cancel_at_period_end, current_period_end, stripe_subscription_id"),
-        supabase.from("payments").select("amount, currency, status, provider, created_at, refunded_amount").order("created_at", { ascending: false }).limit(2000),
+        supabase.from("payments").select("amount, currency, status, provider, created_at, refunded_amount, stripe_payment_intent_id, provider_ref").order("created_at", { ascending: false }).limit(2000),
         supabase.from("profiles").select("id, name, brand, contact_email").not("stripe_connected_account_id", "is", null),
         supabase.from("events").select("id, status, starts_at, kind"),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
@@ -40,8 +40,14 @@ export function registerAdminOverviewRoutes(app) {
       for (const r of active) byPlan[r.plan || "creator"] = (byPlan[r.plan || "creator"] || 0) + 1;
 
       // ── Ticket sales ──
+      // Tracked from the subscription launch: earlier rows are Connect
+      // verification tests / imports, not host revenue. Real = succeeded AND
+      // carries a provider reference (an actual Stripe/Swish charge).
+      const SALES_EPOCH = "2026-07-06";
       const pays = payments.data || [];
-      const ok = pays.filter((p) => p.status === "succeeded");
+      const ok = pays.filter(
+        (p) => p.status === "succeeded" && p.created_at >= SALES_EPOCH && (p.stripe_payment_intent_id || p.provider_ref),
+      );
       const sum = (list) => list.reduce((s, p) => s + (p.amount || 0) - (p.refunded_amount || 0), 0);
       const last30 = ok.filter((p) => p.created_at >= since30);
       const FEE_BPS = 300;

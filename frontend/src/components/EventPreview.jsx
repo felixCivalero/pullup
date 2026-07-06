@@ -92,18 +92,11 @@ export function EventPreview({
     return () => ro.disconnect();
   }, []);
 
-  // Cover: the hero takes the image's OWN aspect ratio and shows the whole image
-  // — no crop, no bars, no blur. The HEIGHT is driven by the first image laid out
-  // in normal flow (a hidden sizer rendered inside the hero), NOT by aspect-ratio
-  // on this flex item: aspect-ratio on a flex child resolves differently in the
-  // editor's phone-mock vs the full-height live page, which made the live cover
-  // crop/letterbox while the editor looked right. A flow-laid image can't be
-  // second-guessed by flexbox. Video/empty covers fall back to the ratio box.
+  // Cover: the hero takes the image's OWN aspect ratio (reserved up front from
+  // the stored/measured ratio) and shows the whole image with object-fit:contain
+  // — no crop, no bars, no blur. Nothing crops, so there's nothing to pan.
   const coverAspect = useCoverAspect(media, imagePreview);
-  const firstMedia = (Array.isArray(media) && media[0]) || null;
-  const heroSizerUrl =
-    (firstMedia && firstMedia.mediaType !== "video" && firstMedia.url) || imagePreview || null;
-  const heroFrameStyle = heroSizerUrl ? { width: "100%" } : heroFrame(coverAspect, "phone");
+  const heroFrameStyle = heroFrame(coverAspect, "phone");
   const phoneCrops = false;
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
@@ -255,19 +248,6 @@ export function EventPreview({
               touchAction: onFocusDrag && phoneCrops ? "none" : "pan-y",
             }}
           >
-            {/* Height driver: the first image in normal flow at width:100% /
-                height:auto sets the hero's exact height (= the image's own ratio)
-                the instant it lays out. A fixed tiny source keeps it stable (it's
-                hidden — only its shape matters). The visible media overlays it. */}
-            {heroSizerUrl && (
-              <img
-                src={transformedImageUrl(heroSizerUrl, { width: 64 })}
-                alt=""
-                aria-hidden
-                draggable={false}
-                style={{ width: "100%", height: "auto", display: "block", visibility: "hidden", pointerEvents: "none" }}
-              />
-            )}
             {/* Editor-only: point at the cover to open the media editor. Sits
                 above the drag layer with its own pointer target so it never
                 fights the reposition-drag. */}

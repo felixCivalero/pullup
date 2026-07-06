@@ -496,7 +496,12 @@ export function transformedImageUrl(url, opts = {}) {
   const pathOnly = url.split("?")[0].toLowerCase();
   if (pathOnly.endsWith(".gif") || pathOnly.endsWith(".svg")) return url;
 
-  const { width, dpr = 2, quality = 82, resize } = opts;
+  // IMPORTANT: default resize to "contain". Supabase's transform default is
+  // "cover", which for a width-only request keeps the ORIGINAL height — so
+  // ?width=800 on a 2048×1957 image returns 800×1957 (a grotesquely tall,
+  // wrong-aspect image). "contain" scales height proportionally (800×764), which
+  // is what every caller actually wants; CSS object-fit handles any cropping.
+  const { width, dpr = 2, quality = 82, resize = "contain" } = opts;
   const targetWidth = width ? Math.max(1, Math.round(width * dpr)) : null;
   const rewritten = url.replace(
     "/storage/v1/object/public/event-images/",

@@ -120,9 +120,13 @@ export function AdminGlobe({ events }) {
       .width(el.current.clientWidth)
       .height(el.current.clientHeight);
     g.globeMaterial().color.set("#ffffff");
+    // A breath of motion on arrival — the globe drifts a few degrees, then
+    // settles. Grabbing it stops the drift instantly.
     g.controls().autoRotate = true;
-    g.controls().autoRotateSpeed = 0.5;
+    g.controls().autoRotateSpeed = 0.9;
     g.controls().enableZoom = true;
+    const settle = setTimeout(() => { if (globeRef.current) g.controls().autoRotate = false; }, 3200);
+    el.current.addEventListener("pointerdown", () => { clearTimeout(settle); g.controls().autoRotate = false; }, { once: true });
     g.pointOfView({ lat: 45, lng: 18, altitude: 1.9 }, 0);
     g.onZoom((pov) => {
       // Re-render sizes only on meaningful altitude change (rotation keeps
@@ -135,7 +139,7 @@ export function AdminGlobe({ events }) {
     globeRef.current = g;
     const onResize = () => g.width(el.current?.clientWidth || 800).height(el.current?.clientHeight || 560);
     window.addEventListener("resize", onResize);
-    return () => { window.removeEventListener("resize", onResize); g._destructor?.(); globeRef.current = null; };
+    return () => { clearTimeout(settle); window.removeEventListener("resize", onResize); g._destructor?.(); globeRef.current = null; };
   }, []);
 
   useEffect(() => {
@@ -182,14 +186,11 @@ export function AdminGlobe({ events }) {
     setSelected(e);
     const g = globeRef.current;
     if (g && e) {
-      g.controls().autoRotate = false;
       g.pointOfView({ lat: e.lat - 0.1, lng: e.lng, altitude: 0.35 }, 900);
     }
   }
   function clearSelected() {
     setSelected(null);
-    const g = globeRef.current;
-    if (g) g.controls().autoRotate = true;
   }
 
   const rail = useMemo(() => {

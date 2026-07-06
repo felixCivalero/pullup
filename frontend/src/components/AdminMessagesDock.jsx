@@ -3,12 +3,18 @@
 // Same shape as the host dock (floating pill bottom-right → popup panel with
 // an inbox list and a chat thread), but the content is the SYSTEM inbox:
 // every PullUp conversation across all hosts. We are PullUp here — our
-// bubbles sit right in pink; the host's words sit left in gray. Rows +
-// Realtime-ish polling; no email anywhere.
+// bubbles sit right in pink; the host's words sit left in gray.
+//
+// LIVE: a Supabase Realtime subscription on the system person's person_events
+// (RLS path: person_events_admin_select, mig 129) lands new host messages and
+// requests the instant they're written — polling stays only as a socket-drop
+// safety net. Unread follows the read watermark (thread_reads, seat 'admin'):
+// OPENING a thread clears its dot instantly; replying is not required.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Send, ChevronLeft, X, Search, Sparkles } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 
 const D = {
   bg: "#ffffff",
@@ -61,28 +67,71 @@ export function AdminMessagesDock() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [q, setQ] = useState("");
+  const [sysId, setSysId] = useState(null); // the PullUp person id — the Realtime filter
   const scroller = useRef(null);
+  // Stale-closure-free mirrors for the realtime callback.
+  const openHostRef = useRef(null);
+  useEffect(() => { openHostRef.current = open && openHost ? openHost : null; }, [open, openHost]);
 
   const loadInbox = useCallback(() => {
-    authenticatedFetch("/admin/system-inbox").then((r) => (r.ok ? r.json() : null)).then((d) => d && setThreads(d.threads || [])).catch(() => {});
+    authenticatedFetch("/admin/system-inbox").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d) return;
+      setThreads(d.threads || []);
+      if (d.systemPersonId) setSysId(d.systemPersonId);
+    }).catch(() => {});
   }, []);
   const loadThread = useCallback((hostId) => {
     authenticatedFetch(`/admin/system-inbox/${hostId}`).then((r) => (r.ok ? r.json() : null)).then((d) => d && setThread(d)).catch(() => {});
   }, []);
 
-  // Badge stays honest even while closed; open panels poll faster.
+  // Seen = read: clear the dot instantly, stamp the shared operator watermark.
+  const markRead = useCallback((hostId) => {
+    setThreads((ts) => ts.map((t) => (t.hostId === hostId && t.unread ? { ...t, unread: false } : t)));
+    authenticatedFetch(`/admin/system-inbox/${hostId}/read`, { method: "POST" }).catch(() => {});
+  }, []);
+
+  // Polling is the safety net only — Realtime below is the live path.
   useEffect(() => {
     loadInbox();
-    const t = setInterval(loadInbox, open ? 10000 : 30000);
+    const t = setInterval(loadInbox, open ? 30000 : 60000);
     return () => clearInterval(t);
   }, [loadInbox, open]);
   useEffect(() => {
     if (!openHost || !open) return;
     loadThread(openHost);
-    const t = setInterval(() => loadThread(openHost), 10000);
-    return () => clearInterval(t);
   }, [openHost, open, loadThread]);
   useEffect(() => { scroller.current?.scrollTo(0, 1e9); }, [thread]);
+
+  // An open thread is BEING seen — any unread that appears on it (fresh
+  // realtime row, inbox refresh racing the watermark) clears immediately.
+  useEffect(() => {
+    if (!open || !openHost) return;
+    if (threads.some((t) => t.hostId === openHost && t.unread)) markRead(openHost);
+  }, [open, openHost, threads, markRead]);
+
+  // ── LIVE: every new row in any PullUp thread streams in the moment it's
+  // written (host messages, request ✦ lines, other operators' replies). ──
+  const rtTimer = useRef(null);
+  useEffect(() => {
+    if (!sysId) return;
+    const topic = `admin_system_inbox:${Math.random().toString(36).slice(2, 8)}`;
+    const channel = supabase
+      .channel(topic)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "person_events", filter: `person_id=eq.${sysId}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row) return;
+          // Coalesce bursts into one inbox refresh; the open thread re-pulls at once.
+          clearTimeout(rtTimer.current);
+          rtTimer.current = setTimeout(loadInbox, 250);
+          if (row.host_id && row.host_id === openHostRef.current) loadThread(row.host_id);
+        },
+      )
+      .subscribe();
+    return () => { clearTimeout(rtTimer.current); supabase.removeChannel(channel); };
+  }, [sysId, loadInbox, loadThread]);
 
   // Journeys (or anywhere) can open a conversation with a specific host —
   // even one with no thread yet: the empty thread renders and the first
@@ -95,12 +144,13 @@ export function AdminMessagesDock() {
       setOpenHost(hostId);
       setThread(null);
       loadThread(hostId);
+      markRead(hostId);
     };
     window.addEventListener("pullup:admin-open-thread", onOpen);
     return () => window.removeEventListener("pullup:admin-open-thread", onOpen);
-  }, [loadThread]);
+  }, [loadThread, markRead]);
 
-  const unread = threads.filter((t) => t.needsReply).length;
+  const unread = threads.filter((t) => t.unread).length;
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return threads;
@@ -138,18 +188,18 @@ export function AdminMessagesDock() {
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px" }}>
             {list.map((t) => (
-              <button key={t.hostId} onClick={() => { setOpenHost(t.hostId); setThread(null); }}
+              <button key={t.hostId} onClick={() => { setOpenHost(t.hostId); setThread(null); markRead(t.hostId); }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = D.hover)} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                 style={{ display: "flex", gap: 12, alignItems: "center", width: "100%", padding: "9px 10px", border: "none", borderRadius: 12, background: "none", cursor: "pointer", textAlign: "left" }}>
                 <HostAvatar name={t.name} src={t.avatarUrl} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: D.ink }}>{t.name}</span>
-                    {t.needsReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
+                    {t.unread && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", fontSize: 12.5, color: D.muted, minWidth: 0 }}>
                     <span style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.lastFrom === "pullup" ? "You: " : ""}{t.lastBody}</span>
-                    <span style={{ flexShrink: 0, color: t.needsReply ? D.pink : D.faint, fontWeight: t.needsReply ? 600 : 400 }}> · {relTime(t.lastAt)}</span>
+                    <span style={{ flexShrink: 0, color: t.unread ? D.pink : D.faint, fontWeight: t.unread ? 600 : 400 }}> · {relTime(t.lastAt)}</span>
                   </div>
                 </div>
               </button>

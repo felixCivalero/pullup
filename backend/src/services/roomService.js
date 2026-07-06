@@ -492,6 +492,20 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     logger?.warn?.("[roomService] instagram read/window read failed", { error: err?.message });
   }
 
+  // 3c². Read watermarks — when the host last LOOKED at each thread. Unread is
+  // "new inbound since then", not "awaiting your reply": seeing clears the dot.
+  const readAtByPerson = new Map();
+  try {
+    const { data: reads } = await supabase
+      .from("thread_reads")
+      .select("person_id, last_read_at")
+      .eq("host_id", hostId)
+      .eq("seat", "host");
+    for (const r of reads || []) readAtByPerson.set(r.person_id, new Date(r.last_read_at).getTime());
+  } catch (err) {
+    logger?.warn?.("[roomService] thread reads failed", { error: err?.message });
+  }
+
   // 3d. Host-private notes per person, attached to each card so the Room's people
   // layer renders the full profile (notes timeline + "add info") inline — no
   // per-card fetch. Newest first. Scoped to THIS host (notes are private).
@@ -712,6 +726,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
     const lastMsgEv = evs.find((e) => MESSAGE_EVENT_TYPES.has(e.type));
     const lastMessageAt = lastMsgEv?.occurred_at || null;
     const awaitingReply = lastMsgEv?.type === "message_in" || lastMsgEv?.type === "access_request";
+    // Unread = a real inbound message newer than the read watermark. Viewing the
+    // thread stamps the watermark; replying is not required to clear the dot.
+    const lastInbound = evs.find((e) => e.type === "message_in");
+    const unread = !!lastInbound &&
+      new Date(lastInbound.occurred_at).getTime() > (readAtByPerson.get(pid) || 0);
 
     // The two edges + derived segment for this person.
     const isCommunityMember = communityMemberIds.has(pid);
@@ -772,6 +791,7 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       // awaiting your reply — floats to the top; action-only people fall below).
       lastMessageAt,
       awaitingReply,
+      unread,
       lastActivityAt: lastAt || null,
       lastMessage: lastMessageFrom(evs, eventTitleById),
       thread: buildThread(evs, eventTitleById, igReadByPerson.get(pid) || null),

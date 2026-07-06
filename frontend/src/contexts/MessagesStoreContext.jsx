@@ -109,6 +109,9 @@ export function MessagesStoreProvider({ children }) {
           lastMessageAt: new Date().toISOString(),
           lastActivityAt: new Date().toISOString(),
           awaitingReply: row.from !== "you",
+          // Unread dot — the dock clears it (and stamps the server watermark)
+          // the moment the thread is on screen.
+          unread: row.from !== "you" ? true : p.unread,
         };
       }));
     },

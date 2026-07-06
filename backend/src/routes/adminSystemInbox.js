@@ -19,24 +19,30 @@ import { supabase } from "../supabase.js";
 import { getSystemPersonId } from "../repos/systemPerson.js";
 import { logPersonEvent } from "../services/personTimeline.js";
 import { getAdminByEmail } from "../repos/platformAdmins.js";
+import { resolveEffectiveAvatar } from "../services/effectiveAvatar.js";
 
 const MESSAGEY = new Set(["message_in", "message_out", "access_request"]);
 
-// Resolve host display info in one batched read.
+// Resolve host display info in one batched read. Avatars go through
+// resolveEffectiveAvatar — the stored profile_picture_url is a SIGNED storage
+// URL that expires within the hour, so serving it raw renders broken images.
 async function hostCards(hostIds) {
   if (!hostIds.length) return new Map();
   const { data } = await supabase
     .from("profiles")
-    .select("id, name, brand, contact_email, profile_picture")
+    .select("id, name, brand, contact_email, profile_picture_url, brand_logo_url")
     .in("id", hostIds);
   const map = new Map();
-  for (const p of data || []) {
+  await Promise.all((data || []).map(async (p) => {
+    const avatarUrl = await resolveEffectiveAvatar({
+      uploaded: p.profile_picture_url, accountId: p.id, brandLogo: p.brand_logo_url,
+    }).catch(() => null);
     map.set(p.id, {
       name: p.name || p.brand || p.contact_email || "Unknown host",
       email: p.contact_email || null,
-      avatarUrl: p.profile_picture || null,
+      avatarUrl,
     });
-  }
+  }));
   return map;
 }
 
@@ -54,14 +60,19 @@ export function registerAdminSystemInboxRoutes(app) {
   app.get("/admin/system-inbox", requireAdmin, async (req, res) => {
     try {
       const sysId = await getSystemPersonId();
-      if (!sysId) return res.json({ threads: [] });
-      const { data: rows, error } = await supabase
-        .from("person_events")
-        .select("host_id, type, direction, body, occurred_at")
-        .eq("person_id", sysId)
-        .order("occurred_at", { ascending: false })
-        .limit(4000);
+      if (!sysId) return res.json({ threads: [], systemPersonId: null });
+      const [{ data: rows, error }, { data: reads }] = await Promise.all([
+        supabase
+          .from("person_events")
+          .select("host_id, type, direction, body, occurred_at")
+          .eq("person_id", sysId)
+          .order("occurred_at", { ascending: false })
+          .limit(4000),
+        // Shared operator read state — PullUp is one voice, one seat.
+        supabase.from("thread_reads").select("host_id, last_read_at").eq("person_id", sysId).eq("seat", "admin"),
+      ]);
       if (error) throw error;
+      const readAtByHost = new Map((reads || []).map((r) => [r.host_id, new Date(r.last_read_at).getTime()]));
 
       // Newest-first rows → one card per host. needsReply when the host spoke
       // last (direction 'out' = host → PullUp) or the thread just opened
@@ -79,6 +90,11 @@ export function registerAdminSystemInboxRoutes(app) {
         const last = evs[0];
         const lastMsg = evs.find((e) => MESSAGEY.has(e.type));
         const needsReply = !!lastMsg && (lastMsg.direction === "out" || lastMsg.type === "access_request");
+        // Unread = the host acted (spoke, or clicked a request) since an
+        // operator last OPENED this thread. Viewing clears it; replying isn't required.
+        const lastFromHost = evs.find((e) => e.direction === "out" || e.type === "access_request");
+        const unread = !!lastFromHost &&
+          new Date(lastFromHost.occurred_at).getTime() > (readAtByHost.get(hid) || 0);
         const card = cards.get(hid) || { name: "Unknown host", email: null, avatarUrl: null };
         return {
           hostId: hid,
@@ -87,10 +103,13 @@ export function registerAdminSystemInboxRoutes(app) {
           lastAt: last?.occurred_at || null,
           lastFrom: last?.direction === "out" ? "host" : last?.direction === "in" ? "pullup" : "system",
           needsReply,
+          unread,
         };
       });
       threads.sort((a, b) => (Number(b.needsReply) - Number(a.needsReply)) || String(b.lastAt || "").localeCompare(String(a.lastAt || "")));
-      res.json({ threads });
+      // systemPersonId rides along so the dashboard can subscribe to Realtime
+      // on exactly these rows (filter person_id=eq.<id>).
+      res.json({ threads, systemPersonId: sysId });
     } catch (e) {
       console.error("[admin-inbox] list failed:", e?.message);
       res.status(500).json({ error: "inbox_failed" });
@@ -123,6 +142,23 @@ export function registerAdminSystemInboxRoutes(app) {
     } catch (e) {
       console.error("[admin-inbox] thread failed:", e?.message);
       res.status(500).json({ error: "thread_failed" });
+    }
+  });
+
+  // Mark a host's system thread read (shared across operators — one seat).
+  app.post("/admin/system-inbox/:hostId/read", requireAdmin, async (req, res) => {
+    try {
+      const sysId = await getSystemPersonId();
+      if (!sysId) return res.status(503).json({ error: "system_person_missing" });
+      const { error } = await supabase.from("thread_reads").upsert(
+        { host_id: req.params.hostId, person_id: sysId, seat: "admin", last_read_at: new Date().toISOString() },
+        { onConflict: "host_id,person_id,seat" },
+      );
+      if (error) throw error;
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("[admin-inbox] read failed:", e?.message);
+      res.status(500).json({ error: "read_failed" });
     }
   });
 

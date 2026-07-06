@@ -5,7 +5,7 @@
 // + /host/room/attachment. Two-way: inbound threads. Smart: needs-you ranking,
 // the suggested move, channel + search filters, attachments.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, Search, Paperclip, X, Sparkles, ChevronLeft, ChevronRight, Maximize2, Minimize2, Check, CalendarClock, RotateCw, Instagram, Mail, MessageCircle, CalendarCheck, Star, Hourglass, CreditCard, CircleDot, Lock, SlidersHorizontal, Users, ChevronDown, Loader2, CheckCircle2, PenLine } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
@@ -203,6 +203,17 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
   // A notification (via IdeaWidget) can target a specific person's thread. Set
   // the id; the thread resolves as soon as `people` loads.
   useEffect(() => { if (openThread?.id) setOpenId(openThread.id); }, [openThread]);
+
+  // Seen = read. An open thread clears its unread dot the instant it's on
+  // screen (optimistic) and stamps the server watermark so it stays cleared
+  // across reloads/devices. Re-fires when a new inbound lands while it's open.
+  const markRead = useCallback((pid) => {
+    setPeople((ps) => ps && ps.map((p) => (p.id === pid && p.unread ? { ...p, unread: false } : p)));
+    authenticatedFetch(`/host/room/threads/${pid}/read`, { method: "POST" }).catch(() => {});
+  }, [setPeople]);
+  useEffect(() => {
+    if (openId && open?.unread) markRead(openId);
+  }, [openId, open?.unread, markRead]);
 
   // The dock orders the filtered audience like an inbox (unread → recency).
   // PullUp is pinned on top — writing to the platform is always one tap away,
@@ -824,12 +835,12 @@ export default function DockMessages({ onClose, expanded, onToggleExpand, openTh
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: isSystemPerson(p) ? D.pink : D.ink }}>{dispName(p)}</span>
-                  {p.awaitingReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
+                  {p.unread && <span style={{ width: 7, height: 7, borderRadius: 999, background: D.pink, flexShrink: 0 }} />}
                 </div>
                 {/* Preview · time — inline, Instagram-style: the preview truncates, the time stays. */}
                 <div style={{ display: "flex", alignItems: "baseline", fontSize: 12.5, color: D.muted, minWidth: 0 }}>
                   <span style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line}</span>
-                  {relTimeShort(p.lastActivityAt) && <span style={{ flexShrink: 0, color: p.awaitingReply ? D.pink : D.faint, fontWeight: p.awaitingReply ? 600 : 400 }}>{line ? " · " : ""}{relTimeShort(p.lastActivityAt)}</span>}
+                  {relTimeShort(p.lastActivityAt) && <span style={{ flexShrink: 0, color: p.unread ? D.pink : D.faint, fontWeight: p.unread ? 600 : 400 }}>{line ? " · " : ""}{relTimeShort(p.lastActivityAt)}</span>}
                 </div>
               </div>
               {selecting ? (

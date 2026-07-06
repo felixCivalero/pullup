@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { RefreshCw, Check, X as XIcon } from "lucide-react";
+import { RefreshCw, Check, X as XIcon, MessageCircle } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { AdminGlobe } from "../components/AdminGlobe.jsx";
 import { LandingOverview } from "./analytics/LandingOverview.jsx";
@@ -47,7 +47,9 @@ function Eyes({ size = 34 }) {
 }
 
 function HostAvatar({ name, src, size = 40 }) {
-  if (src) return <img src={src} alt="" style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
+  // A dead avatar URL falls back to initials — never the browser's broken-image glyph.
+  const [broken, setBroken] = useState(false);
+  if (src && !broken) return <img src={src} alt="" onError={() => setBroken(true)} style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />;
   return (
     <div style={{ width: size, height: size, borderRadius: "50%", background: C.raise, color: C.muted, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: size * 0.34, flexShrink: 0 }}>
       {initials(name)}
@@ -296,11 +298,20 @@ export function AdminInboxPage() {
               <HostAvatar name={r.host?.name || r.name} src={r.host?.avatarUrl} size={34} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.host?.name || r.name || r.email || r.host_id}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>
-                  {r.kind === "instagram" ? `Instagram · ${r.label}` : r.kind === "product" ? "Products early access" : `Tier · ${r.label}`}{r.note ? ` — ${r.note}` : ""} · {relTime(r.updated_at || r.created_at)}
+                <div style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {[
+                    r.kind === "instagram" ? `Instagram · ${r.label}` : r.kind === "product" ? "Products early access" : `Tier · ${r.label}`,
+                    r.host?.email || r.email || null,
+                    r.note ? `“${r.note}”` : null,
+                    relTime(r.updated_at || r.created_at),
+                  ].filter(Boolean).join(" · ")}
                 </div>
               </div>
               {statusChip(r.status)}
+              <button onClick={() => window.dispatchEvent(new CustomEvent("pullup:admin-open-thread", { detail: { hostId: r.host_id } }))}
+                title="Open their PullUp thread" style={{ border: "none", background: C.pink, color: "#fff", borderRadius: 999, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                <MessageCircle size={13} /> Message
+              </button>
               {r.status === "pending" && (
                 <>
                   <button onClick={() => setRequestStatus(r, "onboarded")} title="Mark onboarded" style={{ border: "1px solid rgba(22,163,74,0.35)", background: "rgba(22,163,74,0.06)", color: C.green, borderRadius: 9, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700 }}>

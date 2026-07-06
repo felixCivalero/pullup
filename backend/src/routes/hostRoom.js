@@ -32,6 +32,24 @@ export function registerHostRoomRoutes(app) {
     }
   });
 
+  // Mark a thread read — the unread dot means "new since you last LOOKED", so
+  // opening a thread stamps the watermark (the client clears its dot optimistically;
+  // this makes it survive reloads and other devices).
+  app.post("/host/room/threads/:personId/read", requireAuth, async (req, res) => {
+    try {
+      const { supabase } = await import("../supabase.js");
+      const { error } = await supabase.from("thread_reads").upsert(
+        { host_id: req.user.id, person_id: req.params.personId, seat: "host", last_read_at: new Date().toISOString() },
+        { onConflict: "host_id,person_id,seat" },
+      );
+      if (error) throw error;
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("[room/read] failed:", e?.message);
+      res.status(500).json({ ok: false });
+    }
+  });
+
   // Send a personal message from the Room composer. Native + simple: text, an
   // optional image, and an optionally-included event (eventId) — an inline card on
   // email, a link on WhatsApp/IG. Rails: email + WhatsApp (in-window free text /

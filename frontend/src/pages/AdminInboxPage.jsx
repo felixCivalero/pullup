@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Send, Sparkles, RefreshCw, Check, X as XIcon } from "lucide-react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { authenticatedFetch } from "../lib/api.js";
 
 const C = {
@@ -52,6 +54,67 @@ function HostAvatar({ name, src, size = 40 }) {
   );
 }
 
+// Crude but honest: the trailing comma-segment of a location string is
+// usually the city/area ("Slakthusområdet, Stockholm" → "Stockholm").
+function cityOf(location) {
+  const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "Unknown";
+}
+
+function StatCard({ label, value, sub }) {
+  return (
+    <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", padding: "16px 18px" }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", marginTop: 4 }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// The expansion map — every located event as a dot: pink = upcoming, ink =
+// happened. Leaflet + OSM tiles, circleMarkers (no icon assets to bundle).
+function EventsMap({ events, onPick }) {
+  const el = useRef(null);
+  const mapRef = useRef(null);
+  const layerRef = useRef(null);
+  useEffect(() => {
+    if (!el.current || mapRef.current) return;
+    const map = L.map(el.current, { scrollWheelZoom: true, worldCopyJump: true }).setView([30, 15], 2);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: "abcd", maxZoom: 19,
+    }).addTo(map);
+    mapRef.current = map;
+    layerRef.current = L.layerGroup().addTo(map);
+    return () => { map.remove(); mapRef.current = null; layerRef.current = null; };
+  }, []);
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    const now = Date.now();
+    const pts = [];
+    for (const e of events) {
+      if (e.lat == null || e.lng == null) continue;
+      const upcoming = e.startsAt && new Date(e.startsAt).getTime() > now;
+      const m = L.circleMarker([e.lat, e.lng], {
+        radius: upcoming ? 8 : 5,
+        color: upcoming ? "#ec178f" : "#0a0a0a",
+        weight: 2,
+        fillColor: upcoming ? "#ec178f" : "#0a0a0a",
+        fillOpacity: upcoming ? 0.55 : 0.25,
+      });
+      m.bindTooltip(`${e.title}${e.host ? ` — ${e.host}` : ""}<br/>${cityOf(e.location)} · ${e.startsAt ? new Date(e.startsAt).toLocaleDateString() : ""}${e.coming ? ` · ${e.coming} coming` : ""}`);
+      if (onPick) m.on("click", () => onPick(e));
+      m.addTo(layer);
+      pts.push([e.lat, e.lng]);
+    }
+    if (pts.length && mapRef.current) {
+      mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11 });
+    }
+  }, [events, onPick]);
+  return <div ref={el} style={{ height: 440, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.line}` }} />;
+}
+
 export default function AdminInboxPage() {
   const [me, setMe] = useState(null); // { isAdmin, role }
   const [tab, setTab] = useState("inbox");
@@ -63,6 +126,10 @@ export default function AdminInboxPage() {
   const [requests, setRequests] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [grantEmail, setGrantEmail] = useState("");
+  const [overview, setOverview] = useState(null);
+  const [mapEvents, setMapEvents] = useState([]);
+  const [mapWhen, setMapWhen] = useState("upcoming"); // upcoming | past | all
+  const [mapCity, setMapCity] = useState("all");
   const scroller = useRef(null);
 
   useEffect(() => {
@@ -97,6 +164,33 @@ export default function AdminInboxPage() {
   }, [openHost, loadThread]);
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
+  useEffect(() => {
+    if (tab === "overview" && !overview) {
+      authenticatedFetch("/admin/overview").then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
+    }
+    if (tab === "map" && mapEvents.length === 0) {
+      authenticatedFetch("/admin/events-map").then((r) => (r.ok ? r.json() : null)).then((d) => d && setMapEvents(d.events || [])).catch(() => {});
+    }
+  }, [tab, overview, mapEvents.length]);
+
+  const cities = useMemo(() => {
+    const set = new Map();
+    for (const e of mapEvents) {
+      const c = cityOf(e.location);
+      set.set(c, (set.get(c) || 0) + 1);
+    }
+    return [...set.entries()].sort((a, b) => b[1] - a[1]);
+  }, [mapEvents]);
+  const filteredMapEvents = useMemo(() => {
+    const now = Date.now();
+    return mapEvents.filter((e) => {
+      const upcoming = e.startsAt && new Date(e.startsAt).getTime() > now;
+      if (mapWhen === "upcoming" && !upcoming) return false;
+      if (mapWhen === "past" && upcoming) return false;
+      if (mapCity !== "all" && cityOf(e.location) !== mapCity) return false;
+      return true;
+    });
+  }, [mapEvents, mapWhen, mapCity]);
   useEffect(() => { scroller.current?.scrollTo(0, 1e9); }, [thread]);
 
   async function send() {
@@ -128,6 +222,8 @@ export default function AdminInboxPage() {
     const t = [
       { key: "inbox", label: "System inbox" },
       { key: "requests", label: "Requests" },
+      { key: "overview", label: "Overview" },
+      { key: "map", label: "Map" },
     ];
     if (me?.role === "super") t.push({ key: "admins", label: "Admins" });
     return t;
@@ -265,6 +361,65 @@ export default function AdminInboxPage() {
             </div>
           ))}
           {requests.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No requests yet.</div>}
+        </div>
+      )}
+
+      {tab === "overview" && (
+        <div>
+          {!overview && <div style={{ padding: 40, textAlign: "center", color: C.faint }}>Loading…</div>}
+          {overview && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
+                <StatCard label="MRR" value={`${overview.subscriptions.mrrSek.toLocaleString()} kr`} sub={`${overview.subscriptions.active} active subscription${overview.subscriptions.active === 1 ? "" : "s"}`} />
+                <StatCard label="Subscribers" value={overview.subscriptions.active} sub={Object.entries(overview.subscriptions.byPlan).map(([p, n]) => `${n} ${p}`).join(" · ") || "—"} />
+                <StatCard label="Founding hosts" value={overview.subscriptions.founding} sub="early tier, free forever" />
+                <StatCard label="Past due" value={overview.subscriptions.pastDue} sub={overview.subscriptions.cancelling ? `${overview.subscriptions.cancelling} cancelling at period end` : "grace-period watch"} />
+                <StatCard label="Ticket sales · 30d" value={`${overview.ticketSales.last30Sek.toLocaleString()} kr`} sub={`${overview.ticketSales.last30Count} payments`} />
+                <StatCard label="Ticket sales · all time" value={`${overview.ticketSales.allTimeSek.toLocaleString()} kr`} sub={`${overview.ticketSales.count} payments · ~${overview.ticketSales.estFeesSek.toLocaleString()} kr fees (3%)`} />
+                <StatCard label="Connected accounts" value={overview.connectedAccounts.count} sub={overview.connectedAccounts.hosts.slice(0, 3).map((h) => h.name).join(", ") || "Stripe Connect"} />
+                <StatCard label="Events" value={overview.events.total} sub={`${overview.events.upcoming} upcoming · ${overview.events.drafts} drafts`} />
+                <StatCard label="Hosts" value={overview.hosts.total ?? "—"} sub="accounts on the platform" />
+              </div>
+              <div style={{ fontSize: 11.5, color: C.faint, marginTop: 12 }}>
+                Subscriptions and payments mirror Stripe via webhooks — this is our own ledger, no API round-trip.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "map" && (
+        <div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+            {[["upcoming", "Upcoming"], ["past", "History"], ["all", "All"]].map(([k, label]) => (
+              <button key={k} onClick={() => setMapWhen(k)} style={{ fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${mapWhen === k ? "transparent" : C.line}`, background: mapWhen === k ? C.pink : "#fff", color: mapWhen === k ? "#fff" : C.muted }}>
+                {label}
+              </button>
+            ))}
+            <div style={{ width: 1, height: 18, background: C.line, margin: "0 4px" }} />
+            <select value={mapCity} onChange={(e) => setMapCity(e.target.value)} style={{ fontSize: 12.5, fontWeight: 600, padding: "6px 10px", borderRadius: 10, border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}>
+              <option value="all">Everywhere</option>
+              {cities.map(([c, n]) => <option key={c} value={c}>{c} · {n}</option>)}
+            </select>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{filteredMapEvents.length} event{filteredMapEvents.length === 1 ? "" : "s"} on the map</span>
+          </div>
+          <EventsMap events={filteredMapEvents} />
+          <div style={{ marginTop: 14, border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", overflow: "hidden" }}>
+            {filteredMapEvents.slice(0, 30).map((e, i) => (
+              <a key={e.id} href={e.slug ? `/e/${e.slug}` : undefined} target="_blank" rel="noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: i < Math.min(filteredMapEvents.length, 30) - 1 ? `1px solid ${C.line}` : "none", textDecoration: "none", color: C.ink }}>
+                <span style={{ width: 9, height: 9, borderRadius: 999, flexShrink: 0, background: e.startsAt && new Date(e.startsAt).getTime() > Date.now() ? C.pink : "rgba(10,10,10,0.25)" }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
+                  <div style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {[e.host, cityOf(e.location), e.startsAt ? new Date(e.startsAt).toLocaleDateString() : null].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, flexShrink: 0 }}>{e.coming}{e.capacity ? `/${e.capacity}` : ""} coming</span>
+              </a>
+            ))}
+            {filteredMapEvents.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>Nothing here yet — expansion pending.</div>}
+          </div>
         </div>
       )}
 

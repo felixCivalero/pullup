@@ -68,7 +68,6 @@ import { registerAdminCrmSalesRoutes } from "./routes/adminCrmSales.js";
 import { registerAdminEcosystemRoutes } from "./routes/adminEcosystem.js";
 import { registerAdminSystemInboxRoutes } from "./routes/adminSystemInbox.js";
 import { registerAdminOverviewRoutes } from "./routes/adminOverview.js";
-import { registerAdminImpersonationRoutes } from "./routes/adminImpersonation.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
 import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
@@ -356,7 +355,8 @@ registerAdminCrmSalesRoutes(app);
 
 registerAdminEcosystemRoutes(app);
 
-registerAdminImpersonationRoutes(app);
+// Admin "Act as" impersonation REMOVED (ease of use + privacy) — the routes
+// file remains on disk, unmounted; re-register here to resurrect deliberately.
 
 registerAdminIdeaRoutes(app);
 

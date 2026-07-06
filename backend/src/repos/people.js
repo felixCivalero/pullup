@@ -310,13 +310,8 @@ export async function isAdminUser(userId) {
 // person-scoped (RSVP/pull-up) and host(account)-scoped checks as them.
 export async function resolveViewer(req, { email = null } = {}) {
   const realUserId = req.user?.id || null;
-  const viewAsId = (req.headers?.["x-pullup-view-as"] || "").toString().trim() || null;
-  if (viewAsId && realUserId && (await isAdminUser(realUserId))) {
-    const { data } = await supabase.from("people").select("*").eq("id", viewAsId).maybeSingle();
-    if (data) {
-      return { person: mapPersonFromDb(data), authUserId: data.auth_user_id || null, impersonating: true, realUserId };
-    }
-  }
+  // Admin "view-as" header override REMOVED (ease of use + privacy): identity
+  // is only ever the verified session — no header can change who you are.
   // SECURITY: identity comes from the VERIFIED session only (or an admin
   // view-as header, admin-gated). A caller-supplied email is corroborating at
   // most — consulted ONLY when there's a real session, and even then userId
@@ -330,10 +325,8 @@ export async function resolveViewer(req, { email = null } = {}) {
 
 // Admin "Force status": an admin may force an access level via the
 // `x-pullup-force-level` header (preview a state without a user in it). Admin-gated.
-export async function adminForceLevel(req) {
-  const realUserId = req.user?.id || null;
-  const lvl = (req.headers?.["x-pullup-force-level"] || "").toString().trim() || null;
-  if (lvl && realUserId && (await isAdminUser(realUserId))) return lvl;
+export async function adminForceLevel() {
+  // Admin force-level header override REMOVED with the rest of "act as".
   return null;
 }
 

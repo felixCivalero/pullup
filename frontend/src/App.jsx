@@ -49,7 +49,6 @@ function CoachWidgetGate() {
   return (
     <Suspense fallback={null}>
       <IdeaWidget />
-      <ViewAsBar />
     </Suspense>
   );
 }
@@ -94,7 +93,6 @@ const MediaUploadPage = lazyPage(() => import("./pages/MediaUploadPage"), "Media
 import { CommunityRedirect } from "./components/CommunityRedirect.jsx";
 // The logged-in shell itself is lazy: guests on /e/:slug never download it.
 const ProtectedLayout = lazyPage(() => import("./components/ProtectedLayout"), "ProtectedLayout");
-const ViewAsBar = lazyPage(() => import("./components/admin/ViewAsBar.jsx"), "ViewAsBar"); // admin lens; admin-gated, hidden for everyone else
 const IdeaWidget = lazyPage(() => import("./components/IdeaWidget"), "IdeaWidget");
 import ErrorBoundary from "./components/ErrorBoundary";
 import { HostResourceProvider } from "./contexts/HostResourceContext";
@@ -111,24 +109,27 @@ function RoomRedirect() {
   return <Navigate to={`/r/${user.id}`} replace />;
 }
 
-// Two worlds, hard split, enforced at the router root. The routing rule is
-// the EMAIL DOMAIN — platform_admins has a DB check constraint that admins
-// are @pullup.se accounts, so the domain IS the world: pullupers only ever
-// see the dashboard, everyone else never sees /admin. Synchronous (no probe,
-// no race, no dependence on backend version); real authorization stays
-// server-side (requireAdmin → 403).
-function AdminWorldGuard() {
+// Two worlds, hard split, enforced as a RENDER GATE around all routes. The
+// rule is the EMAIL DOMAIN — platform_admins has a DB check constraint that
+// admins are @pullup.se accounts, so the domain IS the world. A platform
+// account never paints a HOST-app surface (no flash, ever): misplaced
+// renders show the loading eyes while the redirect fires. Public pages
+// (/e, /c, /p, landing) stay viewable — the dashboard links into them.
+// Real authorization stays server-side (requireAdmin → 403).
+const HOST_APP_PATH = /^\/(room$|r\/|create|settings|app\/|events\/|analytics|start|login)/;
+function AdminWorldGuard({ children }) {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const isAdmin = !!user?.email?.toLowerCase().endsWith("@pullup.se");
+  const inAdmin = location.pathname.startsWith("/admin");
+  const misplaced = !!user && ((isAdmin && HOST_APP_PATH.test(location.pathname)) || (!isAdmin && inAdmin));
   useEffect(() => {
-    if (!user) return;
-    const inAdmin = location.pathname.startsWith("/admin");
-    if (isAdmin && !inAdmin) navigate("/admin/inbox", { replace: true });
-    else if (!isAdmin && inAdmin) navigate("/room", { replace: true });
-  }, [user, isAdmin, location.pathname, navigate]);
-  return null;
+    if (!misplaced) return;
+    navigate(isAdmin ? "/admin/inbox" : "/room", { replace: true });
+  }, [misplaced, isAdmin, navigate]);
+  if (misplaced) return <LoadingScreen label="loading" />;
+  return children;
 }
 
 function App() {
@@ -141,9 +142,9 @@ function App() {
       {/* The PullUp AI coach widget — only mounted on the create/edit-event
           builder (it gets in the way of the Room's chat composer elsewhere). */}
       <CoachWidgetGate />
-      <AdminWorldGuard />
       {/* One Suspense for all lazy routes — the same loading eyes every
           surface already uses, shown only while a page chunk fetches. */}
+      <AdminWorldGuard>
       <Suspense fallback={<LoadingScreen label="loading" />}>
       <Routes>
         {/* Public — landing page renders the slide shell. /login and
@@ -297,6 +298,7 @@ function App() {
         </Route>
       </Routes>
       </Suspense>
+      </AdminWorldGuard>
       </MessagesStoreProvider>
       </HostResourceProvider>
     </ErrorBoundary>

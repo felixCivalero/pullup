@@ -31,6 +31,8 @@ export function AdminShell({ children }) {
   const [params] = useSearchParams();
   const { signOut } = useAuth();
   const [me, setMe] = useState(null);
+  // Icon rail that breathes: 64px of icons, expanding on hover to show labels.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     authenticatedFetch("/admin/me").then((r) => (r.ok ? r.json() : null)).then(setMe).catch(() => {});
@@ -52,37 +54,45 @@ export function AdminShell({ children }) {
     { path: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
   ];
 
-  const item = (active, onClick, Icon, label, key) => (
-    <button key={key} onClick={onClick}
+  const label = (text) => (
+    <span style={{ whiteSpace: "nowrap", opacity: open ? 1 : 0, transform: open ? "translateX(0)" : "translateX(-6px)", transition: "opacity 0.16s ease, transform 0.16s ease", pointerEvents: "none" }}>{text}</span>
+  );
+  const item = (active, onClick, Icon, text, key) => (
+    <button key={key} onClick={onClick} title={open ? undefined : text}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(10,10,10,0.04)"; }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "none"; }}
-      style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "10px 14px", border: "none", borderRadius: 12, cursor: "pointer", textAlign: "left", background: active ? INK : "none", color: active ? "#fff" : MUTED, fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", transition: "background 0.12s" }}>
-      <Icon size={16} strokeWidth={2.25} style={{ color: active ? PINK : "inherit", flexShrink: 0 }} />
-      {label}
+      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "11px 12px", border: "none", borderRadius: 12, cursor: "pointer", textAlign: "left", background: active ? INK : "none", color: active ? "#fff" : MUTED, fontSize: 13.5, fontWeight: 700, fontFamily: "inherit", transition: "background 0.12s", overflow: "hidden" }}>
+      <Icon size={17} strokeWidth={2.25} style={{ color: active ? PINK : "inherit", flexShrink: 0 }} />
+      {label(text)}
     </button>
   );
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#fafafa", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: INK }}>
-      {/* ── The rail ── */}
-      <aside style={{ width: 218, flexShrink: 0, display: "flex", flexDirection: "column", gap: 2, padding: "18px 12px", borderRight: `1px solid ${LINE}`, background: "#fff", position: "sticky", top: 0, height: "100vh", boxSizing: "border-box" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 6px 16px" }}>
-          <Eyes size={32} />
-          <div>
+      {/* ── The rail: 64px of icons, breathing open on hover ── */}
+      <aside onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
+        style={{ width: open ? 208 : 64, flexShrink: 0, display: "flex", flexDirection: "column", gap: 2, padding: "16px 10px", borderRight: `1px solid ${LINE}`, background: "#fff", position: "sticky", top: 0, height: "100vh", boxSizing: "border-box", transition: "width 0.18s ease", overflow: "hidden", zIndex: 30 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 3px 14px" }}>
+          <Eyes size={34} />
+          <div style={{ opacity: open ? 1 : 0, transition: "opacity 0.16s ease", whiteSpace: "nowrap" }}>
             <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>pullup<span style={{ color: PINK }}>.</span></div>
             <div style={{ fontSize: 10, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: "0.09em" }}>HQ</div>
           </div>
         </div>
 
-        {hq.map(({ key, label, Icon }) =>
-          item(onHq && tab === key, () => navigate(`/admin/inbox?tab=${key}`), Icon, label, key))}
+        {hq.map(({ key, label: text, Icon }) =>
+          item(onHq && tab === key, () => navigate(`/admin/inbox?tab=${key}`), Icon, text, key))}
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: "0.09em", padding: "16px 14px 6px" }}>Tools</div>
-        {tools.map(({ path, label, Icon }) =>
-          item(location.pathname.startsWith(path), () => navigate(path), Icon, label, path))}
+        <div style={{ height: 1, background: LINE, margin: "10px 6px" }} />
+        {tools.map(({ path, label: text, Icon }) =>
+          item(location.pathname.startsWith(path), () => navigate(path), Icon, text, path))}
 
-        <div style={{ marginTop: "auto", borderTop: `1px solid ${LINE}`, paddingTop: 10 }}>
-          {me?.email && <div style={{ fontSize: 11.5, color: FAINT, padding: "0 14px 8px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{me.email}{me.role === "super" ? " · super" : ""}</div>}
+        <div style={{ marginTop: "auto", borderTop: `1px solid ${LINE}`, paddingTop: 8 }}>
+          {me?.email && (
+            <div style={{ fontSize: 11.5, color: FAINT, padding: "0 12px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: open ? 1 : 0, transition: "opacity 0.16s ease" }}>
+              {me.email}{me.role === "super" ? " · super" : ""}
+            </div>
+          )}
           {item(false, () => signOut(), LogOut, "Sign out", "signout")}
         </div>
       </aside>

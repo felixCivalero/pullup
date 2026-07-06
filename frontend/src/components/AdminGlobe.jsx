@@ -14,6 +14,7 @@ import * as topojson from "topojson-client";
 const PINK = "#ec178f";
 const NEON = "#ff2da0";
 const INK = "#0a0a0a";
+const TEAL = "#0d9488"; // happened events — the brand secondary, visible on white land
 const LINE = "rgba(10,10,10,0.09)";
 const MUTED = "rgba(10,10,10,0.55)";
 const FAINT = "rgba(10,10,10,0.35)";
@@ -158,9 +159,9 @@ export function AdminGlobe({ events }) {
       .pointResolution(24)
       .pointLat((d) => d.lat)
       .pointLng((d) => d.lng)
-      .pointColor((d) => (selected && d.id === selected.id ? "#c2127a" : d.upcoming ? NEON : "rgba(10,10,10,0.35)"))
+      .pointColor((d) => (selected && d.id === selected.id ? "#c2127a" : d.upcoming ? NEON : TEAL))
       .pointAltitude(() => 0.01)
-      .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.16) * k)
+      .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.2) * k)
       .pointLabel((d) => `<div style="font-family:-apple-system,sans-serif;font-size:12px;background:#fff;color:${INK};border:1px solid rgba(10,10,10,0.12);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(10,10,10,0.14);">
           <b>${String(d.title).replace(/</g, "&lt;")}</b><br/>
           ${d.city} · ${fmtDate(d.startsAt)}${d.coming ? ` · ${d.coming} coming` : ""}
@@ -224,7 +225,7 @@ export function AdminGlobe({ events }) {
         <div style={{ position: "relative", flex: 1, minWidth: 0, borderRadius: 20, border: `1px solid ${LINE}`, overflow: "hidden", background: "radial-gradient(ellipse at 50% 40%, #ffffff 55%, #fdf1f7 100%)" }}>
           <div ref={el} style={{ height: "min(68vh, 680px)", cursor: "grab" }} />
           <div style={{ position: "absolute", bottom: 12, right: 16, fontSize: 10.5, color: FAINT, pointerEvents: "none" }}>
-            <span style={{ color: NEON, fontWeight: 700 }}>●</span> upcoming &nbsp; <span style={{ fontWeight: 700 }}>●</span> happened · drag to spin · click a dot
+            <span style={{ color: NEON, fontWeight: 700 }}>●</span> upcoming &nbsp; <span style={{ color: TEAL, fontWeight: 700 }}>●</span> happened · drag to spin · click a dot
           </div>
         </div>
 
@@ -263,7 +264,7 @@ export function AdminGlobe({ events }) {
               {rail.map((e) => (
                 <button key={e.id} onClick={() => select(e)}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 14px", border: "none", borderBottom: `1px solid ${LINE}`, background: selected?.id === e.id ? "rgba(236,23,143,0.05)" : "#fff", cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: e.upcoming ? NEON : "rgba(10,10,10,0.25)", boxShadow: e.upcoming ? "0 0 8px rgba(255,45,160,0.7)" : "none" }} />
+                  <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: e.upcoming ? NEON : TEAL, boxShadow: e.upcoming ? "0 0 8px rgba(255,45,160,0.7)" : "0 0 6px rgba(13,148,136,0.5)" }} />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
                     <div style={{ fontSize: 11.5, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

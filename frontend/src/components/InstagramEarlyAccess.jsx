@@ -99,8 +99,13 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
           </span>
         </div>
         <p style={{ fontSize: 12.5, color: colors.textMuted, margin: 0, lineHeight: 1.5 }}>
-          We'll add you as a tester in Meta's app and ping you{request.email ? ` at ${request.email}` : ""} —
-          Connect lights up here the moment you're in.
+          Your request is with <strong>felix@pullup.se</strong> — you'll get a personal reply
+          {request.email ? ` at ${request.email}` : ""} (it lands in your PullUp Messages too), and we'll
+          let you know the moment "Connect your Instagram" works for your account.
+        </p>
+        <p style={{ fontSize: 11.5, color: colors.textFaded, margin: "8px 0 0", lineHeight: 1.5 }}>
+          Heads up: Instagram only allows this for <strong>Creator or Business</strong> accounts —
+          switch yours in the Instagram app (Settings → Account type) before connecting.
         </p>
         {testerLine}
       </div>
@@ -124,7 +129,9 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
       </div>
       <p style={{ fontSize: 12.5, color: colors.textMuted, margin: "0 0 12px", lineHeight: 1.5 }}>
         Instagram is approving our app for general use. Until then we onboard hosts
-        one by one as testers — leave your handle and we'll add you.
+        one by one as testers — leave your handle and we'll add you. Works with
+        Instagram <strong>Creator or Business</strong> accounts only (switch in the
+        Instagram app under Settings → Account type).
       </p>
       <form onSubmit={submit} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <div style={{ ...inputStyle, display: "flex", alignItems: "center", gap: 2, padding: 0, minWidth: compact ? 150 : 180 }}>

@@ -296,7 +296,13 @@ export function registerRoomRoutes(app) {
       // The host CAN draft an event to hide it from the public list (their choice);
       // visitors see published only, owner sees all. But the STATS below persist
       // regardless — drafting hides the event, never the relationships.
-      const hosted = effectiveOwner ? allHosted : allHosted.filter((e) => e.status === "PUBLISHED");
+      const hosted = (effectiveOwner ? allHosted : allHosted.filter((e) => e.status === "PUBLISHED"))
+        // The events grid holds EVENTS. Community/product pages have their own
+        // doors (/c page, the console's Community card) — they don't masquerade
+        // as tiles here, and they don't inflate the "N events" count.
+        // (Relationship stats above still span ALL kinds: a community member
+        // counts as one of the host's people.)
+        .filter((e) => (e.kind || "event") === "event");
       const hostedIds = hosted.map((e) => e.id);
 
       // World = the host's real audience. Two substrates, unioned: everyone who

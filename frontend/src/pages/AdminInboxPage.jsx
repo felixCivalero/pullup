@@ -15,7 +15,7 @@ import "leaflet/dist/leaflet.css";
 import { useRef } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
-import { AdminGlobe } from "../components/AdminGlobe.jsx";
+import { AdminGlobe, cityOf } from "../components/AdminGlobe.jsx";
 import { AdminMessagesDock } from "../components/AdminMessagesDock.jsx";
 
 const C = {
@@ -39,10 +39,6 @@ function relTime(iso) {
 }
 function initials(n = "") {
   return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
-}
-function cityOf(location) {
-  const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "Unknown";
 }
 
 function Eyes({ size = 34 }) {

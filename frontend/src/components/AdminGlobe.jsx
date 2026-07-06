@@ -1,26 +1,70 @@
-// AdminGlobe — the landing view of PullUp HQ: the world, PullUp-styled.
-// White earth, ink country borders, a soft pink atmosphere, and every located
-// event as a dot — pink pillars for what's coming, ink dust for what happened.
-// Auto-rotates until you grab it. Data: /admin/events-map (lat/lng + status).
+// AdminGlobe — the pulse of PullUp, on a globe.
+//
+// White earth, ink borders, neon-pink dots breathing where events are coming,
+// ink dust where they happened. Around it: real controls — search, time
+// filters, a city lens — and a pulse rail listing what's live. Click a dot
+// (or a row) and the globe flies there and opens the event's card.
+// Data: /admin/events-map (lat/lng + status + coming counts).
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, Search, X } from "lucide-react";
 import Globe from "globe.gl";
 import * as topojson from "topojson-client";
 
 const PINK = "#ec178f";
+const NEON = "#ff2da0";
 const INK = "#0a0a0a";
+const LINE = "rgba(10,10,10,0.09)";
+const MUTED = "rgba(10,10,10,0.55)";
+const FAINT = "rgba(10,10,10,0.35)";
 
-function cityOf(location) {
+// Location strings are Google-shaped: "Venue, Street 12, 116 45 Stockholm,
+// Sverige". The CITY is the last segment that isn't a country, with any
+// postal-code prefix stripped — not the country, which is what a naive
+// last-segment read returns (the "Sverige, Sverige, Sverige" globe).
+const COUNTRIES = new Set([
+  "sverige", "sweden", "norge", "norway", "danmark", "denmark", "finland", "suomi",
+  "kenya", "germany", "deutschland", "tyskland", "spain", "españa", "espana", "spanien",
+  "france", "frankrike", "italy", "italia", "italien", "uk", "united kingdom", "england",
+  "usa", "united states", "netherlands", "nederland", "nederländerna", "belgium", "belgien",
+  "portugal", "poland", "polen", "estonia", "estland", "iceland", "island", "schweiz",
+  "switzerland", "austria", "österrike", "greece", "grekland",
+]);
+export function cityOf(location) {
   const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "Unknown";
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (COUNTRIES.has(parts[i].toLowerCase())) continue;
+    const city = parts[i].replace(/^[\d\s-]+/, "").trim(); // "116 45 Stockholm" → "Stockholm"
+    if (city) return city;
+  }
+  return parts[parts.length - 1] || "Unknown";
 }
+export function countryOf(location) {
+  const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const last = parts[parts.length - 1] || "";
+  return COUNTRIES.has(last.toLowerCase()) ? last : null;
+}
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined });
+}
+
+const chipStyle = (on, color = INK) => ({
+  fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+  border: `1px solid ${on ? "transparent" : LINE}`, background: on ? color : "#fff", color: on ? "#fff" : MUTED,
+});
 
 export function AdminGlobe({ events }) {
   const el = useRef(null);
   const globeRef = useRef(null);
   const [land, setLand] = useState(null);
+  const [when, setWhen] = useState("upcoming"); // upcoming | past | all
+  const [city, setCity] = useState("all");
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState(null);
 
-  // Country borders once per session (110m — light and crisp at globe scale).
   useEffect(() => {
     let on = true;
     fetch("https://unpkg.com/world-atlas@2.0.2/countries-110m.json")
@@ -31,34 +75,46 @@ export function AdminGlobe({ events }) {
   }, []);
 
   const now = Date.now();
-  const points = useMemo(
+  const all = useMemo(
     () => (events || []).filter((e) => e.lat != null && e.lng != null).map((e) => ({
       ...e,
+      city: cityOf(e.location),
+      country: countryOf(e.location),
       upcoming: !!(e.startsAt && new Date(e.startsAt).getTime() > now),
     })),
     [events, now],
   );
-  // One label per PLACE (coords rounded to ~10km), named by the most common
-  // city string in that cluster — venue-flavored locations ("the viewpoint")
-  // stop fighting the real city name at the same spot.
+
+  const cities = useMemo(() => {
+    const m = new Map();
+    for (const e of all) m.set(e.city, (m.get(e.city) || 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [all]);
+
+  const points = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return all.filter((e) => {
+      if (when === "upcoming" && !e.upcoming) return false;
+      if (when === "past" && e.upcoming) return false;
+      if (city !== "all" && e.city !== city) return false;
+      if (needle && !`${e.title} ${e.host || ""} ${e.city} ${e.location}`.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [all, when, city, q]);
+
+  // One label per city name — anchored at that city's busiest cluster.
   const labels = useMemo(() => {
-    const clusters = new Map();
+    const byCity = new Map();
     for (const p of points) {
-      const key = `${p.lat.toFixed(1)},${p.lng.toFixed(1)}`;
-      if (!clusters.has(key)) clusters.set(key, { lat: p.lat, lng: p.lng, names: new Map(), upcoming: false });
-      const c = clusters.get(key);
-      const name = cityOf(p.location);
-      c.names.set(name, (c.names.get(name) || 0) + 1);
+      if (!byCity.has(p.city)) byCity.set(p.city, { city: p.city, lat: p.lat, lng: p.lng, n: 0, upcoming: false });
+      const c = byCity.get(p.city);
+      c.n += 1;
       c.upcoming = c.upcoming || p.upcoming;
     }
-    return [...clusters.values()].map((c) => ({
-      lat: c.lat,
-      lng: c.lng,
-      upcoming: c.upcoming,
-      city: [...c.names.entries()].sort((a, b) => b[1] - a[1])[0][0],
-    }));
+    return [...byCity.values()].sort((a, b) => b.n - a.n).slice(0, 40);
   }, [points]);
 
+  // ── Globe boot (once) ──
   useEffect(() => {
     if (!el.current || globeRef.current) return;
     const g = Globe()(el.current)
@@ -72,9 +128,9 @@ export function AdminGlobe({ events }) {
       .height(el.current.clientHeight);
     g.globeMaterial().color.set("#ffffff");
     g.controls().autoRotate = true;
-    g.controls().autoRotateSpeed = 0.55;
+    g.controls().autoRotateSpeed = 0.5;
     g.controls().enableZoom = true;
-    g.pointOfView({ lat: 45, lng: 18, altitude: 1.9 }, 0); // Europe first — where the events are
+    g.pointOfView({ lat: 45, lng: 18, altitude: 1.9 }, 0);
     globeRef.current = g;
     const onResize = () => g.width(el.current?.clientWidth || 800).height(el.current?.clientHeight || 560);
     window.addEventListener("resize", onResize);
@@ -91,21 +147,21 @@ export function AdminGlobe({ events }) {
       .polygonAltitude(0.004);
   }, [land]);
 
+  // ── Data → globe (re-runs on every filter change) ──
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
     g.pointsData(points)
       .pointLat((d) => d.lat)
       .pointLng((d) => d.lng)
-      .pointColor((d) => (d.upcoming ? "#ff2da0" : "rgba(10,10,10,0.35)"))
+      .pointColor((d) => (selected && d.id === selected.id ? INK : d.upcoming ? NEON : "rgba(10,10,10,0.35)"))
       .pointAltitude(() => 0.002)
-      .pointRadius((d) => (d.upcoming ? 0.28 : 0.16))
+      .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.16))
       .pointLabel((d) => `<div style="font-family:-apple-system,sans-serif;font-size:12px;background:#fff;color:${INK};border:1px solid rgba(10,10,10,0.12);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(10,10,10,0.14);">
           <b>${String(d.title).replace(/</g, "&lt;")}</b><br/>
-          ${cityOf(d.location)} · ${d.startsAt ? new Date(d.startsAt).toLocaleDateString() : ""}${d.coming ? ` · ${d.coming} coming` : ""}${d.host ? `<br/><span style=\"color:rgba(10,10,10,0.5)\">${String(d.host).replace(/</g, "&lt;")}</span>` : ""}
+          ${d.city} · ${fmtDate(d.startsAt)}${d.coming ? ` · ${d.coming} coming` : ""}
         </div>`)
-      .onPointClick((d) => { if (d.slug) window.open(`/e/${d.slug}`, "_blank"); });
-    // The neon: soft rings breathing out of every upcoming event.
+      .onPointClick((d) => select(d));
     g.ringsData(points.filter((p) => p.upcoming))
       .ringLat((d) => d.lat)
       .ringLng((d) => d.lng)
@@ -120,37 +176,122 @@ export function AdminGlobe({ events }) {
       .labelText((d) => d.city)
       .labelSize(0.45)
       .labelDotRadius(0)
-      .labelColor((d) => (d.upcoming ? "#ff2da0" : "rgba(10,10,10,0.6)"))
+      .labelColor((d) => (d.upcoming ? NEON : "rgba(10,10,10,0.6)"))
       .labelAltitude(0.012)
       .labelResolution(2);
-  }, [points, labels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, labels, selected]);
+
+  function select(e) {
+    setSelected(e);
+    const g = globeRef.current;
+    if (g && e) {
+      g.controls().autoRotate = false;
+      g.pointOfView({ lat: e.lat - 0.15, lng: e.lng, altitude: 0.5 }, 900);
+    }
+  }
+  function clearSelected() {
+    setSelected(null);
+    const g = globeRef.current;
+    if (g) g.controls().autoRotate = true;
+  }
 
   const upcoming = points.filter((p) => p.upcoming);
-  const cities = new Set(points.map((p) => cityOf(p.location)));
-  const nextUp = upcoming.slice().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))[0];
+  const totalComing = upcoming.reduce((s, p) => s + (p.coming || 0), 0);
+  const rail = useMemo(() => {
+    const up = points.filter((p) => p.upcoming).sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+    const past = points.filter((p) => !p.upcoming).sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt));
+    return [...up, ...past];
+  }, [points]);
 
   return (
-    <div style={{ position: "relative", borderRadius: 20, border: "1px solid rgba(10,10,10,0.09)", overflow: "hidden", background: "radial-gradient(ellipse at 50% 40%, #ffffff 55%, #fdf1f7 100%)" }}>
-      <div ref={el} style={{ height: "min(72vh, 720px)", cursor: "grab" }} />
-      {/* Floating facts — the expansion read at a glance. */}
-      <div style={{ position: "absolute", top: 18, left: 18, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
-        <div style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", border: "1px solid rgba(10,10,10,0.08)", borderRadius: 14, padding: "10px 14px" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: INK }}>{upcoming.length}<span style={{ color: PINK }}>.</span></div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(10,10,10,0.45)", textTransform: "uppercase", letterSpacing: "0.06em" }}>upcoming events</div>
+    <div>
+      {/* Controls — the lens over the world. */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        {[["upcoming", "Upcoming"], ["past", "History"], ["all", "All"]].map(([k, label]) => (
+          <button key={k} onClick={() => { setWhen(k); clearSelected(); }} style={chipStyle(when === k, PINK)}>{label}</button>
+        ))}
+        <div style={{ width: 1, height: 18, background: LINE, margin: "0 4px" }} />
+        <select value={city} onChange={(e) => { setCity(e.target.value); clearSelected(); }}
+          style={{ fontSize: 12.5, fontWeight: 600, padding: "6px 10px", borderRadius: 10, border: `1px solid ${LINE}`, background: "#fff", color: INK }}>
+          <option value="all">Everywhere</option>
+          {cities.map(([c, n]) => <option key={c} value={c}>{c} · {n}</option>)}
+        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: `1px solid ${LINE}`, borderRadius: 999, padding: "6px 12px", minWidth: 180 }}>
+          <Search size={13} color={FAINT} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events, hosts…"
+            style={{ border: "none", outline: "none", background: "none", fontSize: 12.5, color: INK, width: "100%" }} />
+          {q && <button onClick={() => setQ("")} style={{ border: "none", background: "none", cursor: "pointer", color: FAINT, padding: 0, display: "flex" }}><X size={13} /></button>}
         </div>
-        <div style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", border: "1px solid rgba(10,10,10,0.08)", borderRadius: 14, padding: "10px 14px" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: INK }}>{cities.size}</div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(10,10,10,0.45)", textTransform: "uppercase", letterSpacing: "0.06em" }}>cities reached</div>
-        </div>
-        {nextUp && (
-          <div style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", border: "1px solid rgba(10,10,10,0.08)", borderRadius: 14, padding: "10px 14px", maxWidth: 220 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nextUp.title}</div>
-            <div style={{ fontSize: 11, color: "rgba(10,10,10,0.5)" }}>next · {cityOf(nextUp.location)} · {new Date(nextUp.startsAt).toLocaleDateString()}</div>
-          </div>
-        )}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: MUTED }}>{points.length} event{points.length === 1 ? "" : "s"} in view</span>
       </div>
-      <div style={{ position: "absolute", bottom: 14, right: 18, fontSize: 10.5, color: "rgba(10,10,10,0.35)", pointerEvents: "none" }}>
-        <span style={{ color: PINK, fontWeight: 700 }}>●</span> upcoming &nbsp; <span style={{ fontWeight: 700 }}>●</span> happened · drag to spin
+
+      <div style={{ display: "flex", gap: 14, alignItems: "stretch" }}>
+        {/* The globe */}
+        <div style={{ position: "relative", flex: 1, minWidth: 0, borderRadius: 20, border: `1px solid ${LINE}`, overflow: "hidden", background: "radial-gradient(ellipse at 50% 40%, #ffffff 55%, #fdf1f7 100%)" }}>
+          <div ref={el} style={{ height: "min(68vh, 680px)", cursor: "grab" }} />
+          <div style={{ position: "absolute", top: 16, left: 16, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
+            {[[upcoming.length, "upcoming events", true], [new Set(points.map((p) => p.city)).size, "cities in view", false], [totalComing, "people coming", false]].map(([v, l, dot]) => (
+              <div key={l} style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)", border: "1px solid rgba(10,10,10,0.08)", borderRadius: 14, padding: "9px 13px" }}>
+                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em", color: INK }}>{v}{dot ? <span style={{ color: PINK }}>.</span> : null}</div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: "absolute", bottom: 12, right: 16, fontSize: 10.5, color: FAINT, pointerEvents: "none" }}>
+            <span style={{ color: NEON, fontWeight: 700 }}>●</span> upcoming &nbsp; <span style={{ fontWeight: 700 }}>●</span> happened · drag to spin · click a dot
+          </div>
+        </div>
+
+        {/* The pulse rail — selected card on top, then everything in view. */}
+        <div style={{ width: 316, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, maxHeight: "min(68vh, 680px)" }}>
+          {selected && (
+            <div style={{ border: `1.5px solid ${PINK}`, borderRadius: 16, background: "#fff", padding: "14px 15px", boxShadow: "0 10px 34px rgba(236,23,143,0.14)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: selected.upcoming ? PINK : MUTED }}>
+                    {selected.upcoming ? "Upcoming" : "Happened"}{selected.status ? ` · ${String(selected.status).toLowerCase()}` : ""}
+                  </span>
+                  <div style={{ fontSize: 15.5, fontWeight: 800, letterSpacing: "-0.01em", lineHeight: 1.25, marginTop: 3 }}>{selected.title}</div>
+                </div>
+                <button onClick={clearSelected} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", color: FAINT, padding: 2 }}><X size={16} /></button>
+              </div>
+              <div style={{ fontSize: 12.5, color: MUTED, marginTop: 8, lineHeight: 1.55 }}>
+                {selected.host && <div><b style={{ color: INK }}>{selected.host}</b> hosts</div>}
+                <div>{fmtDate(selected.startsAt)}{selected.city ? ` · ${selected.city}` : ""}{selected.country ? `, ${selected.country}` : ""}</div>
+                {selected.location && <div style={{ color: FAINT }}>{selected.location}</div>}
+                <div style={{ marginTop: 4, fontWeight: 700, color: INK }}>{selected.coming || 0}{selected.capacity ? ` / ${selected.capacity}` : ""} coming</div>
+              </div>
+              {selected.slug && (
+                <a href={`/e/${selected.slug}`} target="_blank" rel="noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12.5, fontWeight: 700, color: "#fff", background: PINK, borderRadius: 999, padding: "8px 14px", textDecoration: "none" }}>
+                  Open event page <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+          )}
+          <div style={{ flex: 1, minHeight: 0, border: `1px solid ${LINE}`, borderRadius: 16, background: "#fff", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${LINE}`, fontSize: 11, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              The pulse · {points.length}
+            </div>
+            <div style={{ overflowY: "auto" }}>
+              {rail.map((e) => (
+                <button key={e.id} onClick={() => select(e)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 14px", border: "none", borderBottom: `1px solid ${LINE}`, background: selected?.id === e.id ? "rgba(236,23,143,0.05)" : "#fff", cursor: "pointer", textAlign: "left" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: e.upcoming ? NEON : "rgba(10,10,10,0.25)", boxShadow: e.upcoming ? "0 0 8px rgba(255,45,160,0.7)" : "none" }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
+                    <div style={{ fontSize: 11.5, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {[e.city, fmtDate(e.startsAt), e.host].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: e.upcoming ? PINK : FAINT, flexShrink: 0 }}>{e.coming || 0}{e.capacity ? `/${e.capacity}` : ""}</span>
+                </button>
+              ))}
+              {rail.length === 0 && <div style={{ padding: 30, textAlign: "center", color: FAINT, fontSize: 13 }}>Nothing matches — widen the lens.</div>}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

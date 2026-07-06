@@ -1,17 +1,22 @@
-// AdminInboxPage — the operator seat of the system chat.
+// AdminInboxPage — PullUp HQ, the admin world's home.
 //
-// Hosts talk to "PullUp" in their Messages; this is where the humans behind
-// @pullup.se answer. Three panels: the System inbox (threads across all
-// hosts), the early-access Requests queue, and (super only) Admins.
-// Everything is internal rows — no email in the conversation.
+// Landing = the globe: the world PullUp-styled, every located event a dot.
+// Messages = the same floating blob hosts have (AdminMessagesDock), speaking
+// as PullUp into any host's dock. Around it: the Requests queue, the
+// Overview (our own Stripe-webhook ledger), the flat filterable Map, and
+// (super only) admin grants. The deep tools (CRM / Matches / Analytics)
+// live in the gold shell tabs above.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Sparkles, RefreshCw, Check, X as XIcon, LogOut } from "lucide-react";
+import { RefreshCw, Check, X as XIcon, LogOut } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useRef } from "react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
+import { AdminGlobe } from "../components/AdminGlobe.jsx";
+import { AdminMessagesDock } from "../components/AdminMessagesDock.jsx";
 
 const C = {
   ink: "#0a0a0a",
@@ -20,8 +25,6 @@ const C = {
   line: "rgba(10,10,10,0.09)",
   raise: "#f5f5f7",
   pink: "#ec178f",
-  youGrad: "linear-gradient(135deg, #ff45ad 0%, #ec178f 55%, #c2127a 100%)",
-  them: "#f1f1f3",
   green: "#16a34a",
   amber: "#b45309",
 };
@@ -34,9 +37,12 @@ function relTime(iso) {
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86400)}d`;
 }
-
 function initials(n = "") {
   return String(n).trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
+}
+function cityOf(location) {
+  const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "Unknown";
 }
 
 function Eyes({ size = 34 }) {
@@ -56,13 +62,6 @@ function HostAvatar({ name, src, size = 40 }) {
   );
 }
 
-// Crude but honest: the trailing comma-segment of a location string is
-// usually the city/area ("Slakthusområdet, Stockholm" → "Stockholm").
-function cityOf(location) {
-  const parts = String(location || "").split(",").map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "Unknown";
-}
-
 function StatCard({ label, value, sub }) {
   return (
     <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", padding: "16px 18px" }}>
@@ -73,9 +72,8 @@ function StatCard({ label, value, sub }) {
   );
 }
 
-// The expansion map — every located event as a dot: pink = upcoming, ink =
-// happened. Leaflet + OSM tiles, circleMarkers (no icon assets to bundle).
-function EventsMap({ events, onPick }) {
+// The flat detail map — Leaflet + CARTO light, city filter, list under it.
+function EventsMap({ events }) {
   const el = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
@@ -83,7 +81,7 @@ function EventsMap({ events, onPick }) {
     if (!el.current || mapRef.current) return;
     const map = L.map(el.current, { scrollWheelZoom: true, worldCopyJump: true }).setView([30, 15], 2);
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: "abcd", maxZoom: 19,
+      attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 19,
     }).addTo(map);
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
@@ -99,90 +97,58 @@ function EventsMap({ events, onPick }) {
       if (e.lat == null || e.lng == null) continue;
       const upcoming = e.startsAt && new Date(e.startsAt).getTime() > now;
       const m = L.circleMarker([e.lat, e.lng], {
-        radius: upcoming ? 8 : 5,
-        color: upcoming ? "#ec178f" : "#0a0a0a",
-        weight: 2,
-        fillColor: upcoming ? "#ec178f" : "#0a0a0a",
-        fillOpacity: upcoming ? 0.55 : 0.25,
+        radius: upcoming ? 8 : 5, color: upcoming ? C.pink : C.ink, weight: 2,
+        fillColor: upcoming ? C.pink : C.ink, fillOpacity: upcoming ? 0.55 : 0.25,
       });
       m.bindTooltip(`${e.title}${e.host ? ` — ${e.host}` : ""}<br/>${cityOf(e.location)} · ${e.startsAt ? new Date(e.startsAt).toLocaleDateString() : ""}${e.coming ? ` · ${e.coming} coming` : ""}`);
-      if (onPick) m.on("click", () => onPick(e));
       m.addTo(layer);
       pts.push([e.lat, e.lng]);
     }
-    if (pts.length && mapRef.current) {
-      mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11 });
-    }
-  }, [events, onPick]);
+    if (pts.length && mapRef.current) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11 });
+  }, [events]);
   return <div ref={el} style={{ height: 440, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.line}` }} />;
 }
 
 export function AdminInboxPage() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const [me, setMe] = useState(null); // { isAdmin, role }
-  const [tab, setTab] = useState("inbox");
-  const [threads, setThreads] = useState([]);
-  const [openHost, setOpenHost] = useState(null); // hostId
-  const [thread, setThread] = useState(null); // { host, thread }
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
+  const [me, setMe] = useState(null);
+  const [tab, setTab] = useState("globe");
   const [requests, setRequests] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [grantEmail, setGrantEmail] = useState("");
   const [overview, setOverview] = useState(null);
   const [mapEvents, setMapEvents] = useState([]);
-  const [mapWhen, setMapWhen] = useState("upcoming"); // upcoming | past | all
+  const [mapWhen, setMapWhen] = useState("upcoming");
   const [mapCity, setMapCity] = useState("all");
-  const scroller = useRef(null);
 
   useEffect(() => {
     authenticatedFetch("/admin/me").then((r) => r.json()).then(setMe).catch(() => setMe({ isAdmin: false }));
   }, []);
 
-  const loadInbox = useCallback(() => {
-    authenticatedFetch("/admin/system-inbox").then((r) => (r.ok ? r.json() : null)).then((d) => d && setThreads(d.threads || [])).catch(() => {});
-  }, []);
-  const loadThread = useCallback((hostId) => {
-    authenticatedFetch(`/admin/system-inbox/${hostId}`).then((r) => (r.ok ? r.json() : null)).then((d) => d && setThread(d)).catch(() => {});
-  }, []);
   const loadRequests = useCallback(() => {
     authenticatedFetch("/admin/requests").then((r) => (r.ok ? r.json() : null)).then((d) => d && setRequests(d.items || [])).catch(() => {});
   }, []);
   const loadAdmins = useCallback(() => {
     authenticatedFetch("/admin/admins").then((r) => (r.ok ? r.json() : null)).then((d) => d && setAdmins(d.admins || [])).catch(() => {});
   }, []);
+  const loadMapEvents = useCallback(() => {
+    authenticatedFetch("/admin/events-map").then((r) => (r.ok ? r.json() : null)).then((d) => d && setMapEvents(d.events || [])).catch(() => {});
+  }, []);
 
-  // Live-enough: poll the inbox + open thread. Internal traffic is light; a
-  // 12s tick keeps the seat fresh without a dedicated realtime channel.
-  useEffect(() => {
-    loadInbox();
-    const t = setInterval(loadInbox, 12000);
-    return () => clearInterval(t);
-  }, [loadInbox]);
-  useEffect(() => {
-    if (!openHost) return;
-    loadThread(openHost);
-    const t = setInterval(() => loadThread(openHost), 12000);
-    return () => clearInterval(t);
-  }, [openHost, loadThread]);
+  // The globe is the landing — its pins load immediately.
+  useEffect(() => { loadMapEvents(); }, [loadMapEvents]);
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
     if (tab === "overview" && !overview) {
       authenticatedFetch("/admin/overview").then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
     }
-    if (tab === "map" && mapEvents.length === 0) {
-      authenticatedFetch("/admin/events-map").then((r) => (r.ok ? r.json() : null)).then((d) => d && setMapEvents(d.events || [])).catch(() => {});
-    }
-  }, [tab, overview, mapEvents.length]);
+  }, [tab, overview]);
 
   const cities = useMemo(() => {
     const set = new Map();
-    for (const e of mapEvents) {
-      const c = cityOf(e.location);
-      set.set(c, (set.get(c) || 0) + 1);
-    }
+    for (const e of mapEvents) set.set(cityOf(e.location), (set.get(cityOf(e.location)) || 0) + 1);
     return [...set.entries()].sort((a, b) => b[1] - a[1]);
   }, [mapEvents]);
   const filteredMapEvents = useMemo(() => {
@@ -195,38 +161,12 @@ export function AdminInboxPage() {
       return true;
     });
   }, [mapEvents, mapWhen, mapCity]);
-  useEffect(() => { scroller.current?.scrollTo(0, 1e9); }, [thread]);
-
-  async function send() {
-    const text = draft.trim();
-    if (!text || !openHost || sending) return;
-    setSending(true);
-    try {
-      const r = await authenticatedFetch(`/admin/system-inbox/${openHost}/message`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
-      });
-      if (r.ok) {
-        setDraft("");
-        loadThread(openHost);
-        loadInbox();
-      }
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function setRequestStatus(item, status) {
-    await authenticatedFetch(`/admin/requests/${item.kind === "instagram" ? "instagram" : item.kind}/${item.host_id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
-    }).catch(() => {});
-    loadRequests();
-  }
 
   const tabs = useMemo(() => {
     const t = [
-      { key: "inbox", label: "System inbox" },
-      { key: "requests", label: "Requests" },
+      { key: "globe", label: "World" },
       { key: "overview", label: "Overview" },
+      { key: "requests", label: "Requests" },
       { key: "map", label: "Map" },
     ];
     if (me?.role === "super") t.push({ key: "admins", label: "Admins" });
@@ -235,6 +175,13 @@ export function AdminInboxPage() {
 
   if (me && !me.isAdmin) {
     return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
+  }
+
+  async function setRequestStatus(item, status) {
+    await authenticatedFetch(`/admin/requests/${item.kind === "instagram" ? "instagram" : item.kind}/${item.host_id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    }).catch(() => {});
+    loadRequests();
   }
 
   const statusChip = (s) => (
@@ -247,16 +194,10 @@ export function AdminInboxPage() {
         <Eyes size={38} />
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>PullUp HQ</h1>
-          <div style={{ fontSize: 12.5, color: C.muted }}>The system speaks from here — every reply lands in the host's Messages instantly.</div>
+          <div style={{ fontSize: 12.5, color: C.muted }}>How PullUp is actually going — and the system's voice, in Messages below right.</div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          {/* The deep tools live on their own pages; HQ is the front door. */}
-          {[["CRM", "/admin/crm"], ["Matches", "/admin/matches"], ["Analytics", "/admin/analytics"]].map(([label, path]) => (
-            <button key={path} onClick={() => navigate(path)} style={{ fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.muted }}>
-              {label}
-            </button>
-          ))}
-          <button onClick={() => { loadInbox(); if (openHost) loadThread(openHost); if (tab === "requests") loadRequests(); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "overview") setOverview(null); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
             <RefreshCw size={15} />
           </button>
           <button onClick={() => signOut()} title="Sign out" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
@@ -273,111 +214,7 @@ export function AdminInboxPage() {
         ))}
       </div>
 
-      {tab === "inbox" && (
-        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, minHeight: 560 }}>
-          {/* Thread list */}
-          <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, overflow: "hidden", background: "#fff" }}>
-            <div style={{ padding: "12px 14px", borderBottom: `1px solid ${C.line}`, fontSize: 12, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Conversations · {threads.length}
-            </div>
-            <div style={{ overflowY: "auto", maxHeight: 620 }}>
-              {threads.map((t) => (
-                <button key={t.hostId} onClick={() => { setOpenHost(t.hostId); setThread(null); }}
-                  style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", padding: "11px 14px", border: "none", borderBottom: `1px solid ${C.line}`, background: openHost === t.hostId ? C.raise : "#fff", cursor: "pointer", textAlign: "left" }}>
-                  <HostAvatar name={t.name} src={t.avatarUrl} />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
-                      {t.needsReply && <span style={{ width: 7, height: 7, borderRadius: 999, background: C.pink, flexShrink: 0 }} />}
-                    </div>
-                    <div style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {t.lastFrom === "pullup" ? "PullUp: " : ""}{t.lastBody} · {relTime(t.lastAt)}
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {threads.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No system conversations yet.</div>}
-            </div>
-          </div>
-
-          {/* Chat pane — we ARE PullUp here: our bubbles right/pink. */}
-          <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", display: "flex", flexDirection: "column", minHeight: 560 }}>
-            {!openHost && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 14 }}>Pick a conversation.</div>}
-            {openHost && (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${C.line}` }}>
-                  <HostAvatar name={thread?.host?.name} src={thread?.host?.avatarUrl} size={32} />
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{thread?.host?.name || "…"}</div>
-                    {thread?.host?.email && <div style={{ fontSize: 11.5, color: C.muted }}>{thread.host.email}</div>}
-                  </div>
-                </div>
-                <div ref={scroller} style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                  {(thread?.thread || []).map((m) => {
-                    if (m.from === "system") {
-                      return (
-                        <div key={m.id} style={{ display: "flex", justifyContent: "center" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.muted, background: C.raise, borderRadius: 999, padding: "4px 11px", maxWidth: "88%" }}>
-                            <Sparkles size={12} color="#7c3aed" />
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.text}</span>
-                            <span style={{ color: C.faint }}>· {relTime(m.at)}</span>
-                          </span>
-                        </div>
-                      );
-                    }
-                    const mine = m.from === "you";
-                    return (
-                      <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
-                        <div style={{ maxWidth: "70%" }}>
-                          <div style={{ padding: "9px 13px", borderRadius: mine ? "18px 18px 5px 18px" : "18px 18px 18px 5px", background: mine ? C.youGrad : C.them, color: mine ? "#fff" : C.ink, fontSize: 13.5, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{m.text}</div>
-                          <div style={{ fontSize: 10, color: C.faint, marginTop: 3, textAlign: mine ? "right" : "left" }}>
-                            {mine ? `PullUp${m.admin ? ` · ${m.admin}` : ""} · ` : ""}{relTime(m.at)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ display: "flex", gap: 8, padding: 12, borderTop: `1px solid ${C.line}` }}>
-                  <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-                    placeholder="Reply as PullUp…" style={{ flex: 1, border: `1px solid ${C.line}`, borderRadius: 999, padding: "11px 16px", fontSize: 13.5, outline: "none" }} />
-                  <button onClick={send} disabled={sending || !draft.trim()} style={{ border: "none", background: C.youGrad, color: "#fff", borderRadius: 999, width: 42, height: 42, cursor: "pointer", opacity: sending || !draft.trim() ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Send size={16} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === "requests" && (
-        <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", overflow: "hidden" }}>
-          {requests.map((r, i) => (
-            <div key={`${r.kind}:${r.host_id}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderBottom: i < requests.length - 1 ? `1px solid ${C.line}` : "none" }}>
-              <HostAvatar name={r.host?.name || r.name} src={r.host?.avatarUrl} size={34} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.host?.name || r.name || r.email || r.host_id}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>
-                  {r.kind === "instagram" ? `Instagram · ${r.label}` : `Tier · ${r.label}`}{r.note ? ` — ${r.note}` : ""} · {relTime(r.updated_at || r.created_at)}
-                </div>
-              </div>
-              {statusChip(r.status)}
-              {r.status === "pending" && (
-                <>
-                  <button onClick={() => setRequestStatus(r, "onboarded")} title="Mark onboarded" style={{ border: `1px solid rgba(22,163,74,0.35)`, background: "rgba(22,163,74,0.06)", color: C.green, borderRadius: 9, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700 }}>
-                    <Check size={13} /> Onboarded
-                  </button>
-                  <button onClick={() => setRequestStatus(r, "declined")} title="Decline" style={{ border: `1px solid ${C.line}`, background: "#fff", color: C.muted, borderRadius: 9, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700 }}>
-                    <XIcon size={13} /> Decline
-                  </button>
-                </>
-              )}
-            </div>
-          ))}
-          {requests.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No requests yet.</div>}
-        </div>
-      )}
+      {tab === "globe" && <AdminGlobe events={mapEvents} />}
 
       {tab === "overview" && (
         <div>
@@ -400,6 +237,34 @@ export function AdminInboxPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {tab === "requests" && (
+        <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", overflow: "hidden" }}>
+          {requests.map((r, i) => (
+            <div key={`${r.kind}:${r.host_id}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderBottom: i < requests.length - 1 ? `1px solid ${C.line}` : "none" }}>
+              <HostAvatar name={r.host?.name || r.name} src={r.host?.avatarUrl} size={34} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.host?.name || r.name || r.email || r.host_id}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>
+                  {r.kind === "instagram" ? `Instagram · ${r.label}` : `Tier · ${r.label}`}{r.note ? ` — ${r.note}` : ""} · {relTime(r.updated_at || r.created_at)}
+                </div>
+              </div>
+              {statusChip(r.status)}
+              {r.status === "pending" && (
+                <>
+                  <button onClick={() => setRequestStatus(r, "onboarded")} title="Mark onboarded" style={{ border: "1px solid rgba(22,163,74,0.35)", background: "rgba(22,163,74,0.06)", color: C.green, borderRadius: 9, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700 }}>
+                    <Check size={13} /> Onboarded
+                  </button>
+                  <button onClick={() => setRequestStatus(r, "declined")} title="Decline" style={{ border: `1px solid ${C.line}`, background: "#fff", color: C.muted, borderRadius: 9, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700 }}>
+                    <XIcon size={13} /> Decline
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+          {requests.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No requests yet.</div>}
         </div>
       )}
 
@@ -469,6 +334,9 @@ export function AdminInboxPage() {
           ))}
         </div>
       )}
+
+      {/* The system's voice — same blob as the hosts', bottom right. */}
+      <AdminMessagesDock />
     </div>
   );
 }

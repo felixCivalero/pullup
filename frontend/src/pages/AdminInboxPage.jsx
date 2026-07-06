@@ -10,11 +10,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw, Check, X as XIcon } from "lucide-react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { useRef } from "react";
 import { authenticatedFetch } from "../lib/api.js";
-import { AdminGlobe, cityOf } from "../components/AdminGlobe.jsx";
+import { AdminGlobe } from "../components/AdminGlobe.jsx";
 
 const C = {
   ink: "#0a0a0a",
@@ -66,43 +63,6 @@ function StatCard({ label, value, sub }) {
   );
 }
 
-// The flat detail map — Leaflet + CARTO light, city filter, list under it.
-function EventsMap({ events }) {
-  const el = useRef(null);
-  const mapRef = useRef(null);
-  const layerRef = useRef(null);
-  useEffect(() => {
-    if (!el.current || mapRef.current) return;
-    const map = L.map(el.current, { scrollWheelZoom: true, worldCopyJump: true }).setView([30, 15], 2);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 19,
-    }).addTo(map);
-    mapRef.current = map;
-    layerRef.current = L.layerGroup().addTo(map);
-    return () => { map.remove(); mapRef.current = null; layerRef.current = null; };
-  }, []);
-  useEffect(() => {
-    const layer = layerRef.current;
-    if (!layer) return;
-    layer.clearLayers();
-    const now = Date.now();
-    const pts = [];
-    for (const e of events) {
-      if (e.lat == null || e.lng == null) continue;
-      const upcoming = e.startsAt && new Date(e.startsAt).getTime() > now;
-      const m = L.circleMarker([e.lat, e.lng], {
-        radius: upcoming ? 8 : 5, color: upcoming ? C.pink : C.ink, weight: 2,
-        fillColor: upcoming ? C.pink : C.ink, fillOpacity: upcoming ? 0.55 : 0.25,
-      });
-      m.bindTooltip(`${e.title}${e.host ? ` — ${e.host}` : ""}<br/>${cityOf(e.location)} · ${e.startsAt ? new Date(e.startsAt).toLocaleDateString() : ""}${e.coming ? ` · ${e.coming} coming` : ""}`);
-      m.addTo(layer);
-      pts.push([e.lat, e.lng]);
-    }
-    if (pts.length && mapRef.current) mapRef.current.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 11 });
-  }, [events]);
-  return <div ref={el} style={{ height: 440, borderRadius: 16, overflow: "hidden", border: `1px solid ${C.line}` }} />;
-}
-
 export function AdminInboxPage() {
   // The AdminShell sidebar drives the section via ?tab= — this page is the
   // content pane of the dashboard, no chrome of its own.
@@ -114,8 +74,6 @@ export function AdminInboxPage() {
   const [grantEmail, setGrantEmail] = useState("");
   const [overview, setOverview] = useState(null);
   const [mapEvents, setMapEvents] = useState([]);
-  const [mapWhen, setMapWhen] = useState("upcoming");
-  const [mapCity, setMapCity] = useState("all");
 
   useEffect(() => {
     authenticatedFetch("/admin/me").then((r) => r.json()).then(setMe).catch(() => setMe({ isAdmin: false }));
@@ -136,43 +94,12 @@ export function AdminInboxPage() {
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
-    if (tab === "overview" && !overview) {
+    if ((tab === "overview" || tab === "globe") && !overview) {
       authenticatedFetch("/admin/overview").then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
     }
   }, [tab, overview]);
 
-  const cities = useMemo(() => {
-    const set = new Map();
-    for (const e of mapEvents) set.set(cityOf(e.location), (set.get(cityOf(e.location)) || 0) + 1);
-    return [...set.entries()].sort((a, b) => b[1] - a[1]);
-  }, [mapEvents]);
-  const filteredMapEvents = useMemo(() => {
-    const now = Date.now();
-    return mapEvents.filter((e) => {
-      const upcoming = e.startsAt && new Date(e.startsAt).getTime() > now;
-      if (mapWhen === "upcoming" && !upcoming) return false;
-      if (mapWhen === "past" && upcoming) return false;
-      if (mapCity !== "all" && cityOf(e.location) !== mapCity) return false;
-      return true;
-    });
-  }, [mapEvents, mapWhen, mapCity]);
-
-  if (me && !me.isAdmin) {
-    return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
-  }
-
-  async function setRequestStatus(item, status) {
-    await authenticatedFetch(`/admin/requests/${item.kind === "instagram" ? "instagram" : item.kind}/${item.host_id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
-    }).catch(() => {});
-    loadRequests();
-  }
-
-  const statusChip = (s) => (
-    <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 9px", borderRadius: 999, background: s === "onboarded" ? "rgba(22,163,74,0.1)" : s === "declined" ? "rgba(10,10,10,0.06)" : "rgba(180,83,9,0.1)", color: s === "onboarded" ? C.green : s === "declined" ? C.muted : C.amber }}>{s}</span>
-  );
-
-  const TITLES = { globe: "The world", overview: "Overview", requests: "Requests", map: "Map", admins: "Admins" };
+  const TITLES = { globe: "The world", overview: "Overview", requests: "Requests", admins: "Admins" };
 
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 60px", color: C.ink }}>
@@ -183,7 +110,29 @@ export function AdminInboxPage() {
         </button>
       </div>
 
-      {tab === "globe" && <AdminGlobe events={mapEvents} />}
+      {tab === "globe" && (
+        <div>
+          {/* The numbers, riding above the world — compact twins of Overview. */}
+          {overview && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10, marginBottom: 14 }}>
+              {[
+                [`${overview.subscriptions.mrrSek.toLocaleString()} kr`, "MRR"],
+                [overview.subscriptions.active, "subscribers"],
+                [overview.subscriptions.founding, "founding hosts"],
+                [`${overview.ticketSales.last30Sek.toLocaleString()} kr`, "sales · 30d"],
+                [overview.events.upcoming, "upcoming events"],
+                [overview.hosts.total ?? "—", "hosts"],
+              ].map(([v, l]) => (
+                <div key={l} style={{ border: `1px solid ${C.line}`, borderRadius: 14, background: "#fff", padding: "11px 14px" }}>
+                  <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em" }}>{v}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <AdminGlobe events={mapEvents} />
+        </div>
+      )}
 
       {tab === "overview" && (
         <div>
@@ -234,41 +183,6 @@ export function AdminInboxPage() {
             </div>
           ))}
           {requests.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No requests yet.</div>}
-        </div>
-      )}
-
-      {tab === "map" && (
-        <div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-            {[["upcoming", "Upcoming"], ["past", "History"], ["all", "All"]].map(([k, label]) => (
-              <button key={k} onClick={() => setMapWhen(k)} style={{ fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${mapWhen === k ? "transparent" : C.line}`, background: mapWhen === k ? C.pink : "#fff", color: mapWhen === k ? "#fff" : C.muted }}>
-                {label}
-              </button>
-            ))}
-            <div style={{ width: 1, height: 18, background: C.line, margin: "0 4px" }} />
-            <select value={mapCity} onChange={(e) => setMapCity(e.target.value)} style={{ fontSize: 12.5, fontWeight: 600, padding: "6px 10px", borderRadius: 10, border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}>
-              <option value="all">Everywhere</option>
-              {cities.map(([c, n]) => <option key={c} value={c}>{c} · {n}</option>)}
-            </select>
-            <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{filteredMapEvents.length} event{filteredMapEvents.length === 1 ? "" : "s"} on the map</span>
-          </div>
-          <EventsMap events={filteredMapEvents} />
-          <div style={{ marginTop: 14, border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", overflow: "hidden" }}>
-            {filteredMapEvents.slice(0, 30).map((e, i) => (
-              <a key={e.id} href={e.slug ? `/e/${e.slug}` : undefined} target="_blank" rel="noreferrer"
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: i < Math.min(filteredMapEvents.length, 30) - 1 ? `1px solid ${C.line}` : "none", textDecoration: "none", color: C.ink }}>
-                <span style={{ width: 9, height: 9, borderRadius: 999, flexShrink: 0, background: e.startsAt && new Date(e.startsAt).getTime() > Date.now() ? C.pink : "rgba(10,10,10,0.25)" }} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
-                  <div style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {[e.host, cityOf(e.location), e.startsAt ? new Date(e.startsAt).toLocaleDateString() : null].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.muted, flexShrink: 0 }}>{e.coming}{e.capacity ? `/${e.capacity}` : ""} coming</span>
-              </a>
-            ))}
-            {filteredMapEvents.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>Nothing here yet — expansion pending.</div>}
-          </div>
         </div>
       )}
 

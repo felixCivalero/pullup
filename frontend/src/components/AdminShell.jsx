@@ -5,7 +5,7 @@
 
 import { useEffect, useState, Suspense, lazy } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Globe2, Gauge, Sparkles, Map as MapIcon, ShieldCheck, Users, GitMerge, BarChart3, LogOut } from "lucide-react";
+import { Globe2, Gauge, Sparkles, ShieldCheck, Users, GitMerge, BarChart3, LogOut } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -45,7 +45,6 @@ export function AdminShell({ children }) {
     { key: "globe", label: "World", Icon: Globe2 },
     { key: "overview", label: "Overview", Icon: Gauge },
     { key: "requests", label: "Requests", Icon: Sparkles },
-    { key: "map", label: "Map", Icon: MapIcon },
     ...(me?.role === "super" ? [{ key: "admins", label: "Admins", Icon: ShieldCheck }] : []),
   ];
   const tools = [

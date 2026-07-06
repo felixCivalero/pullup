@@ -106,18 +106,6 @@ export function AdminGlobe({ events }) {
     });
   }, [all, when, city, q]);
 
-  // One label per city name — anchored at that city's busiest cluster.
-  const labels = useMemo(() => {
-    const byCity = new Map();
-    for (const p of points) {
-      if (!byCity.has(p.city)) byCity.set(p.city, { city: p.city, lat: p.lat, lng: p.lng, n: 0, upcoming: false });
-      const c = byCity.get(p.city);
-      c.n += 1;
-      c.upcoming = c.upcoming || p.upcoming;
-    }
-    return [...byCity.values()].sort((a, b) => b.n - a.n).slice(0, 40);
-  }, [points]);
-
   // ── Globe boot (once) ──
   useEffect(() => {
     if (!el.current || globeRef.current) return;
@@ -156,7 +144,7 @@ export function AdminGlobe({ events }) {
       .polygonCapColor(() => "#ffffff")
       .polygonSideColor(() => "rgba(0,0,0,0)")
       .polygonStrokeColor(() => "#0a0a0a")
-      .polygonAltitude(0.004);
+      .polygonAltitude(0.001);
   }, [land]);
 
   // ── Data → globe (re-runs on every filter change) ──
@@ -171,7 +159,7 @@ export function AdminGlobe({ events }) {
       .pointLat((d) => d.lat)
       .pointLng((d) => d.lng)
       .pointColor((d) => (selected && d.id === selected.id ? "#c2127a" : d.upcoming ? NEON : "rgba(10,10,10,0.35)"))
-      .pointAltitude(() => 0.002)
+      .pointAltitude(() => 0.01)
       .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.16) * k)
       .pointLabel((d) => `<div style="font-family:-apple-system,sans-serif;font-size:12px;background:#fff;color:${INK};border:1px solid rgba(10,10,10,0.12);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(10,10,10,0.14);">
           <b>${String(d.title).replace(/</g, "&lt;")}</b><br/>
@@ -185,18 +173,9 @@ export function AdminGlobe({ events }) {
       .ringMaxRadius(2.6 * k)
       .ringPropagationSpeed(1.6 * k)
       .ringRepeatPeriod(1300)
-      .ringAltitude(0.003);
-    g.labelsData(labels)
-      .labelLat((d) => d.lat)
-      .labelLng((d) => d.lng)
-      .labelText((d) => d.city)
-      .labelSize(Math.max(0.09, 0.45 * k))
-      .labelDotRadius(0)
-      .labelColor((d) => (d.upcoming ? NEON : "rgba(10,10,10,0.6)"))
-      .labelAltitude(0.012)
-      .labelResolution(2);
+      .ringAltitude(0.011);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, labels, selected, alt]);
+  }, [points, selected, alt]);
 
   function select(e) {
     setSelected(e);
@@ -212,8 +191,6 @@ export function AdminGlobe({ events }) {
     if (g) g.controls().autoRotate = true;
   }
 
-  const upcoming = points.filter((p) => p.upcoming);
-  const totalComing = upcoming.reduce((s, p) => s + (p.coming || 0), 0);
   const rail = useMemo(() => {
     const up = points.filter((p) => p.upcoming).sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
     const past = points.filter((p) => !p.upcoming).sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt));
@@ -246,14 +223,6 @@ export function AdminGlobe({ events }) {
         {/* The globe */}
         <div style={{ position: "relative", flex: 1, minWidth: 0, borderRadius: 20, border: `1px solid ${LINE}`, overflow: "hidden", background: "radial-gradient(ellipse at 50% 40%, #ffffff 55%, #fdf1f7 100%)" }}>
           <div ref={el} style={{ height: "min(68vh, 680px)", cursor: "grab" }} />
-          <div style={{ position: "absolute", top: 16, left: 16, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
-            {[[upcoming.length, "upcoming events", true], [new Set(points.map((p) => p.city)).size, "cities in view", false], [totalComing, "people coming", false]].map(([v, l, dot]) => (
-              <div key={l} style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)", border: "1px solid rgba(10,10,10,0.08)", borderRadius: 14, padding: "9px 13px" }}>
-                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em", color: INK }}>{v}{dot ? <span style={{ color: PINK }}>.</span> : null}</div>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: FAINT, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</div>
-              </div>
-            ))}
-          </div>
           <div style={{ position: "absolute", bottom: 12, right: 16, fontSize: 10.5, color: FAINT, pointerEvents: "none" }}>
             <span style={{ color: NEON, fontWeight: 700 }}>●</span> upcoming &nbsp; <span style={{ fontWeight: 700 }}>●</span> happened · drag to spin · click a dot
           </div>

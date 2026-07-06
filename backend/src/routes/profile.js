@@ -3,6 +3,8 @@
 
 import { getUserProfile, updateUserProfile } from "../data.js";
 import { requireAuth } from "../middleware/auth.js";
+import { resolvePerson } from "../repos/people.js";
+import { supabase } from "../supabase.js";
 import {
   initiateConnectOnboarding,
   getConnectedAccountStatus,
@@ -84,6 +86,56 @@ export function registerProfileRoutes(app) {
   });
 
   // ---------------------------
+  // PROTECTED: RSVP prefill — the four identity anchors for the signed-in viewer
+  // ---------------------------
+  // Any event's RSVP form calls this so a person with a PullUp session (host,
+  // past RSVP'er, anyone) never retypes what the platform already knows.
+  // Returns EXACTLY the four anchors, keyed by anchor — never enrichment
+  // answers or anything event-scoped — so the client can only ever map them
+  // onto the dedicated name/email/phone/instagram inputs.
+  app.get("/me/rsvp-prefill", requireAuth, async (req, res) => {
+    try {
+      // Richest source first: the canonical person (identity spine). Works for
+      // RSVP-only guests who have no host profile at all.
+      const person = await resolvePerson({
+        userId: req.user.id,
+        email: req.user.email || null,
+      });
+
+      // Fallback for hosts who've never RSVP'd anywhere: their profiles row.
+      // Light direct read — getUserProfile() seeds default rows and signs
+      // storage URLs, all wasted work here.
+      let profile = null;
+      if (!person || !person.name || !(person.phoneE164 || person.phone) || !person.instagram) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("name, phone_e164, mobile_number, branding_links")
+          .eq("id", req.user.id)
+          .maybeSingle();
+        profile = data || null;
+      }
+
+      res.json({
+        name: person?.name || profile?.name || null,
+        email: person?.email || req.user.email || null,
+        phone:
+          person?.phoneE164 ||
+          person?.phone ||
+          profile?.phone_e164 ||
+          profile?.mobile_number ||
+          null,
+        instagram:
+          normalizeIgHandle(person?.instagram) ||
+          normalizeIgHandle(profile?.branding_links?.instagram) ||
+          null,
+      });
+    } catch (error) {
+      console.error("Error building rsvp prefill:", error);
+      res.status(500).json({ error: "Failed to build prefill" });
+    }
+  });
+
+  // ---------------------------
   // STRIPE CONNECT: Initiate onboarding via Account Links
   // ---------------------------
   app.post("/host/stripe/connect/initiate", requireAuth, async (req, res) => {
@@ -129,4 +181,19 @@ export function registerProfileRoutes(app) {
       res.status(500).json({ error: "Failed to disconnect Stripe account" });
     }
   });
+}
+
+// people.instagram stores a bare handle, but profiles.branding_links.instagram
+// is host-typed and shows up as anything from "@handle" to a full profile URL.
+// Reduce all of it to the bare handle the RSVP form's instagram input expects,
+// or null when there's no usable handle in there.
+function normalizeIgHandle(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  let s = raw.trim();
+  if (!s) return null;
+  const urlMatch = s.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (urlMatch) s = urlMatch[1];
+  s = s.replace(/^@+/, "").replace(/\/+$/, "").trim();
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(s)) return null;
+  return s;
 }

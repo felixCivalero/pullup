@@ -1,7 +1,7 @@
 // frontend/src/components/RsvpForm.jsx
 // Sleek, native-feeling RSVP form
 import { useState, useEffect } from "react";
-import { publicFetch } from "../lib/api.js";
+import { publicFetch, authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { formatMoney } from "../lib/money.js";
 import { colors } from "../theme/colors.js";
@@ -146,16 +146,42 @@ export function RsvpForm({
   const [instagram, setInstagram] = useState(igEntry.handle || "");
 
   // Session-aware: a returning, logged-in guest shouldn't retype what we know.
-  // Prefill from their verified identity when the fields are still empty (never
-  // override a VIP-pinned email or something they've started typing).
+  // Two layers, both filling ONLY the four identity anchors (name / email /
+  // phone / instagram) — each anchor maps to its own dedicated input, so
+  // host-authored enrichment questions (allergies etc., held in customAnswers)
+  // can never receive identity data by accident.
+  //
+  // Layer 1 (instant): name + email from the session's user_metadata.
+  // Layer 2 (one round-trip): /me/rsvp-prefill resolves the canonical person
+  // via the identity spine and returns all four anchors — the verified
+  // WhatsApp number and known IG handle included.
+  //
+  // Guards: never override a VIP-pinned email, an IG-verified handle from the
+  // entry link, or anything the guest has already typed (`prev || value`
+  // checks emptiness at response time, not request time).
   const { user } = useAuth();
   useEffect(() => {
-    if (!user) return;
-    if (user.email && !email) setEmail(user.email);
+    if (!user || preview) return;
+    if (user.email && !isVipInvite) setEmail((prev) => prev || user.email);
     const fullName = user.user_metadata?.full_name || user.user_metadata?.name;
-    if (fullName && !name) setName(fullName);
+    if (fullName) setName((prev) => prev || fullName);
+
+    let cancelled = false;
+    authenticatedFetch("/me/rsvp-prefill")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (!p || cancelled) return;
+        if (p.name) setName((prev) => prev || p.name);
+        if (p.email && !isVipInvite) setEmail((prev) => prev || p.email);
+        if (p.phone) setPhone((prev) => prev || p.phone);
+        if (p.instagram && !igEntry.verified) {
+          setInstagram((prev) => prev || p.instagram);
+        }
+      })
+      .catch(() => { /* prefill is best-effort — the form works without it */ });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email]);
+  }, [user?.id]);
 
   // Render-order: walk event.formFields, padding with the locked sentinels
   // the event's contact channel requires. WhatsApp events lock a verified

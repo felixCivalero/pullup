@@ -5,7 +5,7 @@
 
 import { useEffect, useState, Suspense, lazy } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Globe2, Sparkles, ShieldCheck, Users, GitMerge, BarChart3, LogOut } from "lucide-react";
+import { Globe2, Activity, Footprints, Sparkles, ShieldCheck, Users, GitMerge, LogOut } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -43,13 +43,16 @@ export function AdminShell({ children }) {
 
   const hq = [
     { key: "globe", label: "World", Icon: Globe2 },
+    { key: "pulse", label: "Pulse", Icon: Activity },
+    { key: "journeys", label: "Journeys", Icon: Footprints },
     { key: "requests", label: "Requests", Icon: Sparkles },
     ...(me?.role === "super" ? [{ key: "admins", label: "Admins", Icon: ShieldCheck }] : []),
   ];
+  // Drill-down tools, not destinations: the person god-view + identity merge.
+  // Analytics retired — Pulse answers "is it alive" now.
   const tools = [
     { path: "/admin/crm", label: "CRM", Icon: Users },
     { path: "/admin/matches", label: "Matching", Icon: GitMerge },
-    { path: "/admin/analytics", label: "Analytics", Icon: BarChart3 },
   ];
 
   const label = (text) => (

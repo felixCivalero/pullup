@@ -75,6 +75,8 @@ export function AdminInboxPage() {
   const [grantEmail, setGrantEmail] = useState("");
   const [overview, setOverview] = useState(null);
   const [mapEvents, setMapEvents] = useState([]);
+  const [pulse, setPulse] = useState(null);
+  const [journeys, setJourneys] = useState(null);
   // Sales window — resting state is always "since launch".
   const LAUNCH = "2026-07-06";
   const _n = new Date();
@@ -99,6 +101,14 @@ export function AdminInboxPage() {
   // The globe is the landing — its pins load immediately.
   useEffect(() => { loadMapEvents(); }, [loadMapEvents]);
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
+  useEffect(() => {
+    if (tab === "pulse" && !pulse) {
+      authenticatedFetch("/admin/pulse").then((r) => (r.ok ? r.json() : null)).then((d) => d && setPulse(d)).catch(() => {});
+    }
+    if (tab === "journeys" && !journeys) {
+      authenticatedFetch("/admin/journeys").then((r) => (r.ok ? r.json() : null)).then((d) => d && setJourneys(d)).catch(() => {});
+    }
+  }, [tab, pulse, journeys]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
     if (tab !== "globe") return;
@@ -108,7 +118,7 @@ export function AdminInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, salesFrom, salesTo]);
 
-  const TITLES = { globe: "The world", requests: "Requests", admins: "Admins" };
+  const TITLES = { globe: "The world", pulse: "The pulse", journeys: "Journeys", requests: "Requests", admins: "Admins" };
 
   if (me && !me.isAdmin) {
     return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
@@ -149,7 +159,7 @@ export function AdminInboxPage() {
               ]}
             />
           )}
-          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setOverview(null); setSalesTo(today); } }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setOverview(null); setSalesTo(today); } if (tab === "pulse") setPulse(null); if (tab === "journeys") setJourneys(null); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
             <RefreshCw size={15} />
           </button>
         </div>
@@ -176,6 +186,89 @@ export function AdminInboxPage() {
             </div>
           )}
           <AdminGlobe events={mapEvents} />
+        </div>
+      )}
+
+      {tab === "pulse" && (
+        <div>
+          {!pulse && <div style={{ padding: 40, textAlign: "center", color: C.faint }}>Loading…</div>}
+          {pulse && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 2 }}>
+                Eight weeks of the platform's rhythm — is PullUp more alive than last week?
+              </div>
+              {[
+                ["pullups", "Pull-ups", "real people who showed up", C.pink],
+                ["rsvps", "RSVPs", "commitments made", "#7c3aed"],
+                ["published", "Events published", "new rooms opened", "#0d9488"],
+                ["activeHosts", "Hosts active", "did anything meaningful", "#b45309"],
+                ["messages", "Messages sent", "hosts talking to their people", "#1478c8"],
+              ].map(([key, label, sub, color]) => {
+                const vals = pulse.weeks.map((w) => w[key]);
+                const max = Math.max(1, ...vals);
+                const thisWeek = vals[vals.length - 1];
+                const lastWeek = vals[vals.length - 2] ?? 0;
+                const delta = thisWeek - lastWeek;
+                return (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 18, border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", padding: "14px 18px" }}>
+                    <div style={{ width: 190, flexShrink: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 800 }}>{label}</div>
+                      <div style={{ fontSize: 11, color: C.faint }}>{sub}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 52, flex: 1 }}>
+                      {vals.map((v, i) => (
+                        <div key={i} title={`${pulse.weeks[i].week}: ${v}`} style={{ flex: 1, maxWidth: 46, borderRadius: "6px 6px 2px 2px", background: i === vals.length - 1 ? color : `${color}55`, height: `${Math.max(6, (v / max) * 100)}%`, transition: "height 0.3s ease" }} />
+                      ))}
+                    </div>
+                    <div style={{ width: 110, flexShrink: 0, textAlign: "right" }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>{thisWeek}</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: delta > 0 ? C.green : delta < 0 ? "#dc2626" : C.faint }}>
+                        {delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : "— flat"} vs last week
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "journeys" && (
+        <div>
+          {!journeys && <div style={{ padding: 40, textAlign: "center", color: C.faint }}>Loading…</div>}
+          {journeys && (
+            <div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>
+                Every host on the activation ladder, stalled-first — each row is a nudge waiting to happen. The Message button speaks as PullUp.
+              </div>
+              <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: "#fff", overflow: "hidden" }}>
+                {journeys.hosts.map((h, i) => {
+                  const STAGE_COLORS = { "signed up": C.faint, "drafting": "#b45309", "published, no guests": "#dc2626", "got RSVPs": "#7c3aed", "first pull-ups": C.pink, "repeat host": "#0d9488", "paying": C.green };
+                  const col = STAGE_COLORS[h.stage] || C.muted;
+                  return (
+                    <div key={h.hostId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: i < journeys.hosts.length - 1 ? `1px solid ${C.line}` : "none" }}>
+                      <HostAvatar name={h.name} size={34} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
+                          {h.founding && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#b45309", background: "rgba(180,83,9,0.1)", borderRadius: 999, padding: "2px 7px", textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>founding</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.detail}</div>
+                      </div>
+                      <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: col, background: `${col}14`, borderRadius: 999, padding: "4px 10px", flexShrink: 0 }}>{h.stage}</span>
+                      <span style={{ fontSize: 11.5, color: C.faint, width: 150, textAlign: "right", flexShrink: 0 }}>{h.published} ev · {h.rsvps} rsvp · {h.pullups} pu</span>
+                      <button onClick={() => window.dispatchEvent(new CustomEvent("pullup:admin-open-thread", { detail: { hostId: h.hostId } }))}
+                        style={{ border: "none", background: C.pink, color: "#fff", borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                        Message
+                      </button>
+                    </div>
+                  );
+                })}
+                {journeys.hosts.length === 0 && <div style={{ padding: 30, textAlign: "center", color: C.faint, fontSize: 13 }}>No hosts yet.</div>}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

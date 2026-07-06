@@ -84,6 +84,22 @@ export function AdminMessagesDock() {
   }, [openHost, open, loadThread]);
   useEffect(() => { scroller.current?.scrollTo(0, 1e9); }, [thread]);
 
+  // Journeys (or anywhere) can open a conversation with a specific host —
+  // even one with no thread yet: the empty thread renders and the first
+  // message creates it.
+  useEffect(() => {
+    const onOpen = (e) => {
+      const hostId = e?.detail?.hostId;
+      if (!hostId) return;
+      setOpen(true);
+      setOpenHost(hostId);
+      setThread(null);
+      loadThread(hostId);
+    };
+    window.addEventListener("pullup:admin-open-thread", onOpen);
+    return () => window.removeEventListener("pullup:admin-open-thread", onOpen);
+  }, [loadThread]);
+
   const unread = threads.filter((t) => t.needsReply).length;
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();

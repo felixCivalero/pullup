@@ -140,14 +140,17 @@ function ProtectedLayoutInner() {
   // admin dashboard and ONLY there; every other account is a guest/host and
   // never sees an /admin surface. Backend 403s are the real wall — these
   // redirects make the UI match it.
+  // Domain = world (same rule as App's AdminWorldGuard): synchronous, no
+  // profile-fetch race, works regardless of backend freshness.
+  const isPlatformAccount = !!user?.email?.toLowerCase().endsWith("@pullup.se");
   useEffect(() => {
-    if (!profileChecked) return;
-    if (!isAdmin && location.pathname.startsWith("/admin")) {
+    if (!user) return;
+    if (!isPlatformAccount && location.pathname.startsWith("/admin")) {
       navigate("/room", { replace: true });
-    } else if (isAdmin && !location.pathname.startsWith("/admin")) {
+    } else if (isPlatformAccount && !location.pathname.startsWith("/admin")) {
       navigate("/admin/inbox", { replace: true });
     }
-  }, [profileChecked, isAdmin, location.pathname, navigate]);
+  }, [user, isPlatformAccount, location.pathname, navigate]);
 
   // On first authenticated load, link any existing newsletter subscriptions
   useEffect(() => {
@@ -346,7 +349,7 @@ function ProtectedLayoutInner() {
   // Admins live in a different world: no host header, no gold tabs — the
   // AdminShell (left sidebar dashboard) is their entire chrome, on every
   // /admin page. Hosts never reach here with an /admin path (redirect above).
-  if (profileChecked && isAdmin) {
+  if (isPlatformAccount) {
     return (
       <AdminShell>
         <Outlet />

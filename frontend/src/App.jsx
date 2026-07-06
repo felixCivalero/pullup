@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate, useParams, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { authenticatedFetch } from "./lib/api.js";
+import { useEffect } from "react";
 
 // /app/events/:id/manage → redirect to the guests subpage. Absolute path built
 // from the param: a relative <Navigate to="../guests"> over-pops on these flat
@@ -112,33 +111,23 @@ function RoomRedirect() {
   return <Navigate to={`/r/${user.id}`} replace />;
 }
 
-// Two worlds, hard split, enforced at the router root: @pullup.se accounts
-// (platform_admins) live in /admin and ONLY there; every other account is a
-// guest/host and never sees an /admin surface. Backend 403s are the real
-// wall — this makes the UI match it on every route, whichever shell renders.
-let _adminProbe = null; // one /admin/me per session
+// Two worlds, hard split, enforced at the router root. The routing rule is
+// the EMAIL DOMAIN — platform_admins has a DB check constraint that admins
+// are @pullup.se accounts, so the domain IS the world: pullupers only ever
+// see the dashboard, everyone else never sees /admin. Synchronous (no probe,
+// no race, no dependence on backend version); real authorization stays
+// server-side (requireAdmin → 403).
 function AdminWorldGuard() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(null);
+  const isAdmin = !!user?.email?.toLowerCase().endsWith("@pullup.se");
   useEffect(() => {
-    if (!user) { setIsAdmin(null); _adminProbe = null; return; }
-    if (!_adminProbe) {
-      _adminProbe = authenticatedFetch("/admin/me")
-        .then((r) => (r.ok ? r.json() : { isAdmin: false }))
-        .catch(() => ({ isAdmin: false }));
-    }
-    let on = true;
-    _adminProbe.then((d) => { if (on) setIsAdmin(!!d?.isAdmin); });
-    return () => { on = false; };
-  }, [user]);
-  useEffect(() => {
-    if (isAdmin === null) return;
+    if (!user) return;
     const inAdmin = location.pathname.startsWith("/admin");
     if (isAdmin && !inAdmin) navigate("/admin/inbox", { replace: true });
     else if (!isAdmin && inAdmin) navigate("/room", { replace: true });
-  }, [isAdmin, location.pathname, navigate]);
+  }, [user, isAdmin, location.pathname, navigate]);
   return null;
 }
 

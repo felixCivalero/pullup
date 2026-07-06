@@ -545,7 +545,7 @@ app.listen(PORT, HOST, async () => {
       // 1. Find published events starting within the look-ahead window.
       const { data: events, error: eventsErr } = await supabase
         .from("events")
-        .select("id, title, slug, starts_at, ends_at, timezone, location, location_lat, location_lng, show_coordinates, hide_date, hide_location, date_reveal_hint, reveal_hint, cover_image_url, image_url, host_id, comms_config")
+        .select("id, title, slug, kind, starts_at, ends_at, timezone, location, location_lat, location_lng, show_coordinates, hide_date, hide_location, date_reveal_hint, reveal_hint, cover_image_url, image_url, host_id, comms_config")
         .eq("status", "PUBLISHED")
         .gt("starts_at", now.toISOString())
         .lt("starts_at", windowEnd.toISOString());
@@ -557,6 +557,9 @@ app.listen(PORT, HOST, async () => {
       if (!events || events.length === 0) return;
 
       for (const event of events) {
+        // Dateless kinds (community, product) carry a placeholder starts_at —
+        // never a real moment. No date, no reminder, whatever the config says.
+        if (event.kind && event.kind !== "event") continue;
         // Per-event timing + opt-out. Skip the whole event unless THIS tick is
         // the reminder's moment (within the grace window after start-hoursBefore).
         const commsCfg = getEventCommsConfig
@@ -744,7 +747,7 @@ app.listen(PORT, HOST, async () => {
       // (an event ends after it starts, so this is a superset of "recently ended").
       const { data: events, error: eventsErr } = await supabase
         .from("events")
-        .select("id, title, slug, starts_at, ends_at, timezone, location, location_lat, location_lng, cover_image_url, image_url, host_id")
+        .select("id, title, slug, kind, starts_at, ends_at, timezone, location, location_lat, location_lng, cover_image_url, image_url, host_id")
         .eq("status", "PUBLISHED")
         .lt("starts_at", now.toISOString())
         .gt("starts_at", lookbackStart.toISOString());
@@ -755,6 +758,9 @@ app.listen(PORT, HOST, async () => {
       if (!events || events.length === 0) return;
 
       for (const event of events) {
+        // Dateless kinds never "end" — their placeholder date must not trigger
+        // a thank-you blast.
+        if (event.kind && event.kind !== "event") continue;
         const cfg = await getEventCommsConfig(event.id);
         const peCfg = cfg.postEvent;
         const endMs = effectiveEndMs({ ends_at: event.ends_at, starts_at: event.starts_at });

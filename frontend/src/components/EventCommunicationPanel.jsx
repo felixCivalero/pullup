@@ -134,7 +134,11 @@ function StepHead({ n, title, subtitle, on, onToggle, toggleable }) {
   );
 }
 
-export function EventCommunicationPanel({ eventId, isEditMode }) {
+export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" }) {
+  // Dateless kinds (community, product) have no moment to remind about or
+  // follow up after — their arc is ONE message: the welcome. The date-anchored
+  // steps disappear entirely (the schedulers skip these kinds server-side too).
+  const dateless = kind !== "event";
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -231,14 +235,16 @@ export function EventCommunicationPanel({ eventId, isEditMode }) {
         <div>
           <div style={{ fontSize: 15.5, fontWeight: 800, color: colors.text, letterSpacing: "-0.01em" }}>Communication</div>
           <div style={{ fontSize: 13, color: colors.textMuted, marginTop: 2, lineHeight: 1.5 }}>
-            Everything your guests hear about this event. Write each message — tap "Add" to drop in the live details. What you see is what they get.
+            {dateless
+              ? "The welcome people get the moment they join. Write it your way — tap \"Add\" to drop in the live details. What you see is what they get."
+              : "Everything your guests hear about this event. Write each message — tap \"Add\" to drop in the live details. What you see is what they get."}
           </div>
         </div>
       </div>
 
       {/* ── Step 1: Sign-up info ─────────────────────────────────────────── */}
       <div style={cardWrap}>
-        <StepHead n={1} title="Sign-up info" subtitle="Sent the moment someone signs up." toggleable={false} />
+        <StepHead n={1} title={dateless ? "Welcome message" : "Sign-up info"} subtitle={dateless ? "Sent the moment someone joins." : "Sent the moment someone signs up."} toggleable={false} />
         <div style={lbl}>Message</div>
         <div ref={composerRefs.signup}>
           <TokenComposer value={cfg.signup.body} sample={sample} onChange={(v) => setBody("signup", v)} placeholder="Write the welcome your guests get when they sign up…" />
@@ -246,7 +252,8 @@ export function EventCommunicationPanel({ eventId, isEditMode }) {
         <AddBar step="signup" />
       </div>
 
-      {/* ── Step 2: Reminder ─────────────────────────────────────────────── */}
+      {/* ── Steps 2+3: the date-anchored sends — dated events only ───────── */}
+      {!dateless && (<>
       <div style={{ ...cardWrap, opacity: cfg.reminder.enabled ? 1 : 0.62 }}>
         <StepHead n={2} title="Reminder" subtitle="A nudge before the event so no one forgets." toggleable on={cfg.reminder.enabled} onToggle={() => setField("reminder", "enabled", !cfg.reminder.enabled)} />
         {cfg.reminder.enabled && (
@@ -285,6 +292,7 @@ export function EventCommunicationPanel({ eventId, isEditMode }) {
           </>
         )}
       </div>
+      </>)}
 
       <div style={{ fontSize: 11.5, color: colors.textSubtle, lineHeight: 1.5, margin: "2px 2px 14px" }}>
         Goes out on WhatsApp or email, whichever reaches each guest. (WhatsApp recipients get an approved template version.)

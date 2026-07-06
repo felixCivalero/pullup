@@ -205,8 +205,10 @@ app.put("/host/events/:id/comms", requireAuth, async (req, res) => {
     if (!isHost || !(await canEditEvent(req.user.id, event.id))) {
       return res.status(403).json({ ok: false, error: "Forbidden" });
     }
-    const { normalizeCommsConfig } = await import("../services/eventComms.js");
-    const config = normalizeCommsConfig(req.body?.config);
+    const { normalizeCommsConfig, defaultCommsForKind } = await import("../services/eventComms.js");
+    // Kind-aware fallbacks: a community save that omits the dated steps keeps
+    // them at their dateless defaults (off), not the event-arc defaults.
+    const config = normalizeCommsConfig(req.body?.config, defaultCommsForKind(event.kind));
     const { supabase } = await import("../supabase.js");
     const { error } = await supabase
       .from("events")

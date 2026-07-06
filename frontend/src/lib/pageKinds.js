@@ -45,7 +45,9 @@ export const PAGE_KINDS = {
     // same rail as an event, minus nothing at the rail level — the date/place/
     // ticket SUB-fields are hidden via the flags below. Auto-DM is included:
     // a comment can drive a community join (the DM links to /c/:slug).
-    parts: ["cover", "theme", "content", "collect", "autoDm"],
+    // Communication too — a community's arc is ONE message (the welcome new
+    // members get); the panel renders kind-aware and drops the dated steps.
+    parts: ["cover", "theme", "content", "collect", "communication", "autoDm"],
     hideDate: true,
     hideLocation: true,
     hideTickets: true,

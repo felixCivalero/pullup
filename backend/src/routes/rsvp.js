@@ -1302,7 +1302,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         // Waitlist always emails (there's no rsvp_confirm template for it).
         const { data: evReq } = await supabase
           .from("events")
-          .select("require_phone, comms_config")
+          .select("require_phone, comms_config, kind")
           .eq("id", result.event.id)
           .maybeSingle();
         // Per-event communication config (the editor's Communication panel).
@@ -1310,8 +1310,10 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         // ({time}/{location}/{room link}…) resolve to the real details,
         // decoupled from the page's reveal-later flags. Waitlist keeps the
         // standard transactional template.
-        const { normalizeCommsConfig, resolveCommsHtml } = await import("../services/eventComms.js");
-        const signupCfg = normalizeCommsConfig(evReq?.comms_config).signup;
+        const { normalizeCommsConfig, resolveCommsHtml, defaultCommsForKind } = await import("../services/eventComms.js");
+        // Kind-aware defaults: a community/product welcome has no "where and
+        // when" — its startsAt is a private placeholder, not a real moment.
+        const signupCfg = normalizeCommsConfig(evReq?.comms_config, defaultCommsForKind(evReq?.kind)).signup;
         const waKing =
           !isWaitlistEmail &&
           !!evReq?.require_phone &&
@@ -1428,7 +1430,9 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           email: {
             subject: isWaitlistEmail
               ? "You’re on the waitlist"
-              : "Your spot is confirmed",
+              : evReq?.kind === "community"
+                ? "You’re in — welcome"
+                : "Your spot is confirmed",
             htmlBody: signupHtml,
           },
           context: {

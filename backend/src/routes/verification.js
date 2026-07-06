@@ -275,7 +275,20 @@ export function registerVerificationRoutes(app) {
       const { redeemRoomKey } = await import("../services/roomKeys.js");
       const key = await redeemRoomKey(req.params.token);
       if (!key.ok) return res.redirect(302, `${frontend}/login`);
-      const roomPath = `/events/${key.eventId}/room`;
+      // Events land in the per-event room; dateless kinds (community, product)
+      // have no event room to speak of — their members belong in the host's
+      // MAIN room. Lookup is best-effort: on any hiccup the event room still
+      // renders, never a dead end.
+      let roomPath = `/events/${key.eventId}/room`;
+      try {
+        const { supabase } = await import("../supabase.js");
+        const { data: ev } = await supabase
+          .from("events")
+          .select("kind, host_id")
+          .eq("id", key.eventId)
+          .maybeSingle();
+        if (ev?.kind && ev.kind !== "event" && ev.host_id) roomPath = `/r/${ev.host_id}`;
+      } catch { /* fall through to the event room */ }
       const { mintMagicLink } = await import("../services/account.js");
       const link = await mintMagicLink(key.email, { next: roomPath });
       return res.redirect(302, link || `${frontend}${roomPath}`);

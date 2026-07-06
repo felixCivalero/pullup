@@ -786,7 +786,10 @@ export function EventPage() {
           // A logged-out guest lands on the room and authenticates through the
           // AuthGate — access resolves off a verified session, never a stored
           // email (see the killed ?email= bypass). No client-side identity stash.
-          navigate(`/events/${event.id}/room`);
+          // Community joins belong in the host's MAIN room — there is no
+          // per-event moment to gather around; the membership IS the room.
+          const mainRoom = (event?.kind || "event") !== "event" && event?.hostId;
+          navigate(mainRoom ? `/r/${event.hostId}` : `/events/${event.id}/room`);
           return;
         }
         navigate(`/e/${event.slug}/success`, {

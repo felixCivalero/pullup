@@ -66,6 +66,23 @@ export const DEFAULT_COMMS_CONFIG = {
   },
 };
 
+// Dateless kinds (community, product): their startsAt is a private sorting
+// placeholder, not a real moment — so the welcome must not say "where and
+// when" (a member once got "Thursday, Jan 1, 12:00 AM"), and the date-anchored
+// reminder/post-event sends default OFF.
+export const DATELESS_COMMS_CONFIG = {
+  signup: {
+    body: "Welcome to {event name}!\n\nYou're in — this is your door to everything happening here.\n\nYour room (it all lives here): {room link}",
+  },
+  reminder: { ...DEFAULT_COMMS_CONFIG.reminder, enabled: false },
+  postEvent: { ...DEFAULT_COMMS_CONFIG.postEvent, enabled: false },
+};
+
+// The defaults for a page kind — anything that isn't a plain event is dateless.
+export function defaultCommsForKind(kind) {
+  return kind && kind !== "event" ? DATELESS_COMMS_CONFIG : DEFAULT_COMMS_CONFIG;
+}
+
 function clampNum(v, min, max, fallback) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
@@ -80,9 +97,9 @@ function bool(v, fallback) {
 
 // Merge whatever the client (or DB) holds with the defaults, clamping numbers
 // and coercing the bodies to strings. Always returns the full, valid shape.
-export function normalizeCommsConfig(raw) {
+export function normalizeCommsConfig(raw, defaults = DEFAULT_COMMS_CONFIG) {
   const r = raw && typeof raw === "object" ? raw : {};
-  const d = DEFAULT_COMMS_CONFIG;
+  const d = defaults;
   const su = r.signup && typeof r.signup === "object" ? r.signup : {};
   const rm = r.reminder && typeof r.reminder === "object" ? r.reminder : {};
   const pe = r.postEvent && typeof r.postEvent === "object" ? r.postEvent : {};
@@ -217,10 +234,10 @@ export async function getEventCommsConfig(eventId) {
     const { supabase } = await import("../supabase.js");
     const { data } = await supabase
       .from("events")
-      .select("comms_config")
+      .select("comms_config, kind")
       .eq("id", eventId)
       .maybeSingle();
-    return normalizeCommsConfig(data?.comms_config);
+    return normalizeCommsConfig(data?.comms_config, defaultCommsForKind(data?.kind));
   } catch {
     return normalizeCommsConfig(null);
   }

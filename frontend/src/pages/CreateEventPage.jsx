@@ -5251,7 +5251,7 @@ export function CreateEventPage() {
                 display: currentStep === 3 && activePartId === "communication" ? "block" : "none",
               }}
             >
-              <EventCommunicationPanel eventId={isEditMode ? editEventId : draftEventId} isEditMode={isEditMode} />
+              <EventCommunicationPanel eventId={isEditMode ? editEventId : draftEventId} isEditMode={isEditMode} kind={eventKind || "event"} />
             </div>
 
             {/* Product price & delivery panel — product pages only, same step,

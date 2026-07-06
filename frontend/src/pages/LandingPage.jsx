@@ -1,13 +1,12 @@
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowRight, Lock, Cloud, UserCheck, PenLine, Heart, Download, Database, KeyRound, TrendingUp, LogOut } from "lucide-react";
+import { ArrowRight, Lock, Download, Database, KeyRound, LogOut } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
 import { supabase } from "../lib/supabase.js";
 import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
-import { WebGLHero } from "../components/WebGLHero.jsx";
 import { transformedImageUrl } from "../lib/imageUtils.js";
 
 
@@ -33,61 +32,32 @@ const STORAGE_BASE =
   (import.meta.env.VITE_SUPABASE_URL || "") +
   "/storage/v1/object/public/event-images/";
 
-// The showcase wall — a curated, hand-picked drift of real rooms already live
-// on PullUp, with a couple of AI-dreamed designs that actually *move* sprinkled
-// in. Real cards link straight to their live /e/:slug page (tap-through proof
-// that the thing you're about to make looks like this). The `ai` cards render a
-// live WebGL hero instead of a photo and wear a "designed by AI" tag — the
-// playful "you could conjure a whole world in a sentence" flex. Order here is
-// the on-screen order; AI tiles are interleaved on purpose.
+// The hero poster wall — a curated, hand-picked set of real rooms already
+// live on PullUp. These cover the hero as slow-drifting poster columns:
+// the first thing a visitor sees is what real nights on PullUp look like.
+// `video` tiles play the event's actual clip (muted, looping) with the
+// cover as poster — kept to the two lightest files so the hero stays fast.
 const SHOWCASE = [
+  // index 1 = first card of the CENTER column — the most visible slot at
+  // load. TWIN FREAKS sits there so the real video is the hero's centerpiece.
   { slug: "divine-earth-live-4hy5", title: "Divine Earth — Spiritual Jazz", meta: "Soho House · Sthlm", cover: "052e22f6-d7fe-4772-8f95-55b826434000/media_0_1779391795495.webp" },
-  { slug: "techo-cocktails", title: "Jägermeister × ADAMO", meta: "Göteborg", cover: "035d3cad-dd9e-4f66-a3e1-3baf9422b40d/media_0_1778075065925.png" },
-  { ai: true, title: "Hypershape Release", sub: "a world, written in a sentence", params: { colors: ["#d0d8e8", "#f0f4ff", "#a0b0c8", "#e8e8f0", "#7090b0"], intensity: 0.95 } },
+  { slug: "twin-freaks-listening-release", title: "TWIN FREAKS — listening release", meta: "Slakthusområdet · Sthlm", cover: "83e543b6-4a95-4277-8e42-bb4e579f9127/thumb_0_1780266730534.jpg", video: "83e543b6-4a95-4277-8e42-bb4e579f9127/media_0_1780266724727.mp4" },
   { slug: "aperidisco-bbtr", title: "Aperidisco", meta: "Brunkebergstorg · Sthlm", cover: "07324036-a348-4940-98d9-43f2f8821eda/media_0_1778621428603.png" },
-  { slug: "twin-freaks-listening-release", title: "TWIN FREAKS — listening release", meta: "Slakthusområdet · Sthlm", cover: "83e543b6-4a95-4277-8e42-bb4e579f9127/thumb_0_1780266730534.jpg" },
+  { slug: "techo-cocktails", title: "Jägermeister × ADAMO", meta: "Göteborg", cover: "035d3cad-dd9e-4f66-a3e1-3baf9422b40d/media_0_1778075065925.png" },
   { slug: "cocktails-and-caviar-asrf", title: "Cocktails and Caviar", meta: "Sjövikskajen · Sthlm", cover: "b8cf87c8-6483-4da3-93e3-63b4689e1ff7/media_0_1777968238709.jpeg" },
-  { ai: true, title: "Pullup 2026", sub: "dreamed up in one line", params: { colors: ["#0a0617", "#ec178f", "#16e0c0"], intensity: 0.85 } },
-  { slug: "nigab-dagen-x74s", title: "nigab. DAGEN", meta: "Visby", cover: "26a96f49-5b68-4dbe-838b-01e71657c234/media_0_1779893707128.webp" },
+  { slug: "hallon-spritz-lanseringsfest", title: "Hallon Spritz", meta: "Lanseringsfest · Sthlm", cover: "aed620cc-c066-4fc7-bee3-da1e3a42b2ce/media_0_1774871301051.png" },
   { slug: "henning-ulln-house-jazz-294-soho-house", title: "Henning Ullén pianotrio", meta: "Soho House · Sthlm", cover: "e4d1dbae-bf83-4fa2-82bc-641251a2b083/media_0_1776700815357.jpeg" },
   { slug: "peep-take-over-8e7y", title: "P.E.E.P Take over", meta: "Birger Jarlsgatan · Sthlm", cover: "955c371e-bba6-44c9-87f1-bb96edbc1792/media_0_1778243555025.jpeg" },
   { slug: "utbildning-bstad-g6hy", title: "Jägermeister Båstad", meta: "Skansenbadet · Båstad", cover: "bccc176a-e8dd-4d13-8f70-97c097e809a0/media_0_1779793614037.webp" },
 ];
 
-// The quiet promises under the final CTA — security, control and the moral
-// line, the things that make the whole system feel safe to hand your people to.
-const TRUST = [
-  { icon: Lock, title: "Never sold" },
-  { icon: Cloud, title: "Your own cloud" },
-  { icon: UserCheck, title: "Only you reach them" },
-  { icon: PenLine, title: "You approve every send" },
-  { icon: Heart, title: "Care, never faked" },
-  { icon: Download, title: "Export anytime" },
-];
-
-// The four promises of the ownership section. Written to land for a solo
-// creator AND an agency running a roster of them.
+// The ownership promises — folded into the host movement as the anchor
+// feature row. One line each; the row copy carries the narrative.
 const OWNERSHIP = [
-  {
-    icon: Database,
-    title: "You own the database",
-    body: "Every name, number and message sits in your own cloud, in your name — not locked inside ours. PullUp is the software on top; the data underneath is yours.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Pay as you grow",
-    body: "You pay for your own storage as your room fills up — billed to you, at cost. No per-seat tax, no surprise lock-in. Small while you're small, never a wall.",
-  },
-  {
-    icon: KeyRound,
-    title: "You hold every permission",
-    body: "Full access is yours, always. You grant PullUp one scoped key to do its job — see it, use it, nothing more — and you can see exactly what it touches.",
-  },
-  {
-    icon: LogOut,
-    title: "Leave whenever",
-    body: "Walking away is a single switch. Revoke our key and your whole room is still there, still yours — no hostage export, no goodbye wall, no held data.",
-  },
+  { icon: Database, title: "You own the database", body: "Every name, number and message sits in your own cloud, in your name." },
+  { icon: KeyRound, title: "You hold every permission", body: "PullUp gets one scoped key to do its job — you see exactly what it touches." },
+  { icon: Download, title: "Export anytime", body: "Your whole room, out in one piece, whenever you want it." },
+  { icon: LogOut, title: "Leave whenever", body: "Revoke the key and everything is still there — still yours." },
 ];
 
 /* ─── scroll reveal hook ─── */
@@ -133,16 +103,6 @@ function Reveal({ children, delay = 0, y = 24, className, style }) {
 
 
 /* ─── Marketing primitives ─── */
-
-// A numbered chapter label — "01 · The split" — that anchors each beat.
-function Chapter({ n, label }) {
-  return (
-    <div className="mk-chapter">
-      <span className="mk-chapter-n">{n}</span>
-      <span className="mk-chapter-label">{label}</span>
-    </div>
-  );
-}
 
 // Scene frame — wraps an animated mock and only kicks its CSS animations off
 // once it scrolls into view (adds `.mk-in`). Mirrors the WhatsNewModal scene
@@ -201,115 +161,316 @@ function LogoMarquee() {
   );
 }
 
-// One tile on the showcase wall. Real events are an <a> straight to their live
-// /e/:slug page; AI tiles render a moving WebGL hero and don't link anywhere —
-// they're the "look what you could conjure" flex. `live` gates the WebGL so it
-// only spins up once the wall has scrolled into view (no shaders running on
-// page load). `dim` marks the duplicated copy that only exists to make the
-// marquee loop seamless — it's hidden from screen readers and keyboard order.
-function ShowcaseCard({ item, live, dim }) {
-  if (item.ai) {
-    const [c0, c1] = item.params.colors;
-    return (
-      <div className="mk-show-card mk-show-card-ai" aria-hidden={dim || undefined}>
-        {live ? (
-          <WebGLHero params={item.params} />
-        ) : (
-          <div
-            className="mk-show-ai-fallback"
-            style={{ background: `linear-gradient(135deg, ${c0}, ${c1 || c0})` }}
-          />
-        )}
-        <span className="mk-show-aitag">✦ designed by AI</span>
-        <div className="mk-show-meta">
-          <p className="mk-show-title">{item.title}</p>
-          {item.sub && <p className="mk-show-sub">{item.sub}</p>}
-        </div>
-      </div>
-    );
-  }
-  const src = transformedImageUrl(STORAGE_BASE + item.cover, { width: 320 });
+/* ════════ HERO POSTER FIELD ════════
+   The hero is covered in real event pages — slow-drifting, slightly tilted
+   poster columns built from the SHOWCASE covers. Pure decoration (links live
+   in the story below): aria-hidden, pointer-events none, veiled in white so
+   the copy floats on top. */
+function HeroPosterField() {
+  // 3 columns, round-robin; each column renders its stack twice and
+  // translates -50% for a seamless vertical loop (same trick as the marquee).
+  const cols = [0, 1, 2].map((c) => SHOWCASE.filter((_, i) => i % 3 === c));
   return (
-    <a
-      className="mk-show-card"
-      href={`/e/${item.slug}`}
-      aria-hidden={dim || undefined}
-      tabIndex={dim ? -1 : undefined}
-    >
-      <img
-        className="mk-show-img"
-        src={src}
-        alt={dim ? "" : item.title}
-        loading="lazy"
-        decoding="async"
-      />
-      <div className="mk-show-meta">
-        <p className="mk-show-title">{item.title}</p>
-        {item.meta && <p className="mk-show-sub">{item.meta}</p>}
+    <div className="mk-hf" aria-hidden="true">
+      <div className="mk-hf-tilt">
+        {cols.map((items, c) => (
+          <div className={`mk-hf-col mk-hf-col-${c}`} key={c}>
+            {[0, 1].map((copy) => (
+              <div className="mk-hf-stack" key={copy}>
+                {items.map((item, i) => (
+                  <div className="mk-hf-card" key={`${copy}-${i}`}>
+                    {item.video ? (
+                      // real clip from the event — only in the primary copy;
+                      // the duplicate (loop filler) shows the poster frame so
+                      // we don't decode every video twice
+                      copy === 0 ? (
+                        <video
+                          src={STORAGE_BASE + item.video}
+                          poster={item.cover ? transformedImageUrl(STORAGE_BASE + item.cover, { width: 360 }) : undefined}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                        />
+                      ) : item.cover ? (
+                        <img
+                          src={transformedImageUrl(STORAGE_BASE + item.cover, { width: 360 })}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <video
+                          src={STORAGE_BASE + item.video}
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      )
+                    ) : (
+                      <img
+                        src={transformedImageUrl(STORAGE_BASE + item.cover, { width: 360 })}
+                        alt=""
+                        loading={copy === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                      />
+                    )}
+                    <div className="mk-hf-meta">
+                      <p>{item.title}</p>
+                      <span>{item.meta}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
-    </a>
+      <div className="mk-hf-veil" />
+    </div>
   );
 }
 
-// The showcase wall — a drifting, hover-to-pause marquee of real rooms (and a
-// couple of live AI designs). Mounts its WebGL tiles only once it scrolls into
-// view. Two identical card groups translate -50% for a seamless infinite loop.
-function EventShowcase() {
-  const [ref, visible] = useReveal(0.2);
+/* ════════ THE JOURNEY — one phone, four beats, forever ════════
+   Their feed → your immersive page → the door closing on RSVP → the private
+   room. Sits right under the hero as its own section: the phone loops while
+   a step rail alongside tells the same story in four short lines, lighting
+   up in sync. Built in animated CSS — no video, no WebGL. Phases are stacked
+   layers; the active one gets `.is-on`, which fades it in and (re)starts its
+   inner keyframe choreography each cycle. */
+
+const STORY_STEPS = [
+  { t: "Share your event on Instagram", b: "Drop the link in your story — or let PullUp auto-DM it to anyone who comments." },
+  { t: "Followers land on your event page", b: "A full page in your brand — video, story, tickets. Not a gray ticket form." },
+  { t: "They RSVP — then they pull up", b: "The night happens in real life. Showing up is the key: it's what unlocks the room." },
+  { t: "The room lives on after the night", b: "A closed room for the people who actually pulled up. Chat with them, share photos and unreleased content, sell products." },
+];
+
+const JOURNEY_MS = 4400;
+
+function JourneySection() {
+  const [phase, setPhase] = useState(0);
+  const [running, setRunning] = useState(true);
+  const rootRef = useRef(null);
+
+  // Respect reduced motion: no cycling, first beat rendered static (the
+  // global reduced-motion CSS forces every journey element visible).
+  const reduced = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+
+  // The loop only spins while the section is actually on screen — no phase
+  // churn (or React re-renders) while the visitor reads the rest of the page.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setRunning(entry.isIntersecting),
+      { threshold: 0.2 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (reduced || !running) return;
+    const t = setInterval(() => setPhase((p) => (p + 1) % STORY_STEPS.length), JOURNEY_MS);
+    return () => clearInterval(t);
+  }, [reduced, running]);
+
+  const on = (i) => `mk-jr-ph ${phase === i ? "is-on" : ""}`;
+
   return (
-    <section className="mk-show" ref={ref} data-mk-section="showcase" data-mk-order="4">
-      <div className="mk-show-head">
-        <Reveal><Chapter n="02" label="The rooms themselves" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Real rooms, already live. <span className="pink">A few dreamed up by AI.</span>
+    <section className="mk-story" data-mk-section="story" data-mk-order="3" ref={rootRef}>
+      <div className="mk-story-head">
+        <Reveal><p className="mk-part-tag">The journey</p></Reveal>
+        <Reveal delay={0.06}>
+          <h2 className="mk-h2" style={{ marginBottom: 0 }}>
+            Online connections become{" "}
+            <span className="pink">real-life relationships.</span>
           </h2>
         </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Every card is a real page someone built on PullUp — tap in. The ones
-            that move? Designed by AI in a single sentence. This is what your next
-            night looks like before anyone's even arrived.
-          </p>
-        </Reveal>
       </div>
-      <div className="mk-show-wall" aria-label="Events made on PullUp">
-        <div className="mk-show-track">
-          {[0, 1].map((copy) => (
-            <div className="mk-show-group" key={copy}>
-              {SHOWCASE.map((item, i) => (
-                <ShowcaseCard
-                  key={`${copy}-${i}`}
-                  item={item}
-                  live={visible && copy === 0}
-                  dim={copy === 1}
-                />
-              ))}
-            </div>
+      <div className="mk-story-grid">
+        <ol className="mk-story-steps">
+          {STORY_STEPS.map((s, i) => (
+            <li key={s.t} className={phase === i ? "on" : ""}>
+              <button type="button" onClick={() => setPhase(i)}>
+                <span className="mk-story-dot" />
+                <span className="mk-story-txt">
+                  <span className="mk-story-t">{s.t}</span>
+                  <span className="mk-story-b">{s.b}</span>
+                </span>
+              </button>
+            </li>
           ))}
+        </ol>
+        <div className="mk-jr" aria-label="How PullUp works, animated">
+          <div className="mk-jr-phone">
+        <div className="mk-jr-screen">
+
+          {/* 0 · THEIR FEED — the IG post + the comment that starts it all */}
+          <div className={`${on(0)} mk-jr-ph-feed`}>
+            <div className="mk-jr-ig-head">
+              <span className="mk-jr-ig-av" />
+              <span className="mk-jr-ig-name">@yourbrand</span>
+            </div>
+            <div className="mk-jr-ig-media">
+              <span>Rooftop Sessions · Vol. 4</span>
+            </div>
+            <div className="mk-jr-ig-actions">♥ 482&nbsp;&nbsp;💬 56&nbsp;&nbsp;↗</div>
+            <div className="mk-jr-ig-comment">
+              <ChannelChip ch="instagram" />
+              how do I get in?? 🙏
+            </div>
+            <div className="mk-jr-ig-reply">here's your link →</div>
+          </div>
+
+          {/* 1 · YOUR WORLD — the content-heavy event page, scrolling itself */}
+          <div className={`${on(1)} mk-jr-ph-page`}>
+            <div className="mk-jr-ev-scroll">
+              <div className="mk-jr-ev-cover">
+                <span className="mk-jr-ev-title">Rooftop Sessions</span>
+                <span className="mk-jr-ev-sub">Vol. 4 · Saturday 6 PM</span>
+              </div>
+              <span className="mk-jr-ev-bar" style={{ width: "88%" }} />
+              <span className="mk-jr-ev-bar" style={{ width: "72%" }} />
+              <div className="mk-jr-ev-video">
+                <span className="mk-jr-ev-play" />
+              </div>
+              <span className="mk-jr-ev-bar" style={{ width: "80%" }} />
+              <span className="mk-jr-ev-bar" style={{ width: "64%" }} />
+              <div className="mk-jr-ev-gallery">
+                <span style={{ background: "linear-gradient(135deg,#ff8a4c,#ec178f)" }} />
+                <span style={{ background: "linear-gradient(135deg,#7b2ff7,#0d9488)" }} />
+                <span style={{ background: "linear-gradient(135deg,#fbbf24,#dc2743)" }} />
+              </div>
+              <span className="mk-jr-ev-bar" style={{ width: "76%" }} />
+              <span className="mk-jr-ev-bar" style={{ width: "58%" }} />
+            </div>
+            <div className="mk-jr-ev-fade" />
+            <div className="mk-jr-ev-cta">Pull up →</div>
+            <span className="mk-jr-tap" />
+          </div>
+
+          {/* 2 · THE DOOR — you're in, and it closes behind you */}
+          <div className={`${on(2)} mk-jr-ph-door`}>
+            <div className="mk-jr-confirm">
+              <span className="mk-jr-confirm-check">✓</span>
+              <span className="mk-jr-confirm-t">You're in</span>
+              <span className="mk-jr-confirm-s">Rooftop Sessions · Vol. 4</span>
+            </div>
+            <span className="mk-jr-door-l" />
+            <span className="mk-jr-door-r" />
+            <div className="mk-jr-lock">
+              <Lock size={22} strokeWidth={2.4} />
+              <span className="mk-jr-lock-t">Private room</span>
+              <span className="mk-jr-lock-s">for people who pulled up</span>
+            </div>
+          </div>
+
+          {/* 3 · THE ROOM — the community behind the closed door */}
+          <div className={`${on(3)} mk-jr-ph-room`}>
+            <div className="mk-jr-rm-head" style={{ "--i": 0 }}>
+              <span className="mk-jr-rm-t">The Room</span>
+              <span className="mk-jr-rm-pill">inside</span>
+            </div>
+            <div className="mk-jr-rm-people" style={{ "--i": 1 }}>
+              <span className="mk-jr-avs">
+                {["#ec4899", "#8b5cf6", "#d97706", "#16a34a"].map((c, i) => (
+                  <span key={c} className="mk-jr-av" style={{ background: c, "--i": i + 1 }} />
+                ))}
+                <span className="mk-jr-av mk-jr-av-more" style={{ "--i": 5 }}>+244</span>
+              </span>
+              <span className="mk-jr-rm-count">248 people in here</span>
+            </div>
+            <div className="mk-jr-rm-grid">
+              <div className="mk-jr-rm-tile" style={{ "--i": 2 }}>
+                <div className="mk-jr-rm-photos">
+                  <span style={{ background: "linear-gradient(135deg,#ff8a4c,#ec178f)" }} />
+                  <span style={{ background: "linear-gradient(135deg,#7b2ff7,#0d9488)" }} />
+                </div>
+                <span className="mk-jr-rm-label">last night · 48 photos</span>
+              </div>
+              <div className="mk-jr-rm-tile" style={{ "--i": 3 }}>
+                <div className="mk-jr-rm-drop">
+                  <span className="mk-jr-rm-swatch" />
+                  <span className="mk-jr-rm-price">room only</span>
+                </div>
+                <span className="mk-jr-rm-label">early drop</span>
+              </div>
+            </div>
+            <div className="mk-jr-rm-msg" style={{ "--i": 4 }}>
+              Vol. 5 — you're first 🖤
+            </div>
+          </div>
+
+          </div>
+        </div>
         </div>
       </div>
     </section>
   );
 }
 
-/* ─── Scenes — animated mocks of the REAL platform ─── */
-
-// The people who feed the room's member stack (avatars + names).
-const ROOM_PEOPLE = [
-  { initials: "SL", color: "#ec4899", name: "Sara Lindqvist" },
-  { initials: "AB", color: "#8b5cf6", name: "Adam Berg" },
-  { initials: "PR", color: "#d97706", name: "Priya Raman" },
-  { initials: "TH", color: "#16a34a", name: "Tobias Hane" },
-  { initials: "JW", color: "#0d9488", name: "Jonas Wikström" },
+// FEATURE ROW · one inbox — a trimmed thread: three channels landing in one
+// chat, the draft in your voice, the ways back out.
+const MINI_THREAD = [
+  { from: "them", ch: "instagram", text: "saw your story — is Vol 4 happening?? 🙌", i: 0 },
+  { from: "sys", ch: "email", text: "RSVP'd to Vol. 4 · confirmed, bringing 1", i: 1 },
+  { from: "them", ch: "whatsapp", text: "parking nearby or should I take the metro?", i: 2 },
 ];
-
-// 2 · EVERY PERSON, IN FULL — the deep single-person view. Everything PullUp
-// has stitched about one human: where you met, their arc, what they've done,
-// and the notes only you'd remember.
-function ProfileScene() {
+function MiniChatScene() {
   return (
-    <SceneFrame className="mk-profile">
+    <SceneFrame className="mk-chat mk-chat-mini">
+      <div className="mk-chat-sources">
+        <ChannelChip ch="instagram" />
+        <ChannelChip ch="whatsapp" />
+        <ChannelChip ch="email" />
+        <span className="mk-chat-sources-label">all land in one chat</span>
+      </div>
+      <div className="mk-thread">
+        <div className="mk-thread-head">
+          <span className="mk-thread-av" style={{ background: "#ec4899" }}>SL</span>
+          <div className="mk-thread-who">
+            <span className="mk-thread-name">Sara Lindqvist</span>
+            <span className="mk-thread-sub">A regular · Vol. 1 → 3 → 4</span>
+          </div>
+          <span className="mk-window">WhatsApp · open · 21h left</span>
+        </div>
+        <div className="mk-thread-body">
+          {MINI_THREAD.map((m) => (
+            <div className={`mk-msg mk-msg-${m.from}`} key={m.i} style={{ "--i": m.i }}>
+              {m.from !== "you" && <ChannelChip ch={m.ch} />}
+              <span className="mk-msg-bub">{m.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mk-composer">
+          <div className="mk-composer-draft">
+            "Metro's easiest — Ringen, 4 min walk. So glad you're in again 🙂"
+          </div>
+          <div className="mk-ways">
+            <span className="mk-ways-label">Reply via</span>
+            <span className="mk-way mk-way-on"><ChannelChip ch="whatsapp" /> WhatsApp</span>
+            <span className="mk-way"><ChannelChip ch="instagram" /> Instagram</span>
+            <span className="mk-way-send">Send</span>
+          </div>
+        </div>
+      </div>
+    </SceneFrame>
+  );
+}
+
+// FEATURE ROW · CRM — the trimmed person card: who they are, their arc,
+// the note only you'd remember.
+function MiniProfileScene() {
+  return (
+    <SceneFrame className="mk-profile mk-profile-mini">
       <div className="mk-pf-top" style={{ "--i": 0 }}>
         <span className="mk-pf-av" style={{ background: "#ec4899" }}>SL</span>
         <div className="mk-pf-id">
@@ -330,138 +491,15 @@ function ProfileScene() {
         <div className="mk-pf-fact"><span>Brought</span><strong>2 friends</strong></div>
         <div className="mk-pf-fact"><span>Found you via</span><strong>Instagram</strong></div>
       </div>
-      <div className="mk-pf-tags" style={{ "--i": 2 }}>
-        <span>Confirmed +1 for Vol. 4</span>
-        <span>Opened your last 4 invites</span>
-        <span>Always replies</span>
-      </div>
-      <div className="mk-pf-note" style={{ "--i": 3 }}>
+      <div className="mk-pf-note" style={{ "--i": 2 }}>
         <span className="mk-pf-note-tag">Your note</span>
-        Always brings her flatmate. Loves the rooftop sets — studies
-        architecture, ask about her thesis.
+        Always brings her flatmate. Loves the rooftop sets — ask about her thesis.
       </div>
     </SceneFrame>
   );
 }
 
-// 2 · INSIDE THE ROOM — the exclusive stuff only your pullupers get.
-// Mirrors the federated-room model: memories (photos from the night) +
-// artifacts (a track, a drop) shared with the people who actually showed up.
-function RoomDropScene() {
-  return (
-    <SceneFrame className="mk-drop">
-      <div className="mk-drop-head">
-        <span className="mk-drop-title">Inside the room</span>
-        <span className="mk-drop-lock">only for people who pulled up</span>
-      </div>
-      <div className="mk-drop-members">
-        <span className="mk-mem-avs">
-          {ROOM_PEOPLE.map((p, i) => (
-            <span key={p.name} className="mk-mem-av" style={{ background: p.color, "--i": i }}>
-              {p.initials}
-            </span>
-          ))}
-          <span className="mk-mem-av mk-mem-more" style={{ "--i": ROOM_PEOPLE.length }}>+243</span>
-        </span>
-        <span className="mk-mem-text">
-          <strong>248 people</strong> are in here — Sara, Adam, Priya &amp; 245 more
-        </span>
-      </div>
-      <div className="mk-drop-grid">
-        {/* music */}
-        <div className="mk-tile" style={{ "--i": 0 }}>
-          <div className="mk-tile-music">
-            <span className="mk-tile-play" />
-            <span className="mk-wave" aria-hidden="true">
-              {Array.from({ length: 14 }).map((_, i) => (
-                <span key={i} style={{ "--b": i }} />
-              ))}
-            </span>
-          </div>
-          <span className="mk-tile-label">Sunset set · unreleased</span>
-        </div>
-        {/* photos */}
-        <div className="mk-tile" style={{ "--i": 1 }}>
-          <div className="mk-tile-photos">
-            <span style={{ background: "linear-gradient(135deg,#ff8a4c,#ec178f)" }} />
-            <span style={{ background: "linear-gradient(135deg,#7b2ff7,#0d9488)" }} />
-            <span style={{ background: "linear-gradient(135deg,#fbbf24,#dc2743)" }} />
-          </div>
-          <span className="mk-tile-label">Vol. 3 night · 48 photos</span>
-        </div>
-        {/* product drop */}
-        <div className="mk-tile" style={{ "--i": 2 }}>
-          <div className="mk-tile-drop">
-            <span className="mk-tile-swatch" />
-            <span className="mk-tile-pill">20% for the room</span>
-          </div>
-          <span className="mk-tile-label">Studio print · early drop</span>
-        </div>
-        {/* next invite */}
-        <div className="mk-tile" style={{ "--i": 3 }}>
-          <div className="mk-tile-invite">
-            <span className="mk-tile-invite-eyes">Vol. 5</span>
-            <span className="mk-tile-invite-note">you're first</span>
-          </div>
-          <span className="mk-tile-label">Next night · before it's public</span>
-        </div>
-      </div>
-    </SceneFrame>
-  );
-}
-
-// 3 · ONE CHAT — every channel lands in one thread; you pick the way back out.
-const THREAD = [
-  { from: "them", ch: "instagram", text: "saw your story — is Vol 4 happening?? 🙌" },
-  { from: "you", ch: "instagram", text: "Sara!! yes — this Saturday. sending the link" },
-  { from: "sys", ch: "email", text: "RSVP'd to Vol. 4 · confirmed, bringing 1" },
-  { from: "them", ch: "whatsapp", text: "is there parking nearby or should I take the metro?" },
-];
-function ChatScene() {
-  return (
-    <SceneFrame className="mk-chat">
-      <div className="mk-chat-sources">
-        <ChannelChip ch="instagram" />
-        <ChannelChip ch="whatsapp" />
-        <ChannelChip ch="email" />
-        <span className="mk-chat-sources-label">all land in one chat</span>
-      </div>
-      <div className="mk-thread">
-        <div className="mk-thread-head">
-          <span className="mk-thread-av" style={{ background: "#ec4899" }}>SL</span>
-          <div className="mk-thread-who">
-            <span className="mk-thread-name">Sara Lindqvist</span>
-            <span className="mk-thread-sub">A regular · Vol. 1 → 3 → 4</span>
-          </div>
-          <span className="mk-window">WhatsApp · open · 21h left</span>
-        </div>
-        <div className="mk-thread-body">
-          {THREAD.map((m, i) => (
-            <div className={`mk-msg mk-msg-${m.from}`} key={i} style={{ "--i": i }}>
-              {m.from !== "you" && <ChannelChip ch={m.ch} />}
-              <span className="mk-msg-bub">{m.text}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mk-composer">
-          <div className="mk-composer-draft">
-            "Metro's easiest — Ringen, 4 min walk. Free parking on Skånegatan
-            after 6 if you'd rather drive 🙂 so glad you're in again."
-          </div>
-          <div className="mk-ways">
-            <span className="mk-ways-label">Reply via</span>
-            <span className="mk-way mk-way-on"><ChannelChip ch="whatsapp" /> WhatsApp</span>
-            <span className="mk-way"><ChannelChip ch="instagram" /> Instagram</span>
-            <span className="mk-way"><ChannelChip ch="email" /> Email</span>
-            <span className="mk-way-send">Send</span>
-          </div>
-        </div>
-      </div>
-    </SceneFrame>
-  );
-}
-
-// 5 · fill the room — comment → auto-DM → WhatsApp confirm (Tobias' real arc).
+// FEATURE ROW · auto-DM — comment → auto-DM → WhatsApp confirm.
 function InboundScene() {
   return (
     <SceneFrame className="mk-inbound">
@@ -483,7 +521,7 @@ function InboundScene() {
   );
 }
 
-// 6 · run it from your AI (MCP) — typed prompt → event created.
+// FEATURE ROW · MCP — typed prompt → event created.
 function McpScene() {
   return (
     <SceneFrame className="mk-mcp">
@@ -505,12 +543,130 @@ function McpScene() {
   );
 }
 
+// FEATURE ROW · ownership — the four promises as a compact grid.
+function OwnershipScene() {
+  return (
+    <SceneFrame className="mk-ownmini">
+      <div className="own-grid own-grid--mini">
+        {OWNERSHIP.map((o, i) => (
+          <div key={o.title} className="own-card" style={{ "--i": i }}>
+            <span className="own-card-ic"><o.icon size={17} strokeWidth={2} /></span>
+            <span className="own-card-t">{o.title}</span>
+            <span className="own-card-b">{o.body}</span>
+          </div>
+        ))}
+      </div>
+    </SceneFrame>
+  );
+}
+
+/* ─── Movement II — the host's machine, as tight feature rows ─── */
+
+const HOST_ROWS = [
+  {
+    k: "autodm",
+    kicker: "Auto-DM",
+    title: "A comment becomes a guest at your door.",
+    body: "A comment on your reel becomes a DM with your link, then a confirmation on WhatsApp. The funnel runs itself.",
+    visual: <InboundScene />,
+    span: 3,
+    tone: "ig",
+  },
+  {
+    k: "inbox",
+    kicker: "One inbox",
+    title: "Every channel, one conversation.",
+    body: "DMs, WhatsApps and emails — one thread per person. PullUp drafts the reply in your voice; you send.",
+    visual: <MiniChatScene />,
+    span: 3,
+    tone: "wa",
+  },
+  {
+    k: "crm",
+    kicker: "A CRM that remembers",
+    title: "A memory for every person.",
+    body: "Every night, every +1, every note you'd otherwise forget — the whole picture in one glance.",
+    visual: <MiniProfileScene />,
+    span: 2,
+    tone: "teal",
+  },
+  {
+    k: "db",
+    kicker: "Your database",
+    title: "It all lives in a database you own.",
+    body: "PullUp is the software on top; the data underneath is yours. In your cloud, in your name — never ours to keep.",
+    visual: <OwnershipScene />,
+    creed: <>We run the room. <span className="pink">You hold the keys.</span></>,
+    span: 2,
+    tone: "ink",
+  },
+  {
+    k: "mcp",
+    kicker: "MCP · AI",
+    title: "Or run it all from your AI.",
+    body: "Claude, ChatGPT, Cursor — spin up an event or draft the follow-ups in a sentence.",
+    visual: <McpScene />,
+    span: 2,
+    tone: "violet",
+  },
+];
+
+// One bento card: cursor-tilt in 3D, a pink glow that follows the pointer,
+// and the live demo inside REPLAYS every time the pointer enters (the key
+// bump remounts the SceneFrame, its IntersectionObserver refires, and the
+// choreography runs again).
+function BentoCard({ row, order, index = 0 }) {
+  const cardRef = useRef(null);
+  const [replay, setReplay] = useState(0);
+
+  const onMove = (e) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    el.style.setProperty("--rx", `${(-py * 4).toFixed(2)}deg`);
+    el.style.setProperty("--ry", `${(px * 5).toFixed(2)}deg`);
+    el.style.setProperty("--mx", `${(e.clientX - r.left).toFixed(0)}px`);
+    el.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`);
+  };
+  const onLeave = () => {
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.setProperty("--rx", "0deg");
+    el.style.setProperty("--ry", "0deg");
+  };
+
+  return (
+    <Reveal className={`mk-bento-cell mk-bento-span-${row.span}`} y={26} delay={index * 0.07}>
+      <div
+        ref={cardRef}
+        className={`mk-bento-card mk-bento-tone-${row.tone}`}
+        data-mk-section={`feature_${row.k}`}
+        data-mk-order={order}
+        onMouseMove={onMove}
+        onMouseEnter={() => setReplay((r) => r + 1)}
+        onMouseLeave={onLeave}
+      >
+        <span className="mk-bento-kicker">{row.kicker}</span>
+        <h3 className="mk-bento-t">{row.title}</h3>
+        <p className="mk-bento-b">{row.body}</p>
+        {row.creed && <p className="mk-bento-creed">{row.creed}</p>}
+        <div className="mk-bento-vis" key={replay}>
+          {row.visual}
+        </div>
+        <span className="mk-bento-glow" aria-hidden="true" />
+      </div>
+    </Reveal>
+  );
+}
+
 /* ─── The marketing scroll ───
-   Takes a creator who already throws events from "what is this" to
-   "get started", mirroring the real platform: signals that come find you,
-   one identity across channels, the WhatsApp window, drafts in your voice.
-   Brand-soul kept: light canvas, pink accent, the eyes, pixel cursor,
-   trust marquee. */
+   Two movements. Movement I is the guest's story, told top-down as they live
+   it: their feed → your immersive page (with the showcase wall as proof) →
+   the door closing → the private room. Movement II flips to the host: the
+   machine, as tight feature rows. Brand-soul kept: light canvas, pink accent,
+   the eyes, pixel cursor, trust marquee. */
 // The landing is one page for everyone — logged in or out. It never reads auth
 // state: it always offers "Log in" / "Get started". A returning user either
 // taps in (the /login + /start action validates the session and drops them in
@@ -607,234 +763,96 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         </div>
       </header>
 
-      {/* ─── 1 · HERO ─── */}
+      {/* ─── HERO — covered in real event pages, copy floating on top ─── */}
       <section className="mk-hero" data-mk-section="hero" data-mk-order="1">
-        <Reveal y={16}>
-          <PullupEyes variant="big" className="mk-hero-eyes" />
-        </Reveal>
-        <Reveal delay={0.06}>
-          <p className="mk-eyebrow">The event platform for creators</p>
-        </Reveal>
+        <HeroPosterField />
+        <div className="mk-hero-center">
+          <Reveal delay={0.06}>
+            <p className="mk-eyebrow">The event platform for creators</p>
+          </Reveal>
+          <Reveal delay={0.12}>
+            <h1 className="mk-hero-h">
+              Where your followers<br />
+              <span className="pink">become your people.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={0.18}>
+            <p className="mk-hero-sub">
+              The bridge between your online world and your real one.
+            </p>
+          </Reveal>
+          <Reveal delay={0.24}>
+            <div className="mk-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "center" }}>
+              {cta("hero")}
+            </div>
+          </Reveal>
+          <Reveal delay={0.3}>
+            <p className="mk-hero-proof">
+              <span className="mk-hero-proof-dot" />
+              <strong>125 kr/month</strong>&nbsp;· cancel anytime
+            </p>
+          </Reveal>
+        </div>
+        {/* trust lands with the hero — brands visible without a scroll */}
+        <div className="mk-hero-brands" data-mk-section="proof" data-mk-order="2">
+          <Reveal delay={0.35} y={10}>
+            <p className="mk-proof-label">They already chose PullUp</p>
+          </Reveal>
+          <Reveal delay={0.4} y={0}>
+            <LogoMarquee />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ════════ THE JOURNEY — the guest story, told fast ════════ */}
+      <JourneySection />
+
+      {/* ════════ THE FLIP — story ends, machine begins ════════ */}
+      <section className="mk-flip" data-mk-section="flip" data-mk-order="4">
+        <Reveal><p className="mk-flip-a">That's the story your guests live.</p></Reveal>
         <Reveal delay={0.12}>
-          <h1 className="mk-hero-h">
-            Where your followers<br />
-            <span className="pink">become your people.</span>
-          </h1>
-        </Reveal>
-        <Reveal delay={0.18}>
-          <p className="mk-hero-sub">
-            PullUp is the bridge between your online world and your real one.
-            Your events bring people together — and PullUp keeps every one of
-            them, across Instagram, WhatsApp and real life, long after the
-            night's over.
+          <p className="mk-flip-b">
+            Here's the machine <span className="pink">you run it with.</span>
           </p>
         </Reveal>
-        <Reveal delay={0.24}>
-          <div className="mk-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "center" }}>
-            {cta("hero")}
+        <Reveal delay={0.2}><p className="mk-part-tag mk-part-tag-dark">For you, the host</p></Reveal>
+        {/* the machine's parts, drifting by in outline — pure vibe */}
+        <div className="mk-flip-ticker" aria-hidden="true">
+          <div className="mk-flip-ticker-track">
+            {[0, 1].map((copy) => (
+              <span key={copy}>
+                Auto-DM<i>·</i>One inbox<i>·</i>Living CRM<i>·</i>Your own database<i>·</i>MCP / AI<i>·</i>
+              </span>
+            ))}
           </div>
-        </Reveal>
-        <Reveal delay={0.3}>
-          <p className="mk-hero-proof">
-            <span className="mk-hero-proof-dot" />
-            Free to attend · <strong>125 kr/month</strong>&nbsp;to host · cancel anytime
-          </p>
-        </Reveal>
-        <Reveal delay={0.4}>
-          <div className="mk-scrollcue" aria-hidden="true">
-            <span>see how it works</span>
-            <span className="mk-scrollcue-line" />
-          </div>
-        </Reveal>
+        </div>
       </section>
 
-      {/* ─── PROOF (flexed early, right under the hero) ─── */}
-      <section className="mk-section mk-section-proof mk-section-proof--hero" data-mk-section="proof" data-mk-order="2">
-        <Reveal>
-          <p className="mk-proof-label">They already chose PullUp</p>
-        </Reveal>
-      </section>
-      <LogoMarquee />
-
-      {/* ─── 01 · YOU OWN IT ALL (the killer feature — leads the tour, paired
-          with the live event-room spinner right under it) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="ownership" data-mk-order="3">
-        <Reveal><Chapter n="01" label="You own it all" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Your people live in a database <span className="pink">you own.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Every other platform rents you access to your own audience — and keeps
-            the list the day you leave. PullUp runs on a database that's yours:
-            your people, your contacts, your whole room, held in your name. We're
-            the software on top. You're the owner underneath.
-          </p>
-        </Reveal>
-
-        <div className="own-grid">
-          {OWNERSHIP.map((o, i) => (
-            <Reveal key={o.title} delay={0.08 + i * 0.05} y={14} className="own-card">
-              <span className="own-card-ic"><o.icon size={20} strokeWidth={2} /></span>
-              <span className="own-card-t">{o.title}</span>
-              <span className="own-card-b">{o.body}</span>
-            </Reveal>
+      {/* ════════ THE HOST'S MACHINE — the bento ════════ */}
+      <section className="mk-bento-wrap">
+        <div className="mk-bento">
+          {HOST_ROWS.map((row, i) => (
+            <BentoCard key={row.k} row={row} order={5 + i} index={i} />
           ))}
         </div>
-
-        <Reveal delay={0.08}>
-          <p className="mk-aside">
-            Solo creator or an agency running a whole roster — same deal. Every
-            creator's room stays theirs: owned, portable, and grant-access only,
-            even the ones you manage. Ownership isn't a setting here. It's the
-            ground you build on.
-          </p>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-creed">
-            We run the room. <span className="pink">You hold the keys.</span>
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 02 · THE ROOMS THEMSELVES (the live event spinner — the visual
-          proof sitting right under the ownership pitch) ─── */}
-      <EventShowcase />
-
-      {/* ─── 03 · THE ROOM (exclusive drops + who's in it) ─── */}
-      <section className="mk-section" data-mk-section="room" data-mk-order="5">
-        <Reveal><Chapter n="03" label="The Room" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Some things are only for the people <span className="pink">who showed up.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            The Room is everyone who's ever pulled up — kept long after the
-            night's over — and the place you share what no one else gets. Drop
-            the unreleased track, the photos from the night, the early product,
-            the next invite before it's public. The stuff that never touches
-            your grid lives here, just for them.
-          </p>
-        </Reveal>
-        <RoomDropScene />
-        <Reveal delay={0.1}>
-          <p className="mk-creed">
-            Showing up is the password. <span className="pink">What's inside is the reward.</span>
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 2 · EVERY PERSON, IN FULL (deep profile) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="person" data-mk-order="6">
-        <Reveal><Chapter n="04" label="Every person, in full" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Everything you know about someone — <span className="pink">in one glance.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Tap anyone in the room and the whole picture opens: where you met,
-            every night they came, who they brought, how warm things are — and
-            the little notes only you'd remember. The context you used to keep in
-            your head, finally on the screen.
-          </p>
-        </Reveal>
-        <ProfileScene />
-      </section>
-
-      {/* ─── 3 · ONE CHAT, EVERY CHANNEL ─── */}
-      <section className="mk-section" data-mk-section="chat" data-mk-order="7">
-        <Reveal><Chapter n="05" label="One chat, every channel" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Every message, one chat. <span className="pink">Reply any way you like.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Their Instagram DMs, their emails, their WhatsApps — PullUp pulls
-            them into one conversation, in order, no matter where they landed.
-            When you reply, you pick the way out: back into their DMs, a WhatsApp,
-            or an email — and PullUp drafts it in your voice first.
-          </p>
-        </Reveal>
-        <ChatScene />
-        <Reveal delay={0.1}>
-          <p className="mk-creed">
-            It drafts. <span className="pink">You send.</span>
-          </p>
-        </Reveal>
-        <Reveal delay={0.06}>
-          <p className="mk-aside">
-            PullUp amplifies care that already exists. It never manufactures
-            care that doesn't. The warmth is yours — it just makes sure you never
-            drop it. And it only sends when you say so.
-          </p>
-        </Reveal>
-      </section>
-
-      {/* ─── 4 · FILL THE ROOM (INBOUND) ─── */}
-      <section className="mk-section mk-section-tint" data-mk-section="fill" data-mk-order="8">
-        <Reveal><Chapter n="06" label="Fill the room" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            A comment on your reel becomes a guest at your door.
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            Someone comments asking to get in — PullUp slides into their DMs
-            with your sign-up link, then lands the confirmation on WhatsApp,
-            where people actually open and reply. The whole funnel, from hype to
-            RSVP, without you lifting a finger.
-          </p>
-        </Reveal>
-        <InboundScene />
-      </section>
-
-      {/* ─── 5 · RUN IT FROM YOUR AI ─── */}
-      <section className="mk-section" data-mk-section="mcp" data-mk-order="9">
-        <Reveal><Chapter n="07" label="No new app to learn" /></Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mk-h2">
-            Or just tell your AI to do it.
-          </h2>
-        </Reveal>
-        <Reveal delay={0.1}>
-          <p className="mk-lede">
-            PullUp plugs into Claude, ChatGPT, Cursor — any AI that speaks MCP.
-            Spin up an event, pull a person's whole history, draft the
-            follow-ups, all in a sentence. The platform, run from wherever you
-            already think out loud.
-          </p>
-        </Reveal>
-        <McpScene />
       </section>
 
       {/* ─── JOIN (pricing — one honest number, then the door. The old
           waitlist is retired: the subscription IS the gate now.) ─── */}
-      <section id="join" className="mk-final mk-final--pre" data-mk-section="join" data-mk-order="10">
+      <section id="join" className="mk-final" data-mk-section="join" data-mk-order="12">
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
         <Reveal delay={0.08}>
           <h2 className="mk-final-h">
-            Free to attend.<br />
-            <span className="pink">125 kr a month to host.</span>
+            Make 'em <span className="pink">pull up.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.14}>
           <p className="mk-final-sub">
-            Being in someone's room costs nothing, ever. When you're ready to
-            host — events live, a community page open, products selling — the
-            Creator plan is <strong>125 kr/month</strong> plus 3% on paid
-            tickets. No per-guest metering, no reach to buy back. Cancel
-            anytime; your people and your data stay yours either way.
+            Events live, a community page open, products selling — plus 3% on
+            paid tickets. Cancel anytime; your people and your data stay yours
+            either way.
           </p>
         </Reveal>
         <Reveal delay={0.17}>
@@ -871,48 +889,8 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         </Reveal>
       </section>
 
-      {/* ─── A NOTE FROM FELIX (the quote) ─── */}
-      <section className="mk-final mk-coda" data-mk-section="coda" data-mk-order="11">
-        {/* first-person, in Felix's own voice — the founder talking straight to
-            another creator, not a brand manifesto. */}
-        <Reveal delay={0.08}>
-          <div className="mk-manifesto">
-            <p className="mk-manifesto-eyebrow">Why we're building this</p>
-            <p className="mk-manifesto-body">
-              Everyone's automating, scaling, going synthetic. We're building the
-              opposite — a place where the people who actually show up for you are
-              yours: owned by you, kept by you, never sold. As the rest of the
-              internet gets faker, that only gets more valuable. That's the future
-              we're betting on. If it's yours too —{" "}
-              <span className="pink">pull up.</span>
-            </p>
-            <p className="mk-manifesto-sign">
-              —{" "}
-              <a
-                href="https://instagram.com/itsfelixagain"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Felix Civalero
-              </a>
-              , Founder
-            </p>
-          </div>
-        </Reveal>
-
-        {/* the quiet promises — a slim reassurance band, not a wall of text */}
-        <div className="mk-trust-row">
-          {TRUST.map((t, i) => (
-            <Reveal key={t.title} delay={0.12 + i * 0.04} y={10} className="mk-trust-chip">
-              <t.icon className="mk-trust-ic" size={15} strokeWidth={2} />
-              <span>{t.title}</span>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
       {/* ─── FOOTER ─── */}
-      <footer className="mk-footer" data-mk-section="footer" data-mk-order="12">
+      <footer className="mk-footer" data-mk-section="footer" data-mk-order="14">
         <span>Pullup &copy; {new Date().getFullYear()}</span>
         <span className="mk-footer-dot">·</span>
         <a href="/privacy">Privacy</a>
@@ -1162,34 +1140,126 @@ const STYLES = `
     padding-left: 16px;
   }
 
-  /* ─── 1 · hero ─── */
+  /* ─── hero (copy + journey side by side, brands pinned at the fold) ─── */
   .mk-hero {
-    min-height: 100dvh;
+    position: relative;
+    /* exactly one viewport: copy + phone centered, brand marquee riding the
+       fold. svh (not dvh) so mobile URL-bar collapse can't push it under.
+       border-box is load-bearing: the app has NO global reset, and content-box
+       would add the top padding ON TOP of 100svh — shoving the marquee one
+       padding below the fold. */
+    box-sizing: border-box;
+    min-height: 100svh;
+    display: flex; flex-direction: column;
+    padding: clamp(64px, 9vh, 88px) clamp(22px, 6vw, 48px) 0;
+  }
+  .mk-hero-center {
+    position: relative; z-index: 2;
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+    flex: 1;
+    min-height: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    text-align: center;
-    padding: 100px clamp(22px, 6vw, 48px) 60px;
-    gap: 22px;
+    gap: 16px; text-align: center;
+    /* bottom bias: the brand band below is taller than the nav above, so a
+       plain flex-center lands slightly low — this lifts the block to the
+       optical center of the viewport */
+    padding: 0 0 clamp(32px, 6vh, 72px);
   }
-  .mk-hero-eyes {
-    height: clamp(90px, 16vmin, 150px);
-    width: auto; display: block; margin-bottom: 4px;
-  }
-  .mk-hero-eyes svg { width: 100%; height: 100%; display: block; }
   .mk-hero-h {
     margin: 0;
-    font-size: clamp(38px, 7.4vw, 78px);
+    font-size: clamp(38px, 5.8vw, 76px);
     font-weight: 800; letter-spacing: -0.035em; line-height: 1.02;
     max-width: 16ch;
   }
   .mk-hero-sub {
     margin: 0;
-    font-size: clamp(17px, 2.4vw, 21px);
-    line-height: 1.55;
-    color: rgba(10,10,10,0.66);
-    max-width: 52ch;
+    font-size: clamp(16px, 2.2vw, 20px);
+    line-height: 1.5;
+    color: rgba(10,10,10,0.72);
+    max-width: 40ch;
   }
-  .mk-hero-cta { margin-top: 8px; }
+  .mk-hero-cta { margin-top: 6px; }
+  /* the trust band rides inside the hero: full-bleed marquee at the fold,
+     labelled quietly at the left margin (aligned with the nav wordmark) so
+     the center stays clean */
+  .mk-hero-brands {
+    position: relative; z-index: 2;
+    flex: 0 0 auto;
+    margin: 0 calc(-1 * clamp(22px, 6vw, 48px));
+    padding: 4px 0 2px;
+    text-align: left;
+  }
+  .mk-hero-brands .mk-proof-label {
+    margin-bottom: 0;
+    padding-left: clamp(16px, 4vw, 40px);
+    font-size: 10px; letter-spacing: 0.2em;
+    color: rgba(10,10,10,0.32);
+  }
+  .mk-hero-brands .logo-marquee { padding: 10px 0 16px; }
+  @media (max-width: 920px) {
+    .mk-hero { padding-top: 92px; }
+  }
+
+  /* ════════ HERO POSTER FIELD (real event pages, drifting) ════════ */
+  .mk-hf { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .mk-hf-tilt {
+    position: absolute; inset: -18% -10%;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: clamp(14px, 1.8vw, 24px);
+    transform: rotate(-8deg);
+  }
+  .mk-hf-col {
+    display: flex; flex-direction: column;
+    gap: clamp(14px, 1.8vw, 24px);
+    animation: mk-hf-drift 70s linear infinite;
+    will-change: transform;
+  }
+  /* center column (1) runs FORWARD from 0 and starts pushed down, so its
+     first card — the TWIN FREAKS video — is fully in view at load. reverse
+     lives on col 0 instead: a reversed column starts at -50%, which renders
+     the duplicate stack where video tiles are posters, not playing clips. */
+  .mk-hf-col-0 { animation-duration: 85s; animation-direction: reverse; }
+  .mk-hf-col-1 { animation-duration: 90s; margin-top: clamp(70px, 13vh, 150px); }
+  .mk-hf-col-2 { animation-duration: 95s; margin-top: -60px; }
+  @keyframes mk-hf-drift { to { transform: translateY(-50%); } }
+  .mk-hf-stack {
+    display: flex; flex-direction: column;
+    gap: clamp(14px, 1.8vw, 24px);
+    flex: none;
+  }
+  .mk-hf-card {
+    position: relative;
+    border-radius: 20px; overflow: hidden;
+    aspect-ratio: 5 / 7;
+    background: #0b0b10;
+    box-shadow: 0 18px 44px -18px rgba(10,10,10,0.35);
+  }
+  .mk-hf-card img,
+  .mk-hf-card video {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .mk-hf-card::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.66) 0%, rgba(0,0,0,0.08) 42%, rgba(0,0,0,0) 62%);
+  }
+  .mk-hf-meta {
+    position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 1;
+    text-align: left; color: #fff;
+  }
+  .mk-hf-meta p { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; }
+  .mk-hf-meta span { display: block; margin-top: 3px; font-size: 11.5px; color: rgba(255,255,255,0.72); font-weight: 500; }
+  /* white veil: posters stay visible everywhere, copy floats on a soft
+     radial clearing, and the bottom fades to white for the brand band */
+  .mk-hf-veil {
+    position: absolute; inset: 0; z-index: 1;
+    background:
+      radial-gradient(58% 54% at 50% 44%, rgba(255,255,255,0.96) 30%, rgba(255,255,255,0.78) 62%, rgba(255,255,255,0.28) 100%),
+      linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.35) 18%, rgba(255,255,255,0.3) 72%, rgba(255,255,255,0.97) 94%);
+  }
 
   .mk-cta {
     display: inline-flex; align-items: center; gap: 9px;
@@ -1205,7 +1275,7 @@ const STYLES = `
   .mk-cta:hover svg { transform: translateX(3px); }
 
   .mk-hero-proof {
-    margin: 16px 0 0;
+    margin: 8px 0 0;
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 13.5px; color: rgba(10,10,10,0.55);
   }
@@ -1217,21 +1287,472 @@ const STYLES = `
   }
   @keyframes proofpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-  .mk-scrollcue {
-    margin-top: 36px;
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
-    color: rgba(10,10,10,0.34);
+  /* ════════ THE JOURNEY SECTION (story told fast) ════════ */
+  .mk-story {
+    max-width: 1060px; margin: 0 auto;
+    padding: clamp(72px, 12vh, 130px) clamp(22px, 6vw, 48px);
   }
-  .mk-scrollcue-line {
-    width: 1px; height: 40px;
-    background: linear-gradient(180deg, rgba(10,10,10,0.3), transparent);
-    animation: cue 2s ease-in-out infinite;
+  .mk-story-head { text-align: center; margin-bottom: clamp(40px, 7vh, 72px); }
+  .mk-story-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    align-items: center;
+    gap: clamp(36px, 6vw, 88px);
   }
-  @keyframes cue {
-    0%, 100% { opacity: 0.3; transform: scaleY(0.6); transform-origin: top; }
-    50% { opacity: 1; transform: scaleY(1); transform-origin: top; }
+  .mk-story-steps {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column;
   }
+  .mk-story-steps li { position: relative; }
+  /* the connecting line — runs through the dots, segment by segment */
+  .mk-story-steps li::before {
+    content: ""; position: absolute;
+    left: 10px; top: 30px; bottom: -6px; width: 2px;
+    background: rgba(10,10,10,0.1);
+  }
+  .mk-story-steps li:last-child::before { display: none; }
+  .mk-story-steps button {
+    display: flex; align-items: flex-start; gap: 18px;
+    width: 100%; text-align: left;
+    background: none; border: 0; padding: 14px 0;
+    font: inherit;
+  }
+  .mk-story-dot {
+    flex: 0 0 auto;
+    width: 22px; height: 22px; border-radius: 999px;
+    margin-top: 2px;
+    border: 2px solid rgba(10,10,10,0.18);
+    background: #fff;
+    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+  }
+  .mk-story-steps li.on .mk-story-dot {
+    border-color: ${PINK};
+    background: ${PINK};
+    box-shadow: 0 0 0 5px rgba(236,23,143,0.14);
+  }
+  .mk-story-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mk-story-t {
+    font-size: clamp(17px, 2.2vw, 21px); font-weight: 800; letter-spacing: -0.02em;
+    color: rgba(10,10,10,0.42);
+    transition: color 0.3s;
+  }
+  .mk-story-steps li.on .mk-story-t { color: ${INK}; }
+  .mk-story-b {
+    font-size: 14px; line-height: 1.5; color: rgba(10,10,10,0.45);
+    opacity: 0.65; transition: opacity 0.3s;
+    max-width: 40ch;
+  }
+  .mk-story-steps li.on .mk-story-b { opacity: 1; }
+  @media (max-width: 860px) {
+    .mk-story-grid { grid-template-columns: 1fr; gap: 40px; }
+    .mk-jr { order: -1; }
+  }
+
+  /* ════════ THE JOURNEY PHONE (the looping pitch) ════════ */
+  .mk-jr { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .mk-jr-phone {
+    position: relative;
+    width: clamp(240px, 24vw, 300px);
+    aspect-ratio: 9 / 18.4;
+    border-radius: 42px;
+    background: #0b0b10;
+    box-shadow:
+      0 50px 110px -34px rgba(10,10,10,0.5),
+      0 12px 36px -18px rgba(236,23,143,0.28),
+      inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .mk-jr-screen {
+    position: absolute; inset: 9px;
+    border-radius: 34px; overflow: hidden;
+    background: #fafafa;
+    transform: translateZ(0);
+  }
+  .mk-jr-ph {
+    position: absolute; inset: 0;
+    opacity: 0; transition: opacity 0.55s ease;
+    pointer-events: none;
+  }
+  .mk-jr-ph.is-on { opacity: 1; }
+
+  /* 0 · their feed */
+  .mk-jr-ph-feed { background: #fff; padding: 16px 13px; display: flex; flex-direction: column; gap: 10px; }
+  .mk-jr-ig-head { display: flex; align-items: center; gap: 8px; }
+  .mk-jr-ig-av {
+    width: 26px; height: 26px; border-radius: 999px; flex: 0 0 auto;
+    background: linear-gradient(135deg, #ff8a4c, ${PINK});
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px rgba(214,36,159,0.7);
+  }
+  .mk-jr-ig-name { font-size: 11.5px; font-weight: 800; letter-spacing: -0.01em; }
+  .mk-jr-ig-media {
+    position: relative; border-radius: 13px; overflow: hidden;
+    aspect-ratio: 4 / 4.6;
+    background:
+      radial-gradient(120% 90% at 80% 0%, rgba(236,23,143,0.55), transparent 55%),
+      linear-gradient(155deg, #17171d, #351029 60%, #6d1150);
+    display: flex; align-items: flex-end; padding: 11px;
+  }
+  .mk-jr-ig-media span { color: #fff; font-size: 12px; font-weight: 800; letter-spacing: -0.01em; }
+  .mk-jr-ig-actions { font-size: 11.5px; color: rgba(10,10,10,0.55); }
+  .mk-jr-ig-comment {
+    display: flex; align-items: center; gap: 7px;
+    align-self: flex-start;
+    padding: 8px 11px; border-radius: 13px; border-bottom-left-radius: 5px;
+    background: rgba(10,10,10,0.05);
+    font-size: 12px; font-weight: 600;
+    opacity: 0; transform: translateY(8px);
+  }
+  .is-on .mk-jr-ig-comment { animation: mk-msgin 0.45s ease 1.1s forwards; }
+  .mk-jr-ig-reply {
+    align-self: flex-end;
+    padding: 7px 12px; border-radius: 13px; border-bottom-right-radius: 5px;
+    background: ${PINK}; color: #fff;
+    font-size: 12px; font-weight: 700;
+    opacity: 0; transform: translateY(8px);
+  }
+  .is-on .mk-jr-ig-reply { animation: mk-msgin 0.45s ease 2.4s forwards; }
+
+  /* 1 · your world (the immersive page, scrolling itself) */
+  .mk-jr-ph-page { background: #0b0b10; }
+  .mk-jr-ev-scroll {
+    position: absolute; left: 0; right: 0; top: 0;
+    padding: 13px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .is-on .mk-jr-ev-scroll { animation: mk-jr-scroll 4s cubic-bezier(0.45, 0, 0.3, 1) 0.4s forwards; }
+  @keyframes mk-jr-scroll {
+    0%, 14% { transform: translateY(0); }
+    88%, 100% { transform: translateY(-52%); }
+  }
+  .mk-jr-ev-cover {
+    border-radius: 13px; aspect-ratio: 4 / 4.4; flex: 0 0 auto;
+    background:
+      radial-gradient(130% 100% at 20% 0%, rgba(123,47,247,0.5), transparent 55%),
+      linear-gradient(160deg, #241226, #4c1136 55%, #b3126b);
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 3px;
+    padding: 12px;
+  }
+  .mk-jr-ev-title { color: #fff; font-size: 15px; font-weight: 900; letter-spacing: -0.02em; }
+  .mk-jr-ev-sub { color: rgba(255,255,255,0.75); font-size: 10.5px; font-weight: 600; }
+  .mk-jr-ev-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.14); flex: 0 0 auto; }
+  .mk-jr-ev-video {
+    border-radius: 12px; aspect-ratio: 16 / 9.5; flex: 0 0 auto;
+    background: linear-gradient(140deg, #101018, #2a1030);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mk-jr-ev-play {
+    width: 0; height: 0;
+    border-left: 12px solid rgba(255,255,255,0.92);
+    border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+    margin-left: 3px;
+    filter: drop-shadow(0 0 12px rgba(236,23,143,0.8));
+  }
+  .mk-jr-ev-gallery { display: flex; gap: 7px; flex: 0 0 auto; }
+  .mk-jr-ev-gallery span { flex: 1; aspect-ratio: 3 / 4; border-radius: 9px; }
+  .mk-jr-ev-fade {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 74px; z-index: 1;
+    background: linear-gradient(180deg, transparent, rgba(11,11,16,0.96) 70%);
+    pointer-events: none;
+  }
+  .mk-jr-ev-cta {
+    position: absolute; left: 14px; right: 14px; bottom: 13px; z-index: 2;
+    padding: 10px 0; border-radius: 999px; text-align: center;
+    background: ${PINK}; color: #fff;
+    font-size: 13px; font-weight: 800; letter-spacing: -0.01em;
+    box-shadow: 0 10px 26px -8px rgba(236,23,143,0.75);
+  }
+  .is-on .mk-jr-ev-cta { animation: mk-jr-pulse 1.3s ease 1.2s 2; }
+  @keyframes mk-jr-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.045); }
+  }
+  .mk-jr-tap {
+    position: absolute; left: 50%; bottom: 18px; z-index: 3;
+    width: 34px; height: 34px; border-radius: 999px;
+    border: 2.5px solid #fff;
+    opacity: 0; transform: translateX(-50%) scale(0.4);
+    pointer-events: none;
+  }
+  .is-on .mk-jr-tap { animation: mk-jr-tap 0.75s ease 3.6s forwards; }
+  @keyframes mk-jr-tap {
+    0% { opacity: 0.95; transform: translateX(-50%) scale(0.4); }
+    100% { opacity: 0; transform: translateX(-50%) scale(1.7); }
+  }
+
+  /* 2 · the door closes */
+  .mk-jr-ph-door { background: #fff; }
+  .mk-jr-confirm {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+    opacity: 0; transform: scale(0.85);
+  }
+  .is-on .mk-jr-confirm { animation: mk-avpop 0.5s cubic-bezier(0.16,1,0.3,1) 0.25s forwards; }
+  .mk-jr-confirm-check {
+    width: 46px; height: 46px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(34,197,94,0.12); color: #16a34a;
+    font-size: 22px; font-weight: 900;
+  }
+  .mk-jr-confirm-t { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; }
+  .mk-jr-confirm-s { font-size: 11px; font-weight: 600; color: rgba(10,10,10,0.5); }
+  .mk-jr-door-l, .mk-jr-door-r {
+    position: absolute; top: 0; bottom: 0; width: 51%; z-index: 2;
+    background: linear-gradient(160deg, #101014, #0b0b10);
+  }
+  .mk-jr-door-l { left: 0; transform: translateX(-102%); border-right: 1px solid rgba(255,255,255,0.08); }
+  .mk-jr-door-r { right: 0; transform: translateX(102%); }
+  .is-on .mk-jr-door-l { animation: mk-jr-doorl 0.7s cubic-bezier(0.7, 0, 0.3, 1) 1.9s forwards; }
+  .is-on .mk-jr-door-r { animation: mk-jr-doorr 0.7s cubic-bezier(0.7, 0, 0.3, 1) 1.9s forwards; }
+  @keyframes mk-jr-doorl { to { transform: translateX(0); } }
+  @keyframes mk-jr-doorr { to { transform: translateX(0); } }
+  .mk-jr-lock {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    color: #fff; opacity: 0; transform: translateY(8px);
+  }
+  .is-on .mk-jr-lock { animation: mk-msgin 0.5s ease 2.8s forwards; }
+  .mk-jr-lock svg { color: ${PINK}; margin-bottom: 3px; }
+  .mk-jr-lock-t { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
+  .mk-jr-lock-s { font-size: 10.5px; font-weight: 600; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* 3 · the room */
+  .mk-jr-ph-room { background: #fff; padding: 16px 13px; display: flex; flex-direction: column; gap: 11px; }
+  .mk-jr-ph-room > div { opacity: 0; transform: translateY(9px); }
+  .is-on.mk-jr-ph-room > div { animation: mk-msgin 0.45s ease forwards; animation-delay: calc(var(--i) * 0.28s + 0.25s); }
+  .mk-jr-rm-head { display: flex; align-items: center; justify-content: space-between; }
+  .mk-jr-rm-t { font-size: 14px; font-weight: 900; letter-spacing: -0.02em; }
+  .mk-jr-rm-pill {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+    color: ${PINK}; background: rgba(236,23,143,0.1);
+    padding: 4px 9px; border-radius: 999px;
+  }
+  .mk-jr-rm-people { display: flex; align-items: center; gap: 9px; }
+  .mk-jr-avs { display: inline-flex; }
+  .mk-jr-av {
+    width: 22px; height: 22px; border-radius: 999px; border: 2px solid #fff;
+    margin-left: -7px;
+    opacity: 0; transform: scale(0.5);
+  }
+  .mk-jr-av:first-child { margin-left: 0; }
+  .is-on .mk-jr-av { animation: mk-avpop 0.4s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: calc(var(--i) * 0.09s + 0.5s); }
+  .mk-jr-av-more {
+    background: rgba(10,10,10,0.6);
+    color: #fff; font-size: 7.5px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: auto; min-width: 22px; padding: 0 3px;
+  }
+  .mk-jr-rm-count { font-size: 11px; font-weight: 700; color: rgba(10,10,10,0.6); }
+  .mk-jr-rm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .mk-jr-rm-tile { display: flex; flex-direction: column; gap: 5px; }
+  .mk-jr-rm-photos {
+    position: relative; height: 62px; border-radius: 11px;
+    background: rgba(10,10,10,0.04);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mk-jr-rm-photos span {
+    position: absolute; width: 30px; height: 40px; border-radius: 6px;
+    border: 1.5px solid #fff; box-shadow: 0 4px 10px -4px rgba(10,10,10,0.4);
+  }
+  .mk-jr-rm-photos span:nth-child(1) { transform: rotate(-8deg) translateX(-9px); }
+  .mk-jr-rm-photos span:nth-child(2) { transform: rotate(7deg) translateX(9px); }
+  .mk-jr-rm-drop {
+    height: 62px; border-radius: 11px;
+    background: rgba(10,10,10,0.04);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  }
+  .mk-jr-rm-swatch {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(150deg, #fbbf24, #f97316 60%, #b91c1c);
+  }
+  .mk-jr-rm-price {
+    font-size: 8.5px; font-weight: 800; color: #fff; background: ${PINK};
+    padding: 2.5px 7px; border-radius: 999px;
+  }
+  .mk-jr-rm-label { font-size: 9.5px; font-weight: 600; color: rgba(10,10,10,0.55); }
+  .mk-jr-rm-msg {
+    align-self: flex-start;
+    padding: 8px 12px; border-radius: 13px; border-bottom-left-radius: 5px;
+    background: rgba(236,23,143,0.09); color: ${INK};
+    font-size: 11.5px; font-weight: 700;
+  }
+
+  /* ─── part bands + the flip ─── */
+  .mk-part {
+    max-width: 880px; margin: 0 auto;
+    padding: clamp(64px, 10vh, 120px) clamp(22px, 6vw, 48px) 0;
+    text-align: center;
+  }
+  .mk-part-tag {
+    margin: 0 0 18px;
+    font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: ${PINK}; font-weight: 800;
+  }
+  .mk-flip {
+    background: ${INK};
+    color: #fff;
+    text-align: center;
+    padding: clamp(90px, 16vh, 170px) clamp(22px, 6vw, 48px);
+    margin-top: clamp(40px, 8vh, 90px);
+  }
+  .mk-flip-a {
+    margin: 0 0 14px;
+    font-size: clamp(15px, 2vw, 19px); font-weight: 600;
+    color: rgba(255,255,255,0.55);
+  }
+  .mk-flip-b {
+    margin: 0 0 26px;
+    font-size: clamp(32px, 5.6vw, 58px);
+    font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
+  }
+  .mk-part-tag-dark { color: ${PINK}; margin-bottom: 0; }
+
+  /* ════════ THE HOST BENTO (Movement II) ════════
+     Feature cards on a 6-col bento grid. Each card tilts toward the cursor
+     (perspective + --rx/--ry set from JS) and replays its live demo on
+     hover. The database card goes full ink — the anchor of the grid. */
+  .mk-bento-wrap {
+    max-width: 1160px; margin: 0 auto;
+    padding: clamp(44px, 7vh, 88px) clamp(22px, 6vw, 48px) clamp(56px, 9vh, 110px);
+  }
+  .mk-bento {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: clamp(14px, 1.8vw, 22px);
+  }
+  .mk-bento-cell { min-width: 0; }
+  .mk-bento-span-3 { grid-column: span 3; }
+  .mk-bento-span-2 { grid-column: span 2; }
+  @media (max-width: 980px) {
+    .mk-bento-span-3, .mk-bento-span-2 { grid-column: span 6; }
+    .mk-bento-span-2 { grid-column: span 3; }
+  }
+  @media (max-width: 680px) {
+    .mk-bento-span-3, .mk-bento-span-2 { grid-column: span 6; }
+  }
+  .mk-bento-card {
+    position: relative; height: 100%; overflow: hidden;
+    display: flex; flex-direction: column; gap: 13px;
+    padding: clamp(24px, 2.8vw, 34px);
+    border-radius: 28px;
+    background: #fff;
+    border: 1px solid rgba(10,10,10,0.08);
+    box-shadow:
+      0 1px 2px rgba(10,10,10,0.04),
+      0 24px 60px -46px rgba(10,10,10,0.35);
+    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.25s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    will-change: transform;
+  }
+  .mk-bento-card:hover {
+    box-shadow:
+      0 1px 2px rgba(10,10,10,0.04),
+      0 36px 90px -44px rgba(236,23,143,0.4);
+    border-color: rgba(236,23,143,0.25);
+  }
+  /* pink glow that trails the cursor — the "alive" feel */
+  .mk-bento-glow {
+    position: absolute; inset: 0; z-index: 2;
+    border-radius: inherit;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(236,23,143,0.07), transparent 65%);
+    opacity: 0; transition: opacity 0.35s ease;
+    pointer-events: none;
+  }
+  .mk-bento-card:hover .mk-bento-glow { opacity: 1; }
+  .mk-bento-tone-ink .mk-bento-glow {
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(236,23,143,0.14), transparent 65%);
+  }
+  /* tone washes — each feature gets its channel's color, whisper-quiet */
+  .mk-bento-tone-ig { background: linear-gradient(165deg, #fff 52%, rgba(214,36,159,0.07)); }
+  .mk-bento-tone-wa { background: linear-gradient(165deg, #fff 52%, rgba(37,211,102,0.09)); }
+  .mk-bento-tone-teal { background: linear-gradient(165deg, #fff 52%, rgba(13,148,136,0.09)); }
+  .mk-bento-tone-violet { background: linear-gradient(165deg, #fff 52%, rgba(123,47,247,0.08)); }
+  .mk-bento-tone-ink {
+    background: linear-gradient(170deg, #16161b, #0a0a0a);
+    border-color: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .mk-bento-tone-ink:hover { border-color: rgba(236,23,143,0.5); }
+  .mk-bento-kicker {
+    align-self: flex-start;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: ${PINK}; background: rgba(236,23,143,0.09);
+    padding: 5px 11px; border-radius: 999px;
+  }
+  .mk-bento-tone-ink .mk-bento-kicker { background: rgba(236,23,143,0.2); }
+  .mk-bento-t {
+    margin: 0;
+    font-size: clamp(20px, 2.3vw, 26px);
+    font-weight: 800; letter-spacing: -0.025em; line-height: 1.12;
+  }
+  .mk-bento-b {
+    margin: 0;
+    font-size: 15px; line-height: 1.55;
+    color: rgba(10,10,10,0.62);
+    max-width: 52ch;
+  }
+  .mk-bento-tone-ink .mk-bento-b { color: rgba(255,255,255,0.62); }
+  .mk-bento-creed {
+    margin: 2px 0 0;
+    font-size: clamp(16px, 1.9vw, 19px);
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  /* the demo fills the leftover height and CENTERS in it — no dead air when
+     a neighboring card in the same row runs taller */
+  .mk-bento-vis {
+    margin-top: auto; padding-top: 16px; min-width: 0;
+    flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .mk-bento-vis .mk-scene { margin: 0; width: 100%; }
+  .mk-bento-vis .mk-thread, .mk-bento-vis .mk-profile { max-width: none; }
+  .mk-bento-vis .mk-inbound, .mk-bento-vis .mk-mcp { max-width: 440px; margin-left: auto; margin-right: auto; }
+  /* tighter thread inside a card, so the inbox demo doesn't tower */
+  .mk-bento-vis .mk-thread-body { padding: 13px 15px; gap: 10px; }
+  .mk-bento-vis .mk-msg-bub { font-size: 13px; }
+  .mk-bento-vis .mk-composer { padding: 13px 15px; }
+  /* the ink card's ownership promises — four calm rows, not a cramped grid */
+  .mk-bento-tone-ink .own-grid { grid-template-columns: 1fr; gap: 9px; }
+  .mk-bento-tone-ink .own-card {
+    flex-direction: row; align-items: center; gap: 13px;
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.12);
+    box-shadow: none;
+    padding: 12px 14px;
+    border-radius: 15px;
+  }
+  .mk-bento-tone-ink .own-card-ic {
+    background: rgba(236,23,143,0.18);
+    width: 34px; height: 34px; border-radius: 11px;
+    flex: 0 0 auto; margin: 0;
+  }
+  .mk-bento-tone-ink .own-card-t { color: #fff; font-size: 13.5px; }
+  .mk-bento-tone-ink .own-card-b { display: none; }
+
+  /* ─── the flip band's outline ticker ─── */
+  .mk-flip-ticker {
+    margin-top: clamp(44px, 8vh, 80px);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .mk-flip-ticker-track {
+    display: flex; width: max-content;
+    animation: mk-flip-tick 36s linear infinite;
+    will-change: transform;
+  }
+  .mk-flip-ticker-track span {
+    display: inline-flex; align-items: center;
+    white-space: nowrap;
+    font-size: clamp(42px, 7vw, 88px);
+    font-weight: 900; letter-spacing: -0.02em; line-height: 1.1;
+    color: transparent;
+    -webkit-text-stroke: 1.5px rgba(255,255,255,0.22);
+    padding-right: 0.6em;
+  }
+  .mk-flip-ticker-track i {
+    font-style: normal; color: ${PINK};
+    -webkit-text-stroke: 0;
+    margin: 0 0.35em;
+  }
+  @keyframes mk-flip-tick { to { transform: translate3d(-50%, 0, 0); } }
 
   /* ════════ SCENES (animated platform mocks) ════════ */
   /* NOTE: do NOT put content-visibility here. The scenes' reveal animations are
@@ -1249,35 +1770,38 @@ const STYLES = `
     font-weight: 800; letter-spacing: -0.03em;
   }
 
-  /* ─── 6 · ownership pillars ─── */
+  /* ─── ownership mini-grid (the anchor feature row's visual) ─── */
   .own-grid {
     width: 100%;
-    max-width: 920px;
-    margin: 40px 0 8px;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 14px;
     text-align: left;
   }
   .own-card {
-    display: flex; flex-direction: column; gap: 10px;
-    padding: 24px 22px;
-    border-radius: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 20px 18px;
+    border-radius: 18px;
     background: #fff;
     border: 1px solid rgba(10,10,10,0.1);
     box-shadow: 0 28px 60px -46px rgba(10,10,10,0.4);
   }
   .own-card-ic {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 13px;
+    width: 38px; height: 38px; border-radius: 12px;
     background: rgba(236,23,143,0.09); color: ${PINK};
     margin-bottom: 2px;
   }
-  .own-card-t { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: ${INK}; }
-  .own-card-b { font-size: 14.5px; line-height: 1.55; color: rgba(10,10,10,0.62); }
-  @media (max-width: 680px) {
-    .own-grid { grid-template-columns: 1fr; max-width: 460px; gap: 12px; }
-    .own-card { padding: 20px 18px; }
+  .own-card-t { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: ${INK}; }
+  .own-card-b { font-size: 13px; line-height: 1.5; color: rgba(10,10,10,0.62); }
+  .own-grid--mini .own-card { opacity: 0; transform: translateY(10px); }
+  .mk-in .own-grid--mini .own-card {
+    animation: mk-tilein 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
+    animation-delay: calc(var(--i) * 0.1s + 0.1s);
+  }
+  @media (max-width: 480px) {
+    .own-grid { grid-template-columns: 1fr; gap: 10px; }
+    .own-card { padding: 16px 15px; }
   }
 
   /* cross-channel identity chip */
@@ -1288,7 +1812,7 @@ const STYLES = `
     font-size: 10.5px; font-weight: 800; letter-spacing: -0.01em;
   }
 
-  /* ─── 2 · deep person profile ─── */
+  /* ─── deep person profile (CRM feature row) ─── */
   .mk-profile {
     max-width: 560px;
     border-radius: 22px; overflow: hidden;
@@ -1327,11 +1851,6 @@ const STYLES = `
   }
   .mk-pf-fact span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(10,10,10,0.4); font-weight: 600; }
   .mk-pf-fact strong { font-size: 14px; font-weight: 700; color: ${INK}; }
-  .mk-pf-tags { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 18px 4px; }
-  .mk-pf-tags span {
-    font-size: 12.5px; font-weight: 600; color: rgba(10,10,10,0.7);
-    background: rgba(10,10,10,0.05); padding: 6px 12px; border-radius: 999px;
-  }
   .mk-pf-note {
     margin: 14px 18px 18px; padding: 14px 16px;
     border-radius: 14px; background: rgba(13,148,136,0.06); border: 1px solid rgba(13,148,136,0.2);
@@ -1344,7 +1863,7 @@ const STYLES = `
   }
   @media (max-width: 480px) { .mk-pf-facts { grid-template-columns: 1fr; } }
 
-  /* ─── 3 · one chat (channels in → thread → ways out) ─── */
+  /* ─── one chat (channels in → thread → ways out) ─── */
   .mk-chat { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .mk-chat-sources {
     display: inline-flex; align-items: center; gap: 7px;
@@ -1354,99 +1873,13 @@ const STYLES = `
   .mk-in .mk-chat-sources { animation: mk-fade 0.5s ease 0.1s forwards; }
   .mk-chat-sources-label { margin-left: 4px; }
   .mk-chat .mk-thread { width: 100%; }
+  .mk-chat-mini .mk-composer { animation-delay: 1.9s; }
 
-  /* ─── 2 · inside the room (exclusive drops) ─── */
-  .mk-drop {
-    max-width: 620px;
-    border-radius: 22px; overflow: hidden;
-    background: #fff; border: 1px solid rgba(10,10,10,0.1);
-    box-shadow: 0 36px 80px -44px rgba(236,23,143,0.4);
-  }
-  .mk-drop-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 16px 18px; border-bottom: 1px solid rgba(10,10,10,0.07);
-  }
-  .mk-drop-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
-  .mk-drop-lock {
-    font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
-    color: ${PINK}; background: rgba(236,23,143,0.1);
-    padding: 5px 11px; border-radius: 999px;
-  }
-  .mk-drop-members {
-    display: flex; align-items: center; gap: 13px;
-    padding: 13px 18px; border-bottom: 1px solid rgba(10,10,10,0.07);
-  }
-  .mk-mem-avs { display: inline-flex; flex: 0 0 auto; }
-  .mk-mem-av {
-    width: 32px; height: 32px; border-radius: 999px; border: 2px solid #fff;
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: 11px; font-weight: 800; margin-left: -10px;
-    opacity: 0; transform: scale(0.5);
-  }
-  .mk-mem-av:first-child { margin-left: 0; }
-  .mk-in .mk-mem-av { animation: mk-avpop 0.42s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: calc(var(--i) * 0.07s + 0.1s); }
+  /* shared pop/tile keyframes (journey avatars, ownership mini-grid) */
   @keyframes mk-avpop { to { opacity: 1; transform: scale(1); } }
-  .mk-mem-more { background: rgba(10,10,10,0.55) !important; font-size: 10px; letter-spacing: -0.02em; }
-  .mk-mem-text { font-size: 13px; line-height: 1.35; color: rgba(10,10,10,0.6); }
-  .mk-mem-text strong { color: ${INK}; font-weight: 800; }
-  .mk-drop-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-    padding: 16px;
-  }
-  @media (max-width: 480px) { .mk-drop-grid { grid-template-columns: 1fr; } }
-  .mk-tile {
-    display: flex; flex-direction: column; gap: 9px;
-    opacity: 0; transform: translateY(10px) scale(0.97);
-  }
-  .mk-in .mk-tile { animation: mk-tilein 0.5s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: calc(var(--i) * 0.12s + 0.15s); }
   @keyframes mk-tilein { to { opacity: 1; transform: none; } }
-  .mk-tile-label { font-size: 12.5px; font-weight: 600; color: rgba(10,10,10,0.6); }
-  .mk-tile-music, .mk-tile-photos, .mk-tile-drop, .mk-tile-invite {
-    height: 96px; border-radius: 14px; overflow: hidden;
-    display: flex; align-items: center; justify-content: center; position: relative;
-  }
-  /* music */
-  .mk-tile-music { background: #0d0d0f; gap: 12px; }
-  .mk-tile-play {
-    width: 0; height: 0; flex: 0 0 auto;
-    border-left: 14px solid #fff; border-top: 9px solid transparent; border-bottom: 9px solid transparent;
-    margin-left: 4px;
-  }
-  /* equalizer: scaleY (compositor-only) instead of animating height */
-  .mk-wave { display: inline-flex; align-items: flex-end; gap: 3px; height: 40px; }
-  .mk-wave span {
-    width: 3px; border-radius: 2px; height: 100%;
-    background: linear-gradient(180deg, #ff8a4c, ${PINK});
-    transform: scaleY(0.3); transform-origin: bottom;
-  }
-  .mk-in .mk-wave span { animation: mk-eq 1.1s ease-in-out infinite; animation-delay: calc(var(--b) * -0.09s); }
-  @keyframes mk-eq { 0%,100% { transform: scaleY(0.22); } 50% { transform: scaleY(0.92); } }
-  /* photos */
-  .mk-tile-photos { background: rgba(10,10,10,0.04); }
-  .mk-tile-photos span {
-    position: absolute; width: 46px; height: 58px; border-radius: 8px;
-    box-shadow: 0 6px 16px -6px rgba(10,10,10,0.45); border: 2px solid #fff;
-  }
-  .mk-tile-photos span:nth-child(1) { transform: rotate(-9deg) translateX(-26px); }
-  .mk-tile-photos span:nth-child(2) { transform: rotate(0deg) translateY(-3px); z-index: 2; }
-  .mk-tile-photos span:nth-child(3) { transform: rotate(9deg) translateX(26px); }
-  /* product drop */
-  .mk-tile-drop { background: rgba(10,10,10,0.04); flex-direction: column; gap: 8px; }
-  .mk-tile-swatch {
-    width: 44px; height: 44px; border-radius: 10px;
-    background: linear-gradient(150deg, #fbbf24, #f97316 60%, #b91c1c);
-    box-shadow: 0 8px 18px -8px rgba(185,28,28,0.6);
-  }
-  .mk-tile-pill {
-    font-size: 10.5px; font-weight: 800; color: #fff; background: ${PINK};
-    padding: 4px 10px; border-radius: 999px;
-  }
-  /* invite */
-  .mk-tile-invite { background: linear-gradient(150deg, rgba(236,23,143,0.14), rgba(123,47,247,0.12)); flex-direction: column; gap: 2px; }
-  .mk-tile-invite-eyes { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: ${INK}; }
-  .mk-tile-invite-note { font-size: 12px; font-weight: 700; color: ${PINK}; }
 
-  /* ─── 3 · thread + draft ─── */
+  /* ─── thread + draft ─── */
   .mk-thread {
     max-width: 560px;
     border-radius: 22px; overflow: hidden;
@@ -1495,6 +1928,7 @@ const STYLES = `
     opacity: 0; transform: translateY(10px);
   }
   .mk-in .mk-composer { animation: mk-msgin 0.5s ease 2.4s forwards; }
+  .mk-chat-mini.mk-in .mk-composer { animation-delay: 1.9s; }
   .mk-composer-draft {
     padding: 13px 15px; margin-bottom: 13px;
     border-radius: 13px;
@@ -1518,7 +1952,7 @@ const STYLES = `
   }
   @media (max-width: 460px) { .mk-way-send { margin-left: 0; } }
 
-  /* ─── 5 · inbound (comment → DM → WhatsApp) ─── */
+  /* ─── inbound (comment → DM → WhatsApp) ─── */
   .mk-inbound { display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 420px; margin-left: auto; margin-right: auto; }
   .mk-in-comment, .mk-in-dm, .mk-in-wa {
     display: flex; align-items: center; gap: 9px;
@@ -1541,7 +1975,7 @@ const STYLES = `
   .mk-in .mk-in-arrow-2 { animation-delay: 1.7s; }
   @keyframes mk-fade { to { opacity: 1; } }
 
-  /* ─── 6 · mcp terminal ─── */
+  /* ─── mcp terminal ─── */
   .mk-mcp { display: flex; flex-direction: column; gap: 12px; max-width: 460px; width: 100%; }
   .mk-mcp-prompt {
     display: flex; align-items: center; gap: 9px; overflow: hidden;
@@ -1573,24 +2007,30 @@ const STYLES = `
 
   @media (prefers-reduced-motion: reduce) {
     .mk-scene *,
-    .mk-scene .mk-mcp-typed {
+    .mk-scene .mk-mcp-typed,
+    .mk-jr-ph * {
       opacity: 1 !important; transform: none !important;
       max-width: none !important; height: auto !important; animation: none !important;
     }
+    .mk-jr-ph { transition: none; }
     .mk-mcp-l1 { height: 9px !important; }
     .mk-mcp-l2 { height: 8px !important; }
+    .mk-jr-ev-scroll { animation: none !important; }
+    .mk-jr-door-l, .mk-jr-door-r { display: none !important; }
+    .mk-jr-lock { display: none !important; }
+    .mk-jr-tap { display: none !important; }
+    .mk-jr-av { width: 22px !important; height: 22px !important; }
+    .mk-jr-ev-bar { height: 7px !important; }
   }
 
-  /* ─── 7 · proof ─── */
-  .mk-section-proof { padding-bottom: 8px; text-align: center; }
-  .mk-section-proof--hero { padding-top: clamp(24px, 5vh, 56px); padding-bottom: 8px; }
+  /* ─── proof ─── */
   .mk-proof-label {
     margin: 0;
     font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
     color: rgba(10,10,10,0.4); font-weight: 600;
   }
 
-  /* ─── 8 · final ─── */
+  /* ─── final ─── */
   .mk-final {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; gap: 22px;
@@ -1609,46 +2049,6 @@ const STYLES = `
   }
   .mk-final-cta { margin-top: 8px; }
   .mk-join { width: 100%; margin-top: 34px; }
-
-  /* ─── manifesto (the why, the shared future) ─── */
-  .mk-manifesto {
-    margin: clamp(40px, 8vh, 80px) auto 0; max-width: 60ch;
-    padding-top: clamp(32px, 6vh, 56px);
-    border-top: 1px solid rgba(10,10,10,0.08);
-  }
-  .mk-manifesto-eyebrow {
-    margin: 0 0 16px;
-    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
-    color: rgba(10,10,10,0.4); font-weight: 600;
-  }
-  .mk-manifesto-body {
-    margin: 0;
-    font-size: clamp(17px, 2.2vw, 22px); line-height: 1.6; letter-spacing: -0.01em;
-    color: rgba(10,10,10,0.72);
-  }
-  .mk-manifesto-sign {
-    margin: 18px 0 0;
-    font-size: 14px; font-weight: 700; color: ${INK};
-  }
-  .mk-manifesto-sign a {
-    color: ${PINK}; text-decoration: none;
-    border-bottom: 1px solid rgba(236,23,143,0.3);
-    transition: border-color 0.2s ease;
-  }
-  .mk-manifesto-sign a:hover { border-bottom-color: ${PINK}; }
-
-  /* ─── trust chips (slim reassurance band under the CTA) ─── */
-  .mk-trust-row {
-    margin: clamp(32px, 6vh, 56px) auto 0; max-width: 720px;
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
-  }
-  .mk-trust-chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 9px 16px; border-radius: 999px;
-    border: 1px solid rgba(10,10,10,0.12); background: #fff;
-    font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: ${INK};
-  }
-  .mk-trust-ic { color: ${PINK}; flex: 0 0 auto; }
 
   /* ─── footer ─── */
   .mk-footer {
@@ -1697,81 +2097,8 @@ const STYLES = `
   .logo-marquee-item img { width: auto; display: block; filter: brightness(0); }
 
 
-  /* ════════ SHOWCASE WALL ════════ */
-  @keyframes mk-show-scroll {
-    from { transform: translate3d(0, 0, 0); }
-    to   { transform: translate3d(-50%, 0, 0); }
-  }
-  .mk-show {
-    padding: clamp(36px, 7vh, 80px) 0 clamp(40px, 7vh, 84px);
-  }
-  /* the CTA above the wall gives up some of its tail so "get started" and the
-     rooms you'd make read as one breath; the coda leans on the wall as its
-     divider, so it drops the manifesto hairline + heavy top gap. */
-  .mk-final--pre { padding-bottom: clamp(32px, 5vh, 56px); }
-  .mk-coda { padding-top: clamp(8px, 3vh, 28px); }
-  .mk-coda .mk-manifesto { margin-top: 0; padding-top: 0; border-top: none; }
-  .mk-show-head {
-    max-width: 880px; margin: 0 auto;
-    padding: 0 clamp(22px, 6vw, 48px);
-  }
-  .mk-show-wall {
-    position: relative; width: 100%; overflow: hidden;
-    margin-top: clamp(28px, 5vw, 44px);
-    padding: 14px 0 30px;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-            mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-    /* skip paint + pause the drift while the wall is off-screen */
-    content-visibility: auto;
-    contain-intrinsic-size: auto 340px;
-  }
-  .mk-show-track {
-    display: flex; width: max-content;
-    animation: mk-show-scroll 60s linear infinite;
-    will-change: transform; backface-visibility: hidden;
-    transform: translate3d(0, 0, 0);
-  }
-  .mk-show-wall:hover .mk-show-track { animation-play-state: paused; }
-  .mk-show-group { display: flex; flex: none; gap: 18px; padding: 0 9px; }
-  .mk-show-card {
-    position: relative; flex: none;
-    width: clamp(176px, 44vw, 214px);
-    height: clamp(244px, 60vw, 298px);
-    border-radius: 20px; overflow: hidden;
-    background: #0b0b10;
-    box-shadow: 0 10px 30px rgba(10,10,10,0.16);
-    text-decoration: none; color: #fff;
-    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease;
-    cursor: url('/cursor-finger.png') 11 2, pointer;
-  }
-  .mk-show-group .mk-show-card:nth-child(even) { transform: translateY(16px); }
-  .mk-show-card:hover {
-    transform: translateY(-6px) scale(1.015);
-    box-shadow: 0 20px 46px rgba(236,23,143,0.24);
-  }
-  .mk-show-group .mk-show-card:nth-child(even):hover {
-    transform: translateY(8px) scale(1.015);
-  }
-  .mk-show-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .mk-show-ai-fallback { position: absolute; inset: 0; }
-  .mk-show-card::after {
-    content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-    background: linear-gradient(to top, rgba(0,0,0,0.74) 0%, rgba(0,0,0,0.12) 44%, rgba(0,0,0,0) 66%);
-  }
-  .mk-show-meta { position: absolute; left: 14px; right: 14px; bottom: 13px; z-index: 2; text-align: left; }
-  .mk-show-title { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; }
-  .mk-show-sub { margin: 3px 0 0; font-size: 11px; color: rgba(255,255,255,0.72); font-weight: 500; }
-  .mk-show-card-ai .mk-show-meta { text-shadow: 0 1px 14px rgba(0,0,0,0.55); }
-  .mk-show-aitag {
-    position: absolute; top: 11px; left: 11px; z-index: 2;
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 4px 9px; border-radius: 999px;
-    font-size: 10.5px; font-weight: 650; letter-spacing: 0.01em;
-    color: #fff; background: rgba(236,23,143,0.92);
-    box-shadow: 0 2px 12px rgba(236,23,143,0.42);
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .mk-scrollcue-line, .logo-marquee-track, .mk-show-track { animation: none; }
+    .logo-marquee-track, .mk-hf-col, .mk-flip-ticker-track { animation: none; }
+    .mk-bento-card { transform: none; transition: box-shadow 0.3s ease; }
   }
 `;

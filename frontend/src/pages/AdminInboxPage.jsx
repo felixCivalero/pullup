@@ -6,10 +6,12 @@
 // Everything is internal rows — no email in the conversation.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Send, Sparkles, RefreshCw, Check, X as XIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Send, Sparkles, RefreshCw, Check, X as XIcon, LogOut } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { authenticatedFetch } from "../lib/api.js";
+import { useAuth } from "../contexts/AuthContext";
 
 const C = {
   ink: "#0a0a0a",
@@ -116,6 +118,8 @@ function EventsMap({ events, onPick }) {
 }
 
 export default function AdminInboxPage() {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [me, setMe] = useState(null); // { isAdmin, role }
   const [tab, setTab] = useState("inbox");
   const [threads, setThreads] = useState([]);
@@ -245,9 +249,20 @@ export default function AdminInboxPage() {
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>PullUp HQ</h1>
           <div style={{ fontSize: 12.5, color: C.muted }}>The system speaks from here — every reply lands in the host's Messages instantly.</div>
         </div>
-        <button onClick={() => { loadInbox(); if (openHost) loadThread(openHost); if (tab === "requests") loadRequests(); }} title="Refresh" style={{ marginLeft: "auto", border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
-          <RefreshCw size={15} />
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          {/* The deep tools live on their own pages; HQ is the front door. */}
+          {[["CRM", "/admin/crm"], ["Matches", "/admin/matches"], ["Analytics", "/admin/analytics"]].map(([label, path]) => (
+            <button key={path} onClick={() => navigate(path)} style={{ fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.muted }}>
+              {label}
+            </button>
+          ))}
+          <button onClick={() => { loadInbox(); if (openHost) loadThread(openHost); if (tab === "requests") loadRequests(); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+            <RefreshCw size={15} />
+          </button>
+          <button onClick={() => signOut()} title="Sign out" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+            <LogOut size={15} />
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>

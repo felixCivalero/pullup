@@ -380,6 +380,12 @@ function SectionLabel({ children }) {
 function tagFor(e) {
   if (e.draft) return { t: "Draft", c: colors.textSubtle };
   if (e.viewer === "owner") return null;
+  // A community speaks membership, not attendance — and it's always open.
+  if (e.kind === "community") {
+    return ["rsvped", "pulledup"].includes(e.viewer)
+      ? { t: "Member", c: colors.secondary }
+      : { t: "Open to join", c: colors.accent };
+  }
   if (e.viewer === "pulledup") return { t: "You pulled up", c: colors.accent };
   if (e.viewer === "rsvped") return { t: "You're going", c: colors.secondary };
   if (e.viewer === "waitlist") return { t: "Waitlisted", c: "#d97706" };
@@ -396,7 +402,7 @@ function CreateCard({ onClick }) {
 }
 
 function EventCard({ e, onClick }) {
-  const locked = e.viewer === "none";
+  const locked = e.viewer === "none" && e.kind !== "community";
   const tag = tagFor(e);
   return (
     <button onClick={onClick} style={{ textAlign: "left", border: `1px solid ${colors.border}`, borderRadius: 16, overflow: "hidden", background: colors.surface, cursor: "pointer", padding: 0, color: colors.text, fontFamily: SF }}>
@@ -411,7 +417,7 @@ function EventCard({ e, onClick }) {
       </div>
       <div style={{ padding: "10px 12px" }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</div>
-        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 2 }}>{whenLabel(e.startsAt)}{e.viewer === "pulledup" ? " · enter →" : (e.viewer === "rsvped" || e.viewer === "waitlist") ? " · view" : ""}</div>
+        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 2 }}>{e.kind === "community" ? "Community" : e.kind === "product" ? "Product" : whenLabel(e.startsAt)}{e.viewer === "pulledup" ? " · enter →" : (e.viewer === "rsvped" || e.viewer === "waitlist") ? " · view" : ""}</div>
       </div>
     </button>
   );

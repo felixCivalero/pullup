@@ -274,7 +274,7 @@ export function registerRoomRoutes(app) {
       // RSVP/pull-up activity is a real event — it shows and counts regardless of
       // its current draft flag (a host can re-draft a past event and its guests
       // stay). A pristine, never-live draft (no activity) is owner-only.
-      const hostSelect = "id, slug, title, cover_image_url, image_url, starts_at, ends_at, status";
+      const hostSelect = "id, slug, title, kind, cover_image_url, image_url, starts_at, ends_at, status";
       let allHosted = [];
       if (accountId) {
         const { data } = await supabase.from("events").select(hostSelect).eq("host_id", accountId).order("starts_at", { ascending: false });
@@ -411,13 +411,17 @@ export function registerRoomRoutes(app) {
       const mapTile = (e) => {
         const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
         const viewerState = effectiveOwner ? "owner" : forcedTile ? forcedTile : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
+        const kind = e.kind || "event";
         return {
           id: e.id,
           slug: e.slug,
           title: e.title,
+          kind,
           cover: resolveEventImage(e.cover_image_url || e.image_url),
-          startsAt: e.starts_at,
-          ended: end != null && now > end,
+          // Dateless kinds (community, product): the stored date is a private
+          // sorting placeholder — never shown, and they never "end".
+          startsAt: kind === "event" ? e.starts_at : null,
+          ended: kind === "event" && end != null && now > end,
           draft: e.status !== "PUBLISHED",
           viewer: viewerState,
           pullups: pullupCountByEvent[e.id] || 0,

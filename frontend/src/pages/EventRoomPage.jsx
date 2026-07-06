@@ -17,7 +17,7 @@
 // grammar and the separate darkroom grid were folded into the feed.)
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useParams, Navigate, useLocation } from "react-router-dom";
+import { useParams, Navigate } from "react-router-dom";
 import { useEventNav } from "../contexts/EventNavContext.jsx";
 import { useAuth } from "../contexts/AuthContext";
 import { useEventRoomView } from "../lib/useEventRoomView.js";
@@ -607,10 +607,6 @@ export default function EventRoomPage() {
   // which others appear is the host's Pages config (live-overridable on save).
   const [activeTab, setActiveTab] = useState("wall");
   const [pagesOverride, setPagesOverride] = useState(null);
-  // A fresh RSVP hands the room preview the guest's email (via nav state) so an
-  // unverified viewer is pointed at the verify LINK we emailed, not a cold login.
-  const location = useLocation();
-  const justRsvped = location.state?.justRsvped || null;
 
   // The host view needs the roster data; load it once the gate confirms we own
   // the event. A GUEST gets no management nav (no myRole → no Guests/Insights/
@@ -706,7 +702,7 @@ export default function EventRoomPage() {
   // verify swaps to the real auth wall. A door scan mid-flight skips the peek —
   // that path verifies via the light DoorVerify below and lands them inside.
   if (level === "preview" && !scanInFlight) {
-    return <RoomPreview event={event} eventId={id} justRsvped={justRsvped} />;
+    return <RoomPreview event={event} />;
   }
   if (!user || level === "no_session") {
     // At the door (a scan is in flight) → the light guest step-2: verify it's

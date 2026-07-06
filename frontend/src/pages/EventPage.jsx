@@ -817,18 +817,11 @@ export function EventPage() {
             });
             return;
           }
-          // Carry the fresh RSVP with us so the room's preview (no session yet)
-          // greets them and points at the verify LINK we just emailed — instead
-          // of a cold login modal. No session is minted here: a session needs a
-          // VERIFIED email, and the confirmation email's room link is that proof.
-          navigate(`/events/${event.id}/room`, {
-            state: {
-              justRsvped: {
-                name: body.rsvp?.name || submittedData?.name || null,
-                email: body.rsvp?.email || submittedData?.email || null,
-              },
-            },
-          });
+          // No session is minted here — a session needs a VERIFIED email, and
+          // the confirmation email's room link is that proof. The room's preview
+          // (stateless) tells them to open that link, so no identity stash is
+          // needed here.
+          navigate(`/events/${event.id}/room`);
           return;
         }
         navigate(`/e/${event.slug}/success`, {

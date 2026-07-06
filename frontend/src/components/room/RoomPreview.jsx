@@ -5,21 +5,20 @@
 // who's here) locked behind a verify step. The server never hands this view
 // anything social; this component only paints the shell + the way in.
 //
-// The way in follows the truth of the funnel, never a cold login modal:
-//   • Just RSVP'd (we carry their email) → the confirmation email already holds
-//     the verify LINK. Tell them to open it; offer a resend.
-//   • No known spot → you can't enter an event room without one, so send them
-//     to the event page to RSVP (which mails them that link).
-import { useState } from "react";
+// The way in is stated STATELESSLY — both truths in one card, so a refresh
+// never strands anyone. Verification IS the link in the email, never a login
+// modal:
+//   • Already RSVP'd → open the link in the confirmation email; that's the way
+//     in.
+//   • Not yet → you can't enter an event room without a spot, so RSVP on the
+//     event page (which mails you that link).
 import { useNavigate } from "react-router-dom";
 import { Images, MessageSquare, Users, ShieldCheck } from "lucide-react";
 import { colors } from "../../theme/colors.js";
 import { transformedImageUrl } from "../../lib/imageUtils.js";
-import { publicFetch } from "../../lib/api.js";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const LOCK_ICON = { marginBottom: 6, opacity: 0.7 };
-const firstName = (n) => (n || "").toString().trim().split(/\s+/)[0] || "";
 const isVideo = (u) => typeof u === "string" && /\.(mp4|mov|webm)(\?|$)/i.test(u);
 
 function LockedTile({ icon, label }) {
@@ -33,33 +32,15 @@ function LockedTile({ icon, label }) {
 
 const PILL = { padding: "11px 26px", borderRadius: 999, border: "none", background: colors.accent, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SF };
 
-export default function RoomPreview({ event, eventId, justRsvped }) {
+export default function RoomPreview({ event }) {
   const navigate = useNavigate();
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
 
   const hasCover = !!event?.cover;
   const when = event?.startsAt
     ? new Date(event.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : null;
-  const hostName = event?.host?.name ? firstName(event.host.name) : "";
-  const rsvpEmail = justRsvped?.email || null;
-
-  // Resend the verify-and-enter link to the email they just RSVP'd with. The
-  // link mints a fresh session and lands them back in THIS room — same proof
-  // the confirmation email carries, on demand.
-  const resendLink = async () => {
-    if (!rsvpEmail || resending || resent) return;
-    setResending(true);
-    try {
-      await publicFetch("/auth/request-link", {
-        method: "POST",
-        body: JSON.stringify({ email: rsvpEmail, name: justRsvped?.name || undefined, next: `/events/${eventId}/room`, mode: "login" }),
-      });
-      setResent(true);
-    } catch { /* cooldown or transient — the confirmation email still has the link */ }
-    setResending(false);
-  };
+  const title = event?.title || "this event";
+  const rsvpLabel = title.length > 22 ? "this event" : title;
 
   return (
     <div style={{ minHeight: "100vh", paddingTop: "calc(58px + env(safe-area-inset-top, 0px))", boxSizing: "border-box" }}>
@@ -89,38 +70,25 @@ export default function RoomPreview({ event, eventId, justRsvped }) {
           </div>
         )}
 
-        {/* THE verify step — worded to where they actually are in the funnel. */}
+        {/* THE verify step — stateless, both paths in one card so a refresh
+            never strands anyone. Verification is the link in the email. */}
         <div style={{ padding: "22px 20px", borderRadius: 16, border: `1px solid ${colors.accentBorder}`, background: colors.accentSoft, textAlign: "center", fontFamily: SF }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", borderRadius: 999, background: colors.accent, color: "#fff", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
             <ShieldCheck size={14} /> Verify to step in
           </div>
-
-          {rsvpEmail ? (
-            <>
-              <p style={{ fontSize: 16, fontWeight: 800, color: colors.text, margin: "0 0 6px" }}>
-                You're in{hostName ? ` — welcome to ${hostName}'s room` : ""}
-              </p>
-              <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
-                Verify your email to step inside — open the link we sent to {rsvpEmail} and tap it. That's it: verified, signed in, inside.
-              </p>
-              <button onClick={resendLink} disabled={resending || resent}
-                style={{ ...PILL, background: resent ? colors.surfaceMuted : colors.accent, color: resent ? colors.textMuted : "#fff", cursor: resent ? "default" : "pointer", opacity: resending ? 0.6 : 1 }}>
-                {resent ? "Link sent — check your inbox" : resending ? "Sending…" : "Resend the link"}
-              </button>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 16, fontWeight: 800, color: colors.text, margin: "0 0 6px" }}>
-                {hostName ? `${hostName}'s room` : "This room"} is for people with a spot
-              </p>
-              <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
-                RSVP to {event?.title || "this event"} and we'll email you the link to step in — that link is your verification.
-              </p>
-              <button onClick={() => navigate(event?.slug ? `/e/${event.slug}` : "/")} style={PILL}>
-                RSVP to {event?.title ? (event.title.length > 22 ? "this event" : event.title) : "this event"}
-              </button>
-            </>
-          )}
+          <p style={{ fontSize: 16, fontWeight: 800, color: colors.text, margin: "0 0 6px" }}>
+            You can see the room — verify to step inside
+          </p>
+          <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 18px" }}>
+            To join the conversation, see who's here, and see the photos:
+            <br /><strong style={{ color: colors.text }}>Already RSVP'd?</strong> Open the link in the email we sent you — that's your way in.
+          </p>
+          <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 14px" }}>
+            <strong style={{ color: colors.text }}>Not yet?</strong> RSVP and we'll email you the link.
+          </p>
+          <button onClick={() => navigate(event?.slug ? `/e/${event.slug}` : "/")} style={PILL}>
+            RSVP to {rsvpLabel}
+          </button>
         </div>
 
         {/* Locked surfaces — a teaser of what verifying unlocks. */}

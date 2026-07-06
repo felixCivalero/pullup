@@ -98,26 +98,8 @@ export function EventPreview({
   const phoneMode = normalizePhoneMode(mediaSettings?.phone, mediaSettings);
   const phoneCrops = modeCrops(phoneMode);
   const mediaAspect = useMediaAspect(media, imagePreview);
-  // "Fit width": the media's WIDTH is always flush to the screen sides (never
-  // left/right bars), and a horizontal image gets empty space ABOVE/BELOW it.
-  // We build that height WITHOUT measuring the ratio (which bars the sides the
-  // moment the guess is off) — instead the hero is a 1-cell grid holding two
-  // hidden, in-flow sizers stacked in the same cell, so the row height is the
-  // MAX of:
-  //   • the first image at width:100% (its true, browser-computed height), and
-  //   • a 4:5 "floor" (so a landscape image sits in a taller frame → top/bottom
-  //     space, and a tall portrait grows the frame instead of cropping).
-  // The visible media overlays that box with object-fit:contain, so it fills the
-  // width and only ever letterboxes top/bottom. Same component draws the live
-  // page, so preview and live stay identical. Videos skip the image sizer (can't
-  // lay one out) and rest on the 4:5 floor.
-  const firstMedia = (Array.isArray(media) && media[0]) || null;
-  const widthSizerUrl =
-    phoneMode === "width"
-      ? ((firstMedia && firstMedia.mediaType !== "video" && firstMedia.url) || imagePreview || null)
-      : null;
-  // The hero frame: full-bleed when filling height; "width" is a grid whose
-  // height comes from the sizers below; "card" floats as a 4:5 with space around.
+  // The hero frame: full-bleed when filling height; "width" sizes to the media's
+  // own aspect; "card" floats as a rounded 4:5 with space around it.
   const heroFrameStyle =
     phoneMode === "height"
       ? { height: "100%", minHeight: "100%" }
@@ -133,10 +115,9 @@ export function EventPreview({
             borderRadius: "18px",
             overflow: "hidden",
           }
-        : // "Fit width" — a grid; the hidden sizers (rendered inside) set the
-          // height to max(image's own height, 4:5 floor). The page background
-          // shows through the top/bottom letterbox for horizontal media.
-          { width: "100%", display: "grid", background: "#05040a" };
+        : // "Fit width" — full width, L/R edges flush to the sides; height
+          // follows the media's ratio. Whole media, no crop, no margin.
+          { width: "100%", aspectRatio: mediaAspect ? String(mediaAspect) : "4 / 5" };
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroRef,
@@ -287,26 +268,6 @@ export function EventPreview({
               touchAction: onFocusDrag && phoneCrops ? "none" : "pan-y",
             }}
           >
-            {/* "Fit width" height drivers: two hidden, in-flow sizers stacked in
-                the SAME grid cell (1/1). The row grows to the taller of the two,
-                so the frame = max(first image's natural height, a 4:5 floor).
-                That gives horizontal media top/bottom space and lets tall
-                portraits grow the frame instead of cropping — with no ratio
-                measurement to get wrong. */}
-            {phoneMode === "width" && (
-              <>
-                {widthSizerUrl && (
-                  <img
-                    src={transformedImageUrl(widthSizerUrl, { width: heroWidth })}
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                    style={{ gridColumn: 1, gridRow: 1, alignSelf: "start", width: "100%", height: "auto", display: "block", visibility: "hidden", pointerEvents: "none" }}
-                  />
-                )}
-                <div aria-hidden style={{ gridColumn: 1, gridRow: 1, alignSelf: "start", width: "100%", aspectRatio: "4 / 5", pointerEvents: "none" }} />
-              </>
-            )}
             {/* Editor-only: point at the cover to open the media editor. Sits
                 above the drag layer with its own pointer target so it never
                 fights the reposition-drag. */}

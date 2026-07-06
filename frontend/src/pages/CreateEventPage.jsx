@@ -477,28 +477,7 @@ function SegmentedChoice({ value, onChange, options }) {
 // crop-vs-letterbox (phone) and tall-vs-wide window (desktop) are obvious at a
 // glance, so "Fit / Real" stops being a guessing game. `thumb` is any still
 // (image cover or video thumbnail); options carry their own frame geometry.
-// Measure the thumbnail's natural aspect (width / height) so a chip can shape
-// its window with the SAME rule the live preview uses — keeping the picker and
-// the phone/desktop preview pixel-consistent. Returns null until known.
-function useThumbAspect(url) {
-  const [aspect, setAspect] = useState(null);
-  useEffect(() => {
-    if (!url || typeof document === "undefined") { setAspect(null); return; }
-    let alive = true;
-    const img = new Image();
-    img.onload = () => {
-      if (alive && img.naturalWidth && img.naturalHeight) {
-        setAspect(img.naturalWidth / img.naturalHeight);
-      }
-    };
-    img.src = url;
-    return () => { alive = false; };
-  }, [url]);
-  return aspect;
-}
-
 function FormatChoice({ value, onChange, options, thumb }) {
-  const thumbAspect = useThumbAspect(thumb);
   return (
     <div style={{
       display: "grid",
@@ -540,11 +519,9 @@ function FormatChoice({ value, onChange, options, thumb }) {
                 : "inset 0 0 0 1px rgba(10,10,10,0.05)",
               transition: "box-shadow 0.18s ease",
             }}>
-              {/* The window — shaped per option. Options that must track the
-                  real media (Fit width, Card) provide frameForAspect so the chip
-                  uses the measured thumb ratio, matching the live preview. */}
+              {/* The window — shaped (4:5 / 16:9 / phone) per option */}
               <div style={{
-                ...(opt.frameForAspect ? opt.frameForAspect(thumbAspect) : opt.frameStyle),
+                ...opt.frameStyle,
                 borderRadius: "5px",
                 overflow: "hidden",
                 background: "#0a0913",
@@ -4098,10 +4075,7 @@ export function CreateEventPage() {
                               label: "Fit width",
                               caption: "Whole clip, no crop",
                               objectFit: "contain",
-                              // Same rule as the preview: frame ratio = min(image
-                              // ratio, 4:5). Tall portrait → tall window, filled;
-                              // landscape → 4:5 window with top/bottom space.
-                              frameForAspect: (a) => ({ height: "100%", aspectRatio: String(Math.min(a || 0.8, 0.8)) }),
+                              frameStyle: { height: "100%", aspectRatio: "4 / 5" },
                             },
                             {
                               value: "height",
@@ -4115,8 +4089,7 @@ export function CreateEventPage() {
                               label: "Card",
                               caption: "Whole media, padded",
                               objectFit: "contain",
-                              // Card floats the media at its OWN ratio, padded.
-                              frameForAspect: (a) => ({ height: "100%", aspectRatio: String(a || 0.8), padding: "5px", boxSizing: "border-box" }),
+                              frameStyle: { height: "100%", aspectRatio: "4 / 5", padding: "5px", boxSizing: "border-box" },
                             },
                           ]}
                         />

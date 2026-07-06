@@ -9,7 +9,7 @@ import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizeDesktopMode, heroFrameStyle, modeCrops, useMediaAspect } from "./mediaFormat";
+import { normalizeDesktopMode, heroFrameStyle, modeCrops, modeObjectFit, useMediaAspect } from "./mediaFormat";
 import { formatPrice } from "../lib/money.js";
 
 const CTA_BAR_HEIGHT = 62;
@@ -202,7 +202,7 @@ export function DesktopEventLayout({
   // crop + focus rather than phone's. "width" and "card" hold ratio with no crop
   // (contain) — card additionally pads so the page bg shows around it; only
   // "height" fills and pans via focus.
-  const desktopFit = desktopMode === "card" ? "contain" : "cover";
+  const desktopFit = modeObjectFit(desktopMode);
   const desktopMediaSettings = useMemo(
     () => ({
       ...(mediaSettings || {}),

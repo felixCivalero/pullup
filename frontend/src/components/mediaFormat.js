@@ -33,6 +33,17 @@ export function normalizeDesktopMode(desktop = {}, top = {}) {
 // dragging to reposition. "width" and "card" show the whole media, no crop.
 export const modeCrops = (mode) => mode === "height";
 
+// The object-fit a mode's media MUST use. This is the single source of truth for
+// both renderers — keep it here so the phone and desktop paths can't drift.
+//
+// "width" and "card" promise the WHOLE media, nothing cropped, so they use
+// `contain`: even when the hero frame's ratio can't match the media (e.g. the
+// desktop layout clamps a tall poster's height with maxHeight, breaking the
+// frame ratio), `contain` still shows every pixel. `cover` would crop there —
+// that was the bug where "Fit width" cropped portrait posters on the live page.
+// Only "height" — the deliberate fill-and-pan mode — uses `cover`.
+export const modeObjectFit = (mode) => (mode === "height" ? "cover" : "contain");
+
 // CSS for the hero frame given the mode and (for width) the media's measured
 // aspect ratio. `fillHeight` is what "fill the available height" resolves to in
 // the host layout (the phone viewport, the desktop column).

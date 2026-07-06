@@ -4074,7 +4074,7 @@ export function CreateEventPage() {
                               value: "width",
                               label: "Fit width",
                               caption: "Whole clip, no crop",
-                              objectFit: "cover",
+                              objectFit: "contain",
                               frameStyle: { height: "100%", aspectRatio: "4 / 5" },
                             },
                             {
@@ -4121,7 +4121,7 @@ export function CreateEventPage() {
                               value: "width",
                               label: "Fit width",
                               caption: "Whole — frame fits it",
-                              objectFit: "cover",
+                              objectFit: "contain",
                               frameStyle: { width: "92%", aspectRatio: "16 / 9" },
                             },
                             {

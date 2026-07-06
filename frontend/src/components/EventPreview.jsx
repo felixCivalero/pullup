@@ -11,7 +11,7 @@ import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { formatPrice } from "../lib/money.js";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizePhoneMode, modeCrops, useMediaAspect } from "./mediaFormat";
+import { normalizePhoneMode, modeCrops, modeObjectFit, useMediaAspect } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -315,11 +315,10 @@ export function EventPreview({
                   : 50;
               const focusX = typeof phoneFormat.focusX === "number" ? phoneFormat.focusX : 50;
               const focusY = typeof phoneFormat.focusY === "number" ? phoneFormat.focusY : legacyY;
-              // "Fit width" fills its full-width frame so the L/R edges always
-              // reach the sides (the frame already takes the media's ratio, so
-              // there's no real crop); "Fit height" fills + pans. Only "Card"
-              // uses contain — it shows the whole media with space around it.
-              const fitMode = phoneMode === "card" ? "contain" : "cover";
+              // "Fit width" and "Card" show the whole media, never cropped
+              // (contain); only "Fit height" fills + pans (cover). Sharing
+              // modeObjectFit keeps this identical to the desktop renderer.
+              const fitMode = modeObjectFit(phoneMode);
               const phoneMediaSettings = {
                 ...(mediaSettings || {}),
                 fit: fitMode,

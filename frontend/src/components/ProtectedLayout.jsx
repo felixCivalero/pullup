@@ -13,6 +13,7 @@ import { AuthGate } from "./auth/AuthGate.jsx";
 import { PageTypePicker } from "./PageTypePicker.jsx";
 import { colors } from "../theme/colors.js";
 import { LoadingScreen } from "./LoadingScreen.jsx";
+import { AdminShell } from "./AdminShell.jsx";
 
 function ProtectedLayoutInner() {
   const navigate = useNavigate();
@@ -341,6 +342,17 @@ function ProtectedLayoutInner() {
   // The shell renders for everyone now. A no-session visitor on a route that
   // needs auth gets the login modal in place of content (see `mustLogin` at the
   // Outlet); the menu/header still frame it so it reads as one system.
+
+  // Admins live in a different world: no host header, no gold tabs — the
+  // AdminShell (left sidebar dashboard) is their entire chrome, on every
+  // /admin page. Hosts never reach here with an /admin path (redirect above).
+  if (profileChecked && isAdmin) {
+    return (
+      <AdminShell>
+        <Outlet />
+      </AdminShell>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh" }}>

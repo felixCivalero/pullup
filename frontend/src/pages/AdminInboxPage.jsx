@@ -8,15 +8,13 @@
 // live in the gold shell tabs above.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { RefreshCw, Check, X as XIcon, LogOut } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { RefreshCw, Check, X as XIcon } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useRef } from "react";
 import { authenticatedFetch } from "../lib/api.js";
-import { useAuth } from "../contexts/AuthContext";
 import { AdminGlobe, cityOf } from "../components/AdminGlobe.jsx";
-import { AdminMessagesDock } from "../components/AdminMessagesDock.jsx";
 
 const C = {
   ink: "#0a0a0a",
@@ -106,10 +104,11 @@ function EventsMap({ events }) {
 }
 
 export function AdminInboxPage() {
-  const navigate = useNavigate();
-  const { signOut } = useAuth();
+  // The AdminShell sidebar drives the section via ?tab= — this page is the
+  // content pane of the dashboard, no chrome of its own.
+  const [params] = useSearchParams();
+  const tab = params.get("tab") || "globe";
   const [me, setMe] = useState(null);
-  const [tab, setTab] = useState("globe");
   const [requests, setRequests] = useState([]);
   const [admins, setAdmins] = useState([]);
   const [grantEmail, setGrantEmail] = useState("");
@@ -158,17 +157,6 @@ export function AdminInboxPage() {
     });
   }, [mapEvents, mapWhen, mapCity]);
 
-  const tabs = useMemo(() => {
-    const t = [
-      { key: "globe", label: "World" },
-      { key: "overview", label: "Overview" },
-      { key: "requests", label: "Requests" },
-      { key: "map", label: "Map" },
-    ];
-    if (me?.role === "super") t.push({ key: "admins", label: "Admins" });
-    return t;
-  }, [me]);
-
   if (me && !me.isAdmin) {
     return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
   }
@@ -184,30 +172,15 @@ export function AdminInboxPage() {
     <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", padding: "3px 9px", borderRadius: 999, background: s === "onboarded" ? "rgba(22,163,74,0.1)" : s === "declined" ? "rgba(10,10,10,0.06)" : "rgba(180,83,9,0.1)", color: s === "onboarded" ? C.green : s === "declined" ? C.muted : C.amber }}>{s}</span>
   );
 
-  return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 20px 60px", color: C.ink }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <Eyes size={38} />
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>PullUp HQ</h1>
-          <div style={{ fontSize: 12.5, color: C.muted }}>How PullUp is actually going — and the system's voice, in Messages below right.</div>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "overview") setOverview(null); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
-            <RefreshCw size={15} />
-          </button>
-          <button onClick={() => signOut()} title="Sign out" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
-            <LogOut size={15} />
-          </button>
-        </div>
-      </div>
+  const TITLES = { globe: "The world", overview: "Overview", requests: "Requests", map: "Map", admins: "Admins" };
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ fontSize: 13, fontWeight: 700, padding: "7px 14px", borderRadius: 999, cursor: "pointer", border: `1px solid ${tab === t.key ? "transparent" : C.line}`, background: tab === t.key ? C.ink : "#fff", color: tab === t.key ? "#fff" : C.muted }}>
-            {t.label}
-          </button>
-        ))}
+  return (
+    <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 60px", color: C.ink }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em" }}>{TITLES[tab] || "PullUp HQ"}</h1>
+        <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "overview") setOverview(null); }} title="Refresh" style={{ marginLeft: "auto", border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+          <RefreshCw size={15} />
+        </button>
       </div>
 
       {tab === "globe" && <AdminGlobe events={mapEvents} />}
@@ -331,8 +304,6 @@ export function AdminInboxPage() {
         </div>
       )}
 
-      {/* The system's voice — same blob as the hosts', bottom right. */}
-      <AdminMessagesDock />
     </div>
   );
 }

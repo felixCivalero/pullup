@@ -789,7 +789,22 @@ export function EventPage() {
           // Community joins belong in the host's MAIN room — there is no
           // per-event moment to gather around; the membership IS the room.
           const mainRoom = (event?.kind || "event") !== "event" && event?.hostId;
-          navigate(mainRoom ? `/r/${event.hostId}` : `/events/${event.id}/room`);
+          if (mainRoom) {
+            // Carry the join with us: the room's gate greets a fresh member by
+            // name and offers the sign-in link, instead of a cold login wall.
+            // (No session is minted here on purpose — a session needs a VERIFIED
+            // email; the welcome email's room key is that verification.)
+            navigate(`/r/${event.hostId}`, {
+              state: {
+                justJoined: {
+                  name: body.rsvp?.name || submittedData?.name || null,
+                  email: body.rsvp?.email || submittedData?.email || null,
+                },
+              },
+            });
+            return;
+          }
+          navigate(`/events/${event.id}/room`);
           return;
         }
         navigate(`/e/${event.slug}/success`, {

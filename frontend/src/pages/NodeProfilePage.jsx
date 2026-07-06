@@ -15,7 +15,7 @@
 
 import { transformedImageUrl } from "../lib/imageUtils.js";
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { authenticatedFetch, publicFetch } from "../lib/api.js";
 import { colors } from "../theme/colors.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
@@ -122,6 +122,25 @@ export default function NodeProfilePage() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // A community join lands here logged OUT (a session needs a verified email —
+  // the welcome email's link is that verification). The join passes who they
+  // are via navigation state so the gate below greets them instead of walling.
+  const justJoined = location.state?.justJoined || null;
+  const [linkResent, setLinkResent] = useState(false);
+  const [resending, setResending] = useState(false);
+  const resendSignInLink = async () => {
+    if (!justJoined?.email || resending) return;
+    setResending(true);
+    try {
+      await publicFetch("/auth/request-link", {
+        method: "POST",
+        body: JSON.stringify({ email: justJoined.email, name: justJoined.name || undefined, next: `/r/${id}`, mode: "login" }),
+      });
+      setLinkResent(true);
+    } catch { /* cooldown or transient — the welcome email still has the link */ }
+    setResending(false);
+  };
   const { user } = useAuth();
   const asEmail = params.get("as");
   const [data, setData] = useState(null);
@@ -170,6 +189,30 @@ export default function NodeProfilePage() {
       <Shell>
         <Masthead node={node} onCount={() => {}} />
         <SectionLabel>{firstName(node.name)}'s events</SectionLabel>
+        {justJoined ? (
+          // Fresh member, no session yet: greet the join and hand them the key
+          // (the sign-in link just emailed) — not a cold login wall.
+          <div style={{ marginTop: 4, padding: "26px 20px", borderRadius: 16, border: "1px solid rgba(22,163,74,0.3)", background: "rgba(22,163,74,0.05)", textAlign: "center", fontFamily: SF }}>
+            <p style={{ fontSize: 16, fontWeight: 800, color: colors.text, margin: "0 0 6px" }}>
+              You're in{justJoined.name ? `, ${String(justJoined.name).split(" ")[0]}` : ""} — welcome to {firstName(node.name)}'s community
+            </p>
+            <p style={{ fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
+              We emailed a sign-in link{justJoined.email ? ` to ${justJoined.email}` : ""} — one tap and you're inside the room.
+            </p>
+            <button
+              onClick={resendSignInLink}
+              disabled={resending || linkResent}
+              style={{ padding: "11px 24px", borderRadius: 999, border: "none", background: linkResent ? colors.surfaceMuted : colors.accent, color: linkResent ? colors.textMuted : "#fff", fontSize: 14, fontWeight: 700, cursor: linkResent ? "default" : "pointer", fontFamily: SF, opacity: resending ? 0.6 : 1 }}
+            >
+              {linkResent ? "Link sent — check your inbox" : resending ? "Sending…" : "Send the sign-in link again"}
+            </button>
+            <p style={{ fontSize: 12, color: colors.textFaded, margin: "12px 0 0" }}>
+              <button onClick={() => navigate("/login")} style={{ background: "none", border: "none", padding: 0, color: colors.textFaded, fontSize: 12, textDecoration: "underline", cursor: "pointer", fontFamily: SF }}>
+                Log in another way
+              </button>
+            </p>
+          </div>
+        ) : (
         <div style={{ marginTop: 4, padding: "26px 20px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.surface, textAlign: "center", fontFamily: SF }}>
           <p style={{ fontSize: 14, color: colors.textMuted, lineHeight: 1.55, margin: "0 0 16px" }}>
             Log in to step into {firstName(node.name)}'s room and see their events.
@@ -181,6 +224,7 @@ export default function NodeProfilePage() {
             Log in to PullUp
           </button>
         </div>
+        )}
       </Shell>
     );
   }

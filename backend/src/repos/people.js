@@ -197,6 +197,21 @@ export async function personBelongsToHost(personId, userId) {
     if (Array.isArray(data) && data.length > 0) return true;
   }
 
+  // …or via their timeline in this host's world (imports, service requests,
+  // concierge threads) — the SAME definition the Room's world/people count
+  // uses (rsvps ∪ pull-ups ∪ timeline). Without it, a timeline-only person is
+  // visible in the Room but silently unmessageable (not_in_world).
+  {
+    const { data, error } = await supabase
+      .from("person_events")
+      .select("id")
+      .eq("person_id", personId)
+      .eq("host_id", userId)
+      .limit(1);
+    if (error) console.error("[personBelongsToHost] person_events error:", error);
+    else if (Array.isArray(data) && data.length > 0) return true;
+  }
+
   return false;
 }
 

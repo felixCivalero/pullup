@@ -33,6 +33,36 @@ async function resolveToken(token) {
   return data || null;
 }
 
+// Is this sender THE HOST behind the thread? Matches the host's auth email,
+// profile contact_email, and additional_emails — so a host replying from
+// their own mailbox is recognized as themselves, never as the guest.
+async function isHostOwnAddress(hostProfileId, fromEmail) {
+  const from = String(fromEmail || "").toLowerCase().trim();
+  if (!from || !hostProfileId) return false;
+  try {
+    const [{ data: profile }, authRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("contact_email, additional_emails")
+        .eq("id", hostProfileId)
+        .maybeSingle(),
+      supabase.auth.admin.getUserById(hostProfileId).catch(() => null),
+    ]);
+    const candidates = new Set(
+      [
+        profile?.contact_email,
+        ...(Array.isArray(profile?.additional_emails) ? profile.additional_emails : []),
+        authRes?.data?.user?.email,
+      ]
+        .filter(Boolean)
+        .map((e) => String(e).toLowerCase().trim()),
+    );
+    return candidates.has(from);
+  } catch {
+    return false; // unknowable → treat as the guest (the safe default)
+  }
+}
+
 async function alreadyProcessed(sesMessageId) {
   if (!sesMessageId) return false;
   const { data } = await supabase
@@ -101,6 +131,31 @@ export async function processInboundEmail({ parsed, token, toAddress, attachment
   if (isAutoReply(parsed.headers)) {
     await recordInbound({ ...baseRecord, status: "ignored" });
     return { status: "ignored" };
+  }
+
+  // ── Host-authored reply ─────────────────────────────────────────────────
+  // The HOST answering from their own mail client (a reply to a thread-tagged
+  // notification, e.g. an early-access request). Threading it as message_in
+  // would put the host's words in the guest's mouth — instead DELIVER it to
+  // the person as the host, through the normal send path: it emails them AND
+  // lands in the chat thread, exactly as if typed in the dock.
+  if (hostProfileId && personId && (await isHostOwnAddress(hostProfileId, parsed.from))) {
+    try {
+      const { sendRoomMessage } = await import("../../services/roomMessaging.js");
+      const out = await sendRoomMessage({
+        hostId: hostProfileId,
+        personId,
+        channel: "email",
+        text: bodyText,
+        subject: parsed.subject || undefined,
+      });
+      await recordInbound({ ...baseRecord, status: out?.ok ? "host_sent" : "host_send_failed" });
+      return { status: out?.ok ? "host_sent" : "host_send_failed", personId, hostProfileId };
+    } catch (e) {
+      console.error("[processInboundEmail] host-authored send failed", e?.message);
+      await recordInbound({ ...baseRecord, status: "host_send_failed" });
+      return { status: "host_send_failed", personId, hostProfileId };
+    }
   }
 
   // Without a host we can't scope this to anyone's Room. Keep the audit row and

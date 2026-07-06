@@ -49,6 +49,15 @@ export function registerInstagramConnectRoutes(app) {
 
   app.post("/instagram/early-access", requireAuth, async (req, res) => {
     try {
+      // Early access is a CREATOR-tier perk: the concierge loop (Felix
+      // replying by email, landing in their PullUp Messages) only makes sense
+      // for someone who can actually host. Founders pass free, as always.
+      const { getEntitlement } = await import("../services/billing/entitlements.js");
+      const ent = await getEntitlement(req.user.id);
+      if (!ent.canHost) {
+        return res.status(402).json({ error: "subscription_required", paywall: true });
+      }
+
       const igHandle = String(req.body?.igHandle || "").trim().replace(/^@+/, "").slice(0, 80);
       const email = String(req.body?.email || "").trim().slice(0, 200) || null;
       const name = String(req.body?.name || "").trim().slice(0, 200) || null;
@@ -62,6 +71,40 @@ export function registerInstagramConnectRoutes(app) {
       );
       if (error) throw error;
 
+      // The concierge loop: make the requester a PERSON in the platform-
+      // concierge host's world (Felix's), so the notification below is a
+      // THREADED email — replying to it from his own mailbox is recognized as
+      // host-authored (processInboundEmail) and delivered to the requester by
+      // email + their PullUp Messages. Personal conversation, zero new UI.
+      let conciergePersonId = null;
+      const conciergeHostId =
+        process.env.CONCIERGE_HOST_PROFILE_ID || process.env.WHATSAPP_HOST_PROFILE_ID || null;
+      const requesterEmail = email || req.user.email || null;
+      if (conciergeHostId && requesterEmail) {
+        try {
+          const { findOrCreatePerson } = await import("../repos/people.js");
+          const person = await findOrCreatePerson(requesterEmail, name);
+          conciergePersonId = person?.id || null;
+          if (conciergePersonId) {
+            // The request IS the thread-starter: it shows up in the concierge
+            // dock as an inbound message (with the handle + note), and it puts
+            // the requester in the concierge world so replies can flow.
+            const { logPersonEvent } = await import("../services/personTimeline.js");
+            await logPersonEvent({
+              personId: conciergePersonId,
+              hostId: conciergeHostId,
+              type: "message_in",
+              channel: "email",
+              direction: "in",
+              body: `Requested Instagram early access — @${igHandle}${note ? `\n${note}` : ""}`,
+              metadata: { source: "ig_early_access", igHandle },
+            });
+          }
+        } catch (e) {
+          console.error("[ig-early-access] concierge person failed (non-blocking):", e?.message);
+        }
+      }
+
       // Tell Felix — the request is only useful if someone acts on it. Best
       // effort: the durable row above is the source of truth either way.
       try {
@@ -69,16 +112,26 @@ export function registerInstagramConnectRoutes(app) {
         await sendEmail({
           to: "hello@pullup.se",
           subject: `IG early access request: @${igHandle}`,
+          // personId + hostProfileId make this REPLIABLE: hitting reply sends
+          // through the two-way rail and lands in the requester's inbox AND
+          // their PullUp Messages, from the concierge host.
+          ...(conciergePersonId && conciergeHostId
+            ? { personId: conciergePersonId, hostProfileId: conciergeHostId }
+            : {}),
           text: [
             `Instagram early-access request`,
             ``,
             `IG handle: @${igHandle}`,
             `Name: ${name || "—"}`,
-            `Email: ${email || "—"}`,
+            `Email: ${requesterEmail || "—"}`,
             `Note: ${note || "—"}`,
             `Host id: ${req.user.id}`,
+            `Tier: ${ent.plan}${ent.reason === "early" ? " (founding)" : ""}`,
             ``,
-            `Add them as an internal tester in the Meta app, then reply so they connect.`,
+            `Add them as an internal tester in the Meta app.`,
+            conciergePersonId
+              ? `REPLY TO THIS EMAIL to answer them personally — your reply is delivered to their inbox and their PullUp Messages, as you.`
+              : `(Reply-threading unavailable for this request — answer them at ${requesterEmail || "their email"}.)`,
           ].join("\n"),
         });
       } catch (e) {

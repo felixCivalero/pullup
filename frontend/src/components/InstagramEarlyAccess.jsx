@@ -60,6 +60,12 @@ export function InstagramEarlyAccess({ compact = false, onConnect, showToast }) 
           name: user?.user_metadata?.full_name || user?.user_metadata?.name || "",
         }),
       });
+      if (res.status === 402) {
+        // Early access rides the Creator tier — the concierge loop only works
+        // for hosts who can actually host.
+        showToast?.("Early access is for Creator members — set up your plan at pullup.se/start first", "error");
+        return;
+      }
       if (!res.ok) throw new Error();
       setRequest({ ig_handle: ig, email: email.trim(), status: "pending" });
       showToast?.("Request sent — you're in line", "success");

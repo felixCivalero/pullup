@@ -94,12 +94,12 @@ export function AdminInboxPage() {
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
-    if ((tab === "overview" || tab === "globe") && !overview) {
+    if (tab === "globe" && !overview) {
       authenticatedFetch("/admin/overview").then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
     }
   }, [tab, overview]);
 
-  const TITLES = { globe: "The world", overview: "Overview", requests: "Requests", admins: "Admins" };
+  const TITLES = { globe: "The world", requests: "Requests", admins: "Admins" };
 
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 60px", color: C.ink }}>
@@ -119,7 +119,10 @@ export function AdminInboxPage() {
                 [`${overview.subscriptions.mrrSek.toLocaleString()} kr`, "MRR"],
                 [overview.subscriptions.active, "subscribers"],
                 [overview.subscriptions.founding, "founding hosts"],
+                [overview.subscriptions.pastDue, "past due"],
                 [`${overview.ticketSales.last30Sek.toLocaleString()} kr`, "sales · 30d"],
+                [`${overview.ticketSales.allTimeSek.toLocaleString()} kr`, "sales · all time"],
+                [overview.connectedAccounts.count, "connected accounts"],
                 [overview.events.upcoming, "upcoming events"],
                 [overview.hosts.total ?? "—", "hosts"],
               ].map(([v, l]) => (
@@ -131,30 +134,6 @@ export function AdminInboxPage() {
             </div>
           )}
           <AdminGlobe events={mapEvents} />
-        </div>
-      )}
-
-      {tab === "overview" && (
-        <div>
-          {!overview && <div style={{ padding: 40, textAlign: "center", color: C.faint }}>Loading…</div>}
-          {overview && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
-                <StatCard label="MRR" value={`${overview.subscriptions.mrrSek.toLocaleString()} kr`} sub={`${overview.subscriptions.active} active subscription${overview.subscriptions.active === 1 ? "" : "s"}`} />
-                <StatCard label="Subscribers" value={overview.subscriptions.active} sub={Object.entries(overview.subscriptions.byPlan).map(([p, n]) => `${n} ${p}`).join(" · ") || "—"} />
-                <StatCard label="Founding hosts" value={overview.subscriptions.founding} sub="early tier, free forever" />
-                <StatCard label="Past due" value={overview.subscriptions.pastDue} sub={overview.subscriptions.cancelling ? `${overview.subscriptions.cancelling} cancelling at period end` : "grace-period watch"} />
-                <StatCard label="Ticket sales · 30d" value={`${overview.ticketSales.last30Sek.toLocaleString()} kr`} sub={`${overview.ticketSales.last30Count} payments`} />
-                <StatCard label="Ticket sales · all time" value={`${overview.ticketSales.allTimeSek.toLocaleString()} kr`} sub={`${overview.ticketSales.count} payments · ~${overview.ticketSales.estFeesSek.toLocaleString()} kr fees (3%)`} />
-                <StatCard label="Connected accounts" value={overview.connectedAccounts.count} sub={overview.connectedAccounts.hosts.slice(0, 3).map((h) => h.name).join(", ") || "Stripe Connect"} />
-                <StatCard label="Events" value={overview.events.total} sub={`${overview.events.upcoming} upcoming · ${overview.events.drafts} drafts`} />
-                <StatCard label="Hosts" value={overview.hosts.total ?? "—"} sub="accounts on the platform" />
-              </div>
-              <div style={{ fontSize: 11.5, color: C.faint, marginTop: 12 }}>
-                Subscriptions and payments mirror Stripe via webhooks — this is our own ledger, no API round-trip.
-              </div>
-            </>
-          )}
         </div>
       )}
 

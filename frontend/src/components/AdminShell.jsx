@@ -5,7 +5,7 @@
 
 import { useEffect, useState, Suspense, lazy } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Globe2, Gauge, Sparkles, ShieldCheck, Users, GitMerge, BarChart3, LogOut } from "lucide-react";
+import { Globe2, Sparkles, ShieldCheck, Users, GitMerge, BarChart3, LogOut } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -43,7 +43,6 @@ export function AdminShell({ children }) {
 
   const hq = [
     { key: "globe", label: "World", Icon: Globe2 },
-    { key: "overview", label: "Overview", Icon: Gauge },
     { key: "requests", label: "Requests", Icon: Sparkles },
     ...(me?.role === "super" ? [{ key: "admins", label: "Admins", Icon: ShieldCheck }] : []),
   ];

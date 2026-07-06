@@ -42,6 +42,7 @@ import { Button } from "../components/ui/Button";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "../components/EventCTA";
 import { Badge } from "../components/ui/Badge";
 import { publicFetch } from "../lib/api.js";
+import { supabase } from "../lib/supabase.js";
 import { isNetworkError, handleNetworkError } from "../lib/errorHandler.js";
 import { logger } from "../lib/logger.js";
 import { colors } from "../theme/colors.js";
@@ -623,9 +624,21 @@ export function EventPage() {
         };
       }
 
+      // If this browser already holds a PullUp session, tell the backend who's
+      // signed in. It NEVER grants entry (the room stays gated on a real
+      // session) — it only lets the confirmation email choose the right words:
+      // an already-signed-in guest gets "you're in" rather than a "verify your
+      // email" they don't need. Anonymous joins send no token and get the
+      // verify flow. Best-effort: any failure just falls through to anonymous.
+      const rsvpHeaders = { "Content-Type": "application/json" };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) rsvpHeaders.Authorization = `Bearer ${session.access_token}`;
+      } catch {}
+
       const res = await publicFetch(`/events/${event.slug}/rsvp`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: rsvpHeaders,
         body: JSON.stringify(requestBody),
       });
 

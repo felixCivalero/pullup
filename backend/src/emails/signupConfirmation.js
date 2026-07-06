@@ -15,12 +15,16 @@
 
 import { formatCoordinates } from "../lib/coordinates.js";
 
-const PULLUP_BG = "#05040a";
-const GOLD = "#f59e0b";
-const GOLD_LIGHT = "#fbbf24";
+// Light identity: white canvas, near-black ink, brand pink. Emails always
+// render light — no dark default, no prefers-color-scheme flip — so what the
+// guest sees matches the light dashboard, not the dark guest event pages.
+const CANVAS = "#ffffff";      // email background — always white
+const INK = "#0c0a12";         // near-black text
+const PINK = "#ec178f";        // brand pink (accents, badges, buttons)
+const PINK_LIGHT = "#f45cae";
 const WHITE = "#ffffff";
-const MUTED = "rgba(255,255,255,0.6)";
-const SUBTLE = "rgba(255,255,255,0.08)";
+const MUTED = "rgba(12,10,18,0.55)";
+const SUBTLE = "rgba(0,0,0,0.06)";
 
 // ── Email-safe font catalog ──
 // Mirrors src/lib/brand.js FONTS, narrowed to families that render
@@ -58,10 +62,11 @@ function rgbaFromHex(hex, alpha) {
 
 /**
  * The email's token bundle. Host-customizable email branding was removed —
- * every transactional email now wears the PullUp default dark/gold look with
- * the prefers-color-scheme: light flip (clean white in light inboxes). The
- * `brand` argument is intentionally ignored; it remains in the signature only
- * so the (now no-op) call sites don't need to change in lockstep.
+ * every transactional email now wears PullUp's light identity: white canvas,
+ * near-black ink, brand pink. No dark default, no prefers-color-scheme flip
+ * (color-scheme is pinned to light). The `brand` argument is intentionally
+ * ignored; it remains in the signature only so the (now no-op) call sites
+ * don't need to change in lockstep.
  *
  * @returns {object} { bg, ink, primary, primaryInk, primarySoft,
  *                      primarySoftBorder, muted, subtle, fontStack,
@@ -69,19 +74,19 @@ function rgbaFromHex(hex, alpha) {
  */
 function resolveEmailBrand() {
   return {
-    bg:                PULLUP_BG,
-    ink:               WHITE,
-    primary:           GOLD,
-    primaryLight:      GOLD_LIGHT,
-    primaryInk:        PULLUP_BG,
-    primarySoft:       "rgba(245,158,11,0.15)",
-    primarySoftBorder: "rgba(245,158,11,0.3)",
+    bg:                CANVAS,
+    ink:               INK,
+    primary:           PINK,
+    primaryLight:      PINK_LIGHT,
+    primaryInk:        WHITE,
+    primarySoft:       "rgba(236,23,143,0.10)",
+    primarySoftBorder: "rgba(236,23,143,0.30)",
     muted:             MUTED,
     subtle:            SUBTLE,
     fontStack:         DEFAULT_FONT_STACK,
     logoUrl:           null,
     isCustom:          false,
-    lightModeFlip:     true,
+    lightModeFlip:     false,
   };
 }
 
@@ -135,10 +140,10 @@ function emailShell(content, brand) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <style>
-  :root { color-scheme: light dark; supported-color-schemes: light dark; }${lightFlipCss}
+  :root { color-scheme: light only; supported-color-schemes: light; }${lightFlipCss}
 </style>
 </head>
 <body class="pu-shell" style="margin:0;padding:0;background:${b.bg};color:${b.ink};font-family:${b.fontStack};">
@@ -206,16 +211,16 @@ function badge(text, brand, overrides = {}) {
   const b = brand || resolveEmailBrand(null);
   const bg = overrides.bg ?? b.primarySoft;
   const border = overrides.border ?? b.primarySoftBorder;
-  const color = overrides.color ?? (b.isCustom ? b.primary : GOLD_LIGHT);
+  const color = overrides.color ?? b.primary;
   return `<span style="display:inline-block;padding:6px 20px;border-radius:999px;background:${bg};border:1px solid ${border};color:${color};font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">${text}</span>`;
 }
 
 /* ── Footer with host branding ── */
 function emailFooter({ message = "", brandName = "", brandWebsite = "", contactEmail = "", frontendUrl = "", unsubscribeUrl = "" } = {}, brand) {
   const b = brand || resolveEmailBrand(null);
-  const linkColor = b.isCustom ? rgbaFromHex(b.ink, 0.55) : "rgba(255,255,255,0.4)";
-  const muted = b.isCustom ? rgbaFromHex(b.ink, 0.45) : "rgba(255,255,255,0.3)";
-  const dividerColor = b.isCustom ? rgbaFromHex(b.ink, 0.10) : "rgba(255,255,255,0.06)";
+  const linkColor = rgbaFromHex(b.ink, 0.55);
+  const muted = rgbaFromHex(b.ink, 0.45);
+  const dividerColor = rgbaFromHex(b.ink, 0.10);
 
   const parts = [];
   if (message) parts.push(message);
@@ -241,11 +246,7 @@ function emailFooter({ message = "", brandName = "", brandWebsite = "", contactE
 /* ── CTA button ── */
 function ctaButton(href, label, brand) {
   const b = brand || resolveEmailBrand(null);
-  if (!b.isCustom) {
-    // Legacy gold-gradient look.
-    return `<a href="${href}" target="_blank" style="display:inline-block;text-decoration:none;padding:14px 36px;border-radius:999px;background-color:${GOLD};background-image:linear-gradient(135deg,${GOLD_LIGHT} 0%,${GOLD} 45%,#d97706 100%);color:${PULLUP_BG};font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid rgba(245,158,11,0.9);">${label}</a>`;
-  }
-  // Branded: flat brand-primary fill, ink chosen for contrast.
+  // Flat brand-pink fill, white ink.
   return `<a href="${href}" target="_blank" style="display:inline-block;text-decoration:none;padding:14px 36px;border-radius:999px;background-color:${b.primary};color:${b.primaryInk};font-size:15px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;border:1px solid ${b.primary};font-family:${b.fontStack};">${label}</a>`;
 }
 
@@ -347,9 +348,7 @@ export function signupConfirmationEmail({
   // CONFIRMED badge wears the host's primary; WAITLIST stays muted.
   const statusBadge = isWaitlist
     ? badge("WAITLIST", b, { bg: rgbaFromHex(b.ink, 0.06), border: rgbaFromHex(b.ink, 0.12), color: b.muted })
-    : (b.isCustom
-        ? badge("CONFIRMED", b, { bg: b.primary, border: b.primary, color: b.primaryInk })
-        : badge("CONFIRMED", b, { bg: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#d97706 100%)", border: "rgba(245,158,11,0.3)", color: PULLUP_BG }));
+    : badge("CONFIRMED", b);
 
   // Detail-card surface: subtle tint of the page bg, derived from text ink
   // so it works on any background brand.

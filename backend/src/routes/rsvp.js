@@ -15,6 +15,7 @@ import {
   markVipInviteUsed,
 } from "../data.js";
 import { validateRsvpData } from "../middleware/validation.js";
+import { optionalAuth } from "../middleware/auth.js";
 import {
   getOrCreateStripeCustomer,
   createPaymentIntent,
@@ -44,7 +45,7 @@ export function registerRsvpRoutes(app) {
 // ---------------------------
 // PUBLIC: RSVP
 // ---------------------------
-app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
+app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) => {
   try {
     const { slug } = req.params;
     const {
@@ -1365,6 +1366,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
         // message (WYSIWYG, what they previewed in the editor). Waitlist → the
         // standard transactional template (not part of the 3-step arc).
         let signupHtml;
+        let signupSubject = isWaitlistEmail ? "You’re on the waitlist" : "Your spot is confirmed";
         if (isWaitlistEmail) {
           signupHtml = signupConfirmationEmail({
             name: result.rsvp.name || name,
@@ -1410,11 +1412,47 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
             roomUrl: roomKeyUrl,
             uploadUrl: roomKeyUrl,
           };
+          // A community welcome says the truth about what the tap does. The
+          // link ALWAYS mints a fresh magic link (verifies inbox ownership +
+          // signs in + drops into the community room) — but the FRAMING flexes
+          // on who's joining:
+          //   • not signed in as this email → they must prove they own the
+          //     inbox, so it reads "VERIFY YOUR EMAIL to enter <community>".
+          //   • already signed in as this same email → nothing left to verify,
+          //     so it's a plain "you're in" confirmation.
+          // Access never rides on this — the room stays gated on a real session
+          // either way (typing a stranger's verified email just mails THEM the
+          // link, grants the sender nothing). This only picks the words.
+          const isCommunityKind = evReq?.kind === "community";
+          const alreadyVerifiedSelf =
+            !!req.user?.email &&
+            String(req.user.email).trim().toLowerCase() === String(email || "").trim().toLowerCase();
+          const hostCustomizedSignup = !!(
+            evReq?.comms_config?.signup?.body &&
+            String(evReq.comms_config.signup.body).trim()
+          );
+
+          let badgeText = "YOU'RE IN";
+          let bodyTemplate = signupCfg.body;
+          if (isCommunityKind) {
+            badgeText = alreadyVerifiedSelf ? "YOU'RE IN" : "VERIFY YOUR EMAIL";
+            signupSubject = alreadyVerifiedSelf
+              ? "You’re in — welcome"
+              : `Verify your email to enter ${ev.title}`;
+            // Only override the words when the host hasn't written their own —
+            // a custom welcome stays the host's, just under the right badge.
+            if (!hostCustomizedSignup) {
+              bodyTemplate = alreadyVerifiedSelf
+                ? "Welcome to {event name}!\n\nYou're in — this is your door to everything happening here.\n\n{room link}"
+                : "Verify your email to enter {event name}.\n\nTap below — that's it: verified, signed in, and inside.\n\n{room link}";
+            }
+          }
+
           signupHtml = composedMessageEmail({
             eventTitle: ev.title,
-            badgeText: "YOU'RE IN",
+            badgeText,
             imageUrl: ev.coverImageUrl || ev.imageUrl || "",
-            bodyHtml: resolveCommsHtml(signupCfg.body, ctx),
+            bodyHtml: resolveCommsHtml(bodyTemplate, ctx),
             frontendUrl: getFrontendUrl(),
             ...hostBrand,
           });
@@ -1428,11 +1466,7 @@ app.post("/events/:slug/rsvp", validateRsvpData, async (req, res) => {
           // king send that failed). Don't double-ride WhatsApp.
           whatsapp: null,
           email: {
-            subject: isWaitlistEmail
-              ? "You’re on the waitlist"
-              : evReq?.kind === "community"
-                ? "You’re in — welcome"
-                : "Your spot is confirmed",
+            subject: signupSubject,
             htmlBody: signupHtml,
           },
           context: {

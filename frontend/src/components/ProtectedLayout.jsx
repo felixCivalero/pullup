@@ -8,7 +8,6 @@ import { EventNavProvider, useEventNav } from "../contexts/EventNavContext.jsx";
 import { ChevronLeft, Settings } from "lucide-react";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { NotificationsBell } from "./NotificationsBell.jsx";
-import { WhatsNewModal } from "./WhatsNewModal.jsx";
 import { AuthGate } from "./auth/AuthGate.jsx";
 import { PageTypePicker } from "./PageTypePicker.jsx";
 import { colors } from "../theme/colors.js";
@@ -1438,9 +1437,6 @@ function ProtectedLayoutInner() {
           <Outlet />
         )}
       </main>
-
-      {/* First-login-after-redesign walkthrough (desktop-only, once per browser) */}
-      <WhatsNewModal />
 
       {/* Become-a-host gate: the one door, opened when a not-yet-ready user taps
           "+ create". Dismissable; collects the profile + verifies via the auth

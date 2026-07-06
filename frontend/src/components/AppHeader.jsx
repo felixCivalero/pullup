@@ -134,7 +134,7 @@ export function AppHeader() {
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {/* Notifications + Settings as DIRECT icons — same on desktop and
               mobile, so the person room never needs a drawer to reach them. */}
-          <NotificationsBell />
+          {!isAdmin && <NotificationsBell />}
           <button
             onClick={() => handleNav("/settings")}
             aria-label="Settings"
@@ -183,11 +183,11 @@ export function AppHeader() {
             </div>
           )}
 
-          <button onClick={() => { if (!profileComplete) { setOnboardOpen(true); } else { setCreatePickerOpen(true); } }} style={{ padding: "10px 18px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(11px, 2.5vw, 12px)", letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.2s ease", boxShadow: colors.accentShadow, whiteSpace: "nowrap", touchAction: "manipulation" }}
+          {!isAdmin && <button onClick={() => { if (!profileComplete) { setOnboardOpen(true); } else { setCreatePickerOpen(true); } }} style={{ padding: "10px 18px", borderRadius: "999px", border: "none", background: colors.accent, color: "#fff", fontWeight: 700, fontSize: "clamp(11px, 2.5vw, 12px)", letterSpacing: "0.02em", cursor: "pointer", transition: "all 0.2s ease", boxShadow: colors.accentShadow, whiteSpace: "nowrap", touchAction: "manipulation" }}
             onMouseEnter={(e) => { e.target.style.transform = "translateY(-1px)"; e.target.style.background = colors.accentHover; e.target.style.boxShadow = "0 8px 22px rgba(236, 23, 143, 0.34)"; }}
             onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.background = colors.accent; e.target.style.boxShadow = colors.accentShadow; }}>
             + create
-          </button>
+          </button>}
         </div>
       </header>
 

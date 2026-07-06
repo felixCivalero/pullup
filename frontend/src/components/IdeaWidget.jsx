@@ -398,6 +398,9 @@ export function IdeaWidget() {
   // page). On mobile the AI coach faces stay off, but Messages — your people —
   // should still be one tap away for any logged-in host on an in-app route.
   const mobileMessages = !isDesktop && !!user && !isPublicEventPath && (!isEventRoomPath || !!resource);
+  // Admin surfaces have their own inbox (PullUp HQ) — the host dock never
+  // mounts there, and admins never leave /admin (ProtectedLayout redirects).
+  if (pathname.startsWith("/admin")) return null;
   if (mode === null && !mobileMessages) return null;
 
   // On mobile the dock opens as a full-screen sheet (native messaging feel),

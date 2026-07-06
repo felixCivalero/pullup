@@ -135,17 +135,15 @@ function ProtectedLayoutInner() {
   // already 403s every /admin/email API, but the SPA would still render the page
   // shell for a logged-in non-admin who navigates here directly. Once we've
   // confirmed they're not an admin, bounce them out so the email UI never mounts.
+  // Two worlds, hard split: @pullup.se accounts (platform_admins) live in the
+  // admin dashboard and ONLY there; every other account is a guest/host and
+  // never sees an /admin surface. Backend 403s are the real wall — these
+  // redirects make the UI match it.
   useEffect(() => {
-    if (profileChecked && !isAdmin && location.pathname.startsWith("/admin/email")) {
-      showToast("Admin access required", "error");
+    if (!profileChecked) return;
+    if (!isAdmin && location.pathname.startsWith("/admin")) {
       navigate("/room", { replace: true });
-    }
-  }, [profileChecked, isAdmin, location.pathname, navigate, showToast]);
-
-  // Admin accounts (@pullup.se, platform_admins) live in the dashboard, not
-  // the host Room — a fresh login landing on /room routes to the System inbox.
-  useEffect(() => {
-    if (profileChecked && isAdmin && location.pathname === "/room") {
+    } else if (isAdmin && !location.pathname.startsWith("/admin")) {
       navigate("/admin/inbox", { replace: true });
     }
   }, [profileChecked, isAdmin, location.pathname, navigate]);
@@ -695,7 +693,7 @@ function ProtectedLayoutInner() {
 
           {/* Notifications bell (ambient facts). Desktop always; mobile shows it
               as a badge on the default app (event routes keep the tab menu). */}
-          {(!isMobile || !eventChrome) && <NotificationsBell />}
+          {!isAdmin && (!isMobile || !eventChrome) && <NotificationsBell />}
 
           {/* Settings badge. Same surfacing rule as the bell — a direct icon on
               mobile so we don't need a drawer just to reach Settings. */}
@@ -907,7 +905,7 @@ function ProtectedLayoutInner() {
                 )}
               </div>
             )}
-            <button
+            {!isAdmin && <button
               onClick={() => {
                 if (editorRoute) {
                   // In the editor (create OR editing a draft) the primary action
@@ -954,7 +952,7 @@ function ProtectedLayoutInner() {
                   the page/room of one that already happened (the editor asks a
                   confirm and keeps sign-ups closed). */}
               {editorRoute ? (eventNav?.ended ? "Reopen" : "Publish") : "+ create"}
-            </button>
+            </button>}
           </>
           )}
         </div>

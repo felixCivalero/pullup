@@ -6,7 +6,9 @@ import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, API_BASE as API } from "./probeEnv
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
 
-const email = `e2e_metrics_${Date.now()}@example.com`;
+// Admin = a granted @pullup.se account (platform_admins, mig 126) — the
+// probe mints a throwaway one on the platform domain and grants it.
+const email = `e2e-metrics-${Date.now()}@pullup.se`;
 let userId = null, failures = 0;
 const ok = (c, l) => { console.log(`${c ? "✅" : "❌"} ${l}`); if (!c) failures++; };
 
@@ -17,8 +19,8 @@ try {
 
   const { data: created } = await admin.auth.admin.createUser({ email, email_confirm: true });
   userId = created.user.id;
-  // an admin probe needs the is_admin flag on the profile row
-  await admin.from("profiles").upsert({ id: userId, is_admin: true });
+  // admin = platform_admins grant (profiles.is_admin is retired)
+  await admin.from("platform_admins").upsert({ email, role: "admin", granted_by: "probe" });
   const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const { data: sess } = await anon.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
 
@@ -37,6 +39,7 @@ try {
   console.error("❌ threw:", e.message);
 } finally {
   if (userId) {
+    await admin.from("platform_admins").delete().eq("email", email);
     await admin.from("profiles").delete().eq("id", userId);
     await admin.from("people").delete().eq("email", email.toLowerCase());
     await admin.auth.admin.deleteUser(userId);

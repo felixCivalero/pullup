@@ -49,7 +49,6 @@ import { FaXTwitter, FaLinkedinIn } from "react-icons/fa6";
 import { EventPreview } from "../components/EventPreview";
 import { DesktopEventLayout } from "../components/DesktopEventLayout";
 import { VideoPlayer } from "../components/MediaCarousel";
-import { normalizeFit } from "../components/mediaFormat";
 import { RsvpForm } from "../components/RsvpForm";
 import { useToast } from "../components/Toast";
 import { AuthGate } from "../components/auth/AuthGate.jsx";
@@ -428,164 +427,6 @@ function makeFieldId() {
   return "ff_" + Math.random().toString(36).slice(2, 10);
 }
 
-// Compact segmented control used by the Format/crop settings.
-function SegmentedChoice({ value, onChange, options }) {
-  return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: `repeat(${options.length}, 1fr)`,
-      gap: "3px",
-      padding: "3px",
-      background: colors.surfaceMuted,
-      border: `1px solid ${colors.border}`,
-      borderRadius: "8px",
-    }}>
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            style={{
-              padding: "7px 4px",
-              borderRadius: "5px",
-              border: "none",
-              background: active ? "#fff" : "transparent",
-              color: active ? colors.text : colors.textSubtle,
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 0.15s ease, color 0.15s ease",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              boxShadow: active ? `0 1px 3px rgba(10,10,10,0.08)` : "none",
-            }}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Visual format picker — same job as SegmentedChoice, but each option renders
-// the host's actual cover still inside a little window shaped/cropped exactly
-// like that mode renders it on the real page. The picture IS the explanation:
-// crop-vs-letterbox (phone) and tall-vs-wide window (desktop) are obvious at a
-// glance, so "Fit / Real" stops being a guessing game. `thumb` is any still
-// (image cover or video thumbnail); options carry their own frame geometry.
-function FormatChoice({ value, onChange, options, thumb }) {
-  return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: `repeat(${options.length}, 1fr)`,
-      gap: "8px",
-    }}>
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              padding: "8px",
-              textAlign: "left",
-              borderRadius: "12px",
-              cursor: "pointer",
-              background: active ? colors.accentSoft : colors.surface,
-              border: `1.5px solid ${active ? colors.accent : colors.border}`,
-              boxShadow: active ? colors.accentShadow : "none",
-              transition: "background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
-            }}
-          >
-            {/* Stage: neutral backdrop so the window's shape reads clearly */}
-            <div style={{
-              height: "84px",
-              borderRadius: "8px",
-              background: colors.surfaceMuted,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-              boxShadow: active
-                ? `inset 0 0 0 1.5px ${colors.accentBorder}`
-                : "inset 0 0 0 1px rgba(10,10,10,0.05)",
-              transition: "box-shadow 0.18s ease",
-            }}>
-              {/* The window — an illustrative fixed frame. "Fill" covers &
-                  crops; "Fit" contains the whole image over a blurred backdrop. */}
-              <div style={{
-                ...opt.frameStyle,
-                position: "relative",
-                borderRadius: "5px",
-                overflow: "hidden",
-                background: "#0a0913",
-                boxShadow: "0 2px 6px rgba(10,10,10,0.18)",
-                flexShrink: 0,
-              }}>
-                {thumb ? (
-                  <>
-                    {opt.backdrop && (
-                      <img
-                        src={thumb}
-                        alt=""
-                        aria-hidden
-                        draggable={false}
-                        style={{
-                          position: "absolute", inset: 0, width: "100%", height: "100%",
-                          objectFit: "cover", filter: "blur(9px) saturate(1.25)",
-                          transform: "scale(1.25)",
-                        }}
-                      />
-                    )}
-                    <img
-                      src={thumb}
-                      alt=""
-                      draggable={false}
-                      style={{
-                        position: opt.backdrop ? "relative" : undefined,
-                        zIndex: opt.backdrop ? 1 : undefined,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: opt.objectFit,
-                        display: "block",
-                      }}
-                    />
-                  </>
-                ) : (
-                  <div style={{
-                    width: "100%",
-                    height: "100%",
-                    background: "radial-gradient(circle at 35% 30%, rgba(236,23,143,0.22), transparent 70%), #14111c",
-                  }} />
-                )}
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              <span style={{
-                fontSize: "12px",
-                fontWeight: 700,
-                color: active ? colors.accent : colors.text,
-              }}>
-                {opt.label}
-              </span>
-              <span style={{ fontSize: "10.5px", lineHeight: 1.3, color: colors.textSubtle }}>
-                {opt.caption}
-              </span>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // focus key → editor step number. Used by the floating PullUp widget: when
 // the host clicks "Add interactive widgets like Spotify" from inside the
@@ -1003,32 +844,24 @@ export function CreateEventPage() {
   const [uploadProgress, setUploadProgress] = useState({});
   // Aggregate status shown on the Publish button while uploads run.
   const [uploadStatus, setUploadStatus] = useState(null); // null | { done: number, total: number }
-  // Crop/format settings — independent per screen, nested under mediaSettings.
-  // mode is one of width | height | card (see components/mediaFormat.js):
-  //   width  → frame takes the media's own aspect (whole, no crop, no bars)
-  //   height → fill the available height, crop the sides (drag to reposition)
-  //   card   → fixed 4:5 card, crop to fill (drag to reposition)
-  // Focus is stored as percentages (0–100). 50/50 = center; only meaningful in
-  // the crop modes (height/card).
-  const [phoneFit, setPhoneFit] = useState("fill"); // fill | fit
+  // Legacy focus state — retained so the (now inert) reposition-drag handler and
+  // the edit-mode loader still resolve. Covers no longer crop, so these are not
+  // written to mediaSettings or used for rendering.
   const [phoneFocusX, setPhoneFocusX] = useState(50);
   const [phoneFocusY, setPhoneFocusY] = useState(50);
-  const [desktopFit, setDesktopFit] = useState("fill"); // fill | fit
   const [desktopFocusX, setDesktopFocusX] = useState(50);
   const [desktopFocusY, setDesktopFocusY] = useState(50);
 
-  // Build the mediaSettings object — single source of truth for both save and preview.
+  // Build the mediaSettings object — single source of truth for both save and
+  // preview. Covers show the whole image at its own ratio on every screen, so
+  // there's no per-screen crop/format to store — only playback (video/carousel).
   function buildMediaSettings() {
     const playback = mediaMode === "video"
       ? { mode: "video", loop: videoLoop, autoplay: videoAutoplay, audio: videoAudio }
       : mediaMode === "images" && mediaFiles.length > 1
         ? { mode: "carousel", autoscroll: carouselAutoscroll, interval: carouselInterval, loop: carouselLoop, transitions: carouselTransitions }
         : {};
-    return {
-      ...playback,
-      phone: { fit: phoneFit, focusX: phoneFocusX, focusY: phoneFocusY },
-      desktop: { fit: desktopFit, focusX: desktopFocusX, focusY: desktopFocusY },
-    };
+    return { ...playback };
   }
 
   // Drag-to-pan callback factory. Renderers call this with pixel deltas and the
@@ -1702,6 +1535,8 @@ export function CreateEventPage() {
             previewUrl: m.url,
             mediaType: m.mediaType || "image",
             url: m.url,
+            width: m.width || null,
+            height: m.height || null,
           }));
           setMediaFiles(loaded);
           setImagePreview(loaded[0].previewUrl || loaded[0].preview);
@@ -1898,7 +1733,6 @@ export function CreateEventPage() {
         // Legacy "top"|"center"|"bottom" → numeric Y. X stays at 50 since the
         // old schema had no horizontal control.
         const focusStrToY = (s) => (s === "top" ? 0 : s === "bottom" ? 100 : 50);
-        setPhoneFit(normalizeFit(phoneMs, ms));
         setPhoneFocusX(
           typeof phoneMs.focusX === "number" ? phoneMs.focusX : 50,
         );
@@ -1907,8 +1741,6 @@ export function CreateEventPage() {
             ? phoneMs.focusY
             : focusStrToY(phoneMs.focus || ms.focus),
         );
-        // Desktop fit: new "fit" field, mapping legacy mode/objectFit onto it.
-        setDesktopFit(normalizeFit(desktopMs, ms));
         setDesktopFocusX(
           typeof desktopMs.focusX === "number" ? desktopMs.focusX : 50,
         );
@@ -1930,6 +1762,8 @@ export function CreateEventPage() {
             previewUrl: m.url,
             mediaType: m.mediaType || "image",
             url: m.url,
+            width: m.width || null,
+            height: m.height || null,
           }));
           setMediaFiles(loaded);
           setImagePreview(loaded[0].previewUrl || loaded[0].preview);
@@ -4046,109 +3880,8 @@ export function CreateEventPage() {
                     </div>
                   )}
 
-                  {/* ─── Format — independent per screen ─── */}
-                  {mediaFiles.length > 0 && (
-                    <div style={{
-                      marginTop: "14px",
-                      paddingTop: "14px",
-                      borderTop: `1px solid ${colors.border}`,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "16px",
-                    }}>
-                      <div style={{
-                        fontSize: "10px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        fontWeight: 700,
-                        color: colors.textSubtle,
-                      }}>
-                        Format
-                      </div>
-
-                      {/* PHONE */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <div style={{
-                          fontSize: "11px",
-                          color: colors.textSubtle,
-                          fontWeight: 600,
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}>
-                          <span>Phone</span>
-                          {phoneFit === "fill" && (
-                            <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
-                          )}
-                        </div>
-                        <FormatChoice
-                          value={phoneFit}
-                          thumb={mediaFiles[0]?.preview || imagePreview || null}
-                          onChange={(v) => {
-                            setPhoneFit(v);
-                            setDesktopPreviewMode("phone");
-                          }}
-                          options={[
-                            {
-                              value: "fill",
-                              label: "Fill",
-                              caption: "Fills the hero, may crop",
-                              objectFit: "cover",
-                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
-                            },
-                            {
-                              value: "fit",
-                              label: "Fit",
-                              caption: "Whole image, blurred edges",
-                              objectFit: "contain",
-                              backdrop: true,
-                              frameStyle: { height: "100%", aspectRatio: "3 / 4" },
-                            },
-                          ]}
-                        />
-                      </div>
-
-                      {/* DESKTOP */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <div style={{
-                          fontSize: "11px",
-                          color: colors.textSubtle,
-                          fontWeight: 600,
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}>
-                          <span>Desktop</span>
-                          {desktopFit === "fill" && (
-                            <span style={{ color: colors.textFaded }}>drag preview to reposition</span>
-                          )}
-                        </div>
-                        <FormatChoice
-                          value={desktopFit}
-                          thumb={mediaFiles[0]?.preview || imagePreview || null}
-                          onChange={(v) => {
-                            setDesktopFit(v);
-                            setDesktopPreviewMode("desktop");
-                          }}
-                          options={[
-                            {
-                              value: "fill",
-                              label: "Fill",
-                              caption: "Fills the hero, may crop",
-                              objectFit: "cover",
-                              frameStyle: { width: "92%", aspectRatio: "16 / 9" },
-                            },
-                            {
-                              value: "fit",
-                              label: "Fit",
-                              caption: "Whole image, blurred edges",
-                              objectFit: "contain",
-                              backdrop: true,
-                              frameStyle: { width: "92%", aspectRatio: "16 / 9" },
-                            },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  {/* The cover shows the whole image at its own proportions on
+                      every screen — no crop, no format choice needed. */}
                 </div>
               )}
 
@@ -6033,6 +5766,8 @@ export function CreateEventPage() {
                     url: m.previewUrl || m.preview,
                     mediaType: m.mediaType,
                     position: i,
+                    width: m.width || null,
+                    height: m.height || null,
                   })) : null,
                   mediaSettings: buildMediaSettings(),
                   ticketType: ticketsArePaid ? "paid" : "free",
@@ -6158,6 +5893,8 @@ export function CreateEventPage() {
               url: m.previewUrl || m.preview,
               mediaType: m.mediaType,
               position: i,
+              width: m.width || null,
+              height: m.height || null,
             })) : null}
             mediaSettings={buildMediaSettings()}
             ticketType={ticketsArePaid ? "paid" : "free"}

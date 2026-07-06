@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { MediaCarousel, BlurBackdrop } from "./MediaCarousel";
+import { MediaCarousel } from "./MediaCarousel";
 import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
@@ -9,7 +9,7 @@ import { formatEventTime } from "../lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizeFit, fitObjectFit, fitUsesBackdrop, fitCrops, heroFrame, useCoverAspect } from "./mediaFormat";
+import { heroFrame, useCoverAspect } from "./mediaFormat";
 import { formatPrice } from "../lib/money.js";
 
 const CTA_BAR_HEIGHT = 62;
@@ -75,14 +75,11 @@ export function DesktopEventLayout({
     return () => ro.disconnect();
   }, []);
 
-  // Resolve the cover format up front — the drag hook depends on it.
-  const desktopFormat = mediaSettings?.desktop || {};
-  const desktopFit = normalizeFit(desktopFormat, mediaSettings);
-  const desktopCrops = fitCrops(desktopFit);
+  // The cover shows the whole image at its own ratio — nothing crops, so nothing
+  // to pan.
   const coverAspect = useCoverAspect(media, imagePreview);
+  const desktopCrops = false;
 
-  // Drag-to-reposition only applies to "fill" (cover crops); "fit" shows the
-  // whole media, so there's nothing to pan.
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroFrameRef,
@@ -185,37 +182,18 @@ export function DesktopEventLayout({
   const eyebrowLabel = signupLabel || priceLabel;
   const ctaLabel = signupCta || buttonLabel;
 
-  // The hero frame follows the image's own ratio, clamped into the desktop band
-  // and reserved up front. maxHeight/maxWidth keep it inside the fixed-height
-  // left column (a tall portrait centers with side space rather than overflow).
+  // The hero frame follows the image's own ratio, reserved up front.
+  // maxHeight/maxWidth keep it inside the fixed-height left column (a tall
+  // portrait centers with side space rather than overflowing).
   const heroFrameStyle = {
     ...heroFrame(coverAspect, "desktop"),
     maxHeight: "100%",
     maxWidth: "100%",
   };
-  // Support both numeric focusX/focusY and legacy "top"/"center"/"bottom"
-  const legacyFocusY = mediaSettings?.focus === "top"
-    ? 0
-    : mediaSettings?.focus === "bottom"
-      ? 100
-      : 50;
-  const desktopFocusX = typeof desktopFormat.focusX === "number" ? desktopFormat.focusX : 50;
-  const desktopFocusY = typeof desktopFormat.focusY === "number" ? desktopFormat.focusY : legacyFocusY;
-  const fallbackObjectPosition = `${desktopFocusX}% ${desktopFocusY}%`;
-  // Scope the mediaSettings passed to MediaCarousel so it picks up desktop
-  // fit + focus rather than phone's. "fill" fills and pans via focus; "fit"
-  // contains the whole image with a blurred backdrop filling the gaps.
-  const desktopObjectFit = fitObjectFit(desktopFit);
-  const desktopBackdrop = fitUsesBackdrop(desktopFit);
+  // Whole image, at the hero's own ratio (contain) — no crop, no bars, no blur.
   const desktopMediaSettings = useMemo(
-    () => ({
-      ...(mediaSettings || {}),
-      fit: desktopObjectFit,
-      backdrop: desktopBackdrop,
-      focusX: desktopFocusX,
-      focusY: desktopFocusY,
-    }),
-    [mediaSettings, desktopObjectFit, desktopBackdrop, desktopFocusX, desktopFocusY],
+    () => ({ ...(mediaSettings || {}), fit: "contain" }),
+    [mediaSettings],
   );
 
   return (
@@ -292,26 +270,21 @@ export function DesktopEventLayout({
                 />
               </div>
             ) : imagePreview ? (
-              <div style={{ position: "absolute", inset: 0 }}>
-                {desktopBackdrop && <BlurBackdrop url={imagePreview} displayWidth={heroWidth} />}
-                <img
-                  src={transformedImageUrl(imagePreview, { width: heroWidth })}
-                  alt={title || "Event"}
-                  draggable={false}
-                  loading="eager"
-                  decoding="async"
-                  style={{
-                    position: desktopBackdrop ? "relative" : "absolute",
-                    inset: desktopBackdrop ? undefined : 0,
-                    zIndex: desktopBackdrop ? 1 : undefined,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: desktopObjectFit,
-                    objectPosition: fallbackObjectPosition,
-                    pointerEvents: "none",
-                  }}
-                />
-              </div>
+              <img
+                src={transformedImageUrl(imagePreview, { width: heroWidth })}
+                alt={title || "Event"}
+                draggable={false}
+                loading="eager"
+                decoding="async"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  pointerEvents: "none",
+                }}
+              />
             ) : onCoverFiles ? (
               // Editor-only: the empty hero IS the upload target — click or
               // drop media right where it will appear.

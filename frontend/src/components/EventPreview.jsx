@@ -6,12 +6,12 @@ import { formatLocationShort, getGoogleMapsUrl } from "../lib/urlUtils";
 import { EventPageContent } from "./EventPageContent";
 import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
-import { MediaCarousel, CarouselDots, useCarouselSwipe, BlurBackdrop } from "./MediaCarousel";
+import { MediaCarousel, CarouselDots, useCarouselSwipe } from "./MediaCarousel";
 import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { formatPrice } from "../lib/money.js";
 import { transformedImageUrl } from "../lib/imageUtils";
-import { normalizeFit, fitObjectFit, fitUsesBackdrop, fitCrops, heroFrame, useCoverAspect } from "./mediaFormat";
+import { heroFrame, useCoverAspect } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -92,15 +92,13 @@ export function EventPreview({
     return () => ro.disconnect();
   }, []);
 
-  // Phone cover format (see mediaFormat.js). The hero's SHAPE follows the
-  // image's own aspect ratio, clamped into the phone band, and reserved up front
-  // with CSS aspect-ratio — so a 9:16 story fills the hero and a wide photo gets
-  // a wide hero, with no post-load reflow. "fill" fills + crops (focal point);
-  // "fit" shows the whole image with a blurred backdrop.
-  const phoneFit = normalizeFit(mediaSettings?.phone, mediaSettings);
-  const phoneCrops = fitCrops(phoneFit);
+  // Cover (see mediaFormat.js): the hero takes the image's OWN aspect ratio and
+  // shows the whole image — no crop, no bars, no blur. Reserved up front from the
+  // stored/measured ratio, so there's no post-load reflow. Nothing crops, so
+  // there's nothing to pan.
   const coverAspect = useCoverAspect(media, imagePreview);
   const heroFrameStyle = heroFrame(coverAspect, "phone");
+  const phoneCrops = false;
   const focusDrag = useHeroFocusDrag({
     onDrag: onFocusDrag,
     frameRef: heroRef,
@@ -286,27 +284,11 @@ export function EventPreview({
                   />
                 );
               }
-              // "fill" fills the frame and crops (pannable via focusX/focusY);
-              // "fit" contains the whole image with a blurred backdrop filling
-              // the gaps. Focus is read from mediaSettings.phone, with a legacy
-              // top-level fallback.
-              const phoneFormat = mediaSettings?.phone || {};
-              const legacyY = mediaSettings?.focus === "top"
-                ? 0
-                : mediaSettings?.focus === "bottom"
-                  ? 100
-                  : 50;
-              const focusX = typeof phoneFormat.focusX === "number" ? phoneFormat.focusX : 50;
-              const focusY = typeof phoneFormat.focusY === "number" ? phoneFormat.focusY : legacyY;
-              const objectFit = fitObjectFit(phoneFit);
-              const backdrop = fitUsesBackdrop(phoneFit);
-              const objectPosition = `${focusX}% ${focusY}%`;
+              // The whole image is shown at the hero's own ratio (contain), so
+              // it's never cropped and there are no bars to fill.
               const phoneMediaSettings = {
                 ...(mediaSettings || {}),
-                fit: objectFit,
-                backdrop,
-                focusX,
-                focusY,
+                fit: "contain",
               };
               if (media && media.length > 0) {
                 return (
@@ -325,7 +307,6 @@ export function EventPreview({
               if (imagePreview) {
                 return (
                   <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-                    {backdrop && <BlurBackdrop url={imagePreview} displayWidth={heroWidth} />}
                     <img
                       src={transformedImageUrl(imagePreview, { width: heroWidth })}
                       alt="Event preview"
@@ -333,12 +314,9 @@ export function EventPreview({
                       loading="eager"
                       decoding="async"
                       style={{
-                        position: backdrop ? "relative" : undefined,
-                        zIndex: backdrop ? 1 : undefined,
                         width: "100%",
                         height: "100%",
-                        objectFit,
-                        objectPosition,
+                        objectFit: "contain",
                         display: "block",
                         pointerEvents: "none",
                       }}

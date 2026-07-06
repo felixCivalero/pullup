@@ -8,21 +8,61 @@
 // One admin-gated read each, assembled from our own tables — the DB mirrors
 // Stripe via webhooks, so this IS the Stripe view without an API round-trip.
 
+import Stripe from "stripe";
 import { requireAdmin } from "../middleware/auth.js";
 import { supabase } from "../supabase.js";
+import { getStripeSecretKey } from "../stripe.js";
 import { TIERS } from "../config/subscriptions.js";
+
+// Ticket-sales ledger starts at the subscription launch — anything earlier is
+// Connect verification tests / imports, never host revenue.
+const SALES_EPOCH = "2026-07-06";
+
+// Ticket sales, STRAIGHT from Stripe: destination charges (transfer_data →
+// a connected account) are exactly the ticket money — subscription invoices
+// carry no transfer, so they can never leak in. Window in unix seconds.
+async function stripeTicketSales(gte, lte) {
+  const stripe = new Stripe(getStripeSecretKey());
+  let sek = 0, count = 0, startingAfter;
+  for (let page = 0; page < 20; page++) {
+    const res = await stripe.charges.list({
+      created: { gte, lte }, limit: 100, ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    for (const c of res.data) {
+      if (!c.paid || c.status !== "succeeded") continue;
+      if (!c.transfer_data?.destination) continue; // not a ticket charge
+      sek += (c.amount - (c.amount_refunded || 0)) / 100;
+      count += 1;
+    }
+    if (!res.has_more) break;
+    startingAfter = res.data[res.data.length - 1]?.id;
+  }
+  return { sek: Math.round(sek), count };
+}
 
 export function registerAdminOverviewRoutes(app) {
   app.get("/admin/overview", requireAdmin, async (req, res) => {
     try {
-      const since30 = new Date(Date.now() - 30 * 86400_000).toISOString();
       const nowIso = new Date().toISOString();
-      const [plans, payments, connects, eventsAgg, hostsCount] = await Promise.all([
+      // Sales window: ?from=YYYY-MM-DD&to=YYYY-MM-DD; defaults = launch → now.
+      const parseDay = (v, fallback) => {
+        const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? `${v}T00:00:00Z` : NaN);
+        return Number.isNaN(d.getTime()) ? fallback : d;
+      };
+      const fromDate = parseDay(req.query.from, new Date(`${SALES_EPOCH}T00:00:00Z`));
+      const toDate = parseDay(req.query.to, new Date());
+      const gte = Math.floor(fromDate.getTime() / 1000);
+      const lte = Math.floor(toDate.getTime() / 1000) + 86400; // inclusive of the picked end day
+
+      const [plans, connects, eventsAgg, hostsCount, sales] = await Promise.all([
         supabase.from("creator_billing_plans").select("host_id, plan, subscription_status, founding, cancel_at_period_end, current_period_end, stripe_subscription_id"),
-        supabase.from("payments").select("amount, currency, status, provider, created_at, refunded_amount, stripe_payment_intent_id, provider_ref").order("created_at", { ascending: false }).limit(2000),
         supabase.from("profiles").select("id, name, brand, contact_email").not("stripe_connected_account_id", "is", null),
         supabase.from("events").select("id, status, starts_at, kind"),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
+        stripeTicketSales(gte, lte).catch((e) => {
+          console.error("[admin-overview] stripe sales failed:", e?.message);
+          return { sek: null, count: null }; // Stripe down ≠ dashboard down
+        }),
       ]);
 
       // ── Subscriptions (the Stripe mirror we keep via webhooks) ──
@@ -39,19 +79,6 @@ export function registerAdminOverviewRoutes(app) {
       const byPlan = {};
       for (const r of active) byPlan[r.plan || "creator"] = (byPlan[r.plan || "creator"] || 0) + 1;
 
-      // ── Ticket sales ──
-      // Tracked from the subscription launch: earlier rows are Connect
-      // verification tests / imports, not host revenue. Real = succeeded AND
-      // carries a provider reference (an actual Stripe/Swish charge).
-      const SALES_EPOCH = "2026-07-06";
-      const pays = payments.data || [];
-      const ok = pays.filter(
-        (p) => p.status === "succeeded" && p.created_at >= SALES_EPOCH && (p.stripe_payment_intent_id || p.provider_ref),
-      );
-      const sum = (list) => list.reduce((s, p) => s + (p.amount || 0) - (p.refunded_amount || 0), 0);
-      const last30 = ok.filter((p) => p.created_at >= since30);
-      const FEE_BPS = 300;
-
       // ── Events ──
       const evs = (eventsAgg.data || []).filter((e) => e.kind == null || e.kind === "event");
       const upcoming = evs.filter((e) => e.starts_at > nowIso && String(e.status).toUpperCase() !== "DRAFT");
@@ -67,12 +94,12 @@ export function registerAdminOverviewRoutes(app) {
           founding,
         },
         ticketSales: {
-          allTimeSek: Math.round(sum(ok) / 100),
-          last30Sek: Math.round(sum(last30) / 100),
-          count: ok.length,
-          last30Count: last30.length,
-          estFeesSek: Math.round((sum(ok) * FEE_BPS) / 10000 / 100),
-          byProvider: ok.reduce((m, p) => ((m[p.provider || "stripe"] = (m[p.provider || "stripe"] || 0) + 1), m), {}),
+          sek: sales.sek, // null = Stripe unreachable (FE shows —)
+          count: sales.count,
+          from: fromDate.toISOString().slice(0, 10),
+          to: toDate.toISOString().slice(0, 10),
+          launch: SALES_EPOCH,
+          source: "stripe",
         },
         connectedAccounts: {
           count: (connects.data || []).length,

@@ -74,6 +74,11 @@ export function AdminInboxPage() {
   const [grantEmail, setGrantEmail] = useState("");
   const [overview, setOverview] = useState(null);
   const [mapEvents, setMapEvents] = useState([]);
+  // Sales window — resting state is always "since launch".
+  const LAUNCH = "2026-07-06";
+  const today = new Date().toISOString().slice(0, 10);
+  const [salesFrom, setSalesFrom] = useState(LAUNCH);
+  const [salesTo, setSalesTo] = useState(today);
 
   useEffect(() => {
     authenticatedFetch("/admin/me").then((r) => r.json()).then(setMe).catch(() => setMe({ isAdmin: false }));
@@ -94,10 +99,12 @@ export function AdminInboxPage() {
   useEffect(() => { if (tab === "requests") loadRequests(); }, [tab, loadRequests]);
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
-    if (tab === "globe" && !overview) {
-      authenticatedFetch("/admin/overview").then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
-    }
-  }, [tab, overview]);
+    if (tab !== "globe") return;
+    setOverview(null);
+    authenticatedFetch(`/admin/overview?from=${salesFrom}&to=${salesTo}`)
+      .then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, salesFrom, salesTo]);
 
   const TITLES = { globe: "The world", requests: "Requests", admins: "Admins" };
 
@@ -120,9 +127,26 @@ export function AdminInboxPage() {
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 24px 60px", color: C.ink }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em" }}>{TITLES[tab] || "PullUp HQ"}</h1>
-        <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "overview") setOverview(null); }} title="Refresh" style={{ marginLeft: "auto", border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
-          <RefreshCw size={15} />
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {tab === "globe" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${C.line}`, borderRadius: 10, background: "#fff", padding: "4px 8px" }}>
+              <input type="date" value={salesFrom} min={LAUNCH} max={salesTo} onChange={(e) => setSalesFrom(e.target.value || LAUNCH)}
+                style={{ border: "none", outline: "none", fontSize: 12, color: C.ink, fontFamily: "inherit", background: "none" }} />
+              <span style={{ color: C.faint, fontSize: 12 }}>→</span>
+              <input type="date" value={salesTo} min={salesFrom} max={today} onChange={(e) => setSalesTo(e.target.value || today)}
+                style={{ border: "none", outline: "none", fontSize: 12, color: C.ink, fontFamily: "inherit", background: "none" }} />
+              {(salesFrom !== LAUNCH || salesTo !== today) && (
+                <button onClick={() => { setSalesFrom(LAUNCH); setSalesTo(today); }}
+                  style={{ border: "none", background: "none", cursor: "pointer", color: C.pink, fontSize: 11.5, fontWeight: 700, padding: "0 2px" }}>
+                  since launch
+                </button>
+              )}
+            </div>
+          )}
+          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setOverview(null); setSalesTo(today); } }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+            <RefreshCw size={15} />
+          </button>
+        </div>
       </div>
 
       {tab === "globe" && (
@@ -134,8 +158,9 @@ export function AdminInboxPage() {
                 [`${overview.subscriptions.mrrSek.toLocaleString()} kr`, "MRR"],
                 [overview.subscriptions.active, "paying subscribers"],
                 [overview.connectedAccounts.count, "connected accounts"],
-                [`${overview.ticketSales.last30Sek.toLocaleString()} kr`, "ticket sales · 30d"],
-                [`${overview.ticketSales.allTimeSek.toLocaleString()} kr`, "ticket sales · since launch"],
+                [overview.ticketSales.sek == null ? "—" : `${overview.ticketSales.sek.toLocaleString()} kr`,
+                  `ticket sales · ${salesFrom === LAUNCH && salesTo === today ? "since launch" : `${salesFrom.slice(5)} → ${salesTo.slice(5)}`}`],
+                [overview.ticketSales.count == null ? "—" : overview.ticketSales.count, "ticket payments · from Stripe"],
               ].map(([v, l]) => (
                 <div key={l} style={{ border: `1px solid ${C.line}`, borderRadius: 14, background: "#fff", padding: "11px 14px" }}>
                   <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em" }}>{v}</div>

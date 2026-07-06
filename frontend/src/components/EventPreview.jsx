@@ -292,7 +292,11 @@ export function EventPreview({
                 no black-border flash. */}
             {widthSizerUrl && (
               <img
-                src={transformedImageUrl(widthSizerUrl, { width: heroWidth })}
+                // A FIXED tiny width — the sizer is invisible and only needs the
+                // image's aspect ratio, which is identical at any resolution.
+                // Crucially this URL never changes with heroWidth, so the sizer
+                // never reloads and the hero never reflows/"pumps" after load.
+                src={transformedImageUrl(widthSizerUrl, { width: 64 })}
                 alt=""
                 aria-hidden
                 draggable={false}

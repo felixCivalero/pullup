@@ -9,6 +9,7 @@ import { CreditCard } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { SilverIcon } from "./ui/SilverIcon.jsx";
 import { colors } from "../theme/colors.js";
+import { ComingSoonChip } from "./InstagramEarlyAccess.jsx";
 
 export function SettingsPaymentsSection({ showToast, onStatus }) {
   const [connected, setConnected] = useState(false);
@@ -275,6 +276,25 @@ export function SettingsPaymentsSection({ showToast, onStatus }) {
             ? "Disconnect"
             : "Connect Stripe"}
         </button>
+      </div>
+
+      {/* The local rails, named before they're live — pure UI, the machinery
+          activates separately. Guests will pay the way their city pays. */}
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {[
+          { name: "Swish", desc: "Guests pay bank-to-bank in the Swish app — Sweden's rail, no card needed." },
+          { name: "M-Pesa", desc: "Guests pay with the prompt on their phone — Nairobi's rail." },
+        ].map((rail) => (
+          <div key={rail.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, border: `1px solid ${colors.borderFaint}`, background: colors.surface, opacity: 0.75 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: colors.text }}>
+                {rail.name}
+                <ComingSoonChip />
+              </div>
+              <div style={{ fontSize: 12.5, color: colors.textMuted, marginTop: 2 }}>{rail.desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

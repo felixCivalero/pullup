@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { RefreshCw, Check, X as XIcon } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { AdminGlobe } from "../components/AdminGlobe.jsx";
+import { LandingOverview } from "./analytics/LandingOverview.jsx";
 import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
 const C = {
@@ -74,6 +75,7 @@ export function AdminInboxPage() {
   const [admins, setAdmins] = useState([]);
   const [grantEmail, setGrantEmail] = useState("");
   const [overview, setOverview] = useState(null);
+  const [ovNonce, setOvNonce] = useState(0); // bump to refetch (retry on failure, refresh button)
   const [mapEvents, setMapEvents] = useState([]);
   const [pulse, setPulse] = useState(null);
   const [journeys, setJourneys] = useState(null);
@@ -112,13 +114,19 @@ export function AdminInboxPage() {
   useEffect(() => { if (tab === "admins" && me?.role === "super") loadAdmins(); }, [tab, me, loadAdmins]);
   useEffect(() => {
     if (tab !== "globe") return;
-    setOverview(null);
+    let on = true;
+    // One failed/slow fetch must never leave the strip blank forever — retry
+    // in 5s until it lands (the Stripe round-trip can take a couple seconds).
+    const retry = () => { if (on) setTimeout(() => on && setOvNonce((n) => n + 1), 5000); };
     authenticatedFetch(`/admin/overview?from=${salesFrom}&to=${salesTo}`)
-      .then((r) => (r.ok ? r.json() : null)).then((d) => d && setOverview(d)).catch(() => {});
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!on) return; if (d) setOverview(d); else retry(); })
+      .catch(retry);
+    return () => { on = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, salesFrom, salesTo]);
+  }, [tab, salesFrom, salesTo, ovNonce]);
 
-  const TITLES = { globe: "The world", pulse: "The pulse", journeys: "Journeys", requests: "Requests", admins: "Admins" };
+  const TITLES = { globe: "The world", pulse: "The pulse", analytics: "The front door", journeys: "Journeys", requests: "Requests", admins: "Admins" };
 
   if (me && !me.isAdmin) {
     return <div style={{ padding: 60, textAlign: "center", color: C.muted, fontSize: 15 }}>Admin access required.</div>;
@@ -140,7 +148,7 @@ export function AdminInboxPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em" }}>{TITLES[tab] || "PullUp HQ"}</h1>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          {tab === "globe" && (
+          {(tab === "globe" || tab === "analytics") && (
             <DateRangePicker
               startDate={new Date(`${salesFrom}T00:00:00`)}
               endDate={new Date(`${salesTo}T00:00:00`)}
@@ -159,7 +167,7 @@ export function AdminInboxPage() {
               ]}
             />
           )}
-          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setOverview(null); setSalesTo(today); } if (tab === "pulse") setPulse(null); if (tab === "journeys") setJourneys(null); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
+          <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setSalesTo(today); setOvNonce((n) => n + 1); } if (tab === "pulse") setPulse(null); if (tab === "journeys") setJourneys(null); }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
             <RefreshCw size={15} />
           </button>
         </div>
@@ -186,6 +194,15 @@ export function AdminInboxPage() {
             </div>
           )}
           <AdminGlobe events={mapEvents} />
+        </div>
+      )}
+
+      {tab === "analytics" && (
+        <div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12 }}>
+            How the new landing page performs — where people come from, how far they scroll, what they click, who becomes a host.
+          </div>
+          <LandingOverview dateRange={{ startDate: new Date(`${salesFrom}T00:00:00`), endDate: new Date(`${salesTo}T23:59:59`) }} />
         </div>
       )}
 

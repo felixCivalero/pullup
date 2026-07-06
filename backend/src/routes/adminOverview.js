@@ -18,7 +18,7 @@ export function registerAdminOverviewRoutes(app) {
       const since30 = new Date(Date.now() - 30 * 86400_000).toISOString();
       const nowIso = new Date().toISOString();
       const [plans, payments, connects, eventsAgg, hostsCount] = await Promise.all([
-        supabase.from("creator_billing_plans").select("host_id, plan, subscription_status, founding, cancel_at_period_end, current_period_end"),
+        supabase.from("creator_billing_plans").select("host_id, plan, subscription_status, founding, cancel_at_period_end, current_period_end, stripe_subscription_id"),
         supabase.from("payments").select("amount, currency, status, provider, created_at, refunded_amount").order("created_at", { ascending: false }).limit(2000),
         supabase.from("profiles").select("id, name, brand, contact_email").not("stripe_connected_account_id", "is", null),
         supabase.from("events").select("id, status, starts_at, kind"),
@@ -26,11 +26,15 @@ export function registerAdminOverviewRoutes(app) {
       ]);
 
       // ── Subscriptions (the Stripe mirror we keep via webhooks) ──
-      const rows = plans.data || [];
+      // Only rows with a real Stripe subscription behind them count: probe
+      // hosts get grantHosting'd "active" rows with no stripe ids, and a
+      // crashed gate run can leave one behind — it must never read as MRR.
+      const allRows = plans.data || [];
+      const rows = allRows.filter((r) => r.stripe_subscription_id);
       const active = rows.filter((r) => r.subscription_status === "active");
       const pastDue = rows.filter((r) => r.subscription_status === "past_due");
       const cancelling = active.filter((r) => r.cancel_at_period_end);
-      const founding = rows.filter((r) => r.founding === true).length;
+      const founding = allRows.filter((r) => r.founding === true).length;
       const mrr = active.reduce((s, r) => s + (TIERS[r.plan]?.priceSek ?? TIERS.creator?.priceSek ?? 0), 0);
       const byPlan = {};
       for (const r of active) byPlan[r.plan || "creator"] = (byPlan[r.plan || "creator"] || 0) + 1;

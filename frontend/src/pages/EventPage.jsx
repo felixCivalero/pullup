@@ -817,7 +817,18 @@ export function EventPage() {
             });
             return;
           }
-          navigate(`/events/${event.id}/room`);
+          // Carry the fresh RSVP with us so the room's preview (no session yet)
+          // greets them and points at the verify LINK we just emailed — instead
+          // of a cold login modal. No session is minted here: a session needs a
+          // VERIFIED email, and the confirmation email's room link is that proof.
+          navigate(`/events/${event.id}/room`, {
+            state: {
+              justRsvped: {
+                name: body.rsvp?.name || submittedData?.name || null,
+                email: body.rsvp?.email || submittedData?.email || null,
+              },
+            },
+          });
           return;
         }
         navigate(`/e/${event.slug}/success`, {

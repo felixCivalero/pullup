@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { RefreshCw, Check, X as XIcon } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { AdminGlobe } from "../components/AdminGlobe.jsx";
+import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
 const C = {
   ink: "#0a0a0a",
@@ -76,7 +77,8 @@ export function AdminInboxPage() {
   const [mapEvents, setMapEvents] = useState([]);
   // Sales window — resting state is always "since launch".
   const LAUNCH = "2026-07-06";
-  const today = new Date().toISOString().slice(0, 10);
+  const _n = new Date();
+  const today = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, "0")}-${String(_n.getDate()).padStart(2, "0")}`;
   const [salesFrom, setSalesFrom] = useState(LAUNCH);
   const [salesTo, setSalesTo] = useState(today);
 
@@ -129,19 +131,23 @@ export function AdminInboxPage() {
         <h1 style={{ margin: 0, fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em" }}>{TITLES[tab] || "PullUp HQ"}</h1>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           {tab === "globe" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${C.line}`, borderRadius: 10, background: "#fff", padding: "4px 8px" }}>
-              <input type="date" value={salesFrom} min={LAUNCH} max={salesTo} onChange={(e) => setSalesFrom(e.target.value || LAUNCH)}
-                style={{ border: "none", outline: "none", fontSize: 12, color: C.ink, fontFamily: "inherit", background: "none" }} />
-              <span style={{ color: C.faint, fontSize: 12 }}>→</span>
-              <input type="date" value={salesTo} min={salesFrom} max={today} onChange={(e) => setSalesTo(e.target.value || today)}
-                style={{ border: "none", outline: "none", fontSize: 12, color: C.ink, fontFamily: "inherit", background: "none" }} />
-              {(salesFrom !== LAUNCH || salesTo !== today) && (
-                <button onClick={() => { setSalesFrom(LAUNCH); setSalesTo(today); }}
-                  style={{ border: "none", background: "none", cursor: "pointer", color: C.pink, fontSize: 11.5, fontWeight: 700, padding: "0 2px" }}>
-                  since launch
-                </button>
-              )}
-            </div>
+            <DateRangePicker
+              startDate={new Date(`${salesFrom}T00:00:00`)}
+              endDate={new Date(`${salesTo}T00:00:00`)}
+              onChange={(sd, ed) => {
+                const day = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                if (sd) setSalesFrom(day(sd));
+                if (ed) setSalesTo(day(ed));
+              }}
+              onClear={() => { setSalesFrom(LAUNCH); setSalesTo(today); }}
+              allowPast
+              blockFuture
+              quickRanges={[
+                { label: "Since launch", getRange: () => [new Date(`${LAUNCH}T00:00:00`), new Date()] },
+                { label: "Last 7 days", getRange: () => [new Date(Date.now() - 6 * 86400_000), new Date()] },
+                { label: "Last 30 days", getRange: () => [new Date(Date.now() - 29 * 86400_000), new Date()] },
+              ]}
+            />
           )}
           <button onClick={() => { loadMapEvents(); if (tab === "requests") loadRequests(); if (tab === "globe") { setOverview(null); setSalesTo(today); } }} title="Refresh" style={{ border: `1px solid ${C.line}`, background: "#fff", borderRadius: 10, padding: "8px 10px", cursor: "pointer", color: C.muted }}>
             <RefreshCw size={15} />

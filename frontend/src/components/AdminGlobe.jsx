@@ -64,6 +64,10 @@ export function AdminGlobe({ events }) {
   const [city, setCity] = useState("all");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState(null);
+  // Camera altitude — dots/labels/rings are sized in world degrees, so they
+  // must shrink as you fly in or a "small dot" becomes a black continent.
+  const [alt, setAlt] = useState(1.9);
+  const altRef = useRef(1.9);
 
   useEffect(() => {
     let on = true;
@@ -131,6 +135,14 @@ export function AdminGlobe({ events }) {
     g.controls().autoRotateSpeed = 0.5;
     g.controls().enableZoom = true;
     g.pointOfView({ lat: 45, lng: 18, altitude: 1.9 }, 0);
+    g.onZoom((pov) => {
+      // Re-render sizes only on meaningful altitude change (rotation keeps
+      // altitude constant — don't churn state 60×/s while it spins).
+      if (Math.abs(pov.altitude - altRef.current) / altRef.current > 0.08) {
+        altRef.current = pov.altitude;
+        setAlt(pov.altitude);
+      }
+    });
     globeRef.current = g;
     const onResize = () => g.width(el.current?.clientWidth || 800).height(el.current?.clientHeight || 560);
     window.addEventListener("resize", onResize);
@@ -151,12 +163,16 @@ export function AdminGlobe({ events }) {
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
+    // Proportional to zoom: full size at the opening view (alt 1.9), shrinking
+    // linearly as you fly in, floored so dots never vanish.
+    const k = Math.max(0.045, Math.min(1, alt / 1.9));
     g.pointsData(points)
+      .pointResolution(24)
       .pointLat((d) => d.lat)
       .pointLng((d) => d.lng)
-      .pointColor((d) => (selected && d.id === selected.id ? INK : d.upcoming ? NEON : "rgba(10,10,10,0.35)"))
+      .pointColor((d) => (selected && d.id === selected.id ? "#c2127a" : d.upcoming ? NEON : "rgba(10,10,10,0.35)"))
       .pointAltitude(() => 0.002)
-      .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.16))
+      .pointRadius((d) => (selected && d.id === selected.id ? 0.4 : d.upcoming ? 0.28 : 0.16) * k)
       .pointLabel((d) => `<div style="font-family:-apple-system,sans-serif;font-size:12px;background:#fff;color:${INK};border:1px solid rgba(10,10,10,0.12);border-radius:10px;padding:8px 10px;box-shadow:0 8px 24px rgba(10,10,10,0.14);">
           <b>${String(d.title).replace(/</g, "&lt;")}</b><br/>
           ${d.city} · ${fmtDate(d.startsAt)}${d.coming ? ` · ${d.coming} coming` : ""}
@@ -166,28 +182,28 @@ export function AdminGlobe({ events }) {
       .ringLat((d) => d.lat)
       .ringLng((d) => d.lng)
       .ringColor(() => (t) => `rgba(255,45,160,${Math.max(0, 0.65 * (1 - t))})`)
-      .ringMaxRadius(2.6)
-      .ringPropagationSpeed(1.6)
+      .ringMaxRadius(2.6 * k)
+      .ringPropagationSpeed(1.6 * k)
       .ringRepeatPeriod(1300)
       .ringAltitude(0.003);
     g.labelsData(labels)
       .labelLat((d) => d.lat)
       .labelLng((d) => d.lng)
       .labelText((d) => d.city)
-      .labelSize(0.45)
+      .labelSize(Math.max(0.09, 0.45 * k))
       .labelDotRadius(0)
       .labelColor((d) => (d.upcoming ? NEON : "rgba(10,10,10,0.6)"))
       .labelAltitude(0.012)
       .labelResolution(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, labels, selected]);
+  }, [points, labels, selected, alt]);
 
   function select(e) {
     setSelected(e);
     const g = globeRef.current;
     if (g && e) {
       g.controls().autoRotate = false;
-      g.pointOfView({ lat: e.lat - 0.15, lng: e.lng, altitude: 0.5 }, 900);
+      g.pointOfView({ lat: e.lat - 0.1, lng: e.lng, altitude: 0.35 }, 900);
     }
   }
   function clearSelected() {

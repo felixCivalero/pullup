@@ -732,6 +732,19 @@ app.listen(PORT, HOST, async () => {
   // rails across the every-15-min ticks, so the recurring tick is safe.
   setInterval(sendEventReminders, REMINDER_INTERVAL_MS);
 
+  /* ── Host broadcast drainer ───────────────────────────────
+   * Delivers queued "send this event to your community" broadcasts off the
+   * request thread (see services/roomBroadcast.js). enqueue kicks it once for
+   * instant small-send delivery; this timer is the durability net that resumes
+   * anything left after a restart, transient failure, or a huge broadcast that
+   * spanned multiple passes. Overlap-guarded internally.
+   */
+  setInterval(() => {
+    import("./services/roomBroadcast.js")
+      .then((m) => m.drainRoomBroadcasts())
+      .catch((err) => console.error("[broadcast] drain tick failed:", err?.message));
+  }, 10 * 1000);
+
   /* ── Post-event messages ──────────────────────────────────
    * The third leg of the per-event communication arc: after the event, a
    * "thanks — upload your photos" note routed to the Room's content wall.

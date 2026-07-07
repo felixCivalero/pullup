@@ -87,6 +87,39 @@ export function registerHostRoomRoutes(app) {
     }
   });
 
+  // Scalable broadcast — "send this event to your community" and any large bulk
+  // send. Unlike /message/bulk (which fans out inline and blocks the request),
+  // this only ENQUEUES and returns immediately; a background drainer delivers
+  // each recipient durably (see services/roomBroadcast.js). The client polls
+  // GET /host/room/broadcast/:id for live progress.
+  app.post("/host/room/broadcast", requireAuth, async (req, res) => {
+    try {
+      const { enqueueRoomBroadcast } = await import("../services/roomBroadcast.js");
+      const { personIds, text, subject, attachments, eventId } = req.body || {};
+      const r = await enqueueRoomBroadcast({ hostId: req.user.id, personIds, text, subject, attachments, eventId });
+      if (!r.ok) {
+        const code = r.error === "subscription_required" ? 402 : r.error === "no_recipients" ? 400 : 500;
+        return res.status(code).json(r);
+      }
+      res.json(r);
+    } catch (error) {
+      console.error("Error enqueuing room broadcast:", error);
+      res.status(500).json({ ok: false, error: "enqueue_failed" });
+    }
+  });
+
+  app.get("/host/room/broadcast/:id", requireAuth, async (req, res) => {
+    try {
+      const { getBroadcastProgress } = await import("../services/roomBroadcast.js");
+      const progress = await getBroadcastProgress({ hostId: req.user.id, broadcastId: req.params.id });
+      if (!progress) return res.status(404).json({ ok: false, error: "not_found" });
+      res.json({ ok: true, ...progress });
+    } catch (error) {
+      console.error("Error reading broadcast progress:", error);
+      res.status(500).json({ ok: false, error: "progress_failed" });
+    }
+  });
+
   // Upload an attachment for a Room email — returns a public URL the composer
   // includes in the send (images embed inline, other files become a link).
   app.post("/host/room/attachment", requireAuth, async (req, res) => {

@@ -98,19 +98,20 @@ export default function PostPublishPage() {
   const emCount = recipients.filter(onEmail).length;
   const noneCount = recipients.length - waCount - emCount;
 
-  // phase: compose → sending → done
+  // phase: compose → enqueuing (brief POST) → sending (queued, polling) → done
   const [phase, setPhase] = useState("compose");
-  const [result, setResult] = useState(null);
+  const [dispatch, setDispatch] = useState(null); // { broadcastId, accepted, wa, em, none }
+  const [progress, setProgress] = useState(null);  // live server ledger
+  const busy = phase !== "compose";
 
   async function send() {
-    if (!recipients.length || phase === "sending") return;
-    setPhase("sending");
+    if (!recipients.length || busy) return;
+    setPhase("enqueuing");
     try {
-      const res = await authenticatedFetch("/host/room/message/bulk", {
+      const res = await authenticatedFetch("/host/room/broadcast", {
         method: "POST",
         body: JSON.stringify({
           personIds: recipients.map((p) => p.id),
-          channel: "whatsapp", // hint only — the server splits by reachability
           text: message.trim(),
           subject: subject.trim() || undefined,
           eventId: id,
@@ -119,22 +120,45 @@ export default function PostPublishPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         setPhase("compose");
-        showToast("Couldn't send — try again", "error");
+        showToast(data.error === "subscription_required"
+          ? "Your subscription is paused — reactivate to send."
+          : "Couldn't send — try again", "error");
         return;
       }
-      setResult(data);
-      setPhase("done");
+      setDispatch({ broadcastId: data.broadcastId, accepted: data.accepted, wa: waCount, em: emCount, none: noneCount });
+      setPhase("sending");
     } catch {
       setPhase("compose");
       showToast("Couldn't send — check your connection and try again", "error");
     }
   }
 
+  // Poll live delivery while sending. The drainer delivers server-side no matter
+  // what — polling just animates the receipt. Stops when the queue is dry, or
+  // after a cap (a very large send keeps going in the background; the host can
+  // leave and watch the Room).
+  useEffect(() => {
+    if (phase !== "sending" || !dispatch?.broadcastId) return;
+    let alive = true, ticks = 0;
+    const iv = setInterval(poll, 1200);
+    poll();
+    async function poll() {
+      try {
+        const r = await authenticatedFetch(`/host/room/broadcast/${dispatch.broadcastId}`);
+        const d = r.ok ? await r.json() : null;
+        if (alive && d?.ok) setProgress(d);
+        if (alive && d?.done) { clearInterval(iv); setPhase("done"); }
+      } catch { /* keep polling */ }
+      if (++ticks > 150 && alive) { clearInterval(iv); setPhase("done"); } // ~3 min cap
+    }
+    return () => { alive = false; clearInterval(iv); };
+  }, [phase, dispatch?.broadcastId]);
+
   const loading = people === null || !eventLoaded;
 
-  // ── Result screen ───────────────────────────────────────────────────────
-  if (phase === "done" && result) {
-    return <Receipt result={result} event={event} roomPath={roomPath} navigate={navigate} />;
+  // ── Result / live-progress screen ────────────────────────────────────────
+  if (phase === "sending" || phase === "done") {
+    return <BroadcastResult phase={phase} dispatch={dispatch} progress={progress} event={event} roomPath={roomPath} navigate={navigate} />;
   }
 
   return (
@@ -252,19 +276,19 @@ export default function PostPublishPage() {
             {/* SEND */}
             <button
               onClick={send}
-              disabled={!recipients.length || phase === "sending"}
+              disabled={!recipients.length || busy}
               style={{
                 width: "100%", marginTop: 8, padding: "15px 20px", borderRadius: 14, border: "none",
-                background: recipients.length && phase !== "sending" ? colors.accent : colors.surfaceMuted,
-                color: recipients.length && phase !== "sending" ? "#fff" : colors.textFaded,
+                background: recipients.length && !busy ? colors.accent : colors.surfaceMuted,
+                color: recipients.length && !busy ? "#fff" : colors.textFaded,
                 fontSize: 16, fontWeight: 800, fontFamily: SF,
-                cursor: recipients.length && phase !== "sending" ? "pointer" : "default",
-                boxShadow: recipients.length && phase !== "sending" ? colors.accentShadow : "none",
+                cursor: recipients.length && !busy ? "pointer" : "default",
+                boxShadow: recipients.length && !busy ? colors.accentShadow : "none",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
               }}
             >
-              {phase === "sending"
-                ? `Sending to ${recipients.length}…`
+              {busy
+                ? "Sending…"
                 : <>Send to {plural(recipients.length, "person", "people")} <ArrowRight size={18} /></>}
             </button>
             <button onClick={goRoom} style={{ ...linkBtn, display: "block", width: "100%", textAlign: "center", marginTop: 14, padding: 4 }}>
@@ -277,57 +301,89 @@ export default function PostPublishPage() {
   );
 }
 
-// ── The receipt: unmistakable proof it went through ────────────────────────
-function Receipt({ result, event, roomPath, navigate }) {
-  const { sent = 0, noEmail = 0, failed = 0, byChannel = {} } = result;
-  const wa = byChannel.whatsapp || 0;
-  const em = byChannel.email || 0;
+// ── Live progress → receipt: unmistakable proof it went through ────────────
+// While the drainer delivers, this fills a bar in real time; when the queue is
+// dry it settles into the final receipt. Same screen, no jarring swap.
+function BroadcastResult({ phase, dispatch, progress, event, roomPath, navigate }) {
+  const total = progress?.total ?? dispatch?.accepted ?? 0;
+  const sent = progress?.sent ?? 0;
+  const failed = progress?.failed ?? 0;
+  const noEmail = progress?.noEmail ?? 0;
+  const pending = progress?.pending ?? total;
+  const processed = sent + failed + noEmail;
+  const wa = progress?.byChannel?.whatsapp ?? 0;
+  const em = progress?.byChannel?.email ?? 0;
+  const done = phase === "done";
   const ok = sent > 0;
   const slug = event?.slug;
+  const pct = total ? Math.round((processed / total) * 100) : 0;
 
   return (
     <div style={{ minHeight: "100dvh", background: colors.background, fontFamily: SF, color: colors.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 18px" }}>
       <div style={{ maxWidth: 440, width: "100%", textAlign: "center" }}>
-        <div style={{ width: 68, height: 68, borderRadius: "50%", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", background: ok ? colors.successRgba : colors.warningRgba }}>
-          {ok
-            ? <Check size={34} strokeWidth={3} style={{ color: colors.success }} />
-            : <span style={{ fontSize: 30 }}>🤔</span>}
+        <div style={{ width: 68, height: 68, borderRadius: "50%", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", background: !done ? colors.accentSoft : ok ? colors.successRgba : colors.warningRgba }}>
+          {!done
+            ? <Spinner />
+            : ok
+              ? <Check size={34} strokeWidth={3} style={{ color: colors.success }} />
+              : <span style={{ fontSize: 30 }}>🤔</span>}
         </div>
 
         <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>
-          {ok ? "Sent! 🎉" : "That didn’t go through"}
+          {!done ? "Sending to your community…" : ok ? "Sent! 🎉" : "Nothing went out yet"}
         </h1>
 
-        {ok ? (
+        {/* Live progress bar (also the settled 100% state) */}
+        {total > 0 && (
           <>
-            <p style={{ fontSize: 16, color: colors.textMuted, margin: "0 0 18px", lineHeight: 1.5 }}>
-              Your event went out to <strong style={{ color: colors.text }}>{plural(sent, "person", "people")}</strong>.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 8 }}>
-              {wa > 0 && <span style={{ ...tag, color: colors.whatsapp, background: colors.whatsappSoft, borderColor: colors.whatsappBorder }}>{wa} on WhatsApp</span>}
-              {em > 0 && <span style={{ ...tag, color: colors.secondary, background: colors.secondarySoft, borderColor: colors.secondaryBorder }}>{em} on email</span>}
+            <div style={{ height: 8, borderRadius: 999, background: colors.surfaceMuted, overflow: "hidden", margin: "14px 0 8px" }}>
+              <div style={{ height: "100%", width: `${done ? 100 : Math.max(pct, 4)}%`, borderRadius: 999, background: ok || !done ? colors.accent : colors.warning, transition: "width .5s ease" }} />
             </div>
-            {(noEmail > 0 || failed > 0) && (
-              <p style={{ fontSize: 13, color: colors.textSubtle, margin: "6px 0 0", lineHeight: 1.5 }}>
-                {noEmail > 0 && <>{plural(noEmail, "person doesn’t", "people don’t")} have an email yet — they’re saved in your Room. </>}
-                {failed > 0 && <>{plural(failed, "message", "messages")} couldn’t be delivered — you can retry from your Room.</>}
-              </p>
-            )}
-            <p style={{ fontSize: 13, color: colors.textSubtle, margin: "16px 0 0", lineHeight: 1.5 }}>
-              You’ll see every message — and who’s replied — in your Room.
-            </p>
+            <div style={{ fontSize: 13, color: colors.textMuted, marginBottom: done ? 14 : 4 }}>
+              {done ? `Delivered to ${plural(sent, "person", "people")}` : `${processed} of ${total} delivered`}
+            </div>
           </>
-        ) : (
-          <p style={{ fontSize: 15, color: colors.textMuted, margin: "0 0 20px", lineHeight: 1.5 }}>
-            No messages were sent. Nothing was lost — you can send it again from your Room whenever you’re ready.
+        )}
+
+        {/* Channel chips — appear as deliveries resolve */}
+        {(wa > 0 || em > 0) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 8 }}>
+            {wa > 0 && <span style={{ ...tag, color: colors.whatsapp, background: colors.whatsappSoft, borderColor: colors.whatsappBorder }}>{wa} on WhatsApp</span>}
+            {em > 0 && <span style={{ ...tag, color: colors.secondary, background: colors.secondarySoft, borderColor: colors.secondaryBorder }}>{em} on email</span>}
+          </div>
+        )}
+
+        {done && (noEmail > 0 || failed > 0) && (
+          <p style={{ fontSize: 13, color: colors.textSubtle, margin: "6px 0 0", lineHeight: 1.5 }}>
+            {noEmail > 0 && <>{plural(noEmail, "person doesn’t", "people don’t")} have an email yet — they’re saved in your Room. </>}
+            {failed > 0 && <>{plural(failed, "message", "messages")} couldn’t be delivered — you can retry from your Room.</>}
           </p>
         )}
+
+        {/* Cap reached but queue not empty: honest "still going" note. */}
+        {done && pending > 0 && (
+          <p style={{ fontSize: 13, color: colors.textSubtle, margin: "6px 0 0", lineHeight: 1.5 }}>
+            Still sending the last {pending} in the background — they’ll arrive shortly. Track them in your Room.
+          </p>
+        )}
+
+        {done
+          ? ok && (
+              <p style={{ fontSize: 13, color: colors.textSubtle, margin: "16px 0 0", lineHeight: 1.5 }}>
+                You’ll see every message — and who’s replied — in your Room.
+              </p>
+            )
+          : (
+            <p style={{ fontSize: 13, color: colors.textSubtle, margin: "10px 0 0", lineHeight: 1.5 }}>
+              You can leave this page — it keeps sending in the background.
+            </p>
+          )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 26 }}>
           <button onClick={() => navigate(roomPath)} style={{ padding: "14px 20px", borderRadius: 14, border: "none", background: colors.accent, color: "#fff", fontSize: 15, fontWeight: 800, fontFamily: SF, cursor: "pointer", boxShadow: colors.accentShadow, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             Go to your Room <ArrowRight size={17} />
           </button>
-          {slug && (
+          {done && slug && (
             <a href={`/e/${slug}`} target="_blank" rel="noopener noreferrer" style={{ padding: "12px 20px", borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.background, color: colors.textMuted, fontSize: 14, fontWeight: 600, fontFamily: SF, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               View event page <ExternalLink size={15} />
             </a>
@@ -335,6 +391,14 @@ function Receipt({ result, event, roomPath, navigate }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span style={{ width: 30, height: 30, borderRadius: "50%", border: `3px solid ${colors.accentSoftStrong}`, borderTopColor: colors.accent, display: "inline-block", animation: "ppspin 0.8s linear infinite" }}>
+      <style>{"@keyframes ppspin{to{transform:rotate(360deg)}}"}</style>
+    </span>
   );
 }
 

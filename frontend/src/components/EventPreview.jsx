@@ -465,7 +465,7 @@ export function EventPreview({
               {/* Title/location + form */}
               <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                 {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
-                {location && <div style={{ fontSize: "12px", fontWeight: 500, color: "#fff", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
+                {location && !hideLocation && <div style={{ fontSize: "12px", fontWeight: 500, color: "#fff", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
               </div>
               {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
             </div>

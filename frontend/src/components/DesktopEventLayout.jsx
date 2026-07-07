@@ -410,7 +410,7 @@ export function DesktopEventLayout({
                       {title}
                     </div>
                   )}
-                  {location && (
+                  {location && !hideLocation && (
                     <div
                       style={{
                         fontSize: "12px",

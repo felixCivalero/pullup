@@ -535,7 +535,11 @@ export function CreateEventPage() {
   // publishing/leaving the community editor lands in the main room, not an
   // event room.
   const mainRoomPath = user?.id ? `/r/${user.id}` : "/room";
-  const afterPublishPath = (eventId) => (isCommunity ? mainRoomPath : `/events/${eventId}/room`);
+  // After publishing an EVENT, land on the post-publish page — the one-tap
+  // "send this to your community" step (it handles the no-contacts case and
+  // routes on to the Room itself). A community has no event to announce, so it
+  // still lands straight in its main room.
+  const afterPublishPath = (eventId) => (isCommunity ? mainRoomPath : `/events/${eventId}/published`);
   const publishToast = () => (isCommunity ? "Your community is live!" : "Published — your event is live!");
   // The rail, filtered to this kind's parts (registry-driven). Events get the
   // full rail unchanged; a community drops the event-only tools (e.g. Auto-DM).

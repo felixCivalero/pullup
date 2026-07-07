@@ -70,6 +70,7 @@ const RsvpSuccessPage = lazyPage(() => import("./pages/RsvpSuccessPage"), "RsvpS
 const EventSuccessPage = lazyPage(() => import("./pages/EventSuccessPage"), "EventSuccessPage");
 const EventGuestsPage = lazyPage(() => import("./pages/EventGuestsPage"), "EventGuestsPage");
 const EventRoomPage = lazyPage(() => import("./pages/EventRoomPage"));
+const PostPublishPage = lazyPage(() => import("./pages/PostPublishPage"));
 const HostCheckinPage = lazyPage(() => import("./pages/HostCheckinPage"));
 const NodeProfilePage = lazyPage(() => import("./pages/NodeProfilePage"));
 const SettingsPage = lazyPage(() => import("./pages/SettingsPage"), "SettingsPage");
@@ -223,6 +224,16 @@ function App() {
             element={
               <ErrorBoundary>
                 <EventRoomPage />
+              </ErrorBoundary>
+            }
+          />
+          {/* Post-publish: the "send this event to your community" step the host
+              lands on right after going live (see CreateEventPage afterPublishPath). */}
+          <Route
+            path="/events/:id/published"
+            element={
+              <ErrorBoundary>
+                <PostPublishPage />
               </ErrorBoundary>
             }
           />

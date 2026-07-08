@@ -509,6 +509,17 @@ export function registerEventRoutes(app) {
       return res.status(400).json({ error: "title and startsAt are required" });
     }
 
+    // @pullup.se is the admin plane, not a host. Admins operate hosts via "Act
+    // as" (a real session swap into the host), never their own events — so a
+    // genuine staff session never creates a host identity. When acting-as, the
+    // session is the host's, so this doesn't fire.
+    if (String(req.user?.email || "").toLowerCase().endsWith("@pullup.se")) {
+      return res.status(403).json({
+        error: "admin_cannot_host",
+        message: "PullUp staff accounts don't host events — use Act as.",
+      });
+    }
+
     // For TBA events (hideDate=true), startsAt is a private placeholder used for
     // sorting/reminders only — the public never sees it. Don't reject when the
     // placeholder is in the past; the host shouldn't have to babysit it.

@@ -3,6 +3,7 @@
 
 import { supabase } from "../supabase.js";
 import { getUserProfile, findUserIdByPatToken, isPatToken } from "../data.js";
+import { ensureDomainAdmin } from "../repos/platformAdmins.js";
 
 // Resolve a bearer token to a user record. Returns null on any failure so
 // callers can produce a single, opaque 401.
@@ -68,6 +69,15 @@ export async function requireAuth(req, res, next) {
       ...user.user_metadata,
     };
     req.authType = authType;
+
+    // A verified @pullup.se mailbox is staff → auto-enroll as admin so the whole
+    // app (admin nav, gates) reflects it without a manual grant. Fast no-op for
+    // hosts (string check, no DB); never block the request on enrollment.
+    try {
+      await ensureDomainAdmin(user);
+    } catch {
+      /* enrollment is best-effort; auth still succeeds */
+    }
 
     next();
   } catch (error) {

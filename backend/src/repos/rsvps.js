@@ -232,6 +232,13 @@ export async function addRsvp({
 
   const normalizedEmail = email.trim().toLowerCase();
 
+  // @pullup.se is the admin plane, never a guest. Blocking RSVP for staff emails
+  // keeps admins out of hosts' CRMs / guest funnels and prevents one identity
+  // from being admin + attendee at once. Internal testing uses a non-pullup email.
+  if (normalizedEmail.endsWith("@pullup.se")) {
+    return { error: "pullup_email_blocked" };
+  }
+
   // Find or create person
   const person = await findOrCreatePerson(normalizedEmail, name);
 

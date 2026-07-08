@@ -497,6 +497,13 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
       return res.status(400).json({ error: "Invalid email format" });
     }
 
+    if (result.error === "pullup_email_blocked") {
+      return res.status(403).json({
+        error: "pullup_email_blocked",
+        message: "PullUp staff accounts (@pullup.se) can't RSVP. Use a personal email.",
+      });
+    }
+
     if (result.error === "duplicate") {
       // Special handling for waitlist upgrade flow
       if (existingWaitlistRsvp && waitlistRsvpId && waitlistToken) {

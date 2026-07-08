@@ -387,11 +387,16 @@ export function registerRoomRoutes(app) {
       const vw = await resolveViewer(req, { email: email || null });
       const viewer = vw.person;
       const allIds = [...new Set([...hostedIds, ...pulledUpRows.map((e) => e.id)])];
-      let myPullups = new Set(), myRsvps = new Set();
+      let myPullups = new Set(), myRsvps = new Set(), myWaitlist = new Set();
       if (viewer && allIds.length) {
-        const { data: rs } = await supabase.from("rsvps").select("event_id, pulled_up").eq("person_id", viewer.id).in("event_id", allIds);
-        myRsvps = new Set((rs || []).map((r) => r.event_id));
-        myPullups = new Set((rs || []).filter((r) => r.pulled_up === true).map((r) => r.event_id));
+        const { data: rs } = await supabase.from("rsvps").select("event_id, pulled_up, status, booking_status").eq("person_id", viewer.id).in("event_id", allIds);
+        // A cancelled RSVP is no relationship at all; a WAITLIST one is a real
+        // relationship but NOT "going" — keep the two apart so the tile can say
+        // "Waitlisted" instead of lying "You're going".
+        const active = (rs || []).filter((r) => r.status !== "cancelled");
+        myRsvps = new Set(active.map((r) => r.event_id));
+        myPullups = new Set(active.filter((r) => r.pulled_up === true).map((r) => r.event_id));
+        myWaitlist = new Set(active.filter((r) => r.status === "waitlist" || r.booking_status === "WAITLIST").map((r) => r.event_id));
       }
       const inOrbit = myPullups.size > 0 || myRsvps.size > 0;
 
@@ -416,7 +421,7 @@ export function registerRoomRoutes(app) {
       const forcedTile = forced === "guest_pullup" ? "pulledup" : forced === "guest_rsvp" ? "rsvped" : forced === "guest_waitlist" ? "waitlist" : null;
       const mapTile = (e) => {
         const end = e.ends_at ? new Date(e.ends_at).getTime() : (e.starts_at ? new Date(e.starts_at).getTime() + 12 * 3600 * 1000 : null);
-        const viewerState = effectiveOwner ? "owner" : forcedTile ? forcedTile : myPullups.has(e.id) ? "pulledup" : myRsvps.has(e.id) ? "rsvped" : "none";
+        const viewerState = effectiveOwner ? "owner" : forcedTile ? forcedTile : myPullups.has(e.id) ? "pulledup" : myWaitlist.has(e.id) ? "waitlist" : myRsvps.has(e.id) ? "rsvped" : "none";
         const kind = e.kind || "event";
         return {
           id: e.id,

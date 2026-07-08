@@ -360,7 +360,7 @@ function RosterStrip({ roster, inBar = false }) {
 // The guest's face of the same presence bar — the phase-narrowed room roster
 // the server already seeWho-gated (co-present people, viewer excluded). Before
 // the doors that's everyone coming; once the event starts, who pulled up.
-function GuestPresenceStrip({ people, lobbyOpen }) {
+function GuestPresenceStrip({ people, lobbyOpen, isWaitlist }) {
   if (!people?.length) return null;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
@@ -377,7 +377,9 @@ function GuestPresenceStrip({ people, lobbyOpen }) {
       <span style={{ fontSize: "12.5px", fontWeight: 700, color: colors.accent }}>
         {people.length} {lobbyOpen ? "coming" : "pulled up"}
       </span>
-      <span style={{ fontSize: "12.5px", fontWeight: 600, color: colors.textFaded }}>· and you</span>
+      <span style={{ fontSize: "12.5px", fontWeight: 600, color: isWaitlist ? "#d97706" : colors.textFaded }}>
+        {isWaitlist ? "· you're on the waitlist" : "· and you"}
+      </span>
     </div>
   );
 }
@@ -816,7 +818,7 @@ export default function EventRoomPage() {
                  allows it (seeWho) — who's coming before the doors, who pulled
                  up after. Server-gated list; the client only renders it. */
               <div style={{ padding: "11px 20px", background: colors.surface, borderTop: `1px solid ${colors.borderFaint}` }}>
-                <GuestPresenceStrip people={viewCoPresent} lobbyOpen={lobbyOpen} />
+                <GuestPresenceStrip people={viewCoPresent} lobbyOpen={lobbyOpen} isWaitlist={level === "guest_waitlist"} />
               </div>
             ) : null}
           </div>

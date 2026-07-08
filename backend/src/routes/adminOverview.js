@@ -135,9 +135,10 @@ export function registerAdminOverviewRoutes(app) {
       const ids = evs.map((e) => e.id);
       const coming = new Map();
       if (ids.length) {
-        const { data: rs } = await supabase.from("rsvps").select("event_id, status").in("event_id", ids);
+        const { data: rs } = await supabase.from("rsvps").select("event_id, status, booking_status").in("event_id", ids);
         for (const r of rs || []) {
           if (r.status === "cancelled") continue;
+          if (r.status === "waitlist" || r.booking_status === "WAITLIST") continue; // waitlisters aren't "coming"
           coming.set(r.event_id, (coming.get(r.event_id) || 0) + 1);
         }
       }

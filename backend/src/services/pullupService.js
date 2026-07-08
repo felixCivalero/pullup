@@ -455,10 +455,13 @@ export async function resolveEventAccess({ userId = null, personId = null, event
 // Non-cancelled RSVP count — the "coming" number the lobby shows (before anyone
 // has pulled up, "coming" is the honest signal, not "0 inside").
 export async function getComingCount(eventId) {
-  const { count } = await supabase
-    .from("rsvps").select("id", { count: "exact", head: true })
+  // "Coming" = confirmed attendance only. Waitlisters are NOT coming (they're
+  // peeking) — excluding them keeps this in step with getRoomRoster below, so
+  // the lobby/teaser never advertises more "coming" than the event can hold.
+  const { data } = await supabase
+    .from("rsvps").select("status, booking_status")
     .eq("event_id", eventId).neq("status", "cancelled");
-  return count || 0;
+  return (data || []).filter((r) => r.status !== "waitlist" && r.booking_status !== "WAITLIST").length;
 }
 
 // ── The LIVE room roster: who's actually IN the room ────────────────────────

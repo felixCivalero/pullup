@@ -244,9 +244,10 @@ async function getHostedEventCards(hostId) {
   const list = (events || []).filter((e) => isEventKind(e.kind));
   if (!list.length) return [];
   const comingByEvent = new Map();
-  const { data: rsvpRows } = await supabase.from("rsvps").select("event_id, status").in("event_id", list.map((e) => e.id));
+  const { data: rsvpRows } = await supabase.from("rsvps").select("event_id, status, booking_status").in("event_id", list.map((e) => e.id));
   for (const r of rsvpRows || []) {
     if (r.status === "cancelled") continue;
+    if (r.status === "waitlist" || r.booking_status === "WAITLIST") continue; // waitlisters aren't "coming"
     comingByEvent.set(r.event_id, (comingByEvent.get(r.event_id) || 0) + 1);
   }
   const now = Date.now();
@@ -538,10 +539,11 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   if (eventIds.length) {
     const { data: rsvpRows } = await supabase
       .from("rsvps")
-      .select("event_id, status")
+      .select("event_id, status, booking_status")
       .in("event_id", eventIds);
     for (const r of rsvpRows || []) {
       if (r.status === "cancelled") continue;
+      if (r.status === "waitlist" || r.booking_status === "WAITLIST") continue; // waitlisters aren't "coming"
       comingByEvent.set(r.event_id, (comingByEvent.get(r.event_id) || 0) + 1);
     }
   }

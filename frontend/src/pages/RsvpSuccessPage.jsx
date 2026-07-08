@@ -492,6 +492,9 @@ export function RsvpSuccessPage() {
   // (private) room. A smooth "check your email" state, never a login wall — the
   // spot is already confirmed; this is just proving the email is theirs.
   if (roomBound && event?.id && !authLoading && !user && !verifyError) {
+    // roomBound is true for WAITLIST too (they get a room to peek + follow
+    // updates) — so this screen must NOT claim "confirmed" to a waitlisted guest.
+    const entryWaitlist = booking?.bookingStatus === "WAITLIST";
     const resendEntry = async () => {
       if (!booking?.email || entryResending) return;
       setEntryResending(true);
@@ -513,10 +516,13 @@ export function RsvpSuccessPage() {
           <div style={{ width: 56, height: 56, borderRadius: "50%", background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
             <FaCheckCircle size={26} color={colors.accent} />
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: colors.text, margin: "0 0 8px", letterSpacing: "-0.02em" }}>You're in!</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: colors.text, margin: "0 0 8px", letterSpacing: "-0.02em" }}>{entryWaitlist ? "You're on the waitlist" : "You're in!"}</h1>
           <div style={{ fontSize: 15, color: colors.textMuted, lineHeight: 1.5, marginBottom: 22 }}>
-            Your spot{event?.title ? <> for <b style={{ color: colors.text }}>{event.title}</b></> : null} is confirmed. To open your room, tap the one-tap link we just emailed to{" "}
-            <b style={{ color: colors.text }}>{booking?.email}</b>.
+            {entryWaitlist ? (
+              <>You're on the waitlist{event?.title ? <> for <b style={{ color: colors.text }}>{event.title}</b></> : null} — we'll let you know if a spot opens. To follow updates in your room, tap the one-tap link we just emailed to{" "}<b style={{ color: colors.text }}>{booking?.email}</b>.</>
+            ) : (
+              <>Your spot{event?.title ? <> for <b style={{ color: colors.text }}>{event.title}</b></> : null} is confirmed. To open your room, tap the one-tap link we just emailed to{" "}<b style={{ color: colors.text }}>{booking?.email}</b>.</>
+            )}
           </div>
           <button onClick={resendEntry} disabled={entryResending} style={{ padding: "12px 22px", background: colors.accent, color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: entryResending ? "default" : "pointer", opacity: entryResending ? 0.7 : 1 }}>
             {entryResending ? "Sending…" : "Resend link"}

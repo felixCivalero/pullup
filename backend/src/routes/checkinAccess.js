@@ -39,13 +39,15 @@ export function registerCheckinAccessRoutes(app) {
     try {
       const { eventId } = req.params;
       const { supabase } = await import("../supabase.js");
-      const { computeEventPhase, getComingCount } = await import("../services/pullupService.js");
-      const [{ count: peopleInside }, { count: photoCount }, { data: ev }, coming] = await Promise.all([
-        supabase.from("pullups").select("id", { count: "exact", head: true }).eq("event_id", eventId),
+      const { computeEventPhase, getComingCount, getPulledUpPersonIds } = await import("../services/pullupService.js");
+      const [insideSet, { count: photoCount }, { data: ev }, coming] = await Promise.all([
+        // Union of both pull-up sources so a host-run (no-QR) door isn't invisible.
+        getPulledUpPersonIds(eventId),
         supabase.from("event_media").select("id", { count: "exact", head: true }).eq("event_id", eventId).eq("folder", "darkroom"),
         supabase.from("events").select("title, slug, host_id, starts_at, ends_at, location").eq("id", eventId).maybeSingle(),
         getComingCount(eventId),
       ]);
+      const peopleInside = insideSet.size;
       // phase: upcoming (lobby open to RSVP'ers) | ongoing (pull-up only) | ended.
       const phase = ev ? computeEventPhase(ev.starts_at, ev.ends_at) : "upcoming";
       res.json({

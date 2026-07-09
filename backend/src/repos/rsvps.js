@@ -1,6 +1,7 @@
 // Rsvps repo: the booking write path (DPCS party math + atomic insert) and
 // RSVP reads/updates/deletes, enriched with person data.
 import { supabase } from "../supabase.js";
+import { selectAllPaged } from "../db/safeQuery.js";
 import {
   findEventBySlug,
   findEventById,
@@ -605,10 +606,16 @@ export async function getRsvpsForEvent(eventId) {
   // Fetch all RSVPs for this event with person data, including the
   // identity fields (instagram, phone, …) that may have been collected
   // via event form_fields — exports/UI read them from the person record.
-  const { data: eventRsvps, error } = await supabase
-    .from("rsvps")
-    .select(
-      `
+  // Paginated so the guest list + CSV export never silently truncate at
+  // Supabase's 1000-row cap (an event with >1000 RSVPs would otherwise drop
+  // everyone past row 1000 — undercounting the host's own data).
+  let eventRsvps;
+  try {
+    eventRsvps = await selectAllPaged(() =>
+      supabase
+        .from("rsvps")
+        .select(
+          `
       *,
       people:person_id (
         id,
@@ -623,11 +630,11 @@ export async function getRsvpsForEvent(eventId) {
         birthday
       )
     `
-    )
-    .eq("event_id", eventId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
+        )
+        .eq("event_id", eventId)
+        .order("created_at", { ascending: false })
+    );
+  } catch (error) {
     console.error("Error fetching RSVPs for event:", error);
     return [];
   }

@@ -14,6 +14,7 @@ import {
   bodyNeedsRoomKey,
   getEventCommsConfig,
   commsCampaignTag,
+  enforceStepTokens,
 } from "./eventComms.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
 
@@ -82,8 +83,13 @@ export async function buildComposedEventEmailHtml({
   body,
   badgeText = "YOU'RE IN",
   noticeBanner = null,
+  stepKey = null,
   hostBrand = {},
 }) {
+  // Enforce the step's token whitelist server-side (a host could TYPE a
+  // disallowed token the editor chips don't offer). Strip BEFORE ctx-building so
+  // a stripped {room link} never mints a key.
+  if (stepKey) body = enforceStepTokens(body, stepKey);
   const ctx = await buildEventCommsCtx({ event, email, personId, body });
   return composedMessageEmail({
     eventTitle: event?.title || "",
@@ -120,6 +126,7 @@ export async function sendWaitlistPromoteEmail({ event, rsvp, person, hostProfil
       email,
       personId: person?.id || rsvp?.personId || null,
       body: cfg.waitlistPromote.body,
+      stepKey: "waitlistPromote",
       badgeText: "YOU'RE IN",
       hostBrand,
     });

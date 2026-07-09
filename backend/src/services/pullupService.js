@@ -23,6 +23,7 @@
 
 import crypto from "node:crypto";
 import { supabase } from "../supabase.js";
+import { selectAllPaged } from "../db/safeQuery.js";
 import { logPersonEvent } from "./personTimeline.js";
 import { resolveCapabilities } from "./roomPermissions.js";
 import { isUserEventHost } from "../data.js";
@@ -279,13 +280,35 @@ async function mirrorPullUpToRsvp(personId, eventId) {
 
 // ── Derived relations (computed, never stored) ──────────────────────────────
 
-// pullup_count — how many events this person has pulled up to.
+// pullup_count — how many DISTINCT events this person has pulled up to. Unions
+// both proof-of-presence sources (QR-scan `pullups` + host guest-list check-ins
+// on `rsvps.pulled_up`), matching hasPulledUp — otherwise a host-checked-in
+// guest's bead reads 0.
 export async function getPullupCount(personId) {
-  const { count } = await supabase
-    .from("pullups")
-    .select("id", { count: "exact", head: true })
-    .eq("person_id", personId);
-  return count || 0;
+  if (!personId) return 0;
+  const [pulls, rs] = await Promise.all([
+    selectAllPaged(() => supabase.from("pullups").select("event_id").eq("person_id", personId)).catch(() => []),
+    selectAllPaged(() => supabase.from("rsvps").select("event_id").eq("person_id", personId).eq("pulled_up", true)).catch(() => []),
+  ]);
+  const set = new Set();
+  for (const r of pulls) if (r.event_id) set.add(r.event_id);
+  for (const r of rs) if (r.event_id) set.add(r.event_id);
+  return set.size;
+}
+
+// Deduped set of person ids present at an event — the union of both pull-up
+// sources. The teaser's "people inside" reads this so a no-QR (host check-in)
+// door isn't invisible.
+export async function getPulledUpPersonIds(eventId) {
+  if (!eventId) return new Set();
+  const [pulls, rs] = await Promise.all([
+    selectAllPaged(() => supabase.from("pullups").select("person_id").eq("event_id", eventId)).catch(() => []),
+    selectAllPaged(() => supabase.from("rsvps").select("person_id").eq("event_id", eventId).eq("pulled_up", true)).catch(() => []),
+  ]);
+  const set = new Set();
+  for (const r of pulls) if (r.person_id) set.add(r.person_id);
+  for (const r of rs) if (r.person_id) set.add(r.person_id);
+  return set;
 }
 
 // created_count — how many events this node has hosted (by host profile id).
@@ -312,12 +335,16 @@ export async function getProfileCounts({ personId, hostProfileId = null }) {
 // event that host owns. Returns the distinct set of host ids whose rooms this
 // person belongs to.
 export async function getRoomHostIdsForPerson(personId) {
-  const { data, error } = await supabase
-    .from("pullups")
-    .select("events:event_id ( host_id )")
-    .eq("person_id", personId);
-  if (error || !data) return [];
-  return [...new Set(data.map((r) => r.events?.host_id).filter(Boolean))];
+  if (!personId) return [];
+  // Union both proof-of-presence sources so a host-checked-in guest is a member
+  // of that host's room (not just QR-scanned arrivals).
+  const [pulls, rs] = await Promise.all([
+    selectAllPaged(() => supabase.from("pullups").select("events:event_id ( host_id )").eq("person_id", personId)).catch(() => []),
+    selectAllPaged(() => supabase.from("rsvps").select("events:event_id ( host_id )").eq("person_id", personId).eq("pulled_up", true)).catch(() => []),
+  ]);
+  const set = new Set();
+  for (const r of [...pulls, ...rs]) if (r.events?.host_id) set.add(r.events.host_id);
+  return [...set];
 }
 
 export async function isMemberOfRoom(personId, hostProfileId) {
@@ -458,10 +485,17 @@ export async function getComingCount(eventId) {
   // "Coming" = confirmed attendance only. Waitlisters are NOT coming (they're
   // peeking) — excluding them keeps this in step with getRoomRoster below, so
   // the lobby/teaser never advertises more "coming" than the event can hold.
-  const { data } = await supabase
-    .from("rsvps").select("status, booking_status")
-    .eq("event_id", eventId).neq("status", "cancelled");
-  return (data || []).filter((r) => r.status !== "waitlist" && r.booking_status !== "WAITLIST").length;
+  // Exact server-side count (head:true → no rows fetched, no 1000-row cap) so
+  // the "coming" number stays right even past 1000 non-cancelled RSVPs.
+  const { count } = await supabase
+    .from("rsvps")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .neq("status", "cancelled")
+    .neq("status", "waitlist")
+    .neq("booking_status", "WAITLIST")
+    .neq("booking_status", "CANCELLED");
+  return count || 0;
 }
 
 // ── The LIVE room roster: who's actually IN the room ────────────────────────
@@ -487,14 +521,16 @@ export async function getComingCount(eventId) {
 //              admin "view as RSVP'd" lens resolves the same population.
 export async function getRoomRoster(eventId, nowMs = Date.now()) {
   if (!eventId) return { phase: "upcoming", pulledUp: [], coming: [], here: [] };
-  const [{ data: ev }, { data: rsvpRows }, { data: pullRows }] = await Promise.all([
+  // Both list reads are paged so the roster never truncates at 1000 for a large
+  // event (the door strip + "who's here" would otherwise silently miss people).
+  const [{ data: ev }, rsvpRows, pullRows] = await Promise.all([
     supabase.from("events").select("starts_at, ends_at").eq("id", eventId).maybeSingle(),
-    supabase.from("rsvps")
+    selectAllPaged(() => supabase.from("rsvps")
       .select("person_id, status, booking_status, pulled_up, people:person_id ( name, instagram )")
-      .eq("event_id", eventId),
-    supabase.from("pullups")
+      .eq("event_id", eventId)).catch(() => []),
+    selectAllPaged(() => supabase.from("pullups")
       .select("person_id, verified_at, people:person_id ( name, instagram )")
-      .eq("event_id", eventId).order("verified_at"),
+      .eq("event_id", eventId).order("verified_at")).catch(() => []),
   ]);
   const phase = computeEventPhase(ev?.starts_at, ev?.ends_at, nowMs);
 

@@ -7,11 +7,15 @@
 // (super only) admin grants. The deep tools (CRM / Matches / Analytics)
 // live in the gold shell tabs above.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { RefreshCw, Check, X as XIcon, MessageCircle } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
-import { AdminGlobe } from "../components/AdminGlobe.jsx";
+// Lazy: the globe pulls in globe.gl + three.js (~1.9MB). Splitting it out keeps
+// that weight off the admin shell until the globe actually renders.
+const AdminGlobe = lazy(() =>
+  import("../components/AdminGlobe.jsx").then((m) => ({ default: m.AdminGlobe }))
+);
 import { LandingOverview } from "./analytics/LandingOverview.jsx";
 import { DateRangePicker } from "../components/DateRangePicker.jsx";
 
@@ -195,7 +199,9 @@ export function AdminInboxPage() {
               ))}
             </div>
           )}
-          <AdminGlobe events={mapEvents} />
+          <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: C.faint, fontSize: 13 }}>Loading globe…</div>}>
+            <AdminGlobe events={mapEvents} />
+          </Suspense>
         </div>
       )}
 

@@ -1387,6 +1387,7 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
               email,
               personId: result.rsvp.personId || null,
               body: fullCfg.waitlistJoin.body,
+              stepKey: "waitlistJoin",
               badgeText: "WAITLIST",
               // A banner the guest can't misread as a confirmation — the whole
               // reason people kept asking "when's the location?" while on the list.

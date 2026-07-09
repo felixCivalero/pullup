@@ -581,17 +581,23 @@ app.listen(PORT, HOST, async () => {
         if (reminderCfg && !reminderDue({ now: nowMs, startMs, hoursBefore: reminderCfg.hoursBefore, enabled: reminderCfg.enabled })) {
           continue;
         }
-        // 2. Get confirmed RSVPs with person details
-        const { data: rsvps, error: rsvpErr } = await supabase
-          .from("rsvps")
-          .select(`
+        // 2. Get confirmed RSVPs with person details. Paged so a >1000-guest
+        // event doesn't silently drop everyone past row 1000 from the reminder
+        // (a miss on a background timer nobody sees).
+        let rsvps;
+        try {
+          const { selectAllPaged } = await import("./db/safeQuery.js");
+          rsvps = await selectAllPaged(() =>
+            supabase
+              .from("rsvps")
+              .select(`
             id, person_id,
             people:person_id ( id, name, email, phone_e164, phone_verified_at )
           `)
-          .eq("event_id", event.id)
-          .eq("booking_status", "CONFIRMED");
-
-        if (rsvpErr) {
+              .eq("event_id", event.id)
+              .eq("booking_status", "CONFIRMED")
+          );
+        } catch (rsvpErr) {
           console.error(`[Reminders] Error fetching RSVPs for event ${event.id}:`, rsvpErr.message);
           continue;
         }
@@ -793,12 +799,18 @@ app.listen(PORT, HOST, async () => {
           continue;
         }
 
-        const { data: rsvps, error: rsvpErr } = await supabase
-          .from("rsvps")
-          .select(`id, person_id, people:person_id ( id, name, email, phone_e164, phone_verified_at )`)
-          .eq("event_id", event.id)
-          .eq("booking_status", "CONFIRMED");
-        if (rsvpErr) {
+        // Paged so a >1000-guest event doesn't drop the tail from the thank-you.
+        let rsvps;
+        try {
+          const { selectAllPaged } = await import("./db/safeQuery.js");
+          rsvps = await selectAllPaged(() =>
+            supabase
+              .from("rsvps")
+              .select(`id, person_id, people:person_id ( id, name, email, phone_e164, phone_verified_at )`)
+              .eq("event_id", event.id)
+              .eq("booking_status", "CONFIRMED")
+          );
+        } catch (rsvpErr) {
           console.error(`[PostEvent] Error fetching RSVPs for event ${event.id}:`, rsvpErr.message);
           continue;
         }

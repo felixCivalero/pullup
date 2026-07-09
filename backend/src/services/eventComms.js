@@ -225,6 +225,22 @@ export function resolveCommsHtml(body, ctx = {}, linkColor = "#ec178f") {
   return out.replace(/\n/g, "<br>");
 }
 
+// Server-side enforcement of the per-step token whitelist. STEP_TOKENS drives
+// the editor chips, but a host could still TYPE a disallowed token (e.g.
+// {location} or {room link} into a waitlist-join note). Strip any token not
+// allowed for the step BEFORE resolving, so a waitlister can never be handed
+// the reveal regardless of what the host pasted. Unknown step → no stripping.
+export function enforceStepTokens(body, stepKey) {
+  const allow = STEP_TOKENS[stepKey];
+  if (!allow) return String(body || "");
+  const allowed = new Set(allow);
+  let out = String(body || "");
+  for (const [key, token] of Object.entries(TOKENS)) {
+    if (!allowed.has(key)) out = out.split(token).join("");
+  }
+  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n");
+}
+
 // Does this body reference the room/upload link (so the scheduler knows whether
 // to mint a per-recipient room key)?
 export function bodyNeedsRoomKey(body) {

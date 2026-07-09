@@ -827,8 +827,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
       if (link?.person_id) me = { id: link.person_id };
     }
     if (me) {
-      const { data: myUps } = await supabase.from("pullups").select("event_id").eq("person_id", me.id);
-      pullupsCount = new Set((myUps || []).map((r) => r.event_id)).size;
+      // Unions both pull-up sources (pullups + rsvps.pulled_up) so a host-
+      // checked-in attendance still counts toward the host's own bead.
+      const { getPullupCount } = await import("./pullupService.js");
+      pullupsCount = await getPullupCount(me.id);
     }
   } catch (err) {
     logger?.warn?.("[roomService] personal pullup count failed", { error: err?.message });

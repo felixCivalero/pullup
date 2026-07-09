@@ -746,6 +746,31 @@ function ProtectedLayoutInner() {
                   {eventNav.missing} missing
                 </span>
               )}
+              {/* Take a live event back to draft. Secondary weight — it sits
+                  beside "Save changes" but never competes with it. */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("pullup:request-unpublish"))}
+                disabled={!!eventNav?.saving}
+                title="Move this event back to draft (hides it from the public)"
+                style={{
+                  padding: isMobile ? "9px 12px" : "10px 14px",
+                  borderRadius: "999px",
+                  border: `1px solid ${colors.border}`,
+                  background: "transparent",
+                  color: colors.textMuted,
+                  fontWeight: 600,
+                  fontSize: "clamp(11px, 2.5vw, 12px)",
+                  cursor: eventNav?.saving ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
+                  opacity: eventNav?.saving ? 0.6 : 1,
+                  touchAction: "manipulation",
+                }}
+                onMouseEnter={(e) => { if (!eventNav?.saving) e.currentTarget.style.background = colors.surfaceMuted; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                Unpublish
+              </button>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent("pullup:request-publish"))}
                 disabled={!!eventNav?.saving}

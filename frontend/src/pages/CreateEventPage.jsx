@@ -65,6 +65,7 @@ import { authenticatedFetch } from "../lib/api.js";
 import { AI_CREATE_ENABLED } from "../lib/featureFlags.js";
 import { colors } from "../theme/colors.js";
 import { ChannelBadge, CHANNEL_BRAND } from "../components/ChannelBadge.jsx";
+import UnpublishModal from "../components/UnpublishModal.jsx";
 import {
   formatRelativeTime,
   formatReadableDateTime,
@@ -669,6 +670,7 @@ export function CreateEventPage() {
   const [detailsTabPulse, setDetailsTabPulse] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showUnpublish, setShowUnpublish] = useState(false);
 
   // After OAuth redirect: pick up the pendingPublish flag and auto-resume.
   // Profile is guaranteed complete by onboarding, so no profile gate here.
@@ -1318,6 +1320,14 @@ export function CreateEventPage() {
     const onReq = () => formRef.current?.requestSubmit();
     window.addEventListener("pullup:request-publish", onReq);
     return () => window.removeEventListener("pullup:request-publish", onReq);
+  }, []);
+
+  // The header's "Unpublish" button (published-edit only) lives in
+  // ProtectedLayout too; it asks us to open the confirm popup.
+  useEffect(() => {
+    const onReq = () => setShowUnpublish(true);
+    window.addEventListener("pullup:request-unpublish", onReq);
+    return () => window.removeEventListener("pullup:request-unpublish", onReq);
   }, []);
 
   // Flyout panel model (desktop): the editor for a part is HIDDEN by default —
@@ -6130,6 +6140,15 @@ export function CreateEventPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showUnpublish && (
+        <UnpublishModal
+          eventId={editEventId}
+          eventTitle={eventTitle}
+          onClose={() => setShowUnpublish(false)}
+          onUnpublished={() => setEventStatus("DRAFT")}
+        />
       )}
     </div>
     </>

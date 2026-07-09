@@ -69,11 +69,27 @@ export function buildIdentities(ids = {}) {
 
 /**
  * Look up which existing person (if any) each identity already points to.
- * Returns a Map keyed by "kind:value_norm" -> person_id.
+ * Returns the raw matched rows: [{ person_id, kind, value_norm }].
+ *
+ * Matches against BOTH the person_identities resolution layer (cross-channel
+ * links) AND the denormalized `people` columns (email / phone_e164 / ig_user_id).
+ * The people columns are the COMPLETE legacy source — person_identities is only
+ * ~partially backfilled — so including them is what keeps a re-RSVP from a known
+ * guest from creating a duplicate. (Also strictly improves WA/IG resolution.)
  */
-async function lookupExisting(identities) {
-  if (!identities.length) return new Map();
-  // OR across (kind, value_norm) pairs. Supabase .or wants a flat filter list.
+async function lookupExistingRows(identities) {
+  if (!identities.length) return [];
+  const out = [];
+  const seen = new Set();
+  const add = (person_id, kind, value_norm) => {
+    if (!person_id) return;
+    const k = `${person_id}|${kind}|${value_norm}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ person_id, kind, value_norm });
+  };
+
+  // 1) person_identities — OR across (kind, value_norm) pairs.
   const ors = identities
     .map((i) => `and(kind.eq.${i.kind},value_norm.eq.${encodeOr(i.value_norm)})`)
     .join(",");
@@ -81,13 +97,22 @@ async function lookupExisting(identities) {
     .from("person_identities")
     .select("person_id, kind, value_norm")
     .or(ors);
-  if (error) {
-    logger?.warn?.("[personResolution] lookup failed", { error: error.message });
-    return new Map();
+  if (error) logger?.warn?.("[personResolution] identity lookup failed", { error: error.message });
+  for (const row of data || []) add(row.person_id, row.kind, row.value_norm);
+
+  // 2) Denormalized people columns (complete source). Match each identity against
+  //    its column by the normalized value (people.email is stored lower-cased,
+  //    exactly as the legacy email-only lookup assumed — so no regression).
+  const col = { email: "email", phone: "phone_e164", ig_user_id: "ig_user_id" };
+  for (const idn of identities) {
+    const column = col[idn.kind];
+    if (!column) continue;
+    const { data: prows, error: perr } = await supabase
+      .from("people").select("id").eq(column, idn.value_norm); // safe-query: ok — exact identifier match (email/phone/ig), a handful of rows at most
+    if (perr) { logger?.warn?.("[personResolution] people lookup failed", { kind: idn.kind, error: perr.message }); continue; }
+    for (const p of prows || []) add(p.id, idn.kind, idn.value_norm);
   }
-  const m = new Map();
-  for (const row of data || []) m.set(`${row.kind}:${row.value_norm}`, row.person_id);
-  return m;
+  return out;
 }
 
 // PostgREST .or() values can't contain bare commas/parens; our norm values are
@@ -142,6 +167,42 @@ async function queueMatchCandidate(personA, personB, reason, score = 1.0) {
 }
 
 /**
+ * Pure canonical-selection — the "who is this person?" decision, no DB.
+ *
+ * Given the person_identities rows that matched a touchpoint's identifiers,
+ * decide which existing person is canonical and which others are conflicts to
+ * flag. EMAIL-ANCHORED: when `preferKind` is set and one matched identity is
+ * that kind, its owner wins — so an RSVP attaches to whoever owns the TYPED
+ * EMAIL, never silently to an older record a phone happened to match. With no
+ * preferred match, the OLDEST person wins (stable, least surprising).
+ *
+ * @param {Array<{personId,createdAt,kind}>} matchedRows
+ * @param {{preferKind?: string}} opts
+ * @returns {{canonicalId: string|null, conflictIds: string[]}}
+ */
+export function pickCanonicalPerson(matchedRows = [], { preferKind = null } = {}) {
+  const byPerson = new Map(); // personId -> createdAt (first seen)
+  let preferred = null;
+  for (const r of matchedRows) {
+    if (!r || !r.personId) continue;
+    if (!byPerson.has(r.personId)) byPerson.set(r.personId, r.createdAt || "");
+    if (preferKind && r.kind === preferKind && !preferred) preferred = r.personId;
+  }
+  const people = [...byPerson.keys()];
+  if (!people.length) return { canonicalId: null, conflictIds: [] };
+  let canonicalId = preferred;
+  if (!canonicalId) {
+    canonicalId = people.slice().sort((a, b) => {
+      const ca = byPerson.get(a), cb = byPerson.get(b);
+      if (ca < cb) return -1;
+      if (ca > cb) return 1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    })[0];
+  }
+  return { canonicalId, conflictIds: people.filter((p) => p !== canonicalId) };
+}
+
+/**
  * Resolve a touchpoint's identifiers to ONE canonical person, creating or
  * linking as needed, and recording every identifier.
  *
@@ -152,14 +213,17 @@ async function queueMatchCandidate(personA, personB, reason, score = 1.0) {
  * @param {string} [args.source]     identity source tag ('rsvp'|'whatsapp'|'ig'|'import'|'manual')
  * @returns {Promise<{ personId, created, linkedIdentities, conflicts }>}
  */
-export async function resolvePersonByIdentity({ identifiers, profile = {}, source = "resolve" } = {}) {
+export async function resolvePersonByIdentity({ identifiers, profile = {}, source = "resolve", preferKind = null } = {}) {
   const identities = buildIdentities(identifiers);
   if (!identities.length) {
     throw new Error("[personResolution] no usable identifiers provided");
   }
 
-  const existing = await lookupExisting(identities);
-  const matchedPersonIds = [...new Set(existing.values())];
+  const rows = await lookupExistingRows(identities);
+  // Map for the per-identifier conflict check further down.
+  const existing = new Map();
+  for (const row of rows) existing.set(`${row.kind}:${row.value_norm}`, row.person_id);
+  const matchedPersonIds = [...new Set(rows.map((r) => r.person_id))];
 
   let canonicalId;
   let created = false;
@@ -170,16 +234,19 @@ export async function resolvePersonByIdentity({ identifiers, profile = {}, sourc
     canonicalId = await createPerson(profile, identifiers);
     created = true;
   } else {
-    // One or more existing people matched. Use the OLDEST as canonical (stable,
-    // least surprising). Multiple distinct matches = a collision to flag, never
-    // an auto-merge.
-    canonicalId = await oldestPerson(matchedPersonIds);
-    if (matchedPersonIds.length > 1) {
-      for (const other of matchedPersonIds) {
-        if (other !== canonicalId) {
-          conflicts.push(other);
-          await queueMatchCandidate(canonicalId, other, "multi_identity_collision");
-        }
+    // One or more existing people matched. The canonical choice is EMAIL-anchored
+    // when preferKind is set (see pickCanonicalPerson); otherwise oldest wins.
+    // Multiple distinct matches = a collision to flag, never an auto-merge.
+    const createdAt = await personCreatedAtMap(matchedPersonIds);
+    const matchedRows = rows.map((r) => ({
+      personId: r.person_id, kind: r.kind, createdAt: createdAt.get(r.person_id) || "",
+    }));
+    const decision = pickCanonicalPerson(matchedRows, { preferKind });
+    canonicalId = decision.canonicalId;
+    if (decision.conflictIds.length) {
+      for (const other of decision.conflictIds) {
+        conflicts.push(other);
+        await queueMatchCandidate(canonicalId, other, "multi_identity_collision");
       }
       logger?.info?.("[personResolution] multi-identity collision flagged", {
         canonical: canonicalId, others: conflicts,
@@ -288,14 +355,14 @@ export async function linkIdentitiesToPerson({ personId, identifiers = {}, profi
 
 // ── helpers ─────────────────────────────────────────────────────────
 
-async function oldestPerson(ids) {
-  const { data } = await supabase
-    .from("people")
-    .select("id, created_at")
-    .in("id", ids)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  return data?.[0]?.id || ids[0];
+// created_at per matched person (a handful at most — one per provided
+// identifier), so the pure canonical picker can decide oldest-vs-preferred.
+async function personCreatedAtMap(ids) {
+  const m = new Map();
+  if (!ids.length) return m;
+  const { data } = await supabase.from("people").select("id, created_at").in("id", ids); // safe-query: ok — ids = matched people, bounded by identifier count (<=6)
+  for (const p of data || []) m.set(p.id, p.created_at || "");
+  return m;
 }
 
 // Create a person row from the profile bag. Mirrors the columns the existing

@@ -223,6 +223,8 @@ export async function addRsvp({
   visitorId = null,
   joinWaitlist = false,
   customAnswers = null,
+  phone = null,
+  igUid = null,
 }) {
   const event = await findEventBySlug(slug);
   if (!event) return { error: "not_found" };
@@ -240,8 +242,34 @@ export async function addRsvp({
     return { error: "pullup_email_blocked" };
   }
 
-  // Find or create person
-  const person = await findOrCreatePerson(normalizedEmail, name);
+  // Resolve the person by EVERY identity anchor this RSVP carries — email (the
+  // anchor), plus phone and a VERIFIED IG id — so a guest already known by their
+  // number or IG isn't duplicated. Email always wins as canonical; any collision
+  // is flagged for the match cockpit, never auto-merged. Typed IG *handles* are
+  // deliberately excluded from matching (impersonation-prone) — they're still
+  // recorded downstream. Failure must NEVER block an RSVP → fall back to the
+  // legacy email-only path.
+  let person;
+  try {
+    const { resolvePersonByIdentity } = await import("../services/personResolution.js");
+    const resolved = await resolvePersonByIdentity({
+      identifiers: {
+        email: normalizedEmail,
+        phone: phone || null,
+        defaultCountry: event.country || null,
+        igUserId: igUid || null,
+      },
+      profile: { name: name || null, email: normalizedEmail },
+      source: "rsvp",
+      preferKind: "email",
+    });
+    person = resolved?.personId
+      ? { id: resolved.personId }
+      : await findOrCreatePerson(normalizedEmail, name);
+  } catch (e) {
+    console.error("[addRsvp] identity resolve failed, using email fallback:", e?.message);
+    person = await findOrCreatePerson(normalizedEmail, name);
+  }
 
   // Check for duplicate RSVP for this event (same person, same event)
   const { data: existingRsvpData, error: duplicateError } = await supabase

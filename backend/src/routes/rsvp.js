@@ -314,6 +314,8 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
           marketingOptIn: marketingOptIn || false,
           isVip: !!vipInvite,
           visitorId: visitorId || null,
+          phone: phone || null,
+          igUid: igUid || null,
         }
       : {
           slug,
@@ -328,6 +330,8 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
           visitorId: visitorId || null,
           joinWaitlist: !!joinWaitlist,
           customAnswers: resolvedCustomAnswers,
+          phone: phone || null,
+          igUid: igUid || null,
         };
 
     const result = await addRsvp(rsvpData);

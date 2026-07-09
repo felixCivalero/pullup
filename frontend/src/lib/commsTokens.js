@@ -17,10 +17,15 @@ export const TOKENS = {
 };
 
 // Which tokens are offered per step (the "Add" buttons in the composer).
+// waitlistJoin omits location/coordinates/room on purpose: a waitlister must
+// never be handed the reveal. Those become available only on waitlistPromote —
+// the message that fires when the host lets them in.
 export const STEP_TOKENS = {
   signup: ["event", "time", "location", "coordinates", "room"],
   reminder: ["event", "time", "location", "coordinates"],
   postEvent: ["event", "upload"],
+  waitlistJoin: ["event", "time"],
+  waitlistPromote: ["event", "time", "location", "coordinates", "room"],
 };
 
 const TOKEN_RE = /\{(event name|time|location|coordinates|room link|upload link)\}/g;

@@ -21,10 +21,7 @@ import { isCheckinOnlyUpdate } from "./checkinFields.js";
 import { requireAuth } from "../middleware/auth.js";
 import { validateRsvpUpdateData } from "../middleware/validation.js";
 import { getFrontendUrl } from "../lib/urls.js";
-import {
-  signupConfirmationEmail,
-  cancellationEmail,
-} from "../emails/signupConfirmation.js";
+import { cancellationEmail } from "../emails/signupConfirmation.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
 
@@ -52,6 +49,20 @@ export function registerGuestRoutes(app) {
       }
 
       const guests = await getRsvpsForEvent(event.id);
+
+      // Attach per-guest comms receipts (which automated emails reached them) so
+      // the guest list can show the host the automation actually fired.
+      try {
+        const { getCommsReceiptsForEvent } = await import("../services/commsReceipts.js");
+        const receipts = await getCommsReceiptsForEvent(
+          event.id,
+          guests.map((g) => g.personId).filter(Boolean)
+        );
+        for (const g of guests) g.comms = (g.personId && receipts[g.personId]) || {};
+      } catch (commsErr) {
+        console.error("[guests] comms receipts failed (non-blocking):", commsErr?.message);
+      }
+
       res.json({ event: { ...event, myRole }, guests });
     } catch (error) {
       console.error("Error fetching guests:", error);
@@ -592,81 +603,20 @@ export function registerGuestRoutes(app) {
           });
         }
 
-        // Optionally send confirmation email
-        if (shouldSendEmail) {
-          try {
-            const person = await findPersonById(rsvp.personId);
-            const email = person?.email || rsvp.email;
-            if (email) {
-              const promoteHost = await getUserProfile(event.hostId).catch(() => null);
-              const hostBrand = {
-                brandName: promoteHost?.brand || "",
-                brandWebsite: promoteHost?.brandWebsite || "",
-                contactEmail: promoteHost?.contactEmail || "",
-              };
-              const firstName = (rsvp.name || person?.name || "there").split(/\s+/)[0] || "there";
-              const promoteSig =
-                promoteHost?.whatsappSignature ||
-                (promoteHost?.name ? `It's me, ${promoteHost.name.split(/\s+/)[0]}` : "");
-
-              // Dual-rail confirm — identical to a fresh RSVP confirm so a verified
-              // + opted-in guest gets WhatsApp; email is the floor otherwise.
-              await dispatchMessage({
-                recipient: {
-                  id: person?.id || null,
-                  email,
-                  phone_e164: person?.phone_e164 || null,
-                  phone_verified_at: person?.phone_verified_at || null,
-                  do_not_contact: person?.do_not_contact || false,
-                },
-                hostProfile: promoteHost,
-                whatsapp: {
-                  templateKey: "rsvp_confirm",
-                  variables: {
-                    guest_first_name: firstName,
-                    event_title: event.title || "the event",
-                    event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
-                    host_signature: promoteSig || "PullUp",
-                  },
-                },
-                email: {
-                  subject: "Your spot is confirmed",
-                  htmlBody: signupConfirmationEmail({
-                    name: rsvp.name || person?.name || "",
-                    eventTitle: event.title,
-                    date: new Date(event.startsAt).toLocaleString(),
-                    isWaitlist: false,
-                    imageUrl: event.coverImageUrl || event.imageUrl || "",
-                    location: event.location || "",
-                    locationLat: event.locationLat ?? null,
-                    locationLng: event.locationLng ?? null,
-                    showCoordinates: event.showCoordinates ?? false,
-                    startsAt: event.startsAt || "",
-                    endsAt: event.endsAt || "",
-                    timezone: event.timezone || "",
-                    plusOnes: Number(rsvp.plusOnes) || 0,
-                    slug: event.slug || "",
-                    frontendUrl: getFrontendUrl(),
-                    spotifyUrl: event.spotify || "",
-                    ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
-                    ticketCurrency: event.ticketCurrency || "",
-                    hideDate: event.hideDate || false,
-                    hideLocation: event.hideLocation || false,
-                    dateRevealHint: event.dateRevealHint || "",
-                    revealHint: event.revealHint || "",
-                    ...hostBrand,
-                  }),
-                },
-                context: {
-                  personId: person?.id || null,
-                  hostProfileId: event.hostId || null,
-                },
-              });
-            }
-          } catch (emailErr) {
-            console.error("Failed to send promotion confirmation email:", emailErr);
-            // Don't block the promotion on email failure
-          }
+        // Let-in reveal: send the host's composed waitlistPromote message
+        // (location + room link) the moment they're clicked in. The helper
+        // respects the host's Communication-panel toggle, so what goes out and
+        // whether it goes at all is the host's control — not this route's flag.
+        // (`shouldSendEmail` is retained for the API but no longer gates the send.)
+        void shouldSendEmail;
+        try {
+          const person = await findPersonById(rsvp.personId);
+          const promoteHost = await getUserProfile(event.hostId).catch(() => null);
+          const { sendWaitlistPromotionMessages } = await import("../services/composedEventEmail.js");
+          await sendWaitlistPromotionMessages({ event, rsvp, person, hostProfile: promoteHost });
+        } catch (emailErr) {
+          console.error("Failed to send promotion reveal email:", emailErr);
+          // Don't block the promotion on email failure
         }
 
         res.json(result.rsvp);
@@ -686,7 +636,7 @@ export function registerGuestRoutes(app) {
     async (req, res) => {
       try {
         const { eventId } = req.params;
-        const { rsvpIds, sendEmail: shouldSendEmail } = req.body || {};
+        const { rsvpIds } = req.body || {};
 
         if (!Array.isArray(rsvpIds) || rsvpIds.length === 0) {
           return res.status(400).json({
@@ -718,16 +668,9 @@ export function registerGuestRoutes(app) {
         // Sort FIFO by RSVP creation date
         rsvps.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-        // Fetch host branding + signature once for all sends.
+        // Fetch host branding once for all sends (the reveal helper reads brand
+        // off this profile).
         const bulkHost = await getUserProfile(event.hostId).catch(() => null);
-        const hostBrand = {
-          brandName: bulkHost?.brand || "",
-          brandWebsite: bulkHost?.brandWebsite || "",
-          contactEmail: bulkHost?.contactEmail || "",
-        };
-        const bulkSig =
-          bulkHost?.whatsappSignature ||
-          (bulkHost?.name ? `It's me, ${bulkHost.name.split(/\s+/)[0]}` : "");
 
         let promoted = 0;
         for (const rsvp of rsvps) {
@@ -740,67 +683,14 @@ export function registerGuestRoutes(app) {
           if (!result.error) {
             promoted++;
 
-            if (shouldSendEmail) {
-              try {
-                const person = await findPersonById(rsvp.personId);
-                const email = person?.email || rsvp.email;
-                if (email) {
-                  const firstName = (rsvp.name || person?.name || "there").split(/\s+/)[0] || "there";
-                  await dispatchMessage({
-                    recipient: {
-                      id: person?.id || null,
-                      email,
-                      phone_e164: person?.phone_e164 || null,
-                      phone_verified_at: person?.phone_verified_at || null,
-                      do_not_contact: person?.do_not_contact || false,
-                    },
-                    hostProfile: bulkHost,
-                    whatsapp: {
-                      templateKey: "rsvp_confirm",
-                      variables: {
-                        guest_first_name: firstName,
-                        event_title: event.title || "the event",
-                        event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
-                        host_signature: bulkSig || "PullUp",
-                      },
-                    },
-                    email: {
-                      subject: "Your spot is confirmed",
-                      htmlBody: signupConfirmationEmail({
-                        name: rsvp.name || person?.name || "",
-                        eventTitle: event.title,
-                        date: new Date(event.startsAt).toLocaleString(),
-                        isWaitlist: false,
-                        imageUrl: event.coverImageUrl || event.imageUrl || "",
-                        location: event.location || "",
-                        locationLat: event.locationLat ?? null,
-                        locationLng: event.locationLng ?? null,
-                        showCoordinates: event.showCoordinates ?? false,
-                        startsAt: event.startsAt || "",
-                        endsAt: event.endsAt || "",
-                        timezone: event.timezone || "",
-                        plusOnes: Number(rsvp.plusOnes) || 0,
-                        slug: event.slug || "",
-                        frontendUrl: getFrontendUrl(),
-                        spotifyUrl: event.spotify || "",
-                        ticketPrice: event.ticketPrice ? (Number(event.ticketPrice) / 100).toFixed(2) : 0,
-                        ticketCurrency: event.ticketCurrency || "",
-                        hideDate: event.hideDate || false,
-                        hideLocation: event.hideLocation || false,
-                        dateRevealHint: event.dateRevealHint || "",
-                        revealHint: event.revealHint || "",
-                        ...hostBrand,
-                      }),
-                    },
-                    context: {
-                      personId: person?.id || null,
-                      hostProfileId: event.hostId || null,
-                    },
-                  });
-                }
-              } catch (emailErr) {
-                console.error("Failed to send bulk promotion email:", emailErr);
-              }
+            // Same let-in reveal as the single-promote route; the helper honours
+            // the host's Communication-panel toggle per event.
+            try {
+              const person = await findPersonById(rsvp.personId);
+              const { sendWaitlistPromotionMessages } = await import("../services/composedEventEmail.js");
+              await sendWaitlistPromotionMessages({ event, rsvp, person, hostProfile: bulkHost });
+            } catch (emailErr) {
+              console.error("Failed to send bulk promotion reveal email:", emailErr);
             }
           }
         }

@@ -37,10 +37,7 @@ import {
   coHostAddedEmailHtml,
   coHostInvitedEmailHtml,
 } from "../services/emailService.js";
-import {
-  signupConfirmationEmail,
-  waitlistOfferEmail,
-} from "../emails/signupConfirmation.js";
+import { waitlistOfferEmail } from "../emails/signupConfirmation.js";
 import { generateWaitlistToken } from "../utils/waitlistTokens.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
@@ -659,62 +656,12 @@ app.post(
           status: "attending",
         }, { forceConfirm: true });
 
-        // Confirmed off the waitlist — same dual-rail as a fresh RSVP confirm,
-        // so a verified + opted-in guest gets WhatsApp (email is the floor).
+        // Confirmed off the waitlist — send the host's composed waitlistPromote
+        // reveal (location + room link), honouring their Communication-panel
+        // toggle. Same helper every promotion path uses.
         try {
-          const firstName = (rsvp.name || person.name || "there").split(/\s+/)[0] || "there";
-          const promoteSig =
-            promoteHost?.whatsappSignature ||
-            (promoteHost?.name ? `It's me, ${promoteHost.name.split(/\s+/)[0]}` : "");
-          await dispatchMessage({
-            recipient: {
-              id: person.id || null,
-              email: person.email,
-              phone_e164: person.phone_e164 || null,
-              phone_verified_at: person.phone_verified_at || null,
-              do_not_contact: person.do_not_contact || false,
-            },
-            hostProfile: promoteHost,
-            whatsapp: {
-              templateKey: "rsvp_confirm",
-              variables: {
-                guest_first_name: firstName,
-                event_title: event.title || "the event",
-                event_when: event.startsAt ? new Date(event.startsAt).toLocaleString() : "soon",
-                host_signature: promoteSig || "PullUp",
-              },
-            },
-            email: {
-              subject: "Your spot is confirmed",
-              htmlBody: signupConfirmationEmail({
-                name: rsvp.name || person.name || "there",
-                eventTitle: event.title,
-                date: event.startsAt ? new Date(event.startsAt).toLocaleString() : "",
-                isWaitlist: false,
-                imageUrl: event.coverImageUrl || event.imageUrl || "",
-                location: event.location || "",
-                locationLat: event.locationLat ?? null,
-                locationLng: event.locationLng ?? null,
-                showCoordinates: event.showCoordinates ?? false,
-                startsAt: event.startsAt || "",
-                endsAt: event.endsAt || "",
-                timezone: event.timezone || "",
-                plusOnes: Number(rsvp.plusOnes) || 0,
-                slug: event.slug || "",
-                frontendUrl,
-                spotifyUrl: event.spotify || "",
-                hideDate: event.hideDate || false,
-                hideLocation: event.hideLocation || false,
-                dateRevealHint: event.dateRevealHint || "",
-                revealHint: event.revealHint || "",
-                ...hostBrand,
-              }),
-            },
-            context: {
-              personId: person.id || null,
-              hostProfileId: event.hostId || null,
-            },
-          });
+          const { sendWaitlistPromotionMessages } = await import("../services/composedEventEmail.js");
+          await sendWaitlistPromotionMessages({ event, rsvp, person, hostProfile: promoteHost });
         } catch (emailErr) {
           console.error("Failed to send confirmation email:", emailErr);
         }

@@ -548,7 +548,7 @@ app.listen(PORT, HOST, async () => {
   async function sendEventReminders() {
     try {
       const { supabase } = await import("./supabase.js");
-      const { getEventCommsConfig, reminderDue, resolveCommsHtml, bodyNeedsRoomKey } = await import("./services/eventComms.js");
+      const { getEventCommsConfig, reminderDue, resolveCommsHtml, bodyNeedsRoomKey, commsCampaignTag } = await import("./services/eventComms.js");
       const now = new Date();
       const nowMs = now.getTime();
       const windowEnd = new Date(nowMs + REMINDER_WINDOW_MS);
@@ -713,6 +713,7 @@ app.listen(PORT, HOST, async () => {
                 personId: person.id,
                 hostProfileId: event.host_id,
                 idempotencyKey,
+                campaignTag: commsCampaignTag("reminder", event.id),
                 legalBasis: "legitimate_interest",
               },
             });
@@ -760,7 +761,7 @@ app.listen(PORT, HOST, async () => {
   async function sendPostEventMessages() {
     try {
       const { supabase } = await import("./supabase.js");
-      const { getEventCommsConfig, postEventDue, effectiveEndMs, resolveCommsHtml, bodyNeedsRoomKey } = await import("./services/eventComms.js");
+      const { getEventCommsConfig, postEventDue, effectiveEndMs, resolveCommsHtml, bodyNeedsRoomKey, commsCampaignTag } = await import("./services/eventComms.js");
       const { ensureUnsubscribeToken } = await import("./data.js");
       const now = new Date();
       const nowMs = now.getTime();
@@ -889,6 +890,7 @@ app.listen(PORT, HOST, async () => {
                 personId: person.id,
                 hostProfileId: event.host_id,
                 idempotencyKey,
+                campaignTag: commsCampaignTag("postEvent", event.id),
                 legalBasis: "legitimate_interest",
               },
             });

@@ -32,6 +32,65 @@ import { useHostActions } from "../lib/useHostActions.js";
 import { useSetHostResource } from "../contexts/useHostResource.js";
 
 // -----------------------------
+// Comms receipts — a per-guest readout of which automated emails actually
+// reached them (so the host can see the automation fired). Mirrors the custom-
+// answers column: one small checkmarked line per mail received, first two shown
+// with a "+n more" / "less" expander. Green ✓ = sent/delivered, red ⚠ = failed.
+// Only mails they actually GOT are listed (like answered questions), so a
+// waitlister shows "Waitlisted", a confirmed guest shows "Welcome", etc.
+// -----------------------------
+
+const COMMS_STEPS = [
+  { key: "signup", label: "Welcome" },
+  { key: "waitlistJoin", label: "Waitlisted" },
+  { key: "waitlistPromote", label: "Let in" },
+  { key: "reminder", label: "Reminder" },
+  { key: "postEvent", label: "Post-event" },
+];
+
+function CommsCell({ guest, expanded, onToggle }) {
+  const comms = guest.comms || {};
+  const items = COMMS_STEPS.map((s) => ({ ...s, r: comms[s.key] })).filter((s) => s.r);
+  if (!items.length) {
+    return <span style={{ fontSize: "12px", color: colors.textFaded, fontStyle: "italic" }}>—</span>;
+  }
+  const shown = expanded ? items : items.slice(0, 2);
+  return (
+    <div style={{ textAlign: "left", display: "inline-block" }}>
+      {shown.map((s) => {
+        const ok = !!s.r.ok;
+        const failed = !ok && (s.r.status === "failed" || s.r.status === "bounced");
+        const when = s.r.at ? ` · ${formatEventDate(s.r.at)}` : "";
+        return (
+          <div
+            key={s.key}
+            title={`${s.label}: ${ok ? `sent${when}` : s.r.status}`}
+            style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: colors.textMuted, lineHeight: 1.6, whiteSpace: "nowrap" }}
+          >
+            {ok ? (
+              <Check size={13} strokeWidth={3} style={{ color: colors.success, flexShrink: 0 }} />
+            ) : failed ? (
+              <AlertTriangle size={12} style={{ color: colors.danger, flexShrink: 0 }} />
+            ) : (
+              <Clock size={12} style={{ color: colors.textFaded, flexShrink: 0 }} />
+            )}
+            <span>{s.label}</span>
+          </div>
+        );
+      })}
+      {(items.length > 2 || expanded) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          style={{ padding: 0, border: "none", background: "none", fontSize: "11px", color: colors.accent, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          {expanded ? "less" : `+${items.length - 2} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------
 // Helpers: stats, filtering, sorting
 // -----------------------------
 
@@ -189,6 +248,15 @@ export function EventGuestsPage() {
   const [bulkBusy, setBulkBusy] = useState(null);
   // Answer cells whose "+n more" was tapped open (rsvp ids).
   const [expandedAnswers, setExpandedAnswers] = useState(() => new Set());
+  // Comms cells whose "+n more" was tapped open (rsvp ids).
+  const [expandedComms, setExpandedComms] = useState(() => new Set());
+  const toggleCommsExpanded = (id) =>
+    setExpandedComms((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [dinnerSlots, setDinnerSlots] = useState([]);
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
@@ -1440,6 +1508,9 @@ export function EventGuestsPage() {
                           <div style={{ fontSize: "13px", color: colors.textSubtle, marginTop: "2px" }}>
                             {partySize} {partySize === 1 ? "guest" : "guests"}
                           </div>
+                          <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-start" }}>
+                            <CommsCell guest={g} expanded={expandedComms.has(g.id)} onToggle={() => toggleCommsExpanded(g.id)} />
+                          </div>
                         </div>
 
                         {/* Right: Arrival status */}
@@ -1660,6 +1731,20 @@ export function EventGuestsPage() {
                         }}
                       >
                         Pulled Up
+                      </th>
+                      <th
+                        style={{
+                          padding: "16px 18px",
+                          textAlign: "center",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.12em",
+                          color: colors.textSubtle,
+                          width: "180px",
+                        }}
+                      >
+                        Comms
                       </th>
                       {/* Edit/delete live as quiet icons at the row's edge —
                           actions, not data, so no column header for them. */}
@@ -2104,6 +2189,9 @@ export function EventGuestsPage() {
                               );
                             })()}
                           </div>
+                        </td>
+                        <td style={{ padding: "20px 18px", verticalAlign: "top" }}>
+                          <CommsCell guest={g} expanded={expandedComms.has(g.id)} onToggle={() => toggleCommsExpanded(g.id)} />
                         </td>
                         {/* Quiet action icons at the row's edge — no column
                             chrome, faded until the row is hovered. */}

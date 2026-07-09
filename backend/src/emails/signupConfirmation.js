@@ -600,12 +600,25 @@ export function composedMessageEmail({
   contactEmail = "",
   unsubscribeUrl = "",
   footerMessage = "",
+  noticeBanner = null, // { title, subtitle } — a loud full-width status bar
   brand = {},
 }) {
   const b = resolveEmailBrand(brand);
+  // A high-contrast amber bar that a guest cannot miss — used to make the
+  // "you're on the waitlist, NOT confirmed" state unmistakable (people kept
+  // reading the waitlist email as a confirmation). Brand-independent warm tones
+  // so it never reads as the normal pink "you're in".
+  const noticeHtml = noticeBanner ? `<!-- Notice banner -->
+<tr><td style="padding:20px 0 2px;">
+  <div style="background:#FFF3E0;border:1px solid #F2B96B;border-radius:14px;padding:16px 18px;text-align:center;">
+    <div style="font-size:15px;font-weight:800;color:#9A5B00;letter-spacing:0.01em;font-family:${b.fontStack};">${noticeBanner.title || ""}</div>
+    ${noticeBanner.subtitle ? `<div style="font-size:12.5px;color:#9A5B00;opacity:0.85;margin-top:4px;font-family:${b.fontStack};">${noticeBanner.subtitle}</div>` : ""}
+  </div>
+</td></tr>` : "";
   const content = `
 ${logoHeader(b)}
-${badgeText ? `<!-- Badge -->
+${noticeHtml}
+${badgeText && !noticeBanner ? `<!-- Badge -->
 <tr><td align="center" style="padding:24px 0 8px;">
   ${badge(badgeText, b)}
 </td></tr>` : ""}

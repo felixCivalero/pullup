@@ -1318,10 +1318,12 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
         // ({time}/{location}/{room link}…) resolve to the real details,
         // decoupled from the page's reveal-later flags. Waitlist keeps the
         // standard transactional template.
-        const { normalizeCommsConfig, resolveCommsHtml, defaultCommsForKind } = await import("../services/eventComms.js");
+        const { normalizeCommsConfig, resolveCommsHtml, defaultCommsForKind, commsCampaignTag } = await import("../services/eventComms.js");
+        const commsTagType = isWaitlistEmail ? "waitlistJoin" : "signup";
         // Kind-aware defaults: a community/product welcome has no "where and
         // when" — its startsAt is a private placeholder, not a real moment.
-        const signupCfg = normalizeCommsConfig(evReq?.comms_config, defaultCommsForKind(evReq?.kind)).signup;
+        const fullCfg = normalizeCommsConfig(evReq?.comms_config, defaultCommsForKind(evReq?.kind));
+        const signupCfg = fullCfg.signup;
         const waKing =
           !isWaitlistEmail &&
           !!evReq?.require_phone &&
@@ -1375,30 +1377,51 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
         let signupHtml;
         let signupSubject = isWaitlistEmail ? "You’re on the waitlist" : "Your spot is confirmed";
         if (isWaitlistEmail) {
-          signupHtml = signupConfirmationEmail({
-            name: result.rsvp.name || name,
-            eventTitle: result.event.title,
-            date: new Date(result.event.startsAt).toLocaleString(),
-            isWaitlist: true,
-            imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
-            location: result.event.location || "",
-            locationLat: result.event.locationLat ?? null,
-            locationLng: result.event.locationLng ?? null,
-            showCoordinates: result.event.showCoordinates ?? false,
-            startsAt: result.event.startsAt || "",
-            endsAt: result.event.endsAt || "",
-            timezone: result.event.timezone || "",
-            plusOnes: Number(result.rsvp.plusOnes) || 0,
-            slug: result.event.slug || "",
-            eventId: result.event.id || "",
-            frontendUrl: getFrontendUrl(),
-            spotifyUrl: result.event.spotify || "",
-            hideDate: result.event.hideDate || false,
-            hideLocation: result.event.hideLocation || false,
-            dateRevealHint: result.event.dateRevealHint || "",
-            revealHint: result.event.revealHint || "",
-            ...hostBrand,
-          });
+          // The host's composed waitlist-JOIN note (its token whitelist excludes
+          // location/room, so a waitlister is never handed the reveal). If the
+          // host turned the step off, fall back to the standard template.
+          if (fullCfg.waitlistJoin?.enabled) {
+            const { buildComposedEventEmailHtml } = await import("../services/composedEventEmail.js");
+            signupHtml = await buildComposedEventEmailHtml({
+              event: result.event,
+              email,
+              personId: result.rsvp.personId || null,
+              body: fullCfg.waitlistJoin.body,
+              badgeText: "WAITLIST",
+              // A banner the guest can't misread as a confirmation — the whole
+              // reason people kept asking "when's the location?" while on the list.
+              noticeBanner: {
+                title: "You’re on the waitlist — not a confirmed spot yet",
+                subtitle: "We’ll email you the moment a spot opens. Nothing to do until then.",
+              },
+              hostBrand,
+            });
+          } else {
+            signupHtml = signupConfirmationEmail({
+              name: result.rsvp.name || name,
+              eventTitle: result.event.title,
+              date: new Date(result.event.startsAt).toLocaleString(),
+              isWaitlist: true,
+              imageUrl: result.event.coverImageUrl || result.event.imageUrl || "",
+              location: result.event.location || "",
+              locationLat: result.event.locationLat ?? null,
+              locationLng: result.event.locationLng ?? null,
+              showCoordinates: result.event.showCoordinates ?? false,
+              startsAt: result.event.startsAt || "",
+              endsAt: result.event.endsAt || "",
+              timezone: result.event.timezone || "",
+              plusOnes: Number(result.rsvp.plusOnes) || 0,
+              slug: result.event.slug || "",
+              eventId: result.event.id || "",
+              frontendUrl: getFrontendUrl(),
+              spotifyUrl: result.event.spotify || "",
+              hideDate: result.event.hideDate || false,
+              hideLocation: result.event.hideLocation || false,
+              dateRevealHint: result.event.dateRevealHint || "",
+              revealHint: result.event.revealHint || "",
+              ...hostBrand,
+            });
+          }
         } else {
           const ev = result.event;
           let timeText = "";
@@ -1444,14 +1467,14 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
           if (isCommunityKind) {
             badgeText = alreadyVerifiedSelf ? "YOU'RE IN" : "VERIFY YOUR EMAIL";
             signupSubject = alreadyVerifiedSelf
-              ? "You’re in — welcome"
+              ? "You’re in, welcome"
               : `Verify your email to enter ${ev.title}`;
             // Only override the words when the host hasn't written their own —
             // a custom welcome stays the host's, just under the right badge.
             if (!hostCustomizedSignup) {
               bodyTemplate = alreadyVerifiedSelf
-                ? "Welcome to {event name}!\n\nYou're in — this is your door to everything happening here.\n\n{room link}"
-                : "Verify your email to enter {event name}.\n\nTap below — that's it: verified, signed in, and inside.\n\n{room link}";
+                ? "Welcome to {event name}!\n\nYou're in. This is your door to everything happening here.\n\n{room link}"
+                : "Verify your email to enter {event name}.\n\nTap below, that's it: verified, signed in, and inside.\n\n{room link}";
             }
           }
 
@@ -1479,6 +1502,7 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
           context: {
             personId: result.rsvp.personId || null,
             hostProfileId: result.event.hostId || null,
+            campaignTag: commsCampaignTag(commsTagType, result.event.id),
           },
         });
 

@@ -90,6 +90,7 @@
   "UNBOUND src/services/byo/hostSlice.js :: supabase.from(\"person_notes\").select(\"*\").eq(\"host_id\", hostId).order(\"created_at\"));",
   "UNBOUND src/services/byo/hostSlice.js :: supabase.from(\"pullups\").select(\"*\").in(\"event_id\", ids).order(\"created_at\")));",
   "UNBOUND src/services/byo/hostSlice.js :: supabase.from(\"rsvps\").select(\"*\").in(\"event_id\", ids).order(\"created_at\")));",
+  "UNBOUND src/services/commsReceipts.js :: .from(\"email_outbox\")",
   "UNBOUND src/services/peopleMatching.js :: supabase.from(\"people\").select(\"id, name, email, instagram\").in(\"id\", allIds),",
   "UNBOUND src/services/personResolution.js :: .from(\"person_identities\")",
   "UNBOUND src/services/personResolution.js :: const { error } = await supabase.from(\"person_identities\").insert({",

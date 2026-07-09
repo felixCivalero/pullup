@@ -5004,7 +5004,7 @@ export function CreateEventPage() {
                 display: currentStep === 3 && activePartId === "communication" ? "block" : "none",
               }}
             >
-              <EventCommunicationPanel eventId={isEditMode ? editEventId : draftEventId} isEditMode={isEditMode} kind={eventKind || "event"} />
+              <EventCommunicationPanel eventId={isEditMode ? editEventId : draftEventId} isEditMode={isEditMode} kind={eventKind || "event"} hasWaitlist={waitlistEnabled || instantWaitlist} />
             </div>
 
             {/* Product price & delivery panel — product pages only, same step,

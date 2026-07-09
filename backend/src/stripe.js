@@ -644,6 +644,66 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
             } catch { return new Date(event.startsAt).toLocaleString(); }
           })();
 
+          // Paid waitlist upgrade → the host's composed waitlistPromote reveal
+          // (location + room link), same as every other let-in path. A normal
+          // paid RSVP keeps the standard confirmation template.
+          const { commsCampaignTag } = await import("./services/eventComms.js");
+          const confirmTag = commsCampaignTag(isWaitlistPayment ? "waitlistPromote" : "signup", event.id);
+          let confirmSubject = "Your spot is confirmed";
+          let confirmHtml = null;
+          if (isWaitlistPayment) {
+            try {
+              const { getEventCommsConfig } = await import("./services/eventComms.js");
+              const cfg = await getEventCommsConfig(event.id);
+              if (cfg.waitlistPromote?.enabled) {
+                const { buildComposedEventEmailHtml } = await import(
+                  "./services/composedEventEmail.js"
+                );
+                confirmHtml = await buildComposedEventEmailHtml({
+                  event,
+                  email: rsvp.email,
+                  personId: rsvp.personId || null,
+                  body: cfg.waitlistPromote.body,
+                  badgeText: "YOU'RE IN",
+                  hostBrand,
+                });
+                confirmSubject = "You’re in — a spot just opened";
+              }
+            } catch (revealErr) {
+              // Fall back to the standard confirmation below.
+              console.error("[Webhook] waitlist reveal build failed:", revealErr?.message);
+            }
+          }
+          if (!confirmHtml) {
+            confirmHtml = signupConfirmationEmail({
+              name: rsvp.name || "",
+              eventTitle: event.title,
+              date: new Date(event.startsAt).toLocaleString(),
+              isWaitlist: false,
+              imageUrl: event.coverImageUrl || event.imageUrl || "",
+              location: event.location || "",
+              locationLat: event.locationLat ?? null,
+              locationLng: event.locationLng ?? null,
+              showCoordinates: event.showCoordinates ?? false,
+              startsAt: event.startsAt || "",
+              endsAt: event.endsAt || "",
+              timezone: event.timezone || "",
+              plusOnes: Number(rsvp.plusOnes) || 0,
+              slug: event.slug || "",
+              eventId: event.id || "",
+              frontendUrl,
+              spotifyUrl: event.spotify || "",
+              ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
+              ticketCurrency: payment.currency || event.ticketCurrency || "",
+              receiptUrl: receiptUrl || "",
+              hideDate: event.hideDate || false,
+              hideLocation: event.hideLocation || false,
+              dateRevealHint: event.dateRevealHint || "",
+              revealHint: event.revealHint || "",
+              ...hostBrand,
+            });
+          }
+
           const { dispatch } = await import("./messaging/dispatch.js");
           await dispatch({
             recipient,
@@ -658,45 +718,33 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
               },
             },
             email: {
-              subject: "Your spot is confirmed",
-              htmlBody: signupConfirmationEmail({
-                name: rsvp.name || "",
-                eventTitle: event.title,
-                date: new Date(event.startsAt).toLocaleString(),
-                isWaitlist: false,
-                imageUrl: event.coverImageUrl || event.imageUrl || "",
-                location: event.location || "",
-                locationLat: event.locationLat ?? null,
-                locationLng: event.locationLng ?? null,
-                showCoordinates: event.showCoordinates ?? false,
-                startsAt: event.startsAt || "",
-                endsAt: event.endsAt || "",
-                timezone: event.timezone || "",
-                plusOnes: Number(rsvp.plusOnes) || 0,
-                slug: event.slug || "",
-                eventId: event.id || "",
-                frontendUrl,
-                spotifyUrl: event.spotify || "",
-                ticketPrice: payment.amount ? (payment.amount / 100).toFixed(2) : 0,
-                ticketCurrency: payment.currency || event.ticketCurrency || "",
-                receiptUrl: receiptUrl || "",
-                hideDate: event.hideDate || false,
-                hideLocation: event.hideLocation || false,
-                dateRevealHint: event.dateRevealHint || "",
-                revealHint: event.revealHint || "",
-                ...hostBrand,
-              }),
+              subject: confirmSubject,
+              htmlBody: confirmHtml,
             },
             context: {
               personId: rsvp.personId || null,
               hostProfileId: event.hostId || null,
               idempotencyKey: `pay-confirm-${payment.id}`,
+              campaignTag: confirmTag,
             },
           });
           console.log(
             "[Webhook] ✅ Confirmation dispatched after payment:",
             rsvp.email
           );
+
+          // Late waitlist upgrade → catch them up on the reminder if it already
+          // fired (same idempotency key as the scheduler, so never doubles).
+          if (isWaitlistPayment) {
+            try {
+              const { sendCatchUpReminderIfDue } = await import(
+                "./services/composedEventEmail.js"
+              );
+              await sendCatchUpReminderIfDue({ event, person: recipient, hostProfile: hostProfileFull });
+            } catch (remErr) {
+              console.error("[Webhook] catch-up reminder failed:", remErr?.message);
+            }
+          }
         }
       } catch (emailErr) {
         console.error(

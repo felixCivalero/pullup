@@ -134,18 +134,23 @@ function StepHead({ n, title, subtitle, on, onToggle, toggleable }) {
   );
 }
 
-export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" }) {
+export function EventCommunicationPanel({ eventId, isEditMode, kind = "event", hasWaitlist = false }) {
   // Dateless kinds (community, product) have no moment to remind about or
   // follow up after — their arc is ONE message: the welcome. The date-anchored
   // steps disappear entirely (the schedulers skip these kinds server-side too).
   const dateless = kind !== "event";
+  // The waitlist pair only makes sense when this event actually runs a waitlist.
+  const showWaitlist = !dateless && hasWaitlist;
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [cfg, setCfg] = useState(null);
   const [sample, setSample] = useState({});
-  const composerRefs = { signup: useRef(null), reminder: useRef(null), postEvent: useRef(null) };
+  const composerRefs = {
+    signup: useRef(null), reminder: useRef(null), postEvent: useRef(null),
+    waitlistJoin: useRef(null), waitlistPromote: useRef(null),
+  };
 
   const load = useCallback(async () => {
     if (!eventId) { setLoading(false); return; }
@@ -184,7 +189,7 @@ export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" })
         setDirty(false);
         showToast("Communication saved", "success");
       } else {
-        showToast("Couldn't save — try again", "error");
+        showToast("Couldn't save, try again", "error");
       }
     } catch {
       showToast("Couldn't save — try again", "error");
@@ -201,7 +206,7 @@ export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" })
       <div style={{ padding: "18px 16px", borderRadius: 14, background: colors.accentSoft, border: `1px solid ${colors.accentBorder}`, fontSize: 13.5, color: colors.textMuted, lineHeight: 1.55 }}>
         {isEditMode
           ? "Couldn't load the communication settings for this event. Refresh and try again."
-          : "Once your event exists, you'll control everything guests hear about it right here — the welcome, the reminder, and the post-event note."}
+          : "Once your event exists, you'll control everything guests hear about it right here: the welcome, the reminder, and the post-event note."}
       </div>
     );
   }
@@ -236,8 +241,8 @@ export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" })
           <div style={{ fontSize: 15.5, fontWeight: 800, color: colors.text, letterSpacing: "-0.01em" }}>Communication</div>
           <div style={{ fontSize: 13, color: colors.textMuted, marginTop: 2, lineHeight: 1.5 }}>
             {dateless
-              ? "The welcome people get the moment they join. Write it your way — tap \"Add\" to drop in the live details. What you see is what they get."
-              : "Everything your guests hear about this event. Write each message — tap \"Add\" to drop in the live details. What you see is what they get."}
+              ? "The welcome people get the moment they join. Write it your way, tap \"Add\" to drop in the live details. What you see is what they get."
+              : "Everything your guests hear about this event. Write each message, tap \"Add\" to drop in the live details. What you see is what they get."}
           </div>
         </div>
       </div>
@@ -275,7 +280,7 @@ export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" })
 
       {/* ── Step 3: Post-event ───────────────────────────────────────────── */}
       <div style={{ ...cardWrap, opacity: cfg.postEvent.enabled ? 1 : 0.62 }}>
-        <StepHead n={3} title="Post-event" subtitle="A thank-you after it's over — and a nudge to drop their photos in the room." toggleable on={cfg.postEvent.enabled} onToggle={() => setField("postEvent", "enabled", !cfg.postEvent.enabled)} />
+        <StepHead n={3} title="Post-event" subtitle="A thank-you after it's over, and a nudge to drop their photos in the room." toggleable on={cfg.postEvent.enabled} onToggle={() => setField("postEvent", "enabled", !cfg.postEvent.enabled)} />
         {cfg.postEvent.enabled && (
           <>
             <div style={{ ...lbl, display: "flex", alignItems: "center", gap: 6 }}><Clock size={12} /> When to send</div>
@@ -292,6 +297,44 @@ export function EventCommunicationPanel({ eventId, isEditMode, kind = "event" })
           </>
         )}
       </div>
+      </>)}
+
+      {/* ── Waitlist pair — only when this event runs a waitlist ──────────────
+          JOIN reveals nothing (no location/room chips offered); the LET-IN
+          reveal fires the instant the host promotes someone and carries the
+          full where/when + room link, exactly like the sign-up info. */}
+      {showWaitlist && cfg.waitlistJoin && cfg.waitlistPromote && (<>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "22px 2px 12px" }}>
+          <div style={{ height: 1, flex: 1, background: colors.border }} />
+          <span style={{ fontSize: 11, fontWeight: 800, color: colors.textSubtle, textTransform: "uppercase", letterSpacing: "0.06em" }}>Waitlist</span>
+          <div style={{ height: 1, flex: 1, background: colors.border }} />
+        </div>
+
+        <div style={{ ...cardWrap, opacity: cfg.waitlistJoin.enabled ? 1 : 0.62 }}>
+          <StepHead n={4} title="Added to the waitlist" subtitle="Sent when the event is full and someone joins the waitlist. Keep it warm. No location or room link here." toggleable on={cfg.waitlistJoin.enabled} onToggle={() => setField("waitlistJoin", "enabled", !cfg.waitlistJoin.enabled)} />
+          {cfg.waitlistJoin.enabled && (
+            <>
+              <div style={lbl}>Message</div>
+              <div ref={composerRefs.waitlistJoin}>
+                <TokenComposer value={cfg.waitlistJoin.body} sample={sample} onChange={(v) => setBody("waitlistJoin", v)} placeholder="Write the 'you're on the waitlist' note…" />
+              </div>
+              <AddBar step="waitlistJoin" />
+            </>
+          )}
+        </div>
+
+        <div style={{ ...cardWrap, opacity: cfg.waitlistPromote.enabled ? 1 : 0.62 }}>
+          <StepHead n={5} title="Let in off the waitlist" subtitle="Sent the moment you click someone in. This is where the location and room link go." toggleable on={cfg.waitlistPromote.enabled} onToggle={() => setField("waitlistPromote", "enabled", !cfg.waitlistPromote.enabled)} />
+          {cfg.waitlistPromote.enabled && (
+            <>
+              <div style={lbl}>Message</div>
+              <div ref={composerRefs.waitlistPromote}>
+                <TokenComposer value={cfg.waitlistPromote.body} sample={sample} onChange={(v) => setBody("waitlistPromote", v)} placeholder="Write the 'a spot opened, you're in' reveal…" />
+              </div>
+              <AddBar step="waitlistPromote" />
+            </>
+          )}
+        </div>
       </>)}
 
       <div style={{ fontSize: 11.5, color: colors.textSubtle, lineHeight: 1.5, margin: "2px 2px 14px" }}>

@@ -41,10 +41,15 @@ export const TOKENS = {
   upload: "{upload link}",
 };
 // Which tokens make sense per step (drives the chips shown in the editor).
+// waitlistJoin deliberately excludes location/coordinates/room: a waitlister
+// must NOT be handed the reveal. Those tokens only become insertable once the
+// host lets them in (waitlistPromote), which mirrors the signup reveal set.
 export const STEP_TOKENS = {
   signup: ["event", "time", "location", "coordinates", "room"],
   reminder: ["event", "time", "location", "coordinates"],
   postEvent: ["event", "upload"],
+  waitlistJoin: ["event", "time"],
+  waitlistPromote: ["event", "time", "location", "coordinates", "room"],
 };
 
 // The default communication arc for every event — written close to how a host
@@ -57,12 +62,24 @@ export const DEFAULT_COMMS_CONFIG = {
   reminder: {
     enabled: true,
     hoursBefore: 12,
-    body: "Today's the day — {event name}!\n\nSame time and place:\n{time}\n{location}\n\nCan't wait to see you there.",
+    body: "Today's the day - {event name}!\n\nSame time and place:\n{time}\n{location}\n\nCan't wait to see you there.",
   },
   postEvent: {
     enabled: true,
     hoursAfter: 16, // ~the morning after an evening event
     body: "Thank you for joining {event name}!\n\nPlease upload your photos and videos here:\n{upload link}",
+  },
+  // Only relevant when the event has a waitlist. The JOIN note reveals nothing
+  // (no location/room tokens available); the PROMOTE reveal fires the instant
+  // the host lets someone in and carries the full where/when + room link — the
+  // same payload a fresh confirmed RSVP gets.
+  waitlistJoin: {
+    enabled: true,
+    body: "You're on the waitlist for {event name}.\n\nWe're at capacity right now, but spots open up. If one does, you'll get an email straight away with everything you need. Hang tight!",
+  },
+  waitlistPromote: {
+    enabled: true,
+    body: "Good news, a spot just opened and you're in for {event name}!\n\nHere's the where and when:\n{location}\n{time}\n\nYour room (everything for the event lives here): {room link}",
   },
 };
 
@@ -72,15 +89,35 @@ export const DEFAULT_COMMS_CONFIG = {
 // reminder/post-event sends default OFF.
 export const DATELESS_COMMS_CONFIG = {
   signup: {
-    body: "Welcome to {event name}!\n\nYou're in — this is your door to everything happening here.\n\nYour room (it all lives here): {room link}",
+    body: "Welcome to {event name}!\n\nYou're in. This is your door to everything happening here.\n\nYour room (it all lives here): {room link}",
   },
   reminder: { ...DEFAULT_COMMS_CONFIG.reminder, enabled: false },
   postEvent: { ...DEFAULT_COMMS_CONFIG.postEvent, enabled: false },
+  // Communities/products don't run a capacity waitlist — keep these off.
+  waitlistJoin: { ...DEFAULT_COMMS_CONFIG.waitlistJoin, enabled: false },
+  waitlistPromote: { ...DEFAULT_COMMS_CONFIG.waitlistPromote, enabled: false },
 };
 
 // The defaults for a page kind — anything that isn't a plain event is dateless.
 export function defaultCommsForKind(kind) {
   return kind && kind !== "event" ? DATELESS_COMMS_CONFIG : DEFAULT_COMMS_CONFIG;
+}
+
+// ── Comms receipt tagging ─────────────────────────────────────────────────
+// Every automated send stamps email_outbox.campaign_tag (and the WA row) with
+// its type + event, so the host's guest list can show, per guest, exactly which
+// messages went out. Event-scoped so a person in two events never crosses wires.
+// Format: "comms:<type>:<eventId>"  (type ∈ COMMS_TYPES).
+export const COMMS_TYPES = ["signup", "waitlistJoin", "waitlistPromote", "reminder", "postEvent"];
+export function commsCampaignTag(type, eventId) {
+  return eventId ? `comms:${type}:${eventId}` : `comms:${type}`;
+}
+// Parse a tag back to { type, eventId }, or null if it isn't a comms tag.
+export function parseCommsCampaignTag(tag) {
+  if (typeof tag !== "string") return null;
+  const m = tag.match(/^comms:([a-zA-Z]+):(.+)$/);
+  if (!m || !COMMS_TYPES.includes(m[1])) return null;
+  return { type: m[1], eventId: m[2] };
 }
 
 function clampNum(v, min, max, fallback) {
@@ -103,6 +140,8 @@ export function normalizeCommsConfig(raw, defaults = DEFAULT_COMMS_CONFIG) {
   const su = r.signup && typeof r.signup === "object" ? r.signup : {};
   const rm = r.reminder && typeof r.reminder === "object" ? r.reminder : {};
   const pe = r.postEvent && typeof r.postEvent === "object" ? r.postEvent : {};
+  const wj = r.waitlistJoin && typeof r.waitlistJoin === "object" ? r.waitlistJoin : {};
+  const wp = r.waitlistPromote && typeof r.waitlistPromote === "object" ? r.waitlistPromote : {};
   return {
     signup: {
       body: bodyStr(su.body, d.signup.body),
@@ -116,6 +155,14 @@ export function normalizeCommsConfig(raw, defaults = DEFAULT_COMMS_CONFIG) {
       enabled: bool(pe.enabled, d.postEvent.enabled),
       hoursAfter: clampNum(pe.hoursAfter, POST_MIN_HOURS, POST_MAX_HOURS, d.postEvent.hoursAfter),
       body: bodyStr(pe.body, d.postEvent.body),
+    },
+    waitlistJoin: {
+      enabled: bool(wj.enabled, d.waitlistJoin.enabled),
+      body: bodyStr(wj.body, d.waitlistJoin.body),
+    },
+    waitlistPromote: {
+      enabled: bool(wp.enabled, d.waitlistPromote.enabled),
+      body: bodyStr(wp.body, d.waitlistPromote.body),
     },
   };
 }

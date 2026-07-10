@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   Users,
@@ -972,6 +972,27 @@ export function EventGuestsPage() {
     setPulledUpModalGuest(guest);
   }
 
+  // Derived guest lists/stats — memoized here (ABOVE the early returns, per
+  // rules-of-hooks) so a keystroke in search / a hover doesn't re-filter and
+  // re-sort the whole guest list every render (the table's #1 render cost).
+  const stats = useMemo(() => computeGuestStats(guests), [guests]);
+  const cancelledCount = useMemo(
+    () => guests.filter((g) => g.bookingStatus === "CANCELLED" || g.status === "cancelled").length,
+    [guests],
+  );
+  const filteredGuests = useMemo(
+    () =>
+      filterGuests(guests, searchQuery).filter((g) => {
+        if (!showCancelled && (g.bookingStatus === "CANCELLED" || g.status === "cancelled")) return false;
+        return true;
+      }),
+    [guests, searchQuery, showCancelled],
+  );
+  const sortedGuests = useMemo(
+    () => sortGuests(filteredGuests, sortColumn, sortDirection),
+    [filteredGuests, sortColumn, sortDirection],
+  );
+
   if (loading) {
     return (
       <div
@@ -1071,8 +1092,8 @@ export function EventGuestsPage() {
     );
   }
 
-  // Stats - count people, not just RSVPs (computed via helper)
-  const stats = computeGuestStats(guests);
+  // (stats/cancelledCount/filteredGuests/sortedGuests are memoized above, before
+  // the early returns — see rules-of-hooks.)
 
   // Use the calculated attending value
   const attending = stats.attending;
@@ -1125,18 +1146,6 @@ export function EventGuestsPage() {
   };
 
   // Count cancelled guests
-  const cancelledCount = guests.filter(
-    (g) => g.bookingStatus === "CANCELLED" || g.status === "cancelled",
-  ).length;
-
-  // Filter + sort guests via helpers (exclude cancelled unless toggled)
-  const filteredGuests = filterGuests(guests, searchQuery).filter((g) => {
-    if (!showCancelled && (g.bookingStatus === "CANCELLED" || g.status === "cancelled")) {
-      return false;
-    }
-    return true;
-  });
-  const sortedGuests = sortGuests(filteredGuests, sortColumn, sortDirection);
 
   return (
     <div

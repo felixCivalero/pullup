@@ -13,7 +13,15 @@ function sleep(ms) {
 // Cloudflare 502s from Supabase during claimOutboxBatch /
 // countSentSinceUtc). PM2 would restart, hit the same blip, exit
 // again. Now: log + backoff + keep running.
-const IDLE_DELAY_MS = 1000;
+// Idle polling: start fast (1s) so a freshly-enqueued email goes out promptly,
+// but back OFF while there's nothing to send — the worker is idle ~99% of the
+// time (a few dozen sends/day), so a flat 1s poll was ~1 claim_email_outbox_batch
+// call/second forever (millions of empty polls = a real chunk of DB load). The
+// delay doubles up to IDLE_MAX while empty and RESETS to IDLE_MIN the instant a
+// batch has work, so a send burst still drains fast — only the first mail after
+// a quiet spell waits up to IDLE_MAX.
+const IDLE_MIN_DELAY_MS = 1000;
+const IDLE_MAX_DELAY_MS = Number(process.env.EMAIL_WORKER_IDLE_MAX_MS ?? 10_000);
 const ERROR_BASE_DELAY_MS = 2000;
 const ERROR_MAX_DELAY_MS = 60_000;
 
@@ -33,12 +41,16 @@ async function runLoop() {
 
   console.log("[outboxWorkerRunner] Starting continuous loop");
   let consecutiveErrors = 0;
+  let idleDelay = IDLE_MIN_DELAY_MS;
   for (;;) {
     try {
       const summary = await processBatch({});
       consecutiveErrors = 0;
       if (summary?.processed === 0) {
-        await sleep(IDLE_DELAY_MS);
+        await sleep(idleDelay);
+        idleDelay = Math.min(idleDelay * 2, IDLE_MAX_DELAY_MS); // back off while idle
+      } else {
+        idleDelay = IDLE_MIN_DELAY_MS; // work found → poll fast to drain the burst
       }
     } catch (err) {
       consecutiveErrors += 1;

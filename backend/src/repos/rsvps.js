@@ -805,16 +805,18 @@ export async function updateRsvp(rsvpId, updates, options = {}) {
   // Recalculate bookingStatus based on capacity
   const { confirmed } = await getEventCounts(event.id);
 
-  // Calculate current cocktails-only count (excluding this RSVP)
-  // Fetch all confirmed RSVPs except this one
+  // Calculate current cocktails-only occupancy (excluding this RSVP). Occupancy
+  // = everyone holding a spot: CONFIRMED *and* PENDING_PAYMENT (a 30-min payment
+  // hold still occupies a seat). The old `.in(['CONFIRMED']).or(status.attending)`
+  // ANDed to exclude PENDING_PAYMENT, undercounting and letting a host edit
+  // oversell past capacity. booking_status is the source of truth.
   const { data: otherRsvps, error: rsvpsError } = await supabase
     .from("rsvps")
     .select(
       "dinner, wants_dinner, plus_ones, party_size, booking_status, status"
     )
     .eq("event_id", event.id)
-    .in("booking_status", ["CONFIRMED"])
-    .or("status.eq.attending")
+    .in("booking_status", ["CONFIRMED", "PENDING_PAYMENT"])
     .neq("id", rsvpId);
 
   if (rsvpsError) {

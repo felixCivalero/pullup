@@ -859,8 +859,7 @@ export async function getCocktailsOnlyCount(eventId) {
       "dinner, wants_dinner, plus_ones, party_size, booking_status, status"
     )
     .eq("event_id", eventId)
-    .in("booking_status", ["CONFIRMED", "PENDING_PAYMENT"])
-    .or("status.eq.attending");
+    .in("booking_status", ["CONFIRMED", "PENDING_PAYMENT"]);
 
   if (error) {
     console.error("Error fetching cocktails-only count:", error);

@@ -111,18 +111,43 @@ export function registerEventRoutes(app) {
         return res.send(ogHtml);
       }
 
-      // Otherwise, return JSON (existing behavior for API/frontend)
-      const { confirmed, waitlist } = await getEventCounts(event.id);
-      // Calculate cocktails-only (people attending cocktails but not confirmed for dinner)
-      const cocktailsOnly = await getCocktailsOnlyCount(event.id);
+      // Otherwise, return JSON (existing behavior for API/frontend). Every read
+      // below depends only on the already-loaded event, so they run as ONE
+      // parallel wave instead of a 5-deep serial waterfall — this is the
+      // highest-traffic endpoint (every guest hitting /e/:slug).
+      const hostId = event.hostId || null;
+      const [counts, cocktailsOnly, hostEventIds, hostProfile, canHostOk] =
+        await Promise.all([
+          getEventCounts(event.id),
+          getCocktailsOnlyCount(event.id),
+          userId ? getUserEventIds(userId) : Promise.resolve([]),
+          hostId
+            ? import("../supabase.js")
+                .then(({ supabase: sb }) =>
+                  sb.from("profiles").select("name, brand, whatsapp_signature").eq("id", hostId).maybeSingle()
+                )
+                .then((r) => r.data || null)
+                .catch((e) => { console.warn("[events/:slug] host identity lookup failed", e?.message); return null; })
+            : Promise.resolve(null),
+          // Lapsed-host degradation: fail OPEN — a paywall hiccup never breaks a guest page.
+          hostId ? canHost(hostId).catch(() => true) : Promise.resolve(true),
+        ]);
+
+      const { confirmed, waitlist } = counts;
       const cocktailSpotsLeft =
         event.cocktailCapacity != null
           ? Math.max(0, event.cocktailCapacity - cocktailsOnly)
           : null;
+      const isHost = hostEventIds.includes(event.id);
+      const rsvpsPaused = !canHostOk;
+      // Host identity read live from the profile (current name/voice, not a snapshot).
+      const hostIdentity = { hostName: null, signature: null };
+      if (hostProfile) {
+        hostIdentity.hostName = hostProfile.name || hostProfile.brand || null;
+        hostIdentity.signature = hostProfile.whatsapp_signature || null;
+      }
 
       // Strip hidden fields from public response (hosts still see everything)
-      const hostEventIds = userId ? await getUserEventIds(userId) : [];
-      const isHost = hostEventIds.includes(event.id);
       const publicEvent = { ...event };
       // Digital-product delivery: derive a SAFE summary (what forms exist, the
       // public external link) and never leak the secrets (download path, secret
@@ -148,43 +173,6 @@ export function registerEventRoutes(app) {
           publicEvent.endsAt = null;
         }
       }
-
-      // Host identity for the event page in one round-trip. Host-customizable
-      // visual theming was removed — the only surviving custom visual is the
-      // generative AI hero `scene` (events.scene), exposed verbatim above via
-      // publicEvent. Identity (hostName / signature) is read live from the
-      // profile (the host's current name/voice, not a snapshot).
-      let hostIdentity = { hostName: null, signature: null };
-      if (event.hostId) {
-        try {
-          // The GET handler never declared a supabase client (the `sb` at the top
-          // of POST /events/:slug/view is a different scope) — so this lookup was
-          // throwing "sb is not defined" and silently dropping host name/voice on
-          // every event page. Import it here.
-          const { supabase: sb } = await import("../supabase.js");
-          const { data: hostProfile } = await sb
-            .from("profiles")
-            .select("name, brand, whatsapp_signature")
-            .eq("id", event.hostId)
-            .maybeSingle();
-          if (hostProfile) {
-            hostIdentity.hostName  = hostProfile.name || hostProfile.brand || null;
-            // Voice carrier (already used elsewhere; exposed here too so
-            // event-page hero can lead with "Hosted by …" naturally).
-            hostIdentity.signature = hostProfile.whatsapp_signature || null;
-          }
-        } catch (identityErr) {
-          // Identity lookup never blocks event rendering.
-          console.warn("[events/:slug] host identity lookup failed", identityErr?.message);
-        }
-      }
-
-      // Lapsed-host degradation: the page stays up, but the RSVP form shows a
-      // paused state instead of failing on submit. Cached ~60s in-process.
-      let rsvpsPaused = false;
-      try {
-        rsvpsPaused = event.hostId ? !(await canHost(event.hostId)) : false;
-      } catch { /* fail open — never let the paywall check break a guest page */ }
 
       res.json({
         ...publicEvent,

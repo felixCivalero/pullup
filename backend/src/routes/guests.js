@@ -11,7 +11,6 @@ import {
   updateRsvp,
   deleteRsvp,
   getUserProfile,
-  isUserEventHost,
   canEditGuests,
   canCheckIn,
   getEventHostRole,
@@ -39,16 +38,16 @@ export function registerGuestRoutes(app) {
       const event = await findEventById(req.params.id);
       if (!event) return res.status(404).json({ error: "Event not found" });
 
-      // Verify ownership (owner or co-host)
-      const { isHost } = await isUserEventHost(req.user.id, event.id);
-      if (!isHost) {
+      // One permission read: getEventHostRole returns null for non-hosts (it
+      // already calls isUserEventHost internally), replacing the previous double
+      // lookup (isUserEventHost + getEventHostRole).
+      const myRole = await getEventHostRole(req.user.id, event.id);
+      if (!myRole) {
         return res.status(403).json({
           error: "Forbidden",
           message: "You don't have access to this event",
         });
       }
-
-      const myRole = await getEventHostRole(req.user.id, event.id);
       if (myRole === "analytics" || myRole === "viewer") {
         return res.status(403).json({
           error: "Forbidden",
@@ -86,16 +85,14 @@ export function registerGuestRoutes(app) {
       const event = await findEventById(req.params.id);
       if (!event) return res.status(404).json({ error: "Event not found" });
 
-      // Any host can export (including viewer)
-      const { isHost } = await isUserEventHost(req.user.id, event.id);
-      if (!isHost) {
+      // Single permission read (getEventHostRole → null for non-hosts).
+      const myRole = await getEventHostRole(req.user.id, event.id);
+      if (!myRole) {
         return res.status(403).json({
           error: "Forbidden",
           message: "You don't have access to this event",
         });
       }
-
-      const myRole = await getEventHostRole(req.user.id, event.id);
       if (myRole === "analytics" || myRole === "viewer") {
         return res.status(403).json({
           error: "Forbidden",

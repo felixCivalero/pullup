@@ -536,12 +536,17 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   //           past (published, already happened). Coming counts from rsvps.
   const eventIds = (events || []).map((e) => e.id);
   const comingByEvent = new Map();
+  // ONE rsvp scan of this host's events serves BOTH the "coming" counts here AND
+  // the audience segments below (§4c) — that used to be two full scans of the
+  // same rows. Superset columns, no status filter (each consumer applies its own).
+  let hostRsvpRows = [];
   if (eventIds.length) {
     const { data: rsvpRows } = await supabase
       .from("rsvps")
-      .select("event_id, status, booking_status")
+      .select("person_id, event_id, status, booking_status, pulled_up, payment_status")
       .in("event_id", eventIds);
-    for (const r of rsvpRows || []) {
+    hostRsvpRows = rsvpRows || [];
+    for (const r of hostRsvpRows) {
       if (r.status === "cancelled") continue;
       if (r.status === "waitlist" || r.booking_status === "WAITLIST") continue; // waitlisters aren't "coming"
       comingByEvent.set(r.event_id, (comingByEvent.get(r.event_id) || 0) + 1);
@@ -646,14 +651,10 @@ export async function getRoomForHost(hostId, { email = null } = {}) {
   const eventStatusByPerson = new Map();
   try {
     const kindById = new Map((events || []).map((e) => [e.id, e.kind]));
-    const allHostEventIds = (events || []).map((e) => e.id);
-    if (allHostEventIds.length) {
-      const { data: rs } = await supabase
-        .from("rsvps")
-        .select("person_id, event_id, status, booking_status, pulled_up, payment_status")
-        .in("event_id", allHostEventIds)
-        .neq("status", "cancelled");
-      for (const r of rs || []) {
+    // Reuse the single rsvp scan from §4 above (this was a duplicate query).
+    if (hostRsvpRows.length) {
+      for (const r of hostRsvpRows) {
+        if (r.status === "cancelled") continue; // the old query's .neq filter
         if (!r.person_id) continue;
         const kind = kindById.get(r.event_id);
         if (kind === "community") { communityMemberIds.add(r.person_id); continue; }

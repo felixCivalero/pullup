@@ -6,19 +6,28 @@ import { requireAuth } from "../middleware/auth.js";
 import { validate, personUpdateSchema } from "../middleware/validate.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 
+// Users whose one-time orphaned-event backfill has already run this process —
+// so the legacy migration doesn't fire a table UPDATE on EVERY CRM load.
+const orphanAssignDone = new Set();
+
 export function registerCrmPeopleRoutes(app) {
   // ---------------------------
   // PROTECTED: Get all people (CRM) - filtered by user's events
   // ---------------------------
   app.get("/host/crm/people", requireAuth, async (req, res) => {
     try {
-      // Assign orphaned events to this user on first access (one-time migration)
-      const { assignOrphanedEventsToUser } = await import("../migrations.js");
-      try {
-        await assignOrphanedEventsToUser(req.user.id);
-      } catch (migrationError) {
-        // Log but don't fail - migration is optional
-        console.log("Migration note:", migrationError.message);
+      // Assign orphaned events to this user on first access (one-time migration).
+      // Guarded to run at most once per user per process — no more UPDATE-on-read.
+      if (!orphanAssignDone.has(req.user.id)) {
+        orphanAssignDone.add(req.user.id);
+        try {
+          const { assignOrphanedEventsToUser } = await import("../migrations.js");
+          await assignOrphanedEventsToUser(req.user.id);
+        } catch (migrationError) {
+          // Log but don't fail - migration is optional. Allow a retry next time.
+          console.log("Migration note:", migrationError.message);
+          orphanAssignDone.delete(req.user.id);
+        }
       }
 
       // Check for query parameters for filtering

@@ -464,11 +464,16 @@ app.listen(PORT, HOST, async () => {
       if (staleRsvps && staleRsvps.length > 0) {
         const ids = staleRsvps.map((r) => r.id);
 
-        // Cancel associated Stripe PaymentIntents to prevent late payments
+        // Cancel associated Stripe PaymentIntents to prevent late payments. A PI
+        // can succeed right at the TTL boundary — in that case the guest HAS
+        // been charged, so we must NOT delete their RSVP (the webhook confirms
+        // it). Re-check each PI's status; keep any RSVP whose payment succeeded
+        // (or that we couldn't verify — conservative, never delete a paid seat).
+        const keepRsvpIds = new Set();
         try {
           const { data: payments } = await supabase
             .from("payments")
-            .select("id, stripe_payment_intent_id")
+            .select("id, rsvp_id, stripe_payment_intent_id")
             .in("rsvp_id", ids)
             .eq("status", "pending");
 
@@ -477,33 +482,48 @@ app.listen(PORT, HOST, async () => {
             const Stripe = (await import("stripe")).default;
             const stripe = new Stripe(getStripeSecretKey());
 
+            const paymentsToDelete = [];
             for (const p of payments) {
               try {
+                const pi = await stripe.paymentIntents.retrieve(p.stripe_payment_intent_id);
+                if (pi && pi.status === "succeeded") {
+                  // Charged at the boundary — leave the RSVP for the webhook.
+                  keepRsvpIds.add(p.rsvp_id);
+                  console.warn(`[Cleanup] PI ${p.stripe_payment_intent_id} succeeded — keeping RSVP ${p.rsvp_id}`);
+                  continue;
+                }
                 await stripe.paymentIntents.cancel(p.stripe_payment_intent_id);
+                paymentsToDelete.push(p.id);
                 console.log(`[Cleanup] Cancelled PaymentIntent ${p.stripe_payment_intent_id}`);
               } catch (cancelErr) {
-                // PaymentIntent may already be cancelled/succeeded — that's fine
-                console.warn(`[Cleanup] Could not cancel PI ${p.stripe_payment_intent_id}: ${cancelErr.message}`);
+                // Couldn't verify/cancel — be conservative and keep the RSVP so a
+                // charge that slipped through is never orphaned.
+                keepRsvpIds.add(p.rsvp_id);
+                console.warn(`[Cleanup] PI ${p.stripe_payment_intent_id} check/cancel issue, keeping RSVP: ${cancelErr.message}`);
               }
             }
 
-            // Delete payment records
-            await supabase.from("payments").delete().in("id", payments.map((p) => p.id));
+            if (paymentsToDelete.length > 0) {
+              await supabase.from("payments").delete().in("id", paymentsToDelete);
+            }
           }
         } catch (paymentErr) {
           console.error("[Cleanup] Error cancelling payments:", paymentErr.message);
           // Continue with RSVP deletion even if payment cleanup fails
         }
 
-        const { error: deleteError } = await supabase
-          .from("rsvps")
-          .delete()
-          .in("id", ids);
+        // Only delete RSVPs that were NOT just paid (abandoned holds + genuinely
+        // cancelled ones). A paid-at-the-boundary RSVP stays for the webhook.
+        const deletableIds = ids.filter((id) => !keepRsvpIds.has(id));
+        const { error: deleteError } = deletableIds.length > 0
+          ? await supabase.from("rsvps").delete().in("id", deletableIds)
+          : { error: null };
 
         if (deleteError) {
           console.error("[Cleanup] Error deleting stale RSVPs:", deleteError.message);
         } else {
-          console.log(`[Cleanup] Deleted ${ids.length} abandoned PENDING_PAYMENT RSVP(s)`);
+          console.log(`[Cleanup] Deleted ${deletableIds.length} abandoned PENDING_PAYMENT RSVP(s)` +
+            (keepRsvpIds.size ? `, kept ${keepRsvpIds.size} just-paid` : ""));
         }
       }
     } catch (err) {

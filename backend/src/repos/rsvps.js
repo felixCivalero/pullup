@@ -263,8 +263,11 @@ export async function addRsvp({
       source: "rsvp",
       preferKind: "email",
     });
+    // Load the FULL person — mapRsvpFromDb reads name/email/phone/etc. off this
+    // object to enrich the returned rsvp (and the route mints the guest's auth
+    // account from result.rsvp.email), so a bare { id } would blank those out.
     person = resolved?.personId
-      ? { id: resolved.personId }
+      ? (await findPersonById(resolved.personId)) || { id: resolved.personId }
       : await findOrCreatePerson(normalizedEmail, name);
   } catch (e) {
     console.error("[addRsvp] identity resolve failed, using email fallback:", e?.message);

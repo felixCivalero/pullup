@@ -24,6 +24,14 @@ import { getFrontendUrl } from "../lib/urls.js";
 import { cancellationEmail } from "../emails/signupConfirmation.js";
 import { emitIntent, sourceFromRequest } from "../services/intentLog.js";
 import { dispatch as dispatchMessage } from "../messaging/index.js";
+import { supabase } from "../supabase.js";
+
+// A paid event must never SILENTLY give away a seat: promoting a waitlister
+// there requires an explicit comp acknowledgment (else steer to the payment
+// link). Free events promote as before.
+function isPaidEvent(event) {
+  return event?.ticketType === "paid" || Number(event?.ticketPrice) > 0;
+}
 
 export function registerGuestRoutes(app) {
   app.get("/host/events/:id/guests", requireAuth, async (req, res) => {
@@ -590,11 +598,32 @@ export function registerGuestRoutes(app) {
           });
         }
 
+        // Paid event: require an explicit comp so a paid seat is never given
+        // away by accident. Free events are unaffected.
+        const { comp } = req.body || {};
+        if (isPaidEvent(event) && !comp) {
+          return res.status(402).json({
+            error: "payment_required",
+            message:
+              "This is a paid event. Send a payment link to collect payment, or confirm you want to comp this guest (let them in free).",
+          });
+        }
+
         const result = await updateRsvp(
           rsvpId,
           { bookingStatus: "CONFIRMED", status: "attending" },
           { forceConfirm: true }
         );
+
+        // Record the intentional comp honestly (not left as "unpaid", which
+        // would otherwise prompt the guest to pay). Best-effort.
+        if (!result.error && isPaidEvent(event) && comp) {
+          await supabase
+            .from("rsvps")
+            .update({ payment_status: "comp" })
+            .eq("id", rsvpId)
+            .then(() => {}, () => {});
+        }
 
         if (result.error) {
           return res.status(500).json({
@@ -636,7 +665,7 @@ export function registerGuestRoutes(app) {
     async (req, res) => {
       try {
         const { eventId } = req.params;
-        const { rsvpIds } = req.body || {};
+        const { rsvpIds, comp } = req.body || {};
 
         if (!Array.isArray(rsvpIds) || rsvpIds.length === 0) {
           return res.status(400).json({
@@ -647,6 +676,15 @@ export function registerGuestRoutes(app) {
 
         const event = await findEventById(eventId);
         if (!event) return res.status(404).json({ error: "Event not found" });
+
+        // Same paid-event comp guard as the single promote.
+        if (isPaidEvent(event) && !comp) {
+          return res.status(402).json({
+            error: "payment_required",
+            message:
+              "This is a paid event. Send payment links to collect payment, or confirm you want to comp these guests (let them in free).",
+          });
+        }
 
         const canEdit = await canEditGuests(req.user.id, event.id);
         if (!canEdit) {

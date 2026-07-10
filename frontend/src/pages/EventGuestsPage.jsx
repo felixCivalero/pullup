@@ -660,13 +660,23 @@ export function EventGuestsPage() {
   }
 
   async function handlePromoteGuest(guestId, sendEmail = false) {
+    // Paid event: promoting a waitlister lets them in without charging. Make
+    // that an explicit choice so a paid seat is never given away by accident.
+    const isPaid = event?.ticketType === "paid" || Number(event?.ticketPrice) > 0;
+    let comp = false;
+    if (isPaid) {
+      comp = window.confirm(
+        "This is a paid event. Comp this guest — let them in without collecting payment?",
+      );
+      if (!comp) return; // host declined; they can send a payment link instead
+    }
     try {
       const res = await authenticatedFetch(
         `/host/events/${id}/rsvps/${guestId}/promote`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sendEmail }),
+          body: JSON.stringify({ sendEmail, comp }),
         },
       );
       if (!res.ok) {

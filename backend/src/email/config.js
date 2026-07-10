@@ -46,12 +46,13 @@ export const EMAIL_WORKER_BATCH_SIZE = Number(
   process.env.EMAIL_WORKER_BATCH_SIZE || 50,
 );
 
-// Daily provider quota guard. Default 100 matches Resend's free tier.
-// Set to a higher number when you upgrade (3000 / 50000 / etc.); set to
-// 0 to disable the guard entirely (worker behaves as it did before this
-// existed). Counted across the whole UTC day from email_outbox.sent_at.
+// Daily send guard — a RUNAWAY-LOOP backstop, not the provider's hard limit.
+// Set well above real daily volume (historical peak ~300/day) so it never
+// defers a legitimate send, while still capping a bug that mass-mails guests.
+// Env-override per your provider plan; 0 disables. Counted across the UTC day
+// via email_outbox.updated_at (rows are stamped on send).
 export const EMAIL_DAILY_LIMIT = Number(
-  process.env.EMAIL_DAILY_LIMIT ?? 100,
+  process.env.EMAIL_DAILY_LIMIT ?? 3000,
 );
 
 export const WEBHOOK_SNS_VERIFY = bool(process.env.WEBHOOK_SNS_VERIFY, true);

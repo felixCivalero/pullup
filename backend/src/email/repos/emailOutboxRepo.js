@@ -197,11 +197,14 @@ export function markRetrying(
 // outbox worker to enforce a daily provider quota. Returns 0 if the
 // query fails so a transient DB error never blocks sending.
 export async function countSentSinceUtc(sinceIso) {
+  // Count on updated_at, not the non-existent sent_at column (the old filter
+  // errored → returned 0 → the quota never applied). A row's updated_at is
+  // bumped when it transitions to sent/delivered, so it's a sound "sent today".
   const { count, error } = await supabase
     .from("email_outbox")
     .select("id", { count: "exact", head: true })
     .in("status", ["sent", "delivered"])
-    .gte("sent_at", sinceIso);
+    .gte("updated_at", sinceIso);
   if (error) {
     console.error("[emailOutboxRepo] countSentSinceUtc error", error);
     return 0;

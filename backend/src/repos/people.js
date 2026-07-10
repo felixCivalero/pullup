@@ -2,7 +2,24 @@
 // resolution, and CRM filters/stats over the host's people.
 import crypto from "node:crypto";
 import { supabase } from "../supabase.js";
+import { selectInChunks } from "../db/safeQuery.js";
 import { getUserEventIds } from "./eventAccess.js";
+
+// Honour the /u/ "unsubscribe from marketing" flag on PROMOTIONAL bulk sends
+// (host community broadcasts): given person ids, return only those who have NOT
+// unsubscribed. Transactional per-event sends (RSVP confirm/reminder/post-event)
+// must NOT call this — they're consented per event.
+export async function filterMarketingAllowed(ids) {
+  const list = [...new Set((ids || []).filter(Boolean))];
+  if (!list.length) return [];
+  const unsub = await selectInChunks(
+    () => supabase.from("people").select("id").not("marketing_unsubscribed_at", "is", null),
+    "id",
+    list,
+  );
+  const blocked = new Set((unsub || []).map((r) => r.id));
+  return list.filter((id) => !blocked.has(id));
+}
 
 export function isValidEmail(email) {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

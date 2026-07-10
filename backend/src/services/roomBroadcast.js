@@ -24,7 +24,10 @@ export async function enqueueRoomBroadcast({ hostId, personIds, text, subject, a
 
   const { getSystemPersonId } = await import("../repos/systemPerson.js");
   const sysId = await getSystemPersonId();
-  const ids = [...new Set((Array.isArray(personIds) ? personIds : []).filter((p) => p && p !== sysId))];
+  const rawIds = [...new Set((Array.isArray(personIds) ? personIds : []).filter((p) => p && p !== sysId))];
+  // Promotional broadcast → honour the marketing unsubscribe.
+  const { filterMarketingAllowed } = await import("../repos/people.js");
+  const ids = await filterMarketingAllowed(rawIds);
   if (!ids.length) return { ok: false, error: "no_recipients" };
 
   const atts = Array.isArray(attachments) ? attachments.filter((a) => a && a.url).slice(0, 10) : [];

@@ -392,7 +392,11 @@ export async function sendRoomBulk({ hostId, personIds, channel = "whatsapp", te
   // system person is a contact for service chat, not an audience member.
   const { getSystemPersonId } = await import("../repos/systemPerson.js");
   const sysId = await getSystemPersonId();
-  const ids = (Array.isArray(personIds) ? personIds : []).filter((pid) => pid && pid !== sysId);
+  const rawIds = (Array.isArray(personIds) ? personIds : []).filter((pid) => pid && pid !== sysId);
+  // Promotional bulk → honour the marketing unsubscribe (transactional per-event
+  // sends don't route through here).
+  const { filterMarketingAllowed } = await import("../repos/people.js");
+  const ids = await filterMarketingAllowed(rawIds);
   const out = { sent: 0, noEmail: 0, failed: 0, byChannel: { email: 0, whatsapp: 0 } };
   // Resolve the included event ONCE for the whole send.
   const event = eventId ? await getEventForEmail(eventId) : null;

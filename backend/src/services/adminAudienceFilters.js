@@ -55,6 +55,8 @@ export function applyHostFilters(candidates, {
     }
 
     if (sendMode !== "internal" && c.marketing_consent === false) return false;
+    // Also honour an explicit marketing unsubscribe (the /u/ link).
+    if (sendMode !== "internal" && c.marketing_unsubscribed_at) return false;
 
     return true;
   });

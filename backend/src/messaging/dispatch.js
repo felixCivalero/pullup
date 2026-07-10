@@ -293,6 +293,33 @@ export async function dispatch({
   const hostProfileId = context.hostProfileId ?? hostProfile?.id ?? null;
   const reasons = [];
 
+  // ── Cross-rail idempotency ──────────────────────────────────────────
+  // email_outbox and whatsapp_outbox have SEPARATE unique idempotency indexes,
+  // so a keyed message that flips rails between attempts (WhatsApp one tick,
+  // email the next — reminder catch-ups, broadcast crash-recovery) would send
+  // twice. If this send is keyed and the key already landed NON-failed on EITHER
+  // rail, it's already handled → skip. A failed prior attempt is not a match, so
+  // genuine retries still fall through. A check failure never blocks a send.
+  if (context.idempotencyKey) {
+    try {
+      const key = context.idempotencyKey;
+      const [{ data: eRow }, { data: wRow }] = await Promise.all([
+        supabase.from("email_outbox").select("id").eq("idempotency_key", key)
+          .not("status", "in", "(failed,bounced)").limit(1).maybeSingle(),
+        supabase.from("whatsapp_outbox").select("id").eq("idempotency_key", key)
+          .not("status", "in", "(failed)").limit(1).maybeSingle(),
+      ]);
+      if (eRow || wRow) {
+        logger?.info?.("[messaging/dispatch] cross-rail idempotent skip", {
+          idempotency_key: key, already_on: eRow ? "email" : "whatsapp",
+        });
+        return { channel: "deduped", row: null, fallback: false, deduped: true };
+      }
+    } catch (e) {
+      logger?.warn?.("[messaging/dispatch] cross-rail idempotency check failed", { error: e?.message });
+    }
+  }
+
   // Which rail to try before the email floor. An explicit preferredChannel is
   // the thread's rail; with none (legacy proactive sends) we try WhatsApp when
   // a template was supplied, exactly as before. Email is always the floor.

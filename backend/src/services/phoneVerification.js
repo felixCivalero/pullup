@@ -248,6 +248,27 @@ export async function redeemToken({
         personId, err: pErr.message,
       });
     }
+    // Mirror the proof onto the resolution layer: mark THIS person's phone
+    // identity verified (create it if absent). Never hijack a number owned by
+    // someone else — an insert conflict on (kind,value_norm) is left alone.
+    try {
+      const { data: upd } = await supabase
+        .from("person_identities")
+        .update({ verified_at: nowIso })
+        .eq("person_id", personId).eq("kind", "phone").eq("value_norm", row.phone_e164)
+        .select("id");
+      if (!upd || upd.length === 0) {
+        const { error: insErr } = await supabase.from("person_identities").insert({
+          person_id: personId, kind: "phone", value: row.phone_e164,
+          value_norm: row.phone_e164, verified_at: nowIso, source: "whatsapp",
+        });
+        if (insErr && insErr.code !== "23505") {
+          logger?.warn?.("[phoneVerification] identity verify write failed", { personId, err: insErr.message });
+        }
+      }
+    } catch (e) {
+      logger?.warn?.("[phoneVerification] identity verify exception", { personId, err: e?.message });
+    }
   } else {
     logger?.warn?.("[phoneVerification] redeemed but no person to link", {
       token_id: row.id, phone_e164: row.phone_e164, intent: row.intent,

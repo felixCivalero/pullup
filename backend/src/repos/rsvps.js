@@ -571,6 +571,10 @@ export async function addRsvp({
       p_dinner_slot_key: finalDinnerTimeSlot ?? null,
       p_join_waitlist: joinWaitlist || (willGoToWaitlist && event.waitlistEnabled),
       p_instant_waitlist: !!event.instantWaitlist,
+      // Waitlist-enabled events NEVER hard-reject on a capacity race: the RPC
+      // waitlists the overflow (the stale JS pre-check can miss a spot filling
+      // between check and insert, so this is the authoritative fallback).
+      p_waitlist_enabled: !!event.waitlistEnabled,
     }
   );
 

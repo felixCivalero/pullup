@@ -120,11 +120,26 @@ export function registerGuestRoutes(app) {
           const key = IDENTITY_FIELD_TO_GUEST_KEY[type];
           if (!key) return null;
           return {
+            type,
             header: f.label || type.charAt(0).toUpperCase() + type.slice(1),
             accessor: (guest) => guest[key] || "",
           };
         })
         .filter(Boolean);
+
+      // The modern signup form is toggle-driven (collect_*), not formFields-driven,
+      // so handles the host opted to collect via a toggle won't have a formFields
+      // entry above. Append a column for each collected handle that isn't already
+      // present, so the CSV matches what the form actually asked for.
+      const presentTypes = new Set(identityColumns.map((c) => c.type));
+      const toggleColumns = [];
+      if (event.collectInstagram !== false && !presentTypes.has("instagram")) {
+        toggleColumns.push({ header: "Instagram", accessor: (g) => g.instagram || "" });
+      }
+      if (event.collectTiktok === true && !presentTypes.has("tiktok")) {
+        toggleColumns.push({ header: "TikTok", accessor: (g) => g.tiktok || "" });
+      }
+      identityColumns.push(...toggleColumns);
 
       // Free-text answers live per-RSVP in rsvps.custom_answers, keyed by the
       // question's id. Two id namespaces feed this: enrichment questions

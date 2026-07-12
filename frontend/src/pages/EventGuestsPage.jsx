@@ -13,6 +13,7 @@ import {
   Loader2,
   QrCode,
   Instagram,
+  Music2,
   Phone,
   Pencil,
   Trash2,
@@ -1840,7 +1841,7 @@ export function EventGuestsPage() {
                           {/* IG / WhatsApp — one compact line, only when known.
                               nowrap + ellipsis so a long handle can never make
                               the row taller. */}
-                          {(g.instagram || g.phone) && (
+                          {(g.instagram || g.tiktok || g.phone) && (
                             <div
                               style={{
                                 display: "flex",
@@ -1867,6 +1868,21 @@ export function EventGuestsPage() {
                                 >
                                   <Instagram size={11} style={{ flexShrink: 0 }} />
                                   @{String(g.instagram).replace(/^@/, "")}
+                                </a>
+                              )}
+                              {g.tiktok && (
+                                <a
+                                  href={`https://www.tiktok.com/@${String(g.tiktok).replace(/^@/, "")}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={`@${String(g.tiktok).replace(/^@/, "")} on TikTok`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: colors.textSubtle, textDecoration: "none", fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = colors.text; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = colors.textSubtle; }}
+                                >
+                                  <Music2 size={11} style={{ flexShrink: 0 }} />
+                                  @{String(g.tiktok).replace(/^@/, "")}
                                 </a>
                               )}
                               {g.phone && (
@@ -3508,10 +3524,11 @@ function EditGuestModal({
               <div style={{ padding: "12px 16px", borderRadius: "12px", border: `1px solid ${colors.border}`, background: colors.surface }}>
                 <div style={{ fontSize: "16px", fontWeight: 600, color: colors.text }}>{guest.name || "Guest"}</div>
                 {guest.email && <div style={{ fontSize: "13px", color: colors.textMuted, marginTop: "2px", wordBreak: "break-all" }}>{guest.email}</div>}
-                {(guest.phone || guest.instagram) && (
+                {(guest.phone || guest.instagram || guest.tiktok) && (
                   <div style={{ fontSize: "13px", color: colors.textMuted, marginTop: "2px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
                     {guest.phone && <span>{guest.phone}</span>}
-                    {guest.instagram && <span>@{String(guest.instagram).replace(/^@+/, "")}</span>}
+                    {guest.instagram && <span>@{String(guest.instagram).replace(/^@+/, "")} · IG</span>}
+                    {guest.tiktok && <span>@{String(guest.tiktok).replace(/^@+/, "")} · TikTok</span>}
                   </div>
                 )}
                 <div style={{ fontSize: "11px", color: colors.textFaded, marginTop: "8px", lineHeight: 1.4 }}>

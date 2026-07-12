@@ -16,6 +16,7 @@ import {
   Heart,
   Clock,
   Instagram,
+  Music2,
   X,
   GitMerge,
   Send,
@@ -529,6 +530,11 @@ function PersonRow({ p, onClick }) {
                 <Instagram size={11} /> {p.instagram.replace(/^@/, "")}
               </span>
             )}
+            {p.tiktok && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <Music2 size={11} /> {p.tiktok.replace(/^@/, "")}
+              </span>
+            )}
             {p.company && <span>{p.company}</span>}
           </div>
           <PersonSignal p={p} />
@@ -631,6 +637,7 @@ function PersonDrawer({ personId, onClose, onSalesChange, onWaitlistChange }) {
               {p.email && <Field label="Email" value={p.email} />}
               {p.phone && <Field label="Phone" value={p.phone} />}
               {p.instagram && <Field label="Instagram" value={`@${p.instagram.replace(/^@/, "")}`} />}
+              {p.tiktok && <Field label="TikTok" value={`@${p.tiktok.replace(/^@/, "")}`} />}
               {p.company && <Field label="Company" value={p.company} />}
               {p.acquisition && <Field label="Acquired via" value={p.acquisition} />}
               <Field label="First seen" value={timeAgo(p.createdAt)} />

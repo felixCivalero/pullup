@@ -51,7 +51,7 @@ function TermsAgreement({ checked, onChange }) {
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           onClick={(e) => e.stopPropagation()}
-          aria-label="I agree to the terms and privacy policy"
+          aria-label="I am 18 or older and agree to the terms and privacy policy"
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", margin: 0, opacity: 0, cursor: "pointer" }}
         />
         <span
@@ -74,7 +74,7 @@ function TermsAgreement({ checked, onChange }) {
         </span>
       </span>
       <span style={{ fontSize: 13.5, lineHeight: 1.4, color: "#fff", fontWeight: 500 }}>
-        I agree to the{" "}
+        I'm 18 or older and agree to the{" "}
         <a href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#ec178f", textDecoration: "underline" }}>terms</a>
         {" "}and{" "}
         <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#ec178f", textDecoration: "underline" }}>privacy policy</a>
@@ -144,6 +144,10 @@ export function RsvpForm({
     } catch { return { handle: null, verified: false }; }
   })();
   const [instagram, setInstagram] = useState(igEntry.handle || "");
+  // TikTok handle. There is no TikTok login/entry-link, so this is ALWAYS an
+  // optional typed claim — never verified. Prefilled for returning guests from
+  // the identity spine (people.tiktok) via /me/rsvp-prefill, same as the others.
+  const [tiktok, setTiktok] = useState("");
 
   // Session-aware: a returning, logged-in guest shouldn't retype what we know.
   // Two layers, both filling ONLY the four identity anchors (name / email /
@@ -177,6 +181,7 @@ export function RsvpForm({
         if (p.instagram && !igEntry.verified) {
           setInstagram((prev) => prev || p.instagram);
         }
+        if (p.tiktok) setTiktok((prev) => prev || p.tiktok);
       })
       .catch(() => { /* prefill is best-effort — the form works without it */ });
     return () => { cancelled = true; };
@@ -191,6 +196,7 @@ export function RsvpForm({
   const EMAIL_FIELD_ID = "__email__";
   const PHONE_FIELD_ID = "__phone__";
   const INSTAGRAM_FIELD_ID = "__instagram__";
+  const TIKTOK_FIELD_ID = "__tiktok__";
   const channel = ["email", "whatsapp", "both"].includes(event?.contactChannel)
     ? event.contactChannel
     : "email";
@@ -200,8 +206,11 @@ export function RsvpForm({
   // not used by comms routing either). Hosts can no longer add custom fields.
   const collectPhone = event?.collectPhone !== false;
   const collectInstagram = event?.collectInstagram !== false;
+  // TikTok defaults OFF (opt-in), so it's `=== true`, not `!== false` like IG.
+  const collectTiktok = event?.collectTiktok === true;
   const requirePhone = collectPhone && !!event?.requirePhone;
   const requireInstagram = collectInstagram && !!event?.requireInstagram;
+  const requireTiktok = collectTiktok && !!event?.requireTiktok;
   // Host-authored enrichment questions (mig 077). NOT identity — they render
   // below the four sacred anchors as plain free-text fields. Answers ride home
   // in customAnswers, keyed by question id, and land in rsvps.custom_answers.
@@ -218,6 +227,7 @@ export function RsvpForm({
     { id: EMAIL_FIELD_ID, type: "email" },
     ...(collectPhone ? [{ id: PHONE_FIELD_ID, type: "phone", verify: "whatsapp" }] : []),
     ...(collectInstagram ? [{ id: INSTAGRAM_FIELD_ID, type: "instagram" }] : []),
+    ...(collectTiktok ? [{ id: TIKTOK_FIELD_ID, type: "tiktok" }] : []),
     ...customFields,
   ];
 
@@ -374,6 +384,10 @@ export function RsvpForm({
       setError("Instagram is required");
       return;
     }
+    if (requireTiktok && !tiktok.trim()) {
+      setError("TikTok is required");
+      return;
+    }
 
     if (wantsDinner && !dinnerTimeSlot) {
       setError("Please select a dinner time");
@@ -386,7 +400,7 @@ export function RsvpForm({
     }
 
     if (!marketingOptIn) {
-      setError("You must agree to the terms and privacy policy");
+      setError("You must confirm you're 18 or older and agree to the terms and privacy policy");
       return;
     }
 
@@ -408,6 +422,11 @@ export function RsvpForm({
           dinnerPartySize: wantsDinner ? dinnerSeats : null,
           marketingOptIn,
           instagram: (instagram || "").trim() || null,
+          tiktok: (tiktok || "").trim() || null,
+          // The submit is gated on the required 18+/terms checkbox, so reaching
+          // here means the guest attested they're 18 or older. Send it explicitly
+          // so the backend can log a timestamped age-of-consent record.
+          ageConfirmed: !!marketingOptIn,
           customAnswers: trimmedAnswers,
         });
         if (result && result.alreadyIn) {
@@ -672,6 +691,28 @@ export function RsvpForm({
                   {igEntry.verified
                     ? "Pulled from Instagram — the account you messaged us from."
                     : "We'll confirm it automatically if you DM or comment from it."}
+                </div>
+              </div>
+            );
+          }
+          if (f.id === TIKTOK_FIELD_ID) {
+            return (
+              <div key={f.id} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={fieldLabelStyle}>
+                  TikTok{requireTiktok && <span style={requiredMarkStyle}>*</span>}
+                </label>
+                <input
+                  type="text"
+                  value={tiktok}
+                  onChange={(e) => setTiktok(e.target.value.replace(/^@+/, ""))}
+                  placeholder={requireTiktok ? "your handle" : "your handle (optional)"}
+                  required={!preview && requireTiktok}
+                  disabled={loading}
+                  autoComplete="off"
+                  style={inputStyle}
+                />
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.45)", paddingLeft: "2px", lineHeight: 1.45 }}>
+                  So the host can find you on TikTok.
                 </div>
               </div>
             );

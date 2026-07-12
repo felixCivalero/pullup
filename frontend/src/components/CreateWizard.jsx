@@ -189,6 +189,7 @@ export function CreateWizard(props) {
     // form / access
     collectPhone, setCollectPhone, requirePhone, setRequirePhone,
     collectInstagram, setCollectInstagram, requireInstagram, setRequireInstagram,
+    collectTiktok, setCollectTiktok, requireTiktok, setRequireTiktok,
     maxAttendees, setMaxAttendees,
     waitlistEnabled, setWaitlistEnabled,
     instantWaitlist, setInstantWaitlist,
@@ -424,6 +425,7 @@ export function CreateWizard(props) {
                   { label: "Email", channel: "email", fixed: true },
                   { label: "WhatsApp", channel: "whatsapp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
                   { label: "Instagram", channel: "instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
+                  { label: "TikTok", channel: "tiktok", collect: collectTiktok, require: requireTiktok, set: (c, r) => { setCollectTiktok(c); setRequireTiktok(r); } },
                 ].map((row) => (
                   <div key={row.label} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",

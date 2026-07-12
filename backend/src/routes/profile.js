@@ -128,6 +128,9 @@ export function registerProfileRoutes(app) {
           normalizeIgHandle(person?.instagram) ||
           normalizeIgHandle(profile?.branding_links?.instagram) ||
           null,
+        tiktok: person?.tiktok
+          ? String(person.tiktok).trim().replace(/^@+/, "") || null
+          : null,
       });
     } catch (error) {
       console.error("Error building rsvp prefill:", error);

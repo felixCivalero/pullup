@@ -132,9 +132,9 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
   const people = await fetchAllPaged(() => {
     let pq = supabase
       .from("people")
-      .select("id, name, email, phone_e164, instagram, ig_user_id, company, auth_user_id, acquisition_channel, import_source, created_at")
+      .select("id, name, email, phone_e164, instagram, ig_user_id, tiktok, company, auth_user_id, acquisition_channel, import_source, created_at")
       .order("created_at", { ascending: true });
-    if (s) pq = pq.or(`name.ilike.%${s}%,email.ilike.%${s}%,instagram.ilike.%${s}%,phone_e164.ilike.%${s}%`);
+    if (s) pq = pq.or(`name.ilike.%${s}%,email.ilike.%${s}%,instagram.ilike.%${s}%,tiktok.ilike.%${s}%,phone_e164.ilike.%${s}%`);
     return pq;
   });
 
@@ -283,6 +283,7 @@ export async function listEcosystemPeople({ q = "", segment = "all", limit = 50,
       name: p.name || (p.email ? p.email.split("@")[0] : null) || (p.instagram ? `@${p.instagram}` : "Unknown"),
       email: p.email || null,
       instagram: p.instagram || null,
+      tiktok: p.tiktok || null,
       phone: p.phone_e164 || null,
       company: p.company || null,
       acquisition: p.acquisition_channel || null,
@@ -510,7 +511,7 @@ export async function getEcosystemPersonDetail(rawId) {
     matchPersonId: personId, // link target for the identity merge cockpit
     person: {
       id: person.id, name: person.name || (person.email ? person.email.split("@")[0] : "Unknown"),
-      email: person.email || null, instagram: person.instagram || null, phone: person.phone_e164 || null,
+      email: person.email || null, instagram: person.instagram || null, tiktok: person.tiktok || null, phone: person.phone_e164 || null,
       company: person.company || null, acquisition: person.acquisition_channel || null,
       imported: person.import_source || null,
       createdAt: person.created_at,

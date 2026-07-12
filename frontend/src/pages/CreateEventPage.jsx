@@ -944,6 +944,9 @@ export function CreateEventPage() {
   // the form). With require* this gives each a 3-state Off/Optional/Required.
   const [collectPhone, setCollectPhone] = useState(draft?.collectPhone !== false);
   const [collectInstagram, setCollectInstagram] = useState(draft?.collectInstagram !== false);
+  // TikTok is an unverified handle (no login). Defaults OFF (opt-in), unlike IG.
+  const [requireTiktok, setRequireTiktok] = useState(!!draft?.requireTiktok);
+  const [collectTiktok, setCollectTiktok] = useState(!!draft?.collectTiktok);
   // On-page sign-up surface control (mig 096). hidden suppresses the inline
   // block AND the sticky bottom bar together; the two strings override the
   // eyebrow ("Free to join") and the button text. Empty = kind-derived default.
@@ -1054,7 +1057,7 @@ export function CreateEventPage() {
     allowPlusOnes, maxPlusOnesPerGuest, dinnerEnabled, dinnerStartTime,
     dinnerEndTime, dinnerMaxSeatsPerSlot, dinnerOverflowAction, dinnerBookingEmail,
     hideDinnerRemaining, dinnerSlotsConfig, instagram, spotify, tiktok, soundcloud,
-    formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, enrichmentQuestions, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
+    formFields, contactChannel, requireEmail, requirePhone, requireInstagram, collectPhone, collectInstagram, requireTiktok, collectTiktok, enrichmentQuestions, mediaIds: mediaFiles.map((m) => m.serverId || m.id),
     signupHidden, signupLabelText, signupCtaText,
     customThumbnail: !!customThumbnail,
   });
@@ -1251,6 +1254,8 @@ export function CreateEventPage() {
           requireInstagram,
           collectPhone,
           collectInstagram,
+          requireTiktok,
+          collectTiktok,
           enrichmentQuestions,
           signupHidden,
           signupLabel: signupLabelText,
@@ -1721,6 +1726,8 @@ export function CreateEventPage() {
         setRequireInstagram(!!ev.requireInstagram);
         setCollectPhone(ev.collectPhone !== false);
         setCollectInstagram(ev.collectInstagram !== false);
+        setRequireTiktok(!!ev.requireTiktok);
+        setCollectTiktok(!!ev.collectTiktok);
         setEnrichmentQuestions(Array.isArray(ev.enrichmentQuestions) ? ev.enrichmentQuestions : []);
         setFormFields(withLockedFields(ev.formFields, loadedChannel));
 
@@ -1887,7 +1894,7 @@ export function CreateEventPage() {
     title, description, sections,
     startsAt, endsAt, timezone, hideDate, dateRevealHint,
     location, locationLat, locationLng, locationPlaceId, hideLocation, showCoordinates, revealHint,
-    collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, formFields, contactChannel, enrichmentQuestions,
+    collectPhone, requirePhone, requireEmail, collectInstagram, requireInstagram, collectTiktok, requireTiktok, formFields, contactChannel, enrichmentQuestions,
     maxAttendees, waitlistEnabled, instantWaitlist, allowPlusOnes, maxPlusOnesPerGuest,
     dinnerEnabled, dinnerSlotsConfig, scene, instagram, spotify, tiktok, soundcloud,
     ticketPrice, ticketCurrency, fulfillment,
@@ -2468,6 +2475,8 @@ export function CreateEventPage() {
       requireInstagram,
       collectPhone,
       collectInstagram,
+      requireTiktok,
+      collectTiktok,
       // On-page sign-up surface (mig 096). Only persist a real config when the
       // host has changed something; otherwise leave it null = kind-default.
       signupSettings: (signupHidden || signupLabelText.trim() || signupCtaText.trim())
@@ -2889,6 +2898,8 @@ export function CreateEventPage() {
         requirePhone={requirePhone} setRequirePhone={setRequirePhone}
         collectInstagram={collectInstagram} setCollectInstagram={setCollectInstagram}
         requireInstagram={requireInstagram} setRequireInstagram={setRequireInstagram}
+        collectTiktok={collectTiktok} setCollectTiktok={setCollectTiktok}
+        requireTiktok={requireTiktok} setRequireTiktok={setRequireTiktok}
         maxAttendees={maxAttendees} setMaxAttendees={setMaxAttendees}
         waitlistEnabled={waitlistEnabled} setWaitlistEnabled={setWaitlistEnabled}
         instantWaitlist={instantWaitlist} setInstantWaitlist={setInstantWaitlist}
@@ -5173,6 +5184,7 @@ export function CreateEventPage() {
                     { label: "Email", channel: "email", floor: true, collect: true, require: requireEmail, set: (_c, r) => setRequireEmail(r) },
                     { label: "WhatsApp", channel: "whatsapp", collect: collectPhone, require: requirePhone, set: (c, r) => { setCollectPhone(c); setRequirePhone(r); } },
                     { label: "Instagram", channel: "instagram", collect: collectInstagram, require: requireInstagram, set: (c, r) => { setCollectInstagram(c); setRequireInstagram(r); } },
+                    { label: "TikTok", channel: "tiktok", collect: collectTiktok, require: requireTiktok, set: (c, r) => { setCollectTiktok(c); setRequireTiktok(r); } },
                   ].map((row) => {
                     const mode = row.fixed ? "required" : !row.collect ? "off" : row.require ? "required" : "optional";
                     const brandAccent = CHANNEL_BRAND[row.channel]?.accent || colors.accent;
@@ -5823,6 +5835,8 @@ export function CreateEventPage() {
                         requireInstagram,
                         collectPhone,
                         collectInstagram,
+                        requireTiktok,
+                        collectTiktok,
                       }}
                       previewSlots={previewDinnerSlots}
                       onSubmit={async () => {
@@ -5942,6 +5956,8 @@ export function CreateEventPage() {
                   requireInstagram,
                   collectPhone,
                   collectInstagram,
+                  requireTiktok,
+                  collectTiktok,
                 }}
                 previewSlots={previewDinnerSlots}
                 onSubmit={async () => {

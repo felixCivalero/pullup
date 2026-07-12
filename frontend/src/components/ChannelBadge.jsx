@@ -9,7 +9,7 @@
 
 import { User, Mail } from "lucide-react";
 import { FaInstagram } from "react-icons/fa";
-import { FaWhatsapp } from "react-icons/fa6";
+import { FaWhatsapp, FaTiktok } from "react-icons/fa6";
 import { colors } from "../theme/colors.js";
 
 // `accent` is the colour the row's active Optional/Required pill adopts, so the
@@ -47,6 +47,14 @@ export const CHANNEL_BRAND = {
     fg: "#ffffff",
     solid: true,
     accent: colors.gradientInstagram,
+  },
+  tiktok: {
+    label: "TikTok",
+    Icon: FaTiktok,
+    bg: "#0a0a0a",
+    fg: "#ffffff",
+    solid: true,
+    accent: "#0a0a0a",
   },
 };
 

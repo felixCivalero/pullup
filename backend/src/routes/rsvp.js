@@ -59,6 +59,7 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
       waitlistToken = null, // NEW: JWT token for waitlist upgrade
       vipToken = null, // NEW: JWT token for VIP invite
       marketingOptIn = false, // NEW: opt-in to newsletter from RSVP form
+      ageConfirmed = false, // NEW: guest attested they're 18+ (GDPR age of consent)
       visitorId = null, // Links browsing session to RSVP
       joinWaitlist = false, // If true, join waitlist when event is full
       customAnswers = {}, // Answers to event-defined custom form fields
@@ -68,6 +69,7 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
       igRef = null, // NEW: the IG object (comment/media id) that drove the signup
       igUid = null, // NEW: the commenter's IGSID, to bind their IG identity
       instagram = null, // NEW: IG handle — verified (prefilled from an IG entry) or a typed claim
+      tiktok = null, // NEW: TikTok handle — always an UNVERIFIED typed claim (no TikTok login)
     } = req.body;
 
     if (!email && !vipToken) {
@@ -299,6 +301,11 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
       if (eventForFields?.collectInstagram !== false && eventForFields?.requireInstagram && !igUid && !(instagram && String(instagram).trim())) {
         return res.status(400).json({ error: "missing_required_fields", message: "Instagram is required", fields: ["instagram"] });
       }
+      // TikTok has no verified path (no login) — a typed handle is the only way to
+      // satisfy the requirement. Collect defaults OFF, so gate on `=== true`.
+      if (eventForFields?.collectTiktok === true && eventForFields?.requireTiktok && !(tiktok && String(tiktok).trim())) {
+        return res.status(400).json({ error: "missing_required_fields", message: "TikTok is required", fields: ["tiktok"] });
+      }
     }
 
     // For waitlist upgrades, use existing RSVP details (all fields locked)
@@ -424,6 +431,43 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
       }
     }
 
+    // TikTok handle: store as people.tiktok (display/claim). There is no TikTok
+    // login, so this is ALWAYS an unverified soft claim — a seed the CRM can show
+    // and a later touch could reconcile, never a hard match key. Only fills empty.
+    if (tiktok && result?.rsvp?.personId) {
+      try {
+        const { supabase } = await import("../supabase.js");
+        const handle = String(tiktok).trim().replace(/^@+/, "").slice(0, 64);
+        if (handle) {
+          await supabase
+            .from("people")
+            .update({ tiktok: handle })
+            .eq("id", result.rsvp.personId)
+            .is("tiktok", null);
+        }
+      } catch (e) {
+        console.error("[rsvp] tiktok stamp error:", e?.message);
+      }
+    }
+
+    // Age-of-consent (GDPR): the RSVP form gates submit on a required "I'm 18 or
+    // older and agree to the terms" checkbox, so a successful RSVP with
+    // ageConfirmed=true is the guest's attestation. Log it as a timestamped
+    // consent on the RSVP for traceability. Only fills empty (first attestation
+    // wins); best-effort, never blocks the RSVP.
+    if (ageConfirmed && result?.rsvp?.id) {
+      try {
+        const { supabase } = await import("../supabase.js");
+        await supabase
+          .from("rsvps")
+          .update({ age_confirmed_at: new Date().toISOString() })
+          .eq("id", result.rsvp.id)
+          .is("age_confirmed_at", null);
+      } catch (e) {
+        console.error("[rsvp] age confirm stamp error:", e?.message);
+      }
+    }
+
     // ── Identity spine: record THIS RSVP's identifiers in person_identities. ──
     // The atom must be identity-resolved, not email-siloed: an RSVP carries an
     // email (the selection key, unchanged) PLUS a phone and/or IG handle. We link
@@ -440,10 +484,11 @@ app.post("/events/:slug/rsvp", optionalAuth, validateRsvpData, async (req, res) 
         const e164 = pn?.ok ? pn.e164 : null;
         const igHandle = instagram ? String(instagram).trim().replace(/^@+/, "").slice(0, 64) : null;
         const igUserId = igUid ? String(igUid).slice(0, 64) : null;
+        const ttHandle = tiktok ? String(tiktok).trim().replace(/^@+/, "").slice(0, 64) : null;
         await linkIdentitiesToPerson({
           personId: result.rsvp.personId,
-          identifiers: { email: normEmail, phone: e164, igUserId, igHandle },
-          profile: { name: name || null, email: normEmail, phone_e164: e164, instagram: igHandle, ig_user_id: igUserId },
+          identifiers: { email: normEmail, phone: e164, igUserId, igHandle, tiktok: ttHandle },
+          profile: { name: name || null, email: normEmail, phone_e164: e164, instagram: igHandle, ig_user_id: igUserId, tiktok: ttHandle },
           source: "rsvp",
         });
       } catch (e) {

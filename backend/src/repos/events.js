@@ -215,6 +215,10 @@ export async function mapEventFromDb(dbEvent) {
     requireInstagram: dbEvent.require_instagram || false,
     collectPhone: dbEvent.collect_phone !== false,
     collectInstagram: dbEvent.collect_instagram !== false,
+    // TikTok collect/require (mig 133). Unverified soft-claim handle only; unlike
+    // Instagram it defaults OFF (opt-in), so we read it as `=== true`, not `!== false`.
+    collectTiktok: dbEvent.collect_tiktok === true,
+    requireTiktok: dbEvent.require_tiktok === true,
     hideLocation: dbEvent.hide_location || false,
     // "Show exact coordinates" mode (mig 097). When true, every location surface
     // surfaces the lat/lng pair next to the label. Coords themselves live in
@@ -357,6 +361,8 @@ function mapEventToDb(eventData) {
   if (eventData.requireInstagram !== undefined) dbData.require_instagram = eventData.requireInstagram;
   if (eventData.collectPhone !== undefined) dbData.collect_phone = eventData.collectPhone;
   if (eventData.collectInstagram !== undefined) dbData.collect_instagram = eventData.collectInstagram;
+  if (eventData.requireTiktok !== undefined) dbData.require_tiktok = eventData.requireTiktok;
+  if (eventData.collectTiktok !== undefined) dbData.collect_tiktok = eventData.collectTiktok;
   if (eventData.hideLocation !== undefined) dbData.hide_location = eventData.hideLocation;
   if (eventData.showCoordinates !== undefined) dbData.show_coordinates = eventData.showCoordinates;
   if (eventData.hideDate !== undefined) dbData.hide_date = eventData.hideDate;
@@ -398,6 +404,7 @@ export const EDITABLE_EVENT_FIELDS = [
   "sections", "formFields", "enrichmentQuestions", "fulfillment",
   "contactChannel",
   "requireEmail", "collectPhone", "requirePhone", "collectInstagram", "requireInstagram",
+  "collectTiktok", "requireTiktok",
   "hideLocation", "showCoordinates", "hideDate", "revealHint", "dateRevealHint",
   "signupSettings", "roomWelcome", "hideFromMainRoom",
 ];

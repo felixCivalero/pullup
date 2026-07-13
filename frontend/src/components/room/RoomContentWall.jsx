@@ -70,25 +70,44 @@ function anchorFallback(url) {
   a.href = url; a.download = ""; a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
 }
-function slugify(s) {
-  return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
+function slugify(s, max = 40) {
+  return String(s || "")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max);
 }
 function extFor(it) {
   const base = String(it.url || "").split("?")[0].split("/").pop() || "";
-  if (base.includes(".")) return base.split(".").pop().toLowerCase().slice(0, 5);
+  if (base.includes(".")) return base.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || (it.type === "video" ? "mp4" : "jpg");
   return it.type === "video" ? "mp4" : "jpg";
 }
-// i == null → single-file name; otherwise a zip-entry name prefixed for order.
-function fileNameFor(it, i) {
-  const who = slugify(it.uploader?.name) || "photo";
+// Who shot it: the Instagram handle, or their name if no handle. Mirrors the
+// backend's downloadName() so single + zip downloads name files the same way.
+function whoPart(it) {
+  const handle = String(it.uploader?.instagram || "").trim().replace(/^@+/, "");
+  if (handle) return handle.toLowerCase().replace(/[^a-z0-9._]+/g, "").slice(0, 40);
+  return slugify(it.uploader?.name);
+}
+// Filename stem event_date_who — self-describing on disk. `event`/`date` come
+// from the wall's event (may be absent → those segments just drop out).
+function fileStem(it, event) {
+  const parts = [slugify(event?.title || event?.slug, 48), (event?.date || "").slice(0, 10), whoPart(it)].filter(Boolean);
+  return parts.join("_") || "pullup";
+}
+// A single, unique zip-entry name. `used` dedupes same-shooter shots so the zip
+// writer never overwrites (jane_-2.jpg, jane_-3.jpg …).
+function zipNameFor(it, event, used) {
+  const stem = fileStem(it, event);
   const ext = extFor(it);
-  return i == null ? `pullup_${who}.${ext}` : `${String(i + 1).padStart(2, "0")}_${who}.${ext}`;
+  let name = `${stem}.${ext}`;
+  for (let n = 2; used.has(name); n++) name = `${stem}-${n}.${ext}`;
+  used.add(name);
+  return name;
 }
 // React drops the `muted` attribute on first render, which makes browsers block
 // muted autoplay — so we force el.muted = true via a ref too (belt + braces).
 const mutedAutoplay = (el) => { if (el) el.muted = true; };
 
-export default function RoomContentWall({ eventId, initial, can, meName, isHost }) {
+export default function RoomContentWall({ eventId, event, initial, can, meName, isHost }) {
   const [items, setItems] = useState(() => (Array.isArray(initial) ? initial : []));
   const [uploadOpen, setUploadOpen] = useState(false);
   const [lightbox, setLightbox] = useState(null); // the item being viewed large
@@ -150,19 +169,20 @@ export default function RoomContentWall({ eventId, initial, can, meName, isHost 
     setBulkBusy(true);
     try {
       const files = [];
+      const used = new Set();
       for (let i = 0; i < chosen.length; i++) {
         const it = chosen[i];
         const url = await tallyAndUrl(it);
         try {
           const data = new Uint8Array(await fetch(url).then((r) => r.arrayBuffer()));
-          files.push({ name: fileNameFor(it, i), data });
+          files.push({ name: zipNameFor(it, event, used), data });
         } catch { /* skip a file the browser can't fetch */ }
       }
       if (files.length) downloadBlob(buildZip(files), `pullup-wall-${files.length}.zip`);
     } finally {
       setBulkBusy(false);
     }
-  }, [downloadOne, tallyAndUrl]);
+  }, [downloadOne, tallyAndUrl, event]);
 
   // The select-mode bar: download whatever's ticked, then exit select mode.
   const downloadSelected = useCallback(async () => {

@@ -869,6 +869,7 @@ export default function EventRoomPage() {
                 {tab === "wall" && (
                   <RoomContentWall
                     eventId={id}
+                    event={{ slug: event?.slug, title: event?.title, date: event?.startsAt }}
                     initial={viewContent || []}
                     can={viewContentCan || { upload: isHost || permissions?.upload === true, download: isHost || permissions?.download === true }}
                     meName={meName}

@@ -105,7 +105,9 @@ export async function listRoomContent(eventId) {
 export async function recordDownload(contentId) {
   const { data: row } = await supabase
     .from("room_content")
-    .select("id, url, storage_path, media_type")
+    // uploader + the event it was shot at, so the saved file self-describes
+    // (event_date_who) instead of an opaque hash — see downloadName().
+    .select("id, event_id, url, storage_path, media_type, uploader_name, uploader_instagram, uploader_person_id, uploader_profile_id, event:events(slug, title, starts_at)")
     .eq("id", contentId)
     .maybeSingle();
   if (!row) return { ok: false, reason: "not_found" };
@@ -114,7 +116,29 @@ export async function recordDownload(contentId) {
     console.error("[room-content] download tally:", error.message);
     return { ok: false, reason: "tally_failed" };
   }
-  return { ok: true, count: typeof count === "number" ? count : null, url: forceDownloadUrl(row) };
+  // When the same person put several shots on the wall, number them (…_1, _2)
+  // so downloading them one-by-one doesn't collide on one name.
+  const ordinal = await uploaderShotIndex(row);
+  return { ok: true, count: typeof count === "number" ? count : null, url: forceDownloadUrl(row, ordinal) };
+}
+
+// This shot's 1-based position among the SAME uploader's shots at this event
+// (oldest first), plus how many they have. { index: 1, total: 1 } for a lone
+// shot → no numeric suffix. Matches on the strongest identity the row carries
+// (person → profile → @handle → name); if none, treats it as a lone shot.
+async function uploaderShotIndex(row) {
+  const lone = { index: 1, total: 1 };
+  if (!row.event_id) return lone;
+  let q = supabase.from("room_content").select("id, created_at").eq("event_id", row.event_id);
+  if (row.uploader_person_id) q = q.eq("uploader_person_id", row.uploader_person_id);
+  else if (row.uploader_profile_id) q = q.eq("uploader_profile_id", row.uploader_profile_id);
+  else if (row.uploader_instagram) q = q.eq("uploader_instagram", row.uploader_instagram);
+  else if (row.uploader_name) q = q.eq("uploader_name", row.uploader_name);
+  else return lone;
+  const { data: sibs } = await q.order("created_at", { ascending: true });
+  if (!Array.isArray(sibs) || sibs.length <= 1) return lone;
+  const at = sibs.findIndex((s) => s.id === row.id);
+  return { index: at < 0 ? 1 : at + 1, total: sibs.length };
 }
 
 export async function getRoomContent(contentId) {
@@ -132,14 +156,42 @@ export async function deleteRoomContent(contentId) {
   return { ok: true };
 }
 
-function forceDownloadUrl(row) {
+function forceDownloadUrl(row, ordinal) {
   const url = row.url;
   if (!ourBucket(url)) return url; // external/template URL — can't force, just return
   const base = (row.storage_path || url).split("/").pop().split("?")[0];
-  const ext = base.includes(".") ? base.split(".").pop() : (row.media_type === "video" ? "mp4" : "jpg");
-  const name = `pullup_${String(row.id).slice(0, 8)}.${ext}`;
+  const rawExt = base.includes(".") ? base.split(".").pop() : "";
+  const ext = rawExt.replace(/[^a-z0-9]/gi, "").slice(0, 5).toLowerCase() || (row.media_type === "video" ? "mp4" : "jpg");
+  const name = `${downloadName(row, ordinal)}.${ext}`;
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}download=${encodeURIComponent(name)}`;
+}
+
+// Filename stem for a downloaded wall shot: event_date_who, in that order, so a
+// grabbed photo self-describes on someone's disk (which event, when, whose shot)
+// instead of a bare hash. `who` = the uploader's Instagram handle, or their name
+// if there's no handle. When that uploader put several shots on the wall, a
+// trailing _N (their chronological order) keeps the names apart. Any missing
+// segment is simply dropped; a row with none (e.g. its event was deleted) falls
+// back to the old short-hash name.
+function downloadName(row, ordinal) {
+  const ev = row.event || null;
+  const evPart = slugSeg(ev?.title || ev?.slug, 48);
+  const datePart = ev?.starts_at ? String(ev.starts_at).slice(0, 10) : ""; // YYYY-MM-DD
+  const handle = cleanHandle(row.uploader_instagram);
+  const whoPart = handle
+    ? handle.toLowerCase().replace(/[^a-z0-9._]+/g, "").slice(0, 40)
+    : slugSeg(row.uploader_name, 40);
+  const seqPart = ordinal && ordinal.total > 1 ? String(ordinal.index) : "";
+  const parts = [evPart, datePart, whoPart, seqPart].filter(Boolean);
+  return parts.join("_") || `pullup_${String(row.id).slice(0, 8)}`;
+}
+
+// Lowercase, strip accents, collapse to a hyphenated ASCII slug. Empty in → "".
+function slugSeg(s, max = 40) {
+  return String(s || "")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max);
 }
 
 function cleanHandle(h) {

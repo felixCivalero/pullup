@@ -49,11 +49,15 @@ function ourBucket(url) {
 // Record a wall item once its bytes are in storage. Consent is the gate: the
 // row cannot be created without an explicit commercial-use tick.
 export async function createRoomContent({
-  eventId, person, profileId, url, storagePath, type, mime, caption, width, height, consent,
+  eventId, person, profileId, url, storagePath, displayUrl, displayStoragePath, type, mime, caption, width, height, consent,
 }) {
   if (consent !== true) return { ok: false, reason: "consent_required" };
   if (!ourBucket(url)) return { ok: false, reason: "bad_url" };
   const mediaType = VALID_TYPES.includes(type) ? type : mediaTypeFor(mime);
+  // A compressed on-screen copy the client made (long edge ~2048px). Optional —
+  // only trusted if it lives in our bucket; the ORIGINAL `url` above stays the
+  // download source, always full quality.
+  const dispOk = typeof displayUrl === "string" && ourBucket(displayUrl);
   // A host shooting for the wall may have no `people` row (they're a profile) —
   // fall back to their profile name/handle so the tile is still attributed.
   let uName = person?.name || null;
@@ -73,6 +77,8 @@ export async function createRoomContent({
       uploader_instagram: uInsta,
       storage_path: storagePath || null,
       url,
+      display_url: dispOk ? displayUrl : null,
+      display_storage_path: dispOk ? (displayStoragePath || null) : null,
       media_type: mediaType,
       mime_type: mime || null,
       caption: (caption || "").toString().trim().slice(0, 280) || null,
@@ -204,6 +210,9 @@ function mapRow(r) {
   return {
     id: r.id,
     url: r.url,
+    // Lightweight copy for on-screen rendering; falls back to the original when
+    // absent (older rows / videos). `url` is always the full-quality download.
+    displayUrl: r.display_url || null,
     type: r.media_type,
     mime: r.mime_type || null,
     caption: r.caption || null,

@@ -66,11 +66,11 @@ export function registerRoomContentRoutes(app) {
       const v = await resolveWallViewer(req, eventId);
       if (!v.isHost && !v.person) return res.status(403).json({ ok: false, reason: "no_identity" });
       if (!v.canUpload) return res.status(403).json({ ok: false, reason: "upload_off" });
-      const { url, path, type, mime, caption, width, height, consent } = req.body || {};
+      const { url, path, displayUrl, displayPath, type, mime, caption, width, height, consent } = req.body || {};
       if (consent !== true) return res.status(400).json({ ok: false, reason: "consent_required" });
       const r = await createRoomContent({
         eventId, person: v.person, profileId: v.profileId,
-        url, storagePath: path, type, mime, caption,
+        url, storagePath: path, displayUrl, displayStoragePath: displayPath, type, mime, caption,
         width: Number(width) || null, height: Number(height) || null, consent: true,
       });
       if (!r.ok) return res.status(400).json(r);

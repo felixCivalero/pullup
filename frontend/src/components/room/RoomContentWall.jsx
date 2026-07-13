@@ -52,6 +52,33 @@ function readDimensions(file) {
     }
   });
 }
+// Build a lightweight on-screen copy of a photo (long edge ≤ 2048px, JPEG q0.78)
+// so the wall renders fast. The ORIGINAL file is what we store for download —
+// this variant is display-only. Returns a Blob, or null when the file isn't a
+// shrinkable image (video / GIF) or the browser can't decode it (→ the wall
+// just shows the original). Best-effort: never throws.
+function makeDisplayBlob(file) {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith("image/") || file.type === "image/gif") return resolve(null);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 2048;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.78);
+      } catch { resolve(null); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
 // Save a Blob straight to disk — instant, no tab. The blob URL is same-origin,
 // so the download filename is always honoured (unlike a cross-origin <a download>).
 function downloadBlob(blob, name) {
@@ -359,7 +386,7 @@ function Tile({ it, selecting, selected, busy, canDownload, onOpen, onToggle, on
       {video ? (
         <video ref={mutedAutoplay} src={it.url} muted loop autoPlay playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
       ) : (
-        <img src={it.url} alt={it.caption || ""} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
+        <img src={it.displayUrl || it.url} alt={it.caption || ""} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
       )}
 
       {/* video glyph */}
@@ -488,7 +515,7 @@ function Lightbox({ it, canDownload, busy, onClose, onDownload, onDelete }) {
         {video ? (
           <video ref={mutedAutoplay} src={it.url} controls autoPlay loop playsInline style={{ maxWidth: "100%", maxHeight: "72vh", borderRadius: 14, background: "#000" }} />
         ) : (
-          <img src={it.url} alt={it.caption || ""} style={{ maxWidth: "100%", maxHeight: "72vh", borderRadius: 14, objectFit: "contain" }} />
+          <img src={it.displayUrl || it.url} alt={it.caption || ""} style={{ maxWidth: "100%", maxHeight: "72vh", borderRadius: 14, objectFit: "contain" }} />
         )}
         <div style={{ width: "100%", marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
@@ -555,8 +582,8 @@ function UploadModal({ eventId, meName, onClose, onUploaded }) {
     });
   }
 
-  // Upload one pick end-to-end (dims → sign → bytes → row). Returns the created
-  // wall item, or throws.
+  // Upload one pick end-to-end (dims → sign → original bytes → compressed
+  // display copy → row). Returns the created wall item, or throws.
   async function uploadOne(p) {
     const dims = await readDimensions(p.file);
     const sr = await authenticatedFetch(`/events/${eventId}/room-content/sign`, {
@@ -567,9 +594,27 @@ function UploadModal({ eventId, meName, onClose, onUploaded }) {
     if (!sr.ok || !sd.ok) throw new Error(sd.reason === "too_large" ? "over 200MB" : "sign failed");
     const up = await supabase.storage.from("event-images").uploadToSignedUrl(sd.path, sd.token, p.file);
     if (up.error) throw new Error("upload failed");
+    // Best-effort compressed copy for fast on-screen rendering. The original
+    // above is untouched (it's the download source); if any of this fails the
+    // wall simply falls back to showing the original.
+    let displayUrl = null, displayPath = null;
+    try {
+      const disp = await makeDisplayBlob(p.file);
+      if (disp) {
+        const dsr = await authenticatedFetch(`/events/${eventId}/room-content/sign`, {
+          method: "POST",
+          body: JSON.stringify({ filename: "display.jpg", contentType: "image/jpeg", size: disp.size }),
+        });
+        const dsd = await dsr.json().catch(() => ({}));
+        if (dsr.ok && dsd.ok) {
+          const dup = await supabase.storage.from("event-images").uploadToSignedUrl(dsd.path, dsd.token, disp);
+          if (!dup.error) { displayUrl = dsd.url; displayPath = dsd.path; }
+        }
+      }
+    } catch { /* display copy is optional */ }
     const cr = await authenticatedFetch(`/events/${eventId}/room-content`, {
       method: "POST",
-      body: JSON.stringify({ url: sd.url, path: sd.path, type: sd.type, mime: p.file.type, caption: picks.length === 1 ? (caption.trim() || null) : null, width: dims.width, height: dims.height, consent: true }),
+      body: JSON.stringify({ url: sd.url, path: sd.path, displayUrl, displayPath, type: sd.type, mime: p.file.type, caption: picks.length === 1 ? (caption.trim() || null) : null, width: dims.width, height: dims.height, consent: true }),
     });
     const cd = await cr.json().catch(() => ({}));
     if (!cr.ok || !cd.ok) throw new Error("post failed");

@@ -71,7 +71,13 @@ function makeDisplayBlob(file) {
       try {
         const canvas = document.createElement("canvas");
         canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const ctx = canvas.getContext("2d");
+        // JPEG has no alpha — flatten any transparency (e.g. a PNG) onto white
+        // so the display copy doesn't get a black background. The original
+        // (with its real transparency) is untouched and is what downloads.
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
         canvas.toBlob((b) => resolve(b), "image/jpeg", 0.78);
       } catch { resolve(null); }
     };

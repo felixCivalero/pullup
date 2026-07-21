@@ -180,8 +180,17 @@ function WalkMap() {
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
+    // On touch devices, disable map dragging so a vertical swipe scrolls the
+    // PAGE instead of panning the map (a full-width map otherwise traps scroll).
+    // Pins stay tappable, zoom buttons stay; paired with touch-action:pan-y CSS.
+    const touch =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
     const map = L.map(elRef.current, {
       scrollWheelZoom: false,
+      dragging: !touch,
+      tap: true,
       zoomControl: true,
       attributionControl: true,
     });
@@ -641,7 +650,9 @@ const STYLES = `
     border: 1px solid rgba(255,255,255,0.1); background: #0c0c12;
     box-shadow: 0 44px 100px -54px rgba(0,0,0,0.85);
   }
-  @media (max-width: 820px) { .fl-map-grid { grid-template-columns: 1fr; } .fl-map { height: clamp(320px, 50vh, 440px); } }
+  @media (max-width: 820px) { .fl-map-grid { grid-template-columns: 1fr; } .fl-map { height: clamp(300px, 46vh, 420px); } }
+  /* touch: dragging is disabled in JS — let vertical swipes scroll the page */
+  @media (pointer: coarse) { .fl-map .leaflet-container { touch-action: pan-y !important; } }
   /* leaflet dark chrome */
   .fl-map .leaflet-container { background: #0c0c12; font: inherit; }
   .fl-map .leaflet-control-zoom a { background: rgba(20,20,28,0.92); color: #fff; border-color: rgba(255,255,255,0.12); }

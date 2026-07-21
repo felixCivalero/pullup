@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ArrowLeft } from "lucide-react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { PullupEyes } from "../../components/PullupEyes.jsx";
 import { transformedImageUrl } from "../../lib/imageUtils.js";
 import { trackPageView, initTracking } from "../../lib/track.js";
@@ -123,16 +125,130 @@ function ArcChart() {
   );
 }
 
-/* ─── the credited photo wall (masonry) ─── */
-function Gallery() {
+/* ─── the room's photos, as drifting film-reels (a taste, not all 334) ───
+   No per-photo credit is rendered — privacy — the credits live, blurred, in
+   the masthead. Rows drift in alternating directions and fade at the edges. */
+function PhotoReels() {
+  const rows = useMemo(() => {
+    const pick = CASE_GALLERY.slice(0, 33); // a curated stream, not the whole wall
+    return [0, 1, 2].map((r) => pick.filter((_, i) => i % 3 === r));
+  }, []);
   return (
-    <div className="fl-gallery">
-      {CASE_GALLERY.map((it, i) => (
-        <figure className={`fl-gcell fl-g-${it.o}`} key={i}>
-          <img src={imgUrl(it.p, it.o === "p" ? 300 : 400, 64)} alt={`Photograph by @${it.ig}`} loading="lazy" decoding="async" />
-          {it.ig && <figcaption>@{it.ig}</figcaption>}
-        </figure>
+    <div className="fl-reels" aria-hidden="true">
+      {rows.map((row, r) => (
+        <div className={`fl-reel fl-reel-${r % 2}`} key={r}>
+          <div className="fl-reel-track">
+            {[0, 1].map((copy) => (
+              <div className="fl-reel-group" key={copy}>
+                {row.map((it, i) => (
+                  <span className={`fl-reel-ph fl-reel-${it.o}`} key={`${copy}-${i}`}>
+                    <img src={imgUrl(it.p, 360, 62)} alt="" loading="lazy" decoding="async" />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       ))}
+    </div>
+  );
+}
+
+/* ─── the walks, on a real map ───
+   Real coordinates for each walk (Vol.02 approximated to Slussentorget — the DB
+   row predated coordinate capture). Dark CARTO tiles (no API key); clicking a
+   pin — or a chip — surfaces that walk's verified numbers in the side card. */
+const WALK_COORDS = {
+  "02": [59.3195, 18.0719],   // Slussentorget · Södermalm (approx)
+  "03": [59.3153343, 18.0742645], // Björns trädgård
+  "04": [59.3207434, 18.0601971], // Monteliusvägen
+  "05": [59.3199665, 18.0507276], // Skinnarviksberget
+  "05B": [59.3205665, 18.0518276], // Skinnarviksberget (offset so it doesn't stack)
+  "06": [59.322683, 18.073109],  // Järntorget · Gamla stan
+};
+const volLabel = (v) => `Vol. ${v.replace("B", " · 2")}`;
+
+function WalkMap() {
+  const elRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const walks = useMemo(
+    () => CASE_TIMELINE.map((t) => ({ ...t, ll: WALK_COORDS[t.vol] })).filter((w) => w.ll),
+    [],
+  );
+  const [active, setActive] = useState(walks.length - 1); // latest walk (Vol.06)
+
+  useEffect(() => {
+    if (!elRef.current || mapRef.current) return;
+    const map = L.map(elRef.current, {
+      scrollWheelZoom: false,
+      zoomControl: true,
+      attributionControl: true,
+    });
+    mapRef.current = map;
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    }).addTo(map);
+    markersRef.current = walks.map((w, i) => {
+      const icon = L.divIcon({
+        className: "fl-pin",
+        html: `<span class="fl-pin-dot">${w.vol.replace("B", "·2").replace(/^0/, "")}</span>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+      const m = L.marker(w.ll, { icon }).addTo(map);
+      m.bindTooltip(w.place, { direction: "top", offset: [0, -16], className: "fl-tip" });
+      m.on("click", () => setActive(i));
+      return m;
+    });
+    map.fitBounds(L.latLngBounds(walks.map((w) => w.ll)).pad(0.4));
+    setTimeout(() => map.invalidateSize(), 60);
+    return () => { map.remove(); mapRef.current = null; markersRef.current = []; };
+  }, [walks]);
+
+  // reflect the active walk on the pins + recentre gently
+  useEffect(() => {
+    markersRef.current.forEach((m, i) => {
+      const el = m.getElement && m.getElement();
+      if (el) el.classList.toggle("is-active", i === active);
+    });
+    const map = mapRef.current;
+    if (map && walks[active]) map.panTo(walks[active].ll, { animate: true, duration: 0.5 });
+  }, [active, walks]);
+
+  const w = walks[active];
+
+  return (
+    <div className="fl-map-grid">
+      <div className="fl-map" ref={elRef} />
+      <aside className="fl-map-card">
+        <div className="fl-map-card-top">
+          <span className="fl-map-vol">{volLabel(w.vol)}</span>
+          <span className="fl-map-date">
+            {new Date(w.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        </div>
+        <p className="fl-map-place">{w.place}</p>
+        <div className="fl-map-stats">
+          <div><b>{w.pulled}</b><span>pulled up</span></div>
+          <div><b>{w.photos || "—"}</b><span>photos</span></div>
+          <div><b>{w.contributors || "—"}</b><span>shot it</span></div>
+        </div>
+        <div className="fl-map-chips">
+          {walks.map((x, i) => (
+            <button
+              key={x.vol}
+              type="button"
+              className={`fl-map-chip${i === active ? " on" : ""}`}
+              onClick={() => setActive(i)}
+            >
+              {x.vol.replace("B", "·2")}
+            </button>
+          ))}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -172,7 +288,7 @@ export default function AdamFlamboStory() {
           <Reveal delay={0.05}><p className="fl-kicker">Stockholm Photo Walks · @adam_flambo</p></Reveal>
           <Reveal delay={0.12}>
             <h1 className="fl-hero-h">
-              How a Stockholm photo walk<br />became a <span className="fl-ink-pink">printed magazine.</span>
+              A photo walk became<br />a <span className="fl-ink-pink">printed magazine.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.2}>
@@ -196,6 +312,23 @@ export default function AdamFlamboStory() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* ─── THE MAP — six real walks, one glance ─── */}
+      <section className="fl-mapsec">
+        <div className="fl-mapsec-head">
+          <Reveal><p className="fl-eyebrow">Six real walks · Stockholm</p></Reveal>
+          <Reveal delay={0.06}>
+            <h2 className="fl-h2">This actually happened.<br /><span className="fl-ink-pink">On these streets.</span></h2>
+          </Reveal>
+          <Reveal delay={0.12}>
+            <p className="fl-lede fl-lede-center">
+              Real places, real dates, real turnouts. Tap a pin to see how each walk went.
+            </p>
+          </Reveal>
+        </div>
+        {/* not wrapped in Reveal — a CSS transform on an ancestor breaks Leaflet's tile positioning */}
+        <WalkMap />
       </section>
 
       {/* ─── WHO ─── */}
@@ -225,17 +358,6 @@ export default function AdamFlamboStory() {
           <h2 className="fl-h2">The walk stayed small.<br /><span className="fl-ink-pink">The room caught fire.</span></h2>
         </Reveal>
         <Reveal delay={0.12} y={30}><ArcChart /></Reveal>
-        <div className="fl-vols">
-          {CASE_TIMELINE.map((t, i) => (
-            <Reveal key={t.vol} delay={i * 0.05} y={16} className="fl-vol">
-              <span className="fl-vol-n">Vol. {t.vol.replace("B", " · 2")}</span>
-              <span className="fl-vol-place">{t.place}</span>
-              <span className="fl-vol-meta">
-                <b>{t.pulled}</b> pulled up{t.photos ? <> · <b>{t.photos}</b> photos</> : null}
-              </span>
-            </Reveal>
-          ))}
-        </div>
       </section>
 
       {/* ─── EYES BREAK — the story takes a breath ─── */}
@@ -258,11 +380,11 @@ export default function AdamFlamboStory() {
             <p className="fl-lede fl-lede-center">
               Not a shared drive that dies on Monday. A private room for the people who
               pulled up, where they post their own work — credited, and theirs.
-              Here’s a sliver of it.
+              A glimpse, drifting by.
             </p>
           </Reveal>
         </div>
-        <Gallery />
+        <PhotoReels />
       </section>
 
       {/* ─── THE MAGAZINE ─── */}
@@ -282,12 +404,15 @@ export default function AdamFlamboStory() {
             </p>
           </Reveal>
           <Reveal delay={0.16} y={16}>
-            <p className="fl-mag-credit-label">The contributors — {S.contributors} photographers, straight from the room</p>
+            <p className="fl-mag-credit-label">
+              The contributors — {S.contributors} photographers, straight from the room
+              <span className="fl-mag-credit-note">names blurred for privacy</span>
+            </p>
           </Reveal>
-          <div className="fl-masthead">
+          <div className="fl-masthead" aria-label={`${S.contributors} contributors, names hidden for privacy`}>
             {CASE_CONTRIBUTORS.map((c, i) => (
-              <Reveal key={c.name + i} delay={Math.min(i * 0.02, 0.5)} y={10} className="fl-mast-name">
-                {c.name}{c.ig ? <span className="fl-mast-ig">@{c.ig}</span> : null}
+              <Reveal key={i} delay={Math.min(i * 0.02, 0.5)} y={10} className="fl-mast-name">
+                <span className="fl-mast-blur">{c.name}</span>
               </Reveal>
             ))}
           </div>
@@ -398,7 +523,9 @@ const STYLES = `
   .fl-hero-in { position: relative; z-index: 3; max-width: 960px; margin: 0 auto; text-align: center; }
   .fl-kicker { margin: 0 0 20px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 600; }
   .fl-hero-h {
-    margin: 0; font-size: clamp(34px, 6.4vw, 78px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.02;
+    margin: 0 auto; max-width: 14ch;
+    font-size: clamp(36px, 6vw, 72px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.03;
+    text-shadow: 0 2px 40px rgba(0,0,0,0.5);
   }
   .fl-hero-sub {
     margin: 22px auto 0; max-width: 52ch; font-size: clamp(16px, 2vw, 20px); line-height: 1.6;
@@ -425,9 +552,11 @@ const STYLES = `
   .fl-wall-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .fl-wall-veil {
     position: absolute; inset: 0; z-index: 1;
+    /* strong, even scrim so the photos read as faint texture and the copy
+       stays crisp — legibility over spectacle */
     background:
-      radial-gradient(58% 56% at 50% 46%, rgba(8,8,14,0.5) 20%, rgba(8,8,14,0.82) 62%, rgba(8,8,14,0.96) 100%),
-      linear-gradient(180deg, rgba(8,8,14,0.8) 0%, rgba(8,8,14,0.4) 20%, rgba(8,8,14,0.6) 74%, ${NIGHT} 96%);
+      radial-gradient(72% 62% at 50% 42%, rgba(8,8,14,0.72) 0%, rgba(8,8,14,0.9) 58%, rgba(8,8,14,0.98) 100%),
+      linear-gradient(180deg, rgba(8,8,14,0.92) 0%, rgba(8,8,14,0.6) 24%, rgba(8,8,14,0.72) 72%, ${NIGHT} 97%);
   }
 
   /* ─── shared editorial bits ─── */
@@ -472,18 +601,59 @@ const STYLES = `
   .fl-arc-note { margin: 26px auto 0; max-width: 54ch; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,0.6); text-align: center; }
   .fl-arc-note strong { color: var(--pink); font-weight: 800; }
 
-  /* volume chips */
-  .fl-vols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: clamp(40px, 6vh, 64px); }
-  .fl-vol {
-    display: flex; flex-direction: column; gap: 4px; text-align: left;
-    padding: 18px 20px; border-radius: 16px;
-    background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08);
+  @media (max-width: 720px) { .fl-arc-plot { height: 200px; } }
+
+  /* ─── the walks map (real Leaflet + dark CARTO tiles) ─── */
+  .fl-mapsec { max-width: 1160px; margin: 0 auto; padding: clamp(56px, 9vh, 110px) clamp(22px, 6vw, 48px); }
+  .fl-mapsec-head { text-align: center; max-width: 720px; margin: 0 auto clamp(30px, 5vh, 48px); }
+  .fl-map-grid { display: grid; grid-template-columns: minmax(0, 1fr) 306px; gap: 18px; align-items: stretch; }
+  .fl-map {
+    height: clamp(370px, 56vh, 560px); border-radius: 22px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1); background: #0c0c12;
+    box-shadow: 0 44px 100px -54px rgba(0,0,0,0.85);
   }
-  .fl-vol-n { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
-  .fl-vol-place { font-size: 12.5px; color: rgba(255,255,255,0.5); }
-  .fl-vol-meta { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 4px; }
-  .fl-vol-meta b { color: #fff; font-weight: 800; }
-  @media (max-width: 720px) { .fl-vols { grid-template-columns: 1fr; } .fl-arc-plot { height: 200px; } }
+  @media (max-width: 820px) { .fl-map-grid { grid-template-columns: 1fr; } .fl-map { height: clamp(320px, 50vh, 440px); } }
+  /* leaflet dark chrome */
+  .fl-map .leaflet-container { background: #0c0c12; font: inherit; }
+  .fl-map .leaflet-control-zoom a { background: rgba(20,20,28,0.92); color: #fff; border-color: rgba(255,255,255,0.12); }
+  .fl-map .leaflet-control-zoom a:hover { background: rgba(42,42,54,0.95); }
+  .fl-map .leaflet-control-attribution { background: rgba(8,8,14,0.7); color: rgba(255,255,255,0.4); }
+  .fl-map .leaflet-control-attribution a { color: rgba(255,255,255,0.55); }
+  /* pins */
+  .fl-pin { background: none; border: 0; }
+  .fl-pin-dot {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 999px;
+    background: ${PINK}; color: #fff; font-size: 12px; font-weight: 800;
+    border: 2px solid #fff; box-shadow: 0 4px 14px rgba(236,23,143,0.6);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .fl-pin.is-active .fl-pin-dot { transform: scale(1.3); box-shadow: 0 0 0 6px rgba(236,23,143,0.25), 0 6px 18px rgba(236,23,143,0.85); }
+  .fl-tip {
+    background: #141420 !important; color: #fff !important;
+    border: 1px solid rgba(255,255,255,0.14) !important; border-radius: 8px !important;
+    font-size: 12px !important; font-weight: 600 !important; padding: 5px 9px !important;
+    box-shadow: 0 10px 24px -12px rgba(0,0,0,0.8) !important;
+  }
+  .fl-tip.leaflet-tooltip-top::before { border-top-color: #141420 !important; }
+  /* the side card */
+  .fl-map-card {
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 22px; border-radius: 20px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  }
+  .fl-map-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .fl-map-vol { font-size: 19px; font-weight: 850; letter-spacing: -0.02em; }
+  .fl-map-date { font-size: 12.5px; color: rgba(255,255,255,0.5); }
+  .fl-map-place { margin: -6px 0 0; font-size: 14px; color: rgba(255,255,255,0.7); }
+  .fl-map-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fl-map-stats div { display: flex; flex-direction: column; gap: 2px; padding: 12px 6px; border-radius: 12px; background: rgba(255,255,255,0.045); text-align: center; }
+  .fl-map-stats b { font-size: clamp(20px, 2.4vw, 24px); font-weight: 850; letter-spacing: -0.02em; color: #fff; }
+  .fl-map-stats span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.45); }
+  .fl-map-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; }
+  .fl-map-chip { padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: none; color: rgba(255,255,255,0.6); font: inherit; font-size: 12.5px; font-weight: 700; transition: color 0.2s, background 0.2s, border-color 0.2s; }
+  .fl-map-chip:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+  .fl-map-chip.on { background: ${PINK}; border-color: ${PINK}; color: #fff; }
 
   /* ─── eyes break ─── */
   .fl-eyes {
@@ -496,26 +666,26 @@ const STYLES = `
   .fl-eyes-svg svg { width: 100%; height: 100%; display: block; }
   .fl-eyes-line { position: relative; z-index: 2; margin: 8px 0 0; font-size: clamp(20px, 3vw, 30px); font-weight: 800; letter-spacing: -0.02em; color: rgba(255,255,255,0.9); text-align: center; }
 
-  /* ─── gallery ─── */
-  .fl-galwrap { padding: clamp(60px, 10vh, 120px) clamp(14px, 4vw, 40px) clamp(40px, 7vh, 90px); }
-  .fl-galhead { max-width: 780px; margin: 0 auto clamp(40px, 6vh, 64px); text-align: center; }
-  .fl-gallery {
-    columns: 4; column-gap: 10px; max-width: 1400px; margin: 0 auto;
+  /* ─── photo reels (drifting rows, edge-faded — a taste, not the whole wall) ─── */
+  .fl-galwrap { padding: clamp(60px, 10vh, 120px) 0 clamp(50px, 8vh, 100px); overflow: hidden; }
+  .fl-galhead { max-width: 780px; margin: 0 auto clamp(40px, 6vh, 64px); text-align: center; padding: 0 clamp(22px, 6vw, 48px); }
+  .fl-reels { display: flex; flex-direction: column; gap: clamp(10px, 1.4vw, 16px); }
+  .fl-reel {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
   }
-  @media (max-width: 1100px) { .fl-gallery { columns: 3; } }
-  @media (max-width: 720px) { .fl-gallery { columns: 2; } }
-  .fl-gcell {
-    position: relative; break-inside: avoid; margin: 0 0 10px; border-radius: 12px; overflow: hidden;
-    background: #14141c; box-shadow: 0 14px 34px -20px rgba(0,0,0,0.8);
+  .fl-reel-track { display: flex; width: max-content; animation: fl-reel 60s linear infinite; will-change: transform; }
+  .fl-reel-1 .fl-reel-track { animation-direction: reverse; animation-duration: 74s; }
+  .fl-reel:hover .fl-reel-track { animation-play-state: paused; }
+  @keyframes fl-reel { to { transform: translateX(-50%); } }
+  .fl-reel-group { display: flex; flex: none; }
+  .fl-reel-ph {
+    flex: none; height: clamp(150px, 21vw, 224px);
+    margin-right: clamp(10px, 1.4vw, 16px); border-radius: 12px; overflow: hidden;
+    background: #14141c; box-shadow: 0 14px 34px -22px rgba(0,0,0,0.8);
   }
-  .fl-gcell img { display: block; width: 100%; height: auto; }
-  .fl-gcell figcaption {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    padding: 22px 12px 9px; font-size: 11.5px; font-weight: 600; color: #fff;
-    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.72));
-    opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s;
-  }
-  .fl-gcell:hover figcaption { opacity: 1; transform: none; }
+  .fl-reel-ph img { height: 100%; width: auto; display: block; object-fit: cover; }
 
   /* ─── magazine ─── */
   .fl-mag {
@@ -529,14 +699,17 @@ const STYLES = `
     margin: clamp(40px, 6vh, 60px) 0 24px;
     font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.42); font-weight: 600;
   }
+  .fl-mag-credit-note { display: block; margin-top: 7px; font-size: 10.5px; letter-spacing: 0.02em; text-transform: none; font-style: italic; color: rgba(255,255,255,0.32); }
   .fl-masthead {
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 24px;
   }
   .fl-mast-name {
-    display: inline-flex; align-items: baseline; gap: 7px;
     font-size: clamp(15px, 1.9vw, 19px); font-weight: 750; letter-spacing: -0.01em; color: #fff;
   }
-  .fl-mast-ig { font-size: 12px; font-weight: 500; color: var(--pink); }
+  /* GDPR: the underlying strings are already masked at build time (first name +
+     dots, no handles); this blur is the visual layer so they read as real,
+     protected credits. */
+  .fl-mast-blur { filter: blur(4.5px); opacity: 0.82; user-select: none; -webkit-user-select: none; }
 
   /* ─── why ─── */
   .fl-why { max-width: 1080px; margin: 0 auto; padding: clamp(70px, 12vh, 140px) clamp(22px, 6vw, 48px); text-align: center; }
@@ -592,6 +765,6 @@ const STYLES = `
   .fl-dot { opacity: 0.4; }
 
   @media (prefers-reduced-motion: reduce) {
-    .fl-wall-col, .fl-cta-glow, .fl-arc-bar { animation: none !important; transition: none !important; }
+    .fl-wall-col, .fl-cta-glow, .fl-arc-bar, .fl-reel-track { animation: none !important; transition: none !important; }
   }
 `;

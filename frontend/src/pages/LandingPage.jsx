@@ -11,8 +11,8 @@ import { transformedImageUrl } from "../lib/imageUtils.js";
 
 
 const LOGOS = [
-  // All logos render as solid black silhouettes via `filter: brightness(0)`
-  // so the marquee sits on the white page without needing a dark backdrop.
+  // Pure-black silhouette art. On the light body they render black
+  // (`filter: brightness(0)`); on the dark hero they invert to white.
   { type: "image", src: "/landing/logos/soho-house.png", alt: "Soho House", width: 280, height: 179 },
   { type: "image", src: "/landing/logos/doberman.png", alt: "EY Doberman", width: 705, height: 139 },
   { type: "image", src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri", width: 408, height: 176 },
@@ -26,6 +26,7 @@ const LOGOS = [
 const PINK = "#EC178F";
 const INK = "#0a0a0a";
 const SURFACE = "#ffffff";
+const NIGHT = "#08080e"; // cinematic dark canvas — the hero + the two dark acts
 
 // Public Supabase storage base for event cover images.
 const STORAGE_BASE =
@@ -33,8 +34,9 @@ const STORAGE_BASE =
   "/storage/v1/object/public/event-images/";
 
 // The hero poster wall — a curated, hand-picked set of real rooms already
-// live on PullUp. These cover the hero as slow-drifting poster columns:
-// the first thing a visitor sees is what real nights on PullUp look like.
+// live on PullUp. They cover the hero as slow-drifting poster columns; a
+// cursor-tracked spotlight lifts them out of the dark so the first thing a
+// visitor sees is what real nights on PullUp actually look like.
 // `video` tiles play the event's actual clip (muted, looping) with the
 // cover as poster — kept to the two lightest files so the hero stays fast.
 const SHOWCASE = [
@@ -59,6 +61,12 @@ const OWNERSHIP = [
   { icon: Download, title: "Export anytime", body: "Your whole room, out in one piece, whenever you want it." },
   { icon: LogOut, title: "Leave whenever", body: "Revoke the key and everything is still there — still yours." },
 ];
+
+// reduced-motion probe — one place, reused by the kinetic bits.
+const prefersReduced = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ─── scroll reveal hook ─── */
 function useReveal(threshold = 0.15) {
@@ -131,10 +139,11 @@ function ChannelChip({ ch }) {
   );
 }
 
-// The recurring trust marquee, reused in the proof section + page foot.
-function LogoMarquee() {
+// The recurring trust marquee. `invert` flips the black silhouettes to white
+// for the dark hero.
+function LogoMarquee({ invert = false }) {
   return (
-    <div className="logo-marquee" aria-hidden="true">
+    <div className={`logo-marquee${invert ? " logo-marquee--invert" : ""}`} aria-hidden="true">
       <div className="logo-marquee-track">
         {[0, 1].map((copy) => (
           <div className="logo-marquee-group" key={copy}>
@@ -161,11 +170,45 @@ function LogoMarquee() {
   );
 }
 
+/* ════════ LIVE ROTATOR ════════
+   A tiny honest social-proof line under the hero copy: it cycles through the
+   real rooms already live on PullUp (the SHOWCASE set), one at a time, with a
+   live pulse dot. No fabricated numbers — just the names of nights that ran. */
+function LiveRotator() {
+  const items = useMemo(
+    () =>
+      SHOWCASE.map((s) => ({
+        t: s.title.split(" — ")[0].split(" × ")[0].trim(),
+        m: s.meta,
+      })),
+    [],
+  );
+  const [i, setI] = useState(0);
+  const reduced = useMemo(() => prefersReduced(), []);
+  useEffect(() => {
+    if (reduced) return;
+    const t = setInterval(() => setI((v) => (v + 1) % items.length), 2600);
+    return () => clearInterval(t);
+  }, [reduced, items.length]);
+  const cur = items[i];
+  return (
+    <div className="mk-live" aria-hidden="true">
+      <span className="mk-live-dot" />
+      <span className="mk-live-label">Live on PullUp</span>
+      <span className="mk-live-sep" />
+      <span key={i} className="mk-live-ev">
+        {cur.t} <em>{cur.m}</em>
+      </span>
+    </div>
+  );
+}
+
 /* ════════ HERO POSTER FIELD ════════
    The hero is covered in real event pages — slow-drifting, slightly tilted
-   poster columns built from the SHOWCASE covers. Pure decoration (links live
-   in the story below): aria-hidden, pointer-events none, veiled in white so
-   the copy floats on top. */
+   poster columns built from the SHOWCASE covers. On the dark canvas they glow;
+   the cursor spotlight (drawn separately in the hero) lifts the ones you point
+   at. Pure decoration (links live in the story below): aria-hidden,
+   pointer-events none. */
 function HeroPosterField() {
   // 3 columns, round-robin; each column renders its stack twice and
   // translates -50% for a seamless vertical loop (same trick as the marquee).
@@ -226,7 +269,6 @@ function HeroPosterField() {
           </div>
         ))}
       </div>
-      <div className="mk-hf-veil" />
     </div>
   );
 }
@@ -255,13 +297,7 @@ function JourneySection() {
 
   // Respect reduced motion: no cycling, first beat rendered static (the
   // global reduced-motion CSS forces every journey element visible).
-  const reduced = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
+  const reduced = useMemo(() => prefersReduced(), []);
 
   // The loop only spins while the section is actually on screen — no phase
   // churn (or React re-renders) while the visitor reads the rest of the page.
@@ -285,13 +321,13 @@ function JourneySection() {
   const on = (i) => `mk-jr-ph ${phase === i ? "is-on" : ""}`;
 
   return (
-    <section className="mk-story" data-mk-section="story" data-mk-order="3" ref={rootRef}>
+    <section className="mk-story" data-mk-section="story" data-mk-order="5" ref={rootRef}>
       <div className="mk-story-head">
-        <Reveal><p className="mk-part-tag">The journey</p></Reveal>
+        <Reveal><p className="mk-part-tag">How it works</p></Reveal>
         <Reveal delay={0.06}>
           <h2 className="mk-h2" style={{ marginBottom: 0 }}>
-            Online connections become{" "}
-            <span className="pink">real-life relationships.</span>
+            Watch one follower{" "}
+            <span className="pink">become one of your people.</span>
           </h2>
         </Reveal>
       </div>
@@ -543,20 +579,132 @@ function McpScene() {
   );
 }
 
-// FEATURE ROW · ownership — the four promises as a compact grid.
-function OwnershipScene() {
+/* ════════ ACT II · THE PROBLEM — name the villain ════════
+   The reframe the whole pitch turns on: a follow is not a relationship. A stark
+   Reach-vs-Relationships contrast — the crowd you rent on the left, the people
+   you own on the right — with the pull-up as the arrow between them. */
+const REL_AVS = ["#ec4899", "#8b5cf6", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#14b8a6", "#f97316", "#a855f7", "#06b6d4"];
+
+function ProblemSection() {
   return (
-    <SceneFrame className="mk-ownmini">
-      <div className="own-grid own-grid--mini">
+    <section className="mk-problem" data-mk-section="problem" data-mk-order="3">
+      <div className="mk-problem-head">
+        <Reveal><p className="mk-part-tag">The problem</p></Reveal>
+        <Reveal delay={0.06}>
+          <h2 className="mk-h2" style={{ marginBottom: 0 }}>A follow is not a relationship.</h2>
+        </Reveal>
+        <Reveal delay={0.12}>
+          <p className="mk-problem-lede">
+            You've spent years growing an audience — and you still don't own it.
+            The platforms rent you attention, month to month, algorithm to
+            algorithm. The day it changes, the crowd is gone, and you never even
+            knew their names.
+          </p>
+        </Reveal>
+      </div>
+      <div className="mk-vs">
+        <Reveal className="mk-vs-card mk-vs-reach" y={20}>
+          <span className="mk-vs-label">Reach — rented</span>
+          <span className="mk-vs-num">40,000</span>
+          <span className="mk-vs-sub">followers</span>
+          <div className="mk-vs-dots" aria-hidden="true">
+            {Array.from({ length: 48 }).map((_, i) => <span key={i} />)}
+          </div>
+          <ul className="mk-vs-list">
+            <li>Owned by the algorithm</li>
+            <li>Gone the day it changes</li>
+            <li>You can't name a single one</li>
+          </ul>
+        </Reveal>
+        <div className="mk-vs-mid" aria-hidden="true">
+          <span className="mk-vs-arrow"><ArrowRight size={20} /></span>
+          <span className="mk-vs-mid-t">pull up</span>
+        </div>
+        <Reveal className="mk-vs-card mk-vs-rel" y={20} delay={0.1}>
+          <span className="mk-vs-label">Relationships — yours</span>
+          <span className="mk-vs-num">248</span>
+          <span className="mk-vs-sub">people who showed up</span>
+          <div className="mk-vs-avs" aria-hidden="true">
+            {REL_AVS.map((c) => <span key={c} style={{ background: c }} />)}
+          </div>
+          <ul className="mk-vs-list">
+            <li>Owned by you</li>
+            <li>Yours forever</li>
+            <li>You know every name</li>
+          </ul>
+        </Reveal>
+      </div>
+      <Reveal delay={0.1}>
+        <p className="mk-problem-foot">
+          Stop renting reach. <span className="pink">Start owning relationships.</span>
+        </p>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ════════ ACT III · THE TURN — the one moment it all hinges on ════════
+   The brand verb, made the pivot of the story. One giant glowing word. */
+function PullUpSection() {
+  return (
+    <section className="mk-turn" data-mk-section="pullup" data-mk-order="4">
+      <div className="mk-grain" aria-hidden="true" />
+      <div className="mk-turn-glow" aria-hidden="true" />
+      <Reveal><p className="mk-part-tag mk-part-tag-dark">The turn</p></Reveal>
+      <Reveal delay={0.06}><p className="mk-turn-a">It all comes down to one moment.</p></Reveal>
+      <Reveal delay={0.12}>
+        <h2 className="mk-turn-word">pull up<span className="mk-turn-dot">.</span></h2>
+      </Reveal>
+      <Reveal delay={0.2}>
+        <p className="mk-turn-body">
+          The night happens in real life. Someone who was just a handle in your
+          comments walks through the door — and becomes a person you know. That's
+          the instant a follower turns into one of your people. Everything PullUp
+          does is built to create that moment, capture it, and keep it going long
+          after the lights come up.
+        </p>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ════════ ACT VI · OWNERSHIP — the asset is yours, and only yours ════════
+   Pulled out of a bento card into its own beat: data ownership is the moat and
+   the #1 reason creators trust the platform. Transparency reads bright. */
+function OwnershipSection() {
+  return (
+    <section className="mk-own" data-mk-section="ownership" data-mk-order="11">
+      <div className="mk-own-head">
+        <Reveal><p className="mk-part-tag">What you're really building</p></Reveal>
+        <Reveal delay={0.06}>
+          <h2 className="mk-h2" style={{ marginBottom: 0 }}>
+            Every night, you build an asset.<br />
+            <span className="pink">Make sure it's yours.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.12}>
+          <p className="mk-own-lede">
+            Most platforms rent you tools and quietly keep your data. PullUp is the
+            opposite. Every name, number, photo and message lives in a database in
+            your name — in your cloud, not ours. We hold one scoped key to run the
+            room; you see everything it touches, export the whole thing in a click,
+            and revoke us any time. The room is still there. Still yours.
+          </p>
+        </Reveal>
+      </div>
+      <div className="mk-own-grid">
         {OWNERSHIP.map((o, i) => (
-          <div key={o.title} className="own-card" style={{ "--i": i }}>
-            <span className="own-card-ic"><o.icon size={17} strokeWidth={2} /></span>
+          <Reveal key={o.title} className="own-card own-card--lg" y={20} delay={i * 0.06}>
+            <span className="own-card-ic"><o.icon size={19} strokeWidth={2} /></span>
             <span className="own-card-t">{o.title}</span>
             <span className="own-card-b">{o.body}</span>
-          </div>
+          </Reveal>
         ))}
       </div>
-    </SceneFrame>
+      <Reveal delay={0.1}>
+        <p className="mk-own-creed">We run the room. <span className="pink">You hold the keys.</span></p>
+      </Reveal>
+    </section>
   );
 }
 
@@ -565,9 +713,9 @@ function OwnershipScene() {
 const HOST_ROWS = [
   {
     k: "autodm",
-    kicker: "Auto-DM",
-    title: "A comment becomes a guest at your door.",
-    body: "A comment on your reel becomes a DM with your link, then a confirmation on WhatsApp. The funnel runs itself.",
+    kicker: "The funnel, automated",
+    title: "A comment turns into a guest — while you sleep.",
+    body: "Someone comments on your reel. PullUp DMs them your link and confirms them on WhatsApp. You wake up to a fuller room.",
     visual: <InboundScene />,
     span: 3,
     tone: "ig",
@@ -575,38 +723,28 @@ const HOST_ROWS = [
   {
     k: "inbox",
     kicker: "One inbox",
-    title: "Every channel, one conversation.",
-    body: "DMs, WhatsApps and emails — one thread per person. PullUp drafts the reply in your voice; you send.",
+    title: "Every DM, WhatsApp and email — one thread per person.",
+    body: "No more five apps and a dropped conversation. One place for every channel, and PullUp drafts the reply in your voice. You just send.",
     visual: <MiniChatScene />,
     span: 3,
     tone: "wa",
   },
   {
     k: "crm",
-    kicker: "A CRM that remembers",
-    title: "A memory for every person.",
-    body: "Every night, every +1, every note you'd otherwise forget — the whole picture in one glance.",
+    kicker: "A memory for everyone",
+    title: "You'll know every person who pulls up.",
+    body: "Every night they came, every +1, the little note you'd otherwise forget — one glance and you remember them like a regular.",
     visual: <MiniProfileScene />,
-    span: 2,
+    span: 3,
     tone: "teal",
   },
   {
-    k: "db",
-    kicker: "Your database",
-    title: "It all lives in a database you own.",
-    body: "PullUp is the software on top; the data underneath is yours. In your cloud, in your name — never ours to keep.",
-    visual: <OwnershipScene />,
-    creed: <>We run the room. <span className="pink">You hold the keys.</span></>,
-    span: 2,
-    tone: "ink",
-  },
-  {
     k: "mcp",
-    kicker: "MCP · AI",
-    title: "Or run it all from your AI.",
-    body: "Claude, ChatGPT, Cursor — spin up an event or draft the follow-ups in a sentence.",
+    kicker: "Your AI, wired in",
+    title: "Run the whole thing from a sentence.",
+    body: "Claude, ChatGPT, Cursor — spin up an event or draft the week's follow-ups just by asking. The platform does the work.",
     visual: <McpScene />,
-    span: 2,
+    span: 3,
     tone: "violet",
   },
 ];
@@ -662,10 +800,11 @@ function BentoCard({ row, order, index = 0 }) {
 }
 
 /* ─── The marketing scroll ───
-   Two movements. Movement I is the guest's story, told top-down as they live
-   it: their feed → your immersive page (with the showcase wall as proof) →
-   the door closing → the private room. Movement II flips to the host: the
-   machine, as tight feature rows. Brand-soul kept: light canvas, pink accent,
+   Two movements over a cinematic dark→light→dark rhythm. Movement I is the
+   guest's story, told top-down as they live it: the dark hero (real rooms
+   drifting behind a cursor spotlight) → the immersive page → the door closing
+   → the private room. Movement II flips to the host: the machine, as tight
+   feature rows on the bright control-room canvas. Brand-soul kept: pink accent,
    the eyes, pixel cursor, trust marquee. */
 // The landing is one page for everyone — logged in or out. It never reads auth
 // state: it always offers "Log in" / "Get started". A returning user either
@@ -675,13 +814,32 @@ function BentoCard({ row, order, index = 0 }) {
 // that might be dead.
 function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
   const [scrolled, setScrolled] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const heroRef = useRef(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 24);
+      const doc = document.documentElement;
+      const max = (doc.scrollHeight || 1) - window.innerHeight;
+      setProgress(max > 0 ? Math.min(1, y / max) : 0);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Cursor spotlight — the hero's real event posters sit in the dark; the
+  // pointer position drives a radial clearing that "lights up" whatever the
+  // visitor points at. Pure CSS vars, throttled to rAF-free set (cheap).
+  const onHeroMove = (e) => {
+    const el = heroRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    el.style.setProperty("--my", `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+  };
 
   // Scroll-depth tracking: the page is a sequence of named beats, and each
   // one fires section_view the first time it enters the viewport. The admin
@@ -713,23 +871,15 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
     return () => observer.disconnect();
   }, []);
 
-  const cta = (location, label = "Start hosting") => (
-    <button
-      type="button"
-      className="mk-cta"
-      onClick={() => {
-        trackEvent("cta_click", { location });
-        onGetStarted();
-      }}
-    >
-      {label}
-      <ArrowRight size={17} />
-    </button>
-  );
-
   return (
     <div className="mk">
-      {/* ─── Top bar — wordmark + log in / get started, fades in on scroll ─── */}
+      {/* ─── scroll-progress rail — a thin pink line tracking depth ─── */}
+      <div className="mk-progress" aria-hidden="true">
+        <span style={{ transform: `scaleX(${progress})` }} />
+      </div>
+
+      {/* ─── Top bar — wordmark + log in / get started. Over the dark hero it's
+          light; once scrolled it snaps to a white glass bar. ─── */}
       <header className={`mk-nav${scrolled ? " is-scrolled" : ""}`}>
         <button
           type="button"
@@ -763,56 +913,101 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         </div>
       </header>
 
-      {/* ─── HERO — covered in real event pages, copy floating on top ─── */}
-      <section className="mk-hero" data-mk-section="hero" data-mk-order="1">
+      {/* ─── HERO — a cinematic dark stage of real rooms, lit by the cursor ─── */}
+      <section
+        className="mk-hero"
+        data-mk-section="hero"
+        data-mk-order="1"
+        ref={heroRef}
+        onMouseMove={onHeroMove}
+      >
         <HeroPosterField />
+        <div className="mk-hero-spot" aria-hidden="true" />
+        <div className="mk-hero-atmos" aria-hidden="true" />
+        <div className="mk-grain" aria-hidden="true" />
+
         <div className="mk-hero-center">
           <Reveal delay={0.06}>
-            <p className="mk-eyebrow">The event platform for creators</p>
-          </Reveal>
-          <Reveal delay={0.12}>
-            <h1 className="mk-hero-h">
-              Where your followers<br />
-              <span className="pink">become your people.</span>
-            </h1>
-          </Reveal>
-          <Reveal delay={0.18}>
-            <p className="mk-hero-sub">
-              The bridge between your online world and your real one.
+            <p className="mk-eyebrow mk-eyebrow-live">
+              <span className="mk-eyebrow-dot" />
+              The event platform for creators
             </p>
           </Reveal>
-          <Reveal delay={0.24}>
-            <div className="mk-hero-cta" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "center" }}>
-              {cta("hero")}
+          <h1 className="mk-hero-h">
+            <span className="mk-hero-line"><span style={{ animationDelay: "0.12s" }}>Where your followers</span></span>
+            <span className="mk-hero-line"><span className="mk-grad" style={{ animationDelay: "0.24s" }}>become your people.</span></span>
+          </h1>
+          <Reveal delay={0.36}>
+            <p className="mk-hero-sub">
+              You've spent years growing an audience you don't own. PullUp turns it
+              into a community you do — one night, one room, one real relationship
+              at a time.
+            </p>
+          </Reveal>
+          <Reveal delay={0.44}>
+            <LiveRotator />
+          </Reveal>
+          <Reveal delay={0.5}>
+            <div className="mk-hero-cta">
+              <button
+                type="button"
+                className="mk-cta mk-cta-glow"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "hero" });
+                  onGetStarted();
+                }}
+              >
+                Start hosting
+                <ArrowRight size={17} />
+              </button>
+              <button
+                type="button"
+                className="mk-hero-ghost"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "hero_login" });
+                  onLogin();
+                }}
+              >
+                Log in
+              </button>
             </div>
           </Reveal>
-          <Reveal delay={0.3}>
+          <Reveal delay={0.56}>
             <p className="mk-hero-proof">
-              <span className="mk-hero-proof-dot" />
-              <strong>125 kr/month</strong>&nbsp;· cancel anytime
+              <strong>125 kr/month</strong>&nbsp;· cancel anytime · your data stays yours
             </p>
           </Reveal>
         </div>
+
         {/* trust lands with the hero — brands visible without a scroll */}
         <div className="mk-hero-brands" data-mk-section="proof" data-mk-order="2">
-          <Reveal delay={0.35} y={10}>
-            <p className="mk-proof-label">They already chose PullUp</p>
+          <Reveal delay={0.62} y={10}>
+            <p className="mk-proof-label">Trusted by the rooms you already know</p>
           </Reveal>
-          <Reveal delay={0.4} y={0}>
-            <LogoMarquee />
+          <Reveal delay={0.66} y={0}>
+            <LogoMarquee invert />
           </Reveal>
         </div>
+
+        <span className="mk-hero-scrollcue" aria-hidden="true" />
       </section>
 
-      {/* ════════ THE JOURNEY — the guest story, told fast ════════ */}
+      {/* ════════ THE PROBLEM — reach is not relationship ════════ */}
+      <ProblemSection />
+
+      {/* ════════ THE TURN — the one moment it all hinges on ════════ */}
+      <PullUpSection />
+
+      {/* ════════ THE JOURNEY — one follower becomes one of your people ════════ */}
       <JourneySection />
 
-      {/* ════════ THE FLIP — story ends, machine begins ════════ */}
-      <section className="mk-flip" data-mk-section="flip" data-mk-order="4">
-        <Reveal><p className="mk-flip-a">That's the story your guests live.</p></Reveal>
+      {/* ════════ THE FLIP — the feeling ends, the machine begins ════════ */}
+      <section className="mk-flip" data-mk-section="flip" data-mk-order="6">
+        <div className="mk-grain" aria-hidden="true" />
+        <Reveal><p className="mk-flip-a">That's what turns a follower into someone who shows up.</p></Reveal>
         <Reveal delay={0.12}>
           <p className="mk-flip-b">
-            Here's the machine <span className="pink">you run it with.</span>
+            Here's the machine <span className="pink">that makes it happen.</span>
           </p>
         </Reveal>
         <Reveal delay={0.2}><p className="mk-part-tag mk-part-tag-dark">For you, the host</p></Reveal>
@@ -832,14 +1027,19 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
       <section className="mk-bento-wrap">
         <div className="mk-bento">
           {HOST_ROWS.map((row, i) => (
-            <BentoCard key={row.k} row={row} order={5 + i} index={i} />
+            <BentoCard key={row.k} row={row} order={7 + i} index={i} />
           ))}
         </div>
       </section>
 
+      {/* ════════ OWNERSHIP — the asset is yours, and only yours ════════ */}
+      <OwnershipSection />
+
       {/* ─── JOIN (pricing — one honest number, then the door. The old
           waitlist is retired: the subscription IS the gate now.) ─── */}
       <section id="join" className="mk-final" data-mk-section="join" data-mk-order="12">
+        <div className="mk-grain" aria-hidden="true" />
+        <div className="mk-final-glow" aria-hidden="true" />
         <Reveal y={16}>
           <PullupEyes variant="big" className="mk-final-eyes" />
         </Reveal>
@@ -850,23 +1050,16 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         </Reveal>
         <Reveal delay={0.14}>
           <p className="mk-final-sub">
-            Events live, a community page open, products selling — plus 3% on
-            paid tickets. Cancel anytime; your people and your data stay yours
-            either way.
-          </p>
-        </Reveal>
-        <Reveal delay={0.17}>
-          <p className="mk-final-sub" style={{ opacity: 0.65, fontSize: "0.92em" }}>
-            Running a team or agency? The Agency plan is coming soon —{" "}
-            <a href="mailto:hello@pullup.se" style={{ color: "inherit", fontWeight: 600 }}>say hi</a>{" "}
-            and we'll onboard you personally meanwhile.
+            Your events, your community page, your products, your inbox, your CRM —
+            and a database that stays yours to keep. 125 kr/month plus 3% on paid
+            tickets. Cancel anytime; your people and your data stay yours either way.
           </p>
         </Reveal>
         <Reveal delay={0.2}>
-          <div className="mk-join" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <div className="mk-join">
             <button
               type="button"
-              className="mk-cta"
+              className="mk-cta mk-cta-glow"
               onClick={() => {
                 trackEvent("cta_click", { location: "join_pricing" });
                 onStartHosting();
@@ -877,7 +1070,7 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
             </button>
             <button
               type="button"
-              className="mk-nav-login"
+              className="mk-final-login"
               onClick={() => {
                 trackEvent("cta_click", { location: "join_login" });
                 onLogin();
@@ -886,6 +1079,13 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
               Already hosting? Log in
             </button>
           </div>
+        </Reveal>
+        <Reveal delay={0.26}>
+          <p className="mk-final-agency">
+            Running a team or agency? The Agency plan is coming soon —{" "}
+            <a href="mailto:hello@pullup.se">say hi</a>{" "}
+            and we'll onboard you personally meanwhile.
+          </p>
         </Reveal>
       </section>
 
@@ -1049,6 +1249,19 @@ const STYLES = `
     max-width: 100%;
   }
 
+  /* ─── scroll-progress rail ─── */
+  .mk-progress {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+    height: 2.5px; background: transparent; pointer-events: none;
+  }
+  .mk-progress span {
+    display: block; height: 100%; width: 100%;
+    transform-origin: 0 50%; transform: scaleX(0);
+    background: linear-gradient(90deg, ${PINK}, #ff5cc0);
+    box-shadow: 0 0 12px rgba(236,23,143,0.6);
+    transition: transform 0.08s linear;
+  }
+
   /* ─── top nav ─── */
   .mk-nav {
     position: fixed;
@@ -1077,7 +1290,9 @@ const STYLES = `
   .mk-nav-brand {
     background: none; border: 0; padding: 0; display: flex; align-items: center;
   }
-  .mk-nav-brand img { height: 26px; width: auto; display: block; }
+  .mk-nav-brand img { height: 26px; width: auto; display: block; transition: filter 0.3s; }
+  /* over the dark hero the wordmark inverts to white; the glass bar restores it */
+  .mk-nav:not(.is-scrolled) .mk-nav-brand img { filter: brightness(0) invert(1); }
   .mk-nav-actions { display: flex; align-items: center; gap: clamp(8px, 2vw, 20px); }
   .mk-nav-login {
     background: none; border: 0; padding: 8px 6px;
@@ -1085,122 +1300,195 @@ const STYLES = `
     color: rgba(10,10,10,0.6);
     transition: color 0.18s;
   }
+  .mk-nav:not(.is-scrolled) .mk-nav-login { color: rgba(255,255,255,0.72); }
   .mk-nav-login:hover { color: ${INK}; }
+  .mk-nav:not(.is-scrolled) .mk-nav-login:hover { color: #fff; }
   @media (max-width: 380px) { .mk-nav-login { display: none; } }
   .mk-nav-cta {
     padding: 9px 20px; border-radius: 999px; border: 0;
-    background: ${INK}; color: #fff;
+    background: ${PINK}; color: #fff;
     font: inherit; font-size: 14px; font-weight: 600;
-    transition: transform 0.18s, background 0.18s;
+    box-shadow: 0 6px 20px -8px rgba(236,23,143,0.7);
+    transition: transform 0.18s, box-shadow 0.18s, background 0.18s;
   }
-  .mk-nav-cta:hover { transform: translateY(-1px); background: ${PINK}; }
+  .mk-nav-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -8px rgba(236,23,143,0.85); }
 
   /* ─── shared section frame ─── */
-  .mk-section {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: clamp(72px, 13vh, 150px) clamp(22px, 6vw, 48px);
-  }
-  .mk-section-tint { background: linear-gradient(180deg, #fafafa, #fff); max-width: none; }
-  .mk-section-tint > * { max-width: 880px; margin-left: auto; margin-right: auto; }
   .mk-eyebrow {
     margin: 0;
     font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
     color: rgba(10,10,10,0.42);
     font-weight: 600;
   }
-  .mk-chapter { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; }
-  .mk-chapter-n {
-    font-size: 13px; font-weight: 700; color: ${PINK};
-    font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
-  }
-  .mk-chapter-label {
-    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
-    color: rgba(10,10,10,0.4); font-weight: 600;
-  }
   .mk-h2 {
     margin: 0 0 28px;
     font-size: clamp(30px, 5.4vw, 52px);
     font-weight: 800; letter-spacing: -0.03em; line-height: 1.06;
   }
-  .mk-lede {
-    margin: 0;
-    font-size: clamp(17px, 2.3vw, 22px);
-    line-height: 1.55;
-    color: rgba(10,10,10,0.72);
-    max-width: 40ch;
-  }
-  .mk-lede strong { color: ${INK}; font-weight: 700; }
-  .mk-aside {
-    margin: 28px 0 0;
-    font-size: 15px; line-height: 1.6;
-    color: rgba(10,10,10,0.5);
-    max-width: 46ch;
-    border-left: 2px solid rgba(236,23,143,0.35);
-    padding-left: 16px;
-  }
 
-  /* ─── hero (copy + journey side by side, brands pinned at the fold) ─── */
+  /* ════════ HERO — cinematic dark stage ════════ */
   .mk-hero {
     position: relative;
-    /* exactly one viewport: copy + phone centered, brand marquee riding the
-       fold. svh (not dvh) so mobile URL-bar collapse can't push it under.
-       border-box is load-bearing: the app has NO global reset, and content-box
-       would add the top padding ON TOP of 100svh — shoving the marquee one
-       padding below the fold. */
+    /* exactly one viewport: copy centered, brand marquee riding the fold.
+       svh (not dvh) so mobile URL-bar collapse can't push it under. */
     box-sizing: border-box;
     min-height: 100svh;
     display: flex; flex-direction: column;
-    padding: clamp(64px, 9vh, 88px) clamp(22px, 6vw, 48px) 0;
+    padding: clamp(72px, 10vh, 96px) clamp(22px, 6vw, 48px) 0;
+    background: ${NIGHT};
+    color: #fff;
+    isolation: isolate;
+    --mx: 50%; --my: 40%;
+  }
+  /* base cinematic atmosphere: a dark vignette + top fade (under the nav) and a
+     bottom fade that dissolves the dark into the white journey act below */
+  .mk-hero-atmos {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(120% 80% at 50% 8%, rgba(236,23,143,0.14), transparent 46%),
+      linear-gradient(180deg, rgba(8,8,14,0.72) 0%, rgba(8,8,14,0.1) 22%, rgba(8,8,14,0.1) 62%, rgba(8,8,14,0.86) 88%, ${NIGHT} 100%);
+  }
+  /* the cursor spotlight: near the pointer the posters are clear (bright);
+     away they fall into the dark. one radial does both jobs. */
+  .mk-hero-spot {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(38vmax 38vmax at var(--mx) var(--my),
+      rgba(8,8,14,0.05) 0%,
+      rgba(8,8,14,0.55) 42%,
+      rgba(8,8,14,0.9) 78%);
+    transition: background 0.12s linear;
+  }
+  @media (hover: none) {
+    /* no pointer to track — hold a calm centered spotlight */
+    .mk-hero-spot { background: radial-gradient(46vmax 46vmax at 50% 38%, rgba(8,8,14,0.12) 0%, rgba(8,8,14,0.78) 70%); }
   }
   .mk-hero-center {
-    position: relative; z-index: 2;
+    position: relative; z-index: 3;
     width: 100%;
-    max-width: 880px;
+    max-width: 900px;
     margin: 0 auto;
     flex: 1;
     min-height: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 16px; text-align: center;
-    /* bottom bias: the brand band below is taller than the nav above, so a
-       plain flex-center lands slightly low — this lifts the block to the
-       optical center of the viewport */
-    padding: 0 0 clamp(32px, 6vh, 72px);
+    gap: 18px; text-align: center;
+    padding: 0 0 clamp(24px, 5vh, 56px);
+  }
+  .mk-eyebrow-live {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 7px 15px 7px 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    color: rgba(255,255,255,0.82);
+    letter-spacing: 0.14em; font-size: 11px;
+  }
+  .mk-eyebrow-dot {
+    width: 7px; height: 7px; border-radius: 999px; background: #34e39b;
+    box-shadow: 0 0 0 3px rgba(52,227,155,0.22), 0 0 12px rgba(52,227,155,0.7);
+    animation: proofpulse 2.2s ease-in-out infinite;
   }
   .mk-hero-h {
     margin: 0;
-    font-size: clamp(38px, 5.8vw, 76px);
-    font-weight: 800; letter-spacing: -0.035em; line-height: 1.02;
-    max-width: 16ch;
+    font-size: clamp(42px, 7vw, 92px);
+    font-weight: 850; letter-spacing: -0.04em; line-height: 0.98;
+    max-width: 15ch;
   }
+  .mk-hero-line { display: block; overflow: hidden; padding-bottom: 0.04em; }
+  .mk-hero-line > span {
+    display: block;
+    transform: translateY(110%);
+    animation: mk-riseline 0.95s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+  @keyframes mk-riseline { to { transform: translateY(0); } }
+  /* the pink line: an animated gradient wash + a soft bloom */
+  .mk-grad {
+    background: linear-gradient(100deg, #ff5cc0 0%, ${PINK} 40%, #ff77cb 70%, ${PINK} 100%);
+    background-size: 260% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: mk-riseline 0.95s cubic-bezier(0.16,1,0.3,1) forwards, mk-shimmer 6s ease-in-out infinite 1s;
+    filter: drop-shadow(0 6px 30px rgba(236,23,143,0.35));
+  }
+  @keyframes mk-shimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
   .mk-hero-sub {
     margin: 0;
-    font-size: clamp(16px, 2.2vw, 20px);
+    font-size: clamp(16px, 2.1vw, 21px);
     line-height: 1.5;
-    color: rgba(10,10,10,0.72);
-    max-width: 40ch;
+    color: rgba(255,255,255,0.7);
+    max-width: 44ch;
   }
-  .mk-hero-cta { margin-top: 6px; }
-  /* the trust band rides inside the hero: full-bleed marquee at the fold,
-     labelled quietly at the left margin (aligned with the nav wordmark) so
-     the center stays clean */
+  /* live rotator — the honest "rooms live right now" proof line */
+  .mk-live {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 16px; border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 13px; color: rgba(255,255,255,0.62);
+    max-width: 92vw;
+  }
+  .mk-live-dot {
+    width: 8px; height: 8px; border-radius: 999px; background: ${PINK}; flex: 0 0 auto;
+    box-shadow: 0 0 0 3px rgba(236,23,143,0.22), 0 0 10px rgba(236,23,143,0.8);
+    animation: proofpulse 1.8s ease-in-out infinite;
+  }
+  .mk-live-label { font-weight: 700; color: rgba(255,255,255,0.82); letter-spacing: 0.01em; }
+  .mk-live-sep { width: 3px; height: 3px; border-radius: 999px; background: rgba(255,255,255,0.3); flex: 0 0 auto; }
+  .mk-live-ev {
+    min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 600; color: #fff;
+    animation: mk-live-in 0.5s ease;
+  }
+  .mk-live-ev em { font-style: normal; color: rgba(255,255,255,0.5); font-weight: 500; }
+  @keyframes mk-live-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .mk-hero-cta {
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center;
+    margin-top: 6px;
+  }
+  .mk-hero-ghost {
+    padding: 14px 26px; border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; font: inherit; font-size: 15px; font-weight: 600;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    transition: background 0.18s, border-color 0.18s, transform 0.18s;
+  }
+  .mk-hero-ghost:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); transform: translateY(-1px); }
+  .mk-hero-proof {
+    margin: 2px 0 0;
+    font-size: 13.5px; color: rgba(255,255,255,0.5);
+  }
+  .mk-hero-proof strong { color: #fff; font-weight: 800; }
+  /* the trust band rides inside the hero at the fold */
   .mk-hero-brands {
-    position: relative; z-index: 2;
+    position: relative; z-index: 3;
     flex: 0 0 auto;
     margin: 0 calc(-1 * clamp(22px, 6vw, 48px));
     padding: 4px 0 2px;
-    text-align: left;
+    text-align: center;
   }
   .mk-hero-brands .mk-proof-label {
     margin-bottom: 0;
-    padding-left: clamp(16px, 4vw, 40px);
-    font-size: 10px; letter-spacing: 0.2em;
-    color: rgba(10,10,10,0.32);
+    font-size: 10px; letter-spacing: 0.24em;
+    color: rgba(255,255,255,0.34);
   }
-  .mk-hero-brands .logo-marquee { padding: 10px 0 16px; }
+  .mk-hero-brands .logo-marquee { padding: 12px 0 20px; }
+  /* a soft scroll cue — a falling comet line at the base of the hero */
+  .mk-hero-scrollcue {
+    position: absolute; left: 50%; bottom: 14px; z-index: 3;
+    width: 1px; height: 34px; transform: translateX(-50%);
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.5));
+    overflow: hidden;
+  }
+  .mk-hero-scrollcue::after {
+    content: ""; position: absolute; left: 0; top: -34px; width: 1px; height: 34px;
+    background: linear-gradient(180deg, transparent, #fff);
+    animation: mk-cue 2.4s cubic-bezier(0.5,0,0.5,1) infinite;
+  }
+  @keyframes mk-cue { 0% { top: -34px; } 60%,100% { top: 34px; } }
   @media (max-width: 920px) {
-    .mk-hero { padding-top: 92px; }
+    .mk-hero { padding-top: 96px; }
+    .mk-hero-h { font-size: clamp(40px, 11vw, 64px); }
   }
 
   /* ════════ HERO POSTER FIELD (real event pages, drifting) ════════ */
@@ -1235,7 +1523,7 @@ const STYLES = `
     border-radius: 20px; overflow: hidden;
     aspect-ratio: 5 / 7;
     background: #0b0b10;
-    box-shadow: 0 18px 44px -18px rgba(10,10,10,0.35);
+    box-shadow: 0 24px 60px -22px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
   }
   .mk-hf-card img,
   .mk-hf-card video {
@@ -1244,7 +1532,7 @@ const STYLES = `
   }
   .mk-hf-card::after {
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(to top, rgba(0,0,0,0.66) 0%, rgba(0,0,0,0.08) 42%, rgba(0,0,0,0) 62%);
+    background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.1) 44%, rgba(0,0,0,0) 64%);
   }
   .mk-hf-meta {
     position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 1;
@@ -1252,40 +1540,158 @@ const STYLES = `
   }
   .mk-hf-meta p { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; }
   .mk-hf-meta span { display: block; margin-top: 3px; font-size: 11.5px; color: rgba(255,255,255,0.72); font-weight: 500; }
-  /* white veil: posters stay visible everywhere, copy floats on a soft
-     radial clearing, and the bottom fades to white for the brand band */
-  .mk-hf-veil {
-    position: absolute; inset: 0; z-index: 1;
-    background:
-      radial-gradient(58% 54% at 50% 44%, rgba(255,255,255,0.96) 30%, rgba(255,255,255,0.78) 62%, rgba(255,255,255,0.28) 100%),
-      linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.35) 18%, rgba(255,255,255,0.3) 72%, rgba(255,255,255,0.97) 94%);
+
+  /* ─── the filmic grain overlay (dark acts only) ─── */
+  .mk-grain {
+    position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    opacity: 0.4; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
   }
 
+  /* ─── the primary CTA (pink, glowing) ─── */
   .mk-cta {
+    position: relative;
     display: inline-flex; align-items: center; gap: 9px;
-    padding: 15px 30px; border-radius: 999px; border: 0;
+    padding: 16px 32px; border-radius: 999px; border: 0;
     background: ${PINK}; color: #fff;
     font: inherit; font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
-    box-shadow: 0 10px 30px -8px rgba(236,23,143,0.5);
+    box-shadow: 0 10px 34px -8px rgba(236,23,143,0.6);
     transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), box-shadow 0.2s;
   }
-  .mk-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -10px rgba(236,23,143,0.6); }
+  .mk-cta:hover { transform: translateY(-2px); box-shadow: 0 18px 48px -10px rgba(236,23,143,0.75); }
   .mk-cta:active { transform: translateY(0); }
   .mk-cta svg { transition: transform 0.2s; }
   .mk-cta:hover svg { transform: translateX(3px); }
+  /* an animated bloom ring behind the button — the 'alive' pulse */
+  .mk-cta-glow::before {
+    content: ""; position: absolute; inset: -3px; z-index: -1; border-radius: inherit;
+    background: conic-gradient(from 0deg, ${PINK}, #ff77cb, #7b2ff7, ${PINK});
+    filter: blur(11px); opacity: 0.55;
+    animation: mk-spin 6s linear infinite;
+  }
+  @keyframes mk-spin { to { transform: rotate(360deg); } }
 
-  .mk-hero-proof {
-    margin: 8px 0 0;
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13.5px; color: rgba(10,10,10,0.55);
-  }
-  .mk-hero-proof strong { color: ${INK}; font-weight: 800; }
-  .mk-hero-proof-dot {
-    width: 7px; height: 7px; border-radius: 999px; background: #22c55e;
-    box-shadow: 0 0 0 3px rgba(34,197,94,0.18);
-    animation: proofpulse 2.4s ease-in-out infinite;
-  }
   @keyframes proofpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+  /* ════════ ACT II · THE PROBLEM (reach vs relationship) ════════ */
+  .mk-problem {
+    max-width: 1080px; margin: 0 auto;
+    padding: clamp(80px, 14vh, 150px) clamp(22px, 6vw, 48px);
+    text-align: center;
+  }
+  .mk-problem-head { max-width: 720px; margin: 0 auto clamp(44px, 7vh, 72px); }
+  .mk-problem-lede {
+    margin: 18px 0 0; font-size: clamp(17px, 2.2vw, 21px); line-height: 1.6;
+    color: rgba(10,10,10,0.6);
+  }
+  .mk-vs {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch;
+    gap: clamp(14px, 2.2vw, 28px); text-align: left;
+  }
+  .mk-vs-card {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: clamp(24px, 3vw, 38px); border-radius: 26px; min-height: 340px;
+  }
+  .mk-vs-label { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .mk-vs-num { margin-top: 12px; font-size: clamp(40px, 6vw, 62px); font-weight: 850; letter-spacing: -0.04em; line-height: 1; }
+  .mk-vs-sub { margin-top: 4px; font-size: 13px; font-weight: 600; }
+  .mk-vs-list { list-style: none; margin: auto 0 0; padding: 20px 0 0; display: flex; flex-direction: column; gap: 10px; }
+  .mk-vs-list li { position: relative; padding-left: 22px; font-size: 14.5px; font-weight: 600; }
+  .mk-vs-list li::before { content: ""; position: absolute; left: 0; top: 6px; width: 10px; height: 10px; border-radius: 3px; }
+  /* reach — muted, rented, crossed out */
+  .mk-vs-reach { background: linear-gradient(180deg, #f6f6f7, #ededee); border: 1px solid rgba(10,10,10,0.08); }
+  .mk-vs-reach .mk-vs-label { color: rgba(10,10,10,0.4); }
+  .mk-vs-reach .mk-vs-num { color: rgba(10,10,10,0.34); }
+  .mk-vs-reach .mk-vs-sub { color: rgba(10,10,10,0.42); }
+  .mk-vs-reach .mk-vs-list li { color: rgba(10,10,10,0.5); text-decoration: line-through; text-decoration-color: rgba(10,10,10,0.22); }
+  .mk-vs-reach .mk-vs-list li::before { background: rgba(10,10,10,0.18); }
+  .mk-vs-dots { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; margin-top: 20px; }
+  .mk-vs-dots span { aspect-ratio: 1; border-radius: 999px; background: rgba(10,10,10,0.1); }
+  /* relationships — vivid, owned, alive */
+  .mk-vs-rel {
+    background: linear-gradient(168deg, #16111b, #0a0a0e);
+    border: 1px solid rgba(236,23,143,0.4); color: #fff;
+    box-shadow: 0 44px 100px -54px rgba(236,23,143,0.65);
+  }
+  .mk-vs-rel .mk-vs-label { color: ${PINK}; }
+  .mk-vs-rel .mk-vs-num { color: #fff; }
+  .mk-vs-rel .mk-vs-sub { color: rgba(255,255,255,0.6); }
+  .mk-vs-rel .mk-vs-list li { color: rgba(255,255,255,0.9); }
+  .mk-vs-rel .mk-vs-list li::before { background: ${PINK}; box-shadow: 0 0 10px rgba(236,23,143,0.8); }
+  .mk-vs-avs { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+  .mk-vs-avs span { width: 24px; height: 24px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,0.25); }
+  .mk-vs-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; }
+  .mk-vs-arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 46px; height: 46px; border-radius: 999px; background: ${PINK}; color: #fff;
+    box-shadow: 0 12px 30px -8px rgba(236,23,143,0.6);
+  }
+  .mk-vs-mid-t { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: ${PINK}; }
+  .mk-problem-foot {
+    margin: clamp(40px, 6vh, 64px) 0 0;
+    font-size: clamp(22px, 3.6vw, 34px); font-weight: 850; letter-spacing: -0.03em;
+  }
+  @media (max-width: 760px) {
+    .mk-vs { grid-template-columns: 1fr; }
+    .mk-vs-mid { flex-direction: row; padding: 2px 0; }
+    .mk-vs-mid .mk-vs-arrow { transform: rotate(90deg); }
+    .mk-vs-card { min-height: 0; }
+  }
+
+  /* ════════ ACT III · THE TURN (pull up) ════════ */
+  .mk-turn {
+    position: relative; isolation: isolate; overflow: hidden;
+    background: ${NIGHT}; color: #fff; text-align: center;
+    padding: clamp(96px, 18vh, 200px) clamp(22px, 6vw, 48px);
+  }
+  .mk-turn > * { position: relative; z-index: 1; }
+  .mk-turn .mk-grain { z-index: 0; }
+  .mk-turn-glow {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(50% 56% at 50% 52%, rgba(236,23,143,0.3), transparent 62%);
+    animation: mk-breathe 7s ease-in-out infinite;
+  }
+  .mk-turn-a { margin: 14px 0 2px; font-size: clamp(15px, 2vw, 19px); font-weight: 600; color: rgba(255,255,255,0.55); }
+  .mk-turn-word {
+    margin: 0; font-size: clamp(72px, 17vw, 200px); font-weight: 850; letter-spacing: -0.05em; line-height: 0.9;
+    background: linear-gradient(100deg, #ff5cc0, ${PINK} 45%, #ff88d2);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    filter: drop-shadow(0 12px 55px rgba(236,23,143,0.5));
+    animation: mk-shimmer 6s ease-in-out infinite;
+  }
+  .mk-turn-dot { -webkit-text-fill-color: #fff; color: #fff; }
+  .mk-turn-body {
+    margin: clamp(26px, 4.5vh, 40px) auto 0; max-width: 56ch;
+    font-size: clamp(16px, 2.2vw, 21px); line-height: 1.6; color: rgba(255,255,255,0.72);
+  }
+
+  /* ════════ ACT VI · OWNERSHIP (the asset is yours) ════════ */
+  .mk-own {
+    position: relative;
+    max-width: 1140px; margin: 0 auto;
+    padding: clamp(80px, 13vh, 140px) clamp(22px, 6vw, 48px);
+    text-align: center;
+  }
+  .mk-own-head { max-width: 760px; margin: 0 auto clamp(40px, 6vh, 64px); }
+  .mk-own-lede { margin: 18px 0 0; font-size: clamp(16px, 2.1vw, 20px); line-height: 1.65; color: rgba(10,10,10,0.6); }
+  .mk-own-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 1.6vw, 18px); text-align: left; }
+  .own-card--lg { padding: clamp(22px, 2.4vw, 28px); border-radius: 22px; min-height: 178px; }
+  .own-card--lg .own-card-ic { width: 44px; height: 44px; border-radius: 14px; margin-bottom: 6px; }
+  .own-card--lg .own-card-t { font-size: 16px; }
+  .own-card--lg .own-card-b { font-size: 13.5px; }
+  @media (max-width: 900px) { .mk-own-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .mk-own-grid { grid-template-columns: 1fr; } }
+  .mk-own-creed {
+    margin: clamp(40px, 6vh, 60px) auto 0; display: inline-block;
+    padding: 17px 30px; border-radius: 999px;
+    background: ${INK}; color: #fff;
+    font-size: clamp(18px, 2.6vw, 26px); font-weight: 850; letter-spacing: -0.02em;
+    box-shadow: 0 24px 60px -34px rgba(10,10,10,0.6);
+  }
 
   /* ════════ THE JOURNEY SECTION (story told fast) ════════ */
   .mk-story {
@@ -1575,22 +1981,24 @@ const STYLES = `
   }
 
   /* ─── part bands + the flip ─── */
-  .mk-part {
-    max-width: 880px; margin: 0 auto;
-    padding: clamp(64px, 10vh, 120px) clamp(22px, 6vw, 48px) 0;
-    text-align: center;
-  }
   .mk-part-tag {
     margin: 0 0 18px;
     font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
     color: ${PINK}; font-weight: 800;
   }
   .mk-flip {
-    background: ${INK};
+    position: relative; isolation: isolate;
+    background: ${NIGHT};
     color: #fff;
     text-align: center;
     padding: clamp(90px, 16vh, 170px) clamp(22px, 6vw, 48px);
-    margin-top: clamp(40px, 8vh, 90px);
+    overflow: hidden;
+  }
+  .mk-flip > * { position: relative; z-index: 1; }
+  .mk-flip .mk-grain { z-index: 0; }
+  .mk-flip::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(70% 60% at 50% 0%, rgba(236,23,143,0.18), transparent 60%);
   }
   .mk-flip-a {
     margin: 0 0 14px;
@@ -1763,11 +2171,6 @@ const STYLES = `
   .mk-scene {
     margin: 40px 0 4px;
     position: relative;
-  }
-  .mk-creed {
-    margin: 36px 0 0;
-    font-size: clamp(24px, 4vw, 38px);
-    font-weight: 800; letter-spacing: -0.03em;
   }
 
   /* ─── ownership mini-grid (the anchor feature row's visual) ─── */
@@ -2021,6 +2424,11 @@ const STYLES = `
     .mk-jr-tap { display: none !important; }
     .mk-jr-av { width: 22px !important; height: 22px !important; }
     .mk-jr-ev-bar { height: 7px !important; }
+    /* hero kinetic bits settle immediately */
+    .mk-hero-line > span, .mk-grad { transform: none !important; animation: none !important; }
+    .mk-grad { -webkit-text-fill-color: transparent; }
+    .mk-hero-spot { background: radial-gradient(46vmax 46vmax at 50% 38%, rgba(8,8,14,0.12) 0%, rgba(8,8,14,0.78) 70%) !important; }
+    .mk-cta-glow::before, .mk-hero-scrollcue::after, .mk-final-glow, .mk-turn-glow, .mk-turn-word { animation: none !important; }
   }
 
   /* ─── proof ─── */
@@ -2030,36 +2438,59 @@ const STYLES = `
     color: rgba(10,10,10,0.4); font-weight: 600;
   }
 
-  /* ─── final ─── */
+  /* ─── final (dark cinematic bookend) ─── */
   .mk-final {
+    position: relative; isolation: isolate; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; gap: 22px;
-    padding: clamp(80px, 16vh, 180px) clamp(22px, 6vw, 48px) clamp(60px, 10vh, 110px);
+    padding: clamp(90px, 17vh, 190px) clamp(22px, 6vw, 48px) clamp(70px, 12vh, 120px);
+    background: ${NIGHT};
+    color: #fff;
   }
-  .mk-final-eyes { height: clamp(80px, 14vmin, 130px); width: auto; display: block; }
+  .mk-final > * { position: relative; z-index: 1; }
+  .mk-final .mk-grain { z-index: 0; }
+  .mk-final-glow {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(60% 50% at 50% 34%, rgba(236,23,143,0.22), transparent 62%);
+    animation: mk-breathe 7s ease-in-out infinite;
+  }
+  @keyframes mk-breathe { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+  .mk-final-eyes { height: clamp(80px, 14vmin, 130px); width: auto; display: block; filter: brightness(0) invert(1); }
   .mk-final-eyes svg { width: 100%; height: 100%; display: block; }
   .mk-final-h {
     margin: 0;
-    font-size: clamp(34px, 6.4vw, 66px);
-    font-weight: 800; letter-spacing: -0.035em; line-height: 1.04;
+    font-size: clamp(38px, 7vw, 74px);
+    font-weight: 850; letter-spacing: -0.04em; line-height: 1.02;
   }
   .mk-final-sub {
     margin: 0; font-size: clamp(16px, 2.3vw, 20px); line-height: 1.55;
-    color: rgba(10,10,10,0.6); max-width: 46ch;
+    color: rgba(255,255,255,0.66); max-width: 46ch;
   }
-  .mk-final-cta { margin-top: 8px; }
-  .mk-join { width: 100%; margin-top: 34px; }
+  .mk-join { width: 100%; margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .mk-final-login {
+    background: none; border: 0; padding: 4px 6px;
+    font: inherit; font-size: 14px; font-weight: 500;
+    color: rgba(255,255,255,0.6); transition: color 0.18s;
+  }
+  .mk-final-login:hover { color: #fff; }
+  .mk-final-agency {
+    margin: 6px 0 0; font-size: 13.5px; line-height: 1.6;
+    color: rgba(255,255,255,0.42); max-width: 48ch;
+  }
+  .mk-final-agency a { color: rgba(255,255,255,0.82); font-weight: 600; text-decoration: none; }
+  .mk-final-agency a:hover { color: #fff; }
 
   /* ─── footer ─── */
   .mk-footer {
     padding: 30px 16px calc(30px + env(safe-area-inset-bottom));
     display: flex; align-items: center; justify-content: center;
     gap: clamp(10px, 3vw, 20px); flex-wrap: wrap;
-    font-size: 11px; color: rgba(10,10,10,0.55);
-    border-top: 1px solid rgba(10,10,10,0.06);
+    font-size: 11px; color: rgba(255,255,255,0.5);
+    background: ${NIGHT};
+    border-top: 1px solid rgba(255,255,255,0.08);
   }
   .mk-footer a { color: inherit; text-decoration: none; }
-  .mk-footer a:hover { color: ${INK}; }
+  .mk-footer a:hover { color: #fff; }
   .mk-footer-dot { opacity: 0.4; }
 
   /* ════════ TRUST MARQUEE ════════ */
@@ -2095,10 +2526,15 @@ const STYLES = `
   }
   .logo-marquee-item:hover { opacity: 0.85; }
   .logo-marquee-item img { width: auto; display: block; filter: brightness(0); }
+  /* inverted for the dark hero — white silhouettes */
+  .logo-marquee--invert .logo-marquee-item { opacity: 0.62; }
+  .logo-marquee--invert .logo-marquee-item:hover { opacity: 1; }
+  .logo-marquee--invert .logo-marquee-item img { filter: brightness(0) invert(1); }
 
 
   @media (prefers-reduced-motion: reduce) {
     .logo-marquee-track, .mk-hf-col, .mk-flip-ticker-track { animation: none; }
     .mk-bento-card { transform: none; transition: box-shadow 0.3s ease; }
+    .mk-progress span { transition: none; }
   }
 `;

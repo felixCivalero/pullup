@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { PullupEyes } from "../../components/PullupEyes.jsx";
 import { transformedImageUrl } from "../../lib/imageUtils.js";
 import { trackPageView, initTracking } from "../../lib/track.js";
-import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY } from "./adamFlamboData.js";
+import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_PHOTOS } from "./adamFlamboData.js";
 
 /* ════════════════════════════════════════════════════════════════════════
    ADAM FLAMBO — a genuine PullUp case study.
@@ -236,6 +236,17 @@ function WalkMap() {
           <div><b>{w.photos || "—"}</b><span>photos</span></div>
           <div><b>{w.contributors || "—"}</b><span>shot it</span></div>
         </div>
+        {(CASE_WALK_PHOTOS[w.vol] || []).length > 0 ? (
+          <div className="fl-map-photos">
+            {CASE_WALK_PHOTOS[w.vol].slice(0, 6).map((ph, i) => (
+              <span className="fl-map-photo" key={`${w.vol}-${i}`}>
+                <img src={imgUrl(ph.p, 150, 60)} alt="" loading="lazy" decoding="async" />
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="fl-map-nophoto">The room wall came a walk later — this one lived in the moment.</p>
+        )}
         <div className="fl-map-chips">
           {walks.map((x, i) => (
             <button
@@ -346,7 +357,10 @@ export default function AdamFlamboStory() {
         <Reveal delay={0.12}>
           <blockquote className="fl-quote">
             “I wouldn’t be here this smooth without PullUp.”
-            <cite>Adam Flambo</cite>
+            <cite className="fl-quote-cite">
+              Adam Flambo
+              <a className="fl-ig-link" href="https://instagram.com/adam_flambo" target="_blank" rel="noreferrer">@adam_flambo</a>
+            </cite>
           </blockquote>
         </Reveal>
       </section>
@@ -576,6 +590,15 @@ const STYLES = `
     font-size: clamp(24px, 3.6vw, 38px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.2; color: #fff;
   }
   .fl-quote cite { display: block; margin-top: 16px; font-style: normal; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pink); }
+  .fl-quote-cite { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .fl-ig-link {
+    display: inline-flex; align-items: center; letter-spacing: 0.01em; text-transform: none;
+    padding: 7px 15px; border-radius: 999px;
+    background: rgba(236,23,143,0.12); border: 1px solid rgba(236,23,143,0.4);
+    color: #fff; font-size: 14px; font-weight: 700; text-decoration: none;
+    transition: background 0.18s, transform 0.18s, box-shadow 0.18s;
+  }
+  .fl-ig-link:hover { background: rgba(236,23,143,0.24); transform: translateY(-1px); box-shadow: 0 8px 24px -10px rgba(236,23,143,0.7); }
 
   /* ─── the arc chart ─── */
   .fl-arc { max-width: 760px; margin: clamp(40px, 6vh, 64px) auto 0; }
@@ -606,7 +629,7 @@ const STYLES = `
   /* ─── the walks map (real Leaflet + dark CARTO tiles) ─── */
   .fl-mapsec { max-width: 1160px; margin: 0 auto; padding: clamp(56px, 9vh, 110px) clamp(22px, 6vw, 48px); }
   .fl-mapsec-head { text-align: center; max-width: 720px; margin: 0 auto clamp(30px, 5vh, 48px); }
-  .fl-map-grid { display: grid; grid-template-columns: minmax(0, 1fr) 306px; gap: 18px; align-items: stretch; }
+  .fl-map-grid { display: grid; grid-template-columns: minmax(0, 1fr) 306px; gap: 18px; align-items: start; }
   .fl-map {
     height: clamp(370px, 56vh, 560px); border-radius: 22px; overflow: hidden;
     border: 1px solid rgba(255,255,255,0.1); background: #0c0c12;
@@ -650,6 +673,11 @@ const STYLES = `
   .fl-map-stats div { display: flex; flex-direction: column; gap: 2px; padding: 12px 6px; border-radius: 12px; background: rgba(255,255,255,0.045); text-align: center; }
   .fl-map-stats b { font-size: clamp(20px, 2.4vw, 24px); font-weight: 850; letter-spacing: -0.02em; color: #fff; }
   .fl-map-stats span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.45); }
+  .fl-map-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .fl-map-photo { aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #14141c; }
+  .fl-map-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .fl-map-photo:hover img { transform: scale(1.06); }
+  .fl-map-nophoto { margin: 0; font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.4); font-style: italic; }
   .fl-map-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; }
   .fl-map-chip { padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: none; color: rgba(255,255,255,0.6); font: inherit; font-size: 12.5px; font-weight: 700; transition: color 0.2s, background 0.2s, border-color 0.2s; }
   .fl-map-chip:hover { color: #fff; border-color: rgba(255,255,255,0.3); }

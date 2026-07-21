@@ -7,6 +7,7 @@ import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
+import TurnGlobe from "../components/TurnGlobe.jsx";
 import { transformedImageUrl } from "../lib/imageUtils.js";
 import { CASE_GALLERY } from "./stories/adamFlamboData.js";
 
@@ -747,31 +748,42 @@ function PullUpSection() {
   const ref = useRef(null);
   const motion = useDesktopMotion();
   const p = useSectionProgress(ref, motion);
-  // parallax: the word drifts gently as the section passes (kept small so it
-  // never rides down into the paragraph), and the glow blooms at mid-scroll.
-  const wordStyle = motion
-    ? { transform: `translate3d(0, ${((0.5 - p) * 26).toFixed(1)}px, 0) scale(${(1 + (0.5 - Math.abs(p - 0.5)) * 0.06).toFixed(3)})` }
+  // The movie, scrubbed by scroll (desktop + motion only). The camera flies the
+  // globe between cities (in TurnGlobe); up here the title recedes and the eyes
+  // lift away as the world takes over, and the glow blooms through the middle.
+  const wp = Math.min(1, Math.max(0, p));
+  const eyesStyle = motion
+    ? { transform: `translate3d(0, ${(-wp * 52).toFixed(1)}px, 0) scale(${(1 - wp * 0.14).toFixed(3)})`, opacity: (1 - wp * 0.7).toFixed(3) }
     : undefined;
-  const glowStyle = motion ? { opacity: 0.45 + (0.5 - Math.abs(p - 0.5)) * 1.1 } : undefined;
+  const wordStyle = motion
+    ? { transform: `translate3d(0, ${(-wp * 78).toFixed(1)}px, 0) scale(${(1 - wp * 0.16).toFixed(3)})`, opacity: (1 - wp * 0.32).toFixed(3) }
+    : undefined;
+  // the orb grows and lifts a touch as the title clears out of its way
+  const globeStyle = motion
+    ? { transform: `translate3d(0, ${(-wp * 20).toFixed(1)}px, 0) scale(${(1 + wp * 0.16).toFixed(3)})` }
+    : undefined;
+  const glowStyle = motion ? { opacity: 0.28 + Math.sin(wp * Math.PI) * 0.55 } : undefined;
   return (
-    <section className="mk-turn" data-mk-section="pullup" data-mk-order="4" ref={ref}>
-      <div className="mk-grain" aria-hidden="true" />
-      <div className="mk-turn-glow" aria-hidden="true" style={glowStyle} />
-      <div className="mk-turn-inner">
-        <Reveal><p className="mk-part-tag mk-part-tag-dark">The turn</p></Reveal>
-        <Reveal delay={0.06}><p className="mk-turn-a">It all comes down to one moment.</p></Reveal>
-        {/* the eyes, watching the room — they follow your cursor */}
-        <PullupEyes variant="big" className="mk-turn-eyes" />
-        <h2 className="mk-turn-word" style={wordStyle}>pull up<span className="mk-turn-dot">.</span></h2>
-        <Reveal delay={0.2}>
-          <p className="mk-turn-body">
-            The night happens in real life. Someone who was just a handle in your
-            comments walks through the door — and becomes a person you know. That's
-            the instant a follower turns into one of your people. Everything PullUp
-            does is built to create that moment, capture it, and keep it going long
-            after the lights come up.
-          </p>
-        </Reveal>
+    <section
+      className={`mk-turn${motion ? " mk-turn--cinema" : ""}`}
+      data-mk-section="pullup"
+      data-mk-order="4"
+      ref={ref}
+    >
+      <div className="mk-turn-stage">
+        <div className="mk-grain" aria-hidden="true" />
+        <div className="mk-turn-glow" aria-hidden="true" style={glowStyle} />
+        <div className="mk-turn-inner">
+          {/* eyes on top, the verb beneath, and the world of real rooms below —
+              no copy; the globe flying between the cities carries the beat */}
+          <div className="mk-turn-eyes-wrap" style={eyesStyle}>
+            <PullupEyes variant="big" className="mk-turn-eyes" />
+          </div>
+          <h2 className="mk-turn-word" style={wordStyle}>pull up<span className="mk-turn-dot">.</span></h2>
+          <div className="mk-turn-globe-wrap" style={globeStyle}>
+            <TurnGlobe progress={p} active={motion} />
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1904,15 +1916,39 @@ const STYLES = `
 
   /* ════════ ACT III · THE TURN (pull up) ════════ */
   .mk-turn {
-    position: relative; isolation: isolate; overflow: hidden;
+    position: relative; isolation: isolate;
     background: ${NIGHT}; color: #fff; text-align: center;
+  }
+  /* default (mobile / reduced-motion): a normal padded block, no pinning */
+  .mk-turn-stage {
+    position: relative; overflow: hidden;
     padding: clamp(96px, 18vh, 200px) clamp(22px, 6vw, 48px);
   }
-  .mk-turn > * { position: relative; z-index: 1; }
-  .mk-turn .mk-grain { z-index: 0; }
+  /* cinema: a tall scroll runway with a pinned stage that scrubs the movie */
+  .mk-turn--cinema { height: 265vh; }
+  .mk-turn--cinema .mk-turn-stage {
+    position: sticky; top: 0; height: 100vh; min-height: 640px; padding: 0;
+    display: grid; place-items: center;
+  }
+  .mk-turn-stage > * { position: relative; z-index: 1; }
+  .mk-turn-stage .mk-grain { z-index: 0; }
+  .mk-turn-eyes-wrap, .mk-turn-globe-wrap { will-change: transform; }
+  .mk-turn--cinema .mk-turn-globe { width: min(500px, 54vh, 84vw); }
+  /* the world of real rooms — an orb beneath the word, every glowing beacon a
+     city a PullUp has actually happened in. This is the focus of the beat. */
+  .mk-turn-globe {
+    position: relative; z-index: 1; pointer-events: none;
+    width: min(460px, 78vw); aspect-ratio: 1 / 1;
+    margin: clamp(6px, 1.5vh, 22px) auto 0; opacity: 0.98;
+    -webkit-mask-image: radial-gradient(closest-side, #000 82%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 82%, transparent 100%);
+    animation: mk-globe-in 1.4s ease-out both;
+  }
+  .mk-turn-globe-canvas { width: 100%; height: 100%; }
+  @keyframes mk-globe-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 0.98; transform: none; } }
   .mk-turn-glow {
     position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background: radial-gradient(50% 56% at 50% 52%, rgba(236,23,143,0.3), transparent 62%);
+    background: radial-gradient(50% 56% at 50% 52%, rgba(236,23,143,0.26), transparent 62%);
     animation: mk-breathe 7s ease-in-out infinite;
   }
   .mk-turn-a { margin: 14px 0 2px; font-size: clamp(15px, 2vw, 19px); font-weight: 600; color: rgba(255,255,255,0.55); }
@@ -1926,9 +1962,9 @@ const STYLES = `
   }
   .mk-turn-eyes svg { width: 100%; height: 100%; display: block; }
   .mk-turn-word {
-    /* line-height + padding contain the descenders; margin-bottom clears the
-       parallax drift so the word never rides down into the paragraph */
-    margin: clamp(4px, 1vh, 14px) 0 clamp(44px, 7vh, 72px);
+    /* line-height + padding contain the descenders; the globe now sits directly
+       beneath, so only a small gap below the word */
+    margin: clamp(4px, 1vh, 14px) 0 0;
     padding-bottom: 0.06em;
     font-size: clamp(66px, 16vw, 190px); font-weight: 850; letter-spacing: -0.05em; line-height: 0.95;
     background: linear-gradient(100deg, #ff5cc0, ${PINK} 45%, #ff88d2);

@@ -24,6 +24,7 @@ import { registerEventRoutes } from "./routes/events.js";
 import { registerRsvpRoutes } from "./routes/rsvp.js";
 import { registerHostEventRoutes } from "./routes/hostEvents.js";
 import { registerLocationRoutes } from "./routes/location.js";
+import { registerPublicMapRoutes } from "./routes/publicMap.js";
 import { registerHostRoomRoutes } from "./routes/hostRoom.js";
 import { registerCommsRoutes } from "./routes/comms.js";
 import { registerCheckinAccessRoutes } from "./routes/checkinAccess.js";
@@ -264,6 +265,8 @@ registerRsvpRoutes(app);
 registerHostEventRoutes(app);
 
 registerLocationRoutes(app);
+
+registerPublicMapRoutes(app);
 
 registerHostRoomRoutes(app);
 

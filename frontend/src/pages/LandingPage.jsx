@@ -110,6 +110,61 @@ function Reveal({ children, delay = 0, y = 24, className, style }) {
 }
 
 
+/* ─── scroll-scrub hook ───
+   Returns 0→1 for how far a tall/pinned section has been scrolled through
+   (0 when its top hits the viewport top, 1 when its bottom reaches the fold).
+   Drives the desktop scrollytelling (pinned Journey) and the parallax beats.
+   `active=false` parks it at 0 (mobile / reduced-motion) with no listeners. */
+function useSectionProgress(ref, active = true) {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    // Parked at 0 when inactive; callers gate on their motion flag before
+    // reading p, so a stale value here is never used.
+    if (!active) return;
+    const el = ref.current;
+    if (!el) return;
+    let raf = null;
+    const compute = () => {
+      raf = null;
+      const vh = window.innerHeight || 1;
+      const total = el.offsetHeight - vh;
+      const scrolled = Math.min(Math.max(-el.getBoundingClientRect().top, 0), Math.max(total, 0));
+      setP(total > 0 ? scrolled / total : 0);
+    };
+    const onScroll = () => {
+      if (raf == null) raf = requestAnimationFrame(compute);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    compute();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, [ref, active]);
+  return p;
+}
+
+// Desktop, fine-pointer, motion-allowed — the gate for scroll-driven staging.
+// Mobile and reduced-motion fall back to the simpler static/loop layouts.
+function useDesktopMotion() {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    if (prefersReduced()) return;
+    const mq = window.matchMedia("(min-width: 861px) and (pointer: fine)");
+    const upd = () => setOk(mq.matches);
+    upd();
+    if (mq.addEventListener) mq.addEventListener("change", upd);
+    else mq.addListener(upd);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", upd);
+      else mq.removeListener(upd);
+    };
+  }, []);
+  return ok;
+}
+
 /* ─── Marketing primitives ─── */
 
 // Scene frame — wraps an animated mock and only kicks its CSS animations off
@@ -293,15 +348,17 @@ const JOURNEY_MS = 4400;
 function JourneySection() {
   const [phase, setPhase] = useState(0);
   const [running, setRunning] = useState(true);
+  const [sub, setSub] = useState(0);
   const rootRef = useRef(null);
-
-  // Respect reduced motion: no cycling, first beat rendered static (the
-  // global reduced-motion CSS forces every journey element visible).
   const reduced = useMemo(() => prefersReduced(), []);
+  const desktop = useDesktopMotion();
+  // Desktop → the stage pins and scroll drives the beats (MetaMask-style).
+  // Mobile / reduced-motion → the stage auto-advances on a gentle timer.
+  const isScroll = desktop && !reduced;
 
-  // The loop only spins while the section is actually on screen — no phase
-  // churn (or React re-renders) while the visitor reads the rest of the page.
+  // LOOP mode: only spin while the section is on screen.
   useEffect(() => {
+    if (isScroll) return;
     const el = rootRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
     const obs = new IntersectionObserver(
@@ -310,41 +367,79 @@ function JourneySection() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, []);
+  }, [isScroll]);
 
   useEffect(() => {
-    if (reduced || !running) return;
+    if (isScroll || reduced || !running) return;
     const t = setInterval(() => setPhase((p) => (p + 1) % STORY_STEPS.length), JOURNEY_MS);
     return () => clearInterval(t);
-  }, [reduced, running]);
+  }, [isScroll, reduced, running]);
+
+  // SCROLL mode: pin the stage; scroll position picks the active beat and a
+  // sub-progress (0→1 within the beat) that fills the step spine.
+  useEffect(() => {
+    if (!isScroll) return;
+    const el = rootRef.current;
+    if (!el) return;
+    let raf = null;
+    const compute = () => {
+      raf = null;
+      const vh = window.innerHeight || 1;
+      const total = el.offsetHeight - vh;
+      const scrolled = Math.min(Math.max(-el.getBoundingClientRect().top, 0), Math.max(total, 0));
+      const p = total > 0 ? scrolled / total : 0;
+      const n = STORY_STEPS.length;
+      const idx = Math.min(n - 1, Math.floor(p * n));
+      setPhase(idx);
+      setSub(Math.min(1, Math.max(0, p * n - idx)));
+    };
+    const onScroll = () => { if (raf == null) raf = requestAnimationFrame(compute); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    compute();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, [isScroll]);
 
   const on = (i) => `mk-jr-ph ${phase === i ? "is-on" : ""}`;
+  const spineH = ((phase + (isScroll ? sub : 0.6)) / STORY_STEPS.length) * 100;
 
   return (
-    <section className="mk-story" data-mk-section="story" data-mk-order="5" ref={rootRef}>
-      <div className="mk-story-head">
-        <Reveal><p className="mk-part-tag">How it works</p></Reveal>
-        <Reveal delay={0.06}>
+    <section
+      className={`mk-story ${isScroll ? "mk-story-scroll" : "mk-story-loop"}`}
+      data-mk-section="story"
+      data-mk-order="5"
+      ref={rootRef}
+      style={isScroll ? { height: `${STORY_STEPS.length * 90}vh` } : undefined}
+    >
+      <div className="mk-story-sticky">
+        <div className="mk-story-head">
+          <p className="mk-part-tag">How it works</p>
           <h2 className="mk-h2" style={{ marginBottom: 0 }}>
             Watch one follower{" "}
             <span className="pink">become one of your people.</span>
           </h2>
-        </Reveal>
-      </div>
-      <div className="mk-story-grid">
-        <ol className="mk-story-steps">
-          {STORY_STEPS.map((s, i) => (
-            <li key={s.t} className={phase === i ? "on" : ""}>
-              <button type="button" onClick={() => setPhase(i)}>
-                <span className="mk-story-dot" />
-                <span className="mk-story-txt">
-                  <span className="mk-story-t">{s.t}</span>
-                  <span className="mk-story-b">{s.b}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
+        </div>
+        <div className="mk-story-grid">
+          <ol className="mk-story-steps">
+            <span className="mk-story-spine" aria-hidden="true">
+              <span style={{ height: `${spineH}%` }} />
+            </span>
+            {STORY_STEPS.map((s, i) => (
+              <li key={s.t} className={phase === i ? "on" : phase > i ? "done" : ""}>
+                <button type="button" onClick={() => { if (!isScroll) setPhase(i); }}>
+                  <span className="mk-story-idx">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="mk-story-txt">
+                    <span className="mk-story-t">{s.t}</span>
+                    <span className="mk-story-b">{s.b}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
         <div className="mk-jr" aria-label="How PullUp works, animated">
           <div className="mk-jr-phone">
         <div className="mk-jr-screen">
@@ -446,6 +541,8 @@ function JourneySection() {
           </div>
 
           </div>
+        </div>
+          {isScroll && <span className="mk-jr-cue">keep scrolling ↓</span>}
         </div>
         </div>
       </div>
@@ -646,24 +743,103 @@ function ProblemSection() {
 /* ════════ ACT III · THE TURN — the one moment it all hinges on ════════
    The brand verb, made the pivot of the story. One giant glowing word. */
 function PullUpSection() {
+  const ref = useRef(null);
+  const motion = useDesktopMotion();
+  const p = useSectionProgress(ref, motion);
+  // parallax: the word drifts up and the glow blooms as the section passes.
+  const wordStyle = motion
+    ? { transform: `translate3d(0, ${((0.5 - p) * 90).toFixed(1)}px, 0) scale(${(1 + (0.5 - Math.abs(p - 0.5)) * 0.12).toFixed(3)})` }
+    : undefined;
+  const glowStyle = motion ? { opacity: 0.45 + (0.5 - Math.abs(p - 0.5)) * 1.1 } : undefined;
   return (
-    <section className="mk-turn" data-mk-section="pullup" data-mk-order="4">
+    <section className="mk-turn" data-mk-section="pullup" data-mk-order="4" ref={ref}>
       <div className="mk-grain" aria-hidden="true" />
-      <div className="mk-turn-glow" aria-hidden="true" />
-      <Reveal><p className="mk-part-tag mk-part-tag-dark">The turn</p></Reveal>
-      <Reveal delay={0.06}><p className="mk-turn-a">It all comes down to one moment.</p></Reveal>
-      <Reveal delay={0.12}>
-        <h2 className="mk-turn-word">pull up<span className="mk-turn-dot">.</span></h2>
-      </Reveal>
-      <Reveal delay={0.2}>
-        <p className="mk-turn-body">
-          The night happens in real life. Someone who was just a handle in your
-          comments walks through the door — and becomes a person you know. That's
-          the instant a follower turns into one of your people. Everything PullUp
-          does is built to create that moment, capture it, and keep it going long
-          after the lights come up.
-        </p>
-      </Reveal>
+      <div className="mk-turn-glow" aria-hidden="true" style={glowStyle} />
+      <div className="mk-turn-inner">
+        <Reveal><p className="mk-part-tag mk-part-tag-dark">The turn</p></Reveal>
+        <Reveal delay={0.06}><p className="mk-turn-a">It all comes down to one moment.</p></Reveal>
+        <h2 className="mk-turn-word" style={wordStyle}>pull up<span className="mk-turn-dot">.</span></h2>
+        <Reveal delay={0.2}>
+          <p className="mk-turn-body">
+            The night happens in real life. Someone who was just a handle in your
+            comments walks through the door — and becomes a person you know. That's
+            the instant a follower turns into one of your people. Everything PullUp
+            does is built to create that moment, capture it, and keep it going long
+            after the lights come up.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ════════ ACT V · THE MACHINE — sticky-rail scrollytelling ════════
+   The feature section, authored like a story instead of a flat grid. On
+   desktop a title/nav column pins on the left while the four tools scroll up
+   and play beside it; an IntersectionObserver lights the active one and drives
+   the 01→04 counter. Below the breakpoint it stacks into a simple column. */
+function MachineSection() {
+  const [active, setActive] = useState(0);
+  const cardRefs = useRef([]);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setActive(Number(e.target.getAttribute("data-idx")) || 0);
+        });
+      },
+      { threshold: 0.01, rootMargin: "-45% 0px -45% 0px" },
+    );
+    cardRefs.current.forEach((el) => el && obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <section className="mk-machine" data-mk-section="machine" data-mk-order="7">
+      <div className="mk-machine-grid">
+        <aside className="mk-machine-aside">
+          <div className="mk-machine-asidein">
+            <p className="mk-part-tag">The machine</p>
+            <h2 className="mk-h2" style={{ marginBottom: 0 }}>
+              Everything that turns a night{" "}
+              <span className="pink">into a business.</span>
+            </h2>
+            <p className="mk-machine-lede">
+              Four tools, one system — the funnel, the follow-up and the memory
+              all run themselves, so you can just host.
+            </p>
+            <div className="mk-machine-nav">
+              {HOST_ROWS.map((row, i) => (
+                <button
+                  key={row.k}
+                  type="button"
+                  className={`mk-machine-navitem ${active === i ? "on" : ""}`}
+                  onClick={() => cardRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                >
+                  <span className="mk-machine-navnum">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="mk-machine-navlbl">{row.kicker}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mk-machine-count" aria-hidden="true">
+              <b>{String(active + 1).padStart(2, "0")}</b>
+              <span> / {String(HOST_ROWS.length).padStart(2, "0")}</span>
+            </div>
+          </div>
+        </aside>
+        <div className="mk-machine-cards">
+          {HOST_ROWS.map((row, i) => (
+            <div
+              key={row.k}
+              className="mk-machine-cardwrap"
+              data-idx={i}
+              ref={(el) => { cardRefs.current[i] = el; }}
+            >
+              <BentoCard row={row} order={7 + i} index={i} />
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -1023,14 +1199,8 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
         </div>
       </section>
 
-      {/* ════════ THE HOST'S MACHINE — the bento ════════ */}
-      <section className="mk-bento-wrap">
-        <div className="mk-bento">
-          {HOST_ROWS.map((row, i) => (
-            <BentoCard key={row.k} row={row} order={7 + i} index={i} />
-          ))}
-        </div>
-      </section>
+      {/* ════════ THE MACHINE — sticky-rail scrollytelling of the tools ════════ */}
+      <MachineSection />
 
       {/* ════════ OWNERSHIP — the asset is yours, and only yours ════════ */}
       <OwnershipSection />
@@ -1672,10 +1842,12 @@ const STYLES = `
   /* ════════ ACT VI · OWNERSHIP (the asset is yours) ════════ */
   .mk-own {
     position: relative;
-    max-width: 1140px; margin: 0 auto;
     padding: clamp(80px, 13vh, 140px) clamp(22px, 6vw, 48px);
     text-align: center;
+    background: linear-gradient(180deg, #faf8fb 0%, #fff 60%);
+    border-top: 1px solid rgba(10,10,10,0.05);
   }
+  .mk-own > * { max-width: 1140px; margin-left: auto; margin-right: auto; }
   .mk-own-head { max-width: 760px; margin: 0 auto clamp(40px, 6vh, 64px); }
   .mk-own-lede { margin: 18px 0 0; font-size: clamp(16px, 2.1vw, 20px); line-height: 1.65; color: rgba(10,10,10,0.6); }
   .mk-own-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 1.6vw, 18px); text-align: left; }
@@ -1693,62 +1865,91 @@ const STYLES = `
     box-shadow: 0 24px 60px -34px rgba(10,10,10,0.6);
   }
 
-  /* ════════ THE JOURNEY SECTION (story told fast) ════════ */
-  .mk-story {
+  /* ════════ THE JOURNEY SECTION (pinned scroll-scrub on desktop) ════════ */
+  .mk-story { position: relative; }
+  /* loop mode (mobile / reduced-motion) — a normal centered section */
+  .mk-story-loop {
     max-width: 1060px; margin: 0 auto;
     padding: clamp(72px, 12vh, 130px) clamp(22px, 6vw, 48px);
   }
-  .mk-story-head { text-align: center; margin-bottom: clamp(40px, 7vh, 72px); }
+  .mk-story-loop .mk-story-head { margin-bottom: clamp(40px, 7vh, 72px); }
+  /* scroll mode (desktop) — the stage pins for the section's tall scroll span */
+  .mk-story-scroll .mk-story-sticky {
+    position: sticky; top: 0; height: 100vh; box-sizing: border-box;
+    max-width: 1080px; margin: 0 auto;
+    padding: clamp(84px, 11vh, 120px) clamp(22px, 6vw, 48px) clamp(28px, 5vh, 52px);
+    display: flex; flex-direction: column; justify-content: center;
+    gap: clamp(22px, 4vh, 46px);
+  }
+  .mk-story-head { text-align: center; }
   .mk-story-grid {
     display: grid;
     grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
     align-items: center;
     gap: clamp(36px, 6vw, 88px);
   }
+  /* the step rail — numbered, with a pink spine that fills by scroll progress */
   .mk-story-steps {
-    list-style: none; margin: 0; padding: 0;
+    position: relative; list-style: none; margin: 0; padding: 0;
     display: flex; flex-direction: column;
   }
-  .mk-story-steps li { position: relative; }
-  /* the connecting line — runs through the dots, segment by segment */
-  .mk-story-steps li::before {
-    content: ""; position: absolute;
-    left: 10px; top: 30px; bottom: -6px; width: 2px;
-    background: rgba(10,10,10,0.1);
+  .mk-story-spine {
+    position: absolute; left: 19px; top: 34px; bottom: 34px; width: 2px;
+    border-radius: 2px; background: rgba(10,10,10,0.1); overflow: hidden;
   }
-  .mk-story-steps li:last-child::before { display: none; }
+  .mk-story-spine > span {
+    display: block; width: 100%;
+    background: linear-gradient(180deg, ${PINK}, #ff5cc0);
+    transition: height 0.18s linear;
+  }
+  .mk-story-steps li { position: relative; }
   .mk-story-steps button {
     display: flex; align-items: flex-start; gap: 18px;
     width: 100%; text-align: left;
-    background: none; border: 0; padding: 14px 0;
+    background: none; border: 0; padding: 15px 0;
     font: inherit;
   }
-  .mk-story-dot {
-    flex: 0 0 auto;
-    width: 22px; height: 22px; border-radius: 999px;
-    margin-top: 2px;
-    border: 2px solid rgba(10,10,10,0.18);
-    background: #fff;
-    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+  .mk-story-idx {
+    position: relative; z-index: 1; flex: 0 0 auto;
+    width: 40px; height: 40px; border-radius: 999px; margin-top: -6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums;
+    border: 2px solid rgba(10,10,10,0.14); background: #fff; color: rgba(10,10,10,0.4);
+    transition: border-color 0.3s, background 0.3s, color 0.3s, box-shadow 0.3s, transform 0.3s;
   }
-  .mk-story-steps li.on .mk-story-dot {
-    border-color: ${PINK};
-    background: ${PINK};
-    box-shadow: 0 0 0 5px rgba(236,23,143,0.14);
+  .mk-story-steps li.done .mk-story-idx { border-color: ${PINK}; color: ${PINK}; }
+  .mk-story-steps li.on .mk-story-idx {
+    border-color: ${PINK}; background: ${PINK}; color: #fff;
+    box-shadow: 0 0 0 6px rgba(236,23,143,0.14); transform: scale(1.06);
   }
-  .mk-story-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mk-story-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 3px; }
   .mk-story-t {
     font-size: clamp(17px, 2.2vw, 21px); font-weight: 800; letter-spacing: -0.02em;
-    color: rgba(10,10,10,0.42);
+    color: rgba(10,10,10,0.4);
     transition: color 0.3s;
   }
+  .mk-story-steps li.done .mk-story-t { color: rgba(10,10,10,0.6); }
   .mk-story-steps li.on .mk-story-t { color: ${INK}; }
   .mk-story-b {
     font-size: 14px; line-height: 1.5; color: rgba(10,10,10,0.45);
-    opacity: 0.65; transition: opacity 0.3s;
+    max-height: 0; opacity: 0; overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.3s ease;
     max-width: 40ch;
   }
-  .mk-story-steps li.on .mk-story-b { opacity: 1; }
+  .mk-story-steps li.on .mk-story-b { max-height: 80px; opacity: 1; margin-top: 2px; }
+  /* on mobile every step's body just shows (no scrub to reveal it) */
+  .mk-story-loop .mk-story-b { max-height: 80px; opacity: 0.65; }
+  .mk-story-loop .mk-story-steps li.on .mk-story-b { opacity: 1; }
+  /* keep the pinned stage inside one viewport on short desktop windows */
+  .mk-story-scroll .mk-jr-phone { width: clamp(214px, 19vw, 272px); }
+  .mk-story-scroll .mk-story-head .mk-h2 { font-size: clamp(26px, 3.4vw, 42px); }
+  .mk-jr-cue {
+    align-self: center; margin-top: 4px;
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(10,10,10,0.3); font-weight: 700;
+    animation: mk-cuefade 2.4s ease-in-out infinite;
+  }
+  @keyframes mk-cuefade { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
   @media (max-width: 860px) {
     .mk-story-grid { grid-template-columns: 1fr; gap: 40px; }
     .mk-jr { order: -1; }
@@ -2011,6 +2212,53 @@ const STYLES = `
     font-weight: 800; letter-spacing: -0.03em; line-height: 1.05;
   }
   .mk-part-tag-dark { color: ${PINK}; margin-bottom: 0; }
+
+  /* the turn's content wrapper — sits above grain/glow, carries the parallax */
+  .mk-turn-inner { position: relative; z-index: 1; }
+  .mk-turn-word { will-change: transform; transition: transform 0.05s linear; }
+  .mk-turn-glow { transition: opacity 0.1s linear; }
+
+  /* ════════ THE MACHINE — sticky-rail scrollytelling ════════
+     A pinned title/nav column on the left; the four tools scroll up on the
+     right and light their nav item + the 01→04 counter as they pass center. */
+  .mk-machine { position: relative; }
+  .mk-machine-grid {
+    max-width: 1220px; margin: 0 auto;
+    padding: clamp(30px, 5vh, 70px) clamp(22px, 6vw, 48px) clamp(50px, 9vh, 110px);
+    display: grid; grid-template-columns: minmax(0, 4.3fr) minmax(0, 7fr);
+    gap: clamp(26px, 5vw, 80px); align-items: start;
+  }
+  .mk-machine-aside { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; }
+  .mk-machine-asidein { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+  .mk-machine-lede { margin: 2px 0 0; font-size: clamp(15px, 1.8vw, 18px); line-height: 1.6; color: rgba(10,10,10,0.58); max-width: 34ch; }
+  .mk-machine-nav { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+  .mk-machine-navitem {
+    display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+    background: none; border: 0; padding: 11px 13px; border-radius: 13px;
+    font: inherit; font-size: 14.5px; font-weight: 700; color: rgba(10,10,10,0.4);
+    transition: background 0.25s, color 0.25s;
+  }
+  .mk-machine-navitem:hover { color: rgba(10,10,10,0.72); }
+  .mk-machine-navitem.on { background: rgba(236,23,143,0.07); color: ${INK}; }
+  .mk-machine-navnum {
+    font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+    color: rgba(10,10,10,0.28); transition: color 0.25s;
+  }
+  .mk-machine-navitem.on .mk-machine-navnum { color: ${PINK}; }
+  .mk-machine-count {
+    margin-top: 16px; display: flex; align-items: baseline; gap: 6px;
+    font-size: 13px; color: rgba(10,10,10,0.38); font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+  }
+  .mk-machine-count b { font-size: 24px; font-weight: 850; color: ${INK}; letter-spacing: -0.02em; }
+  .mk-machine-cards { display: flex; flex-direction: column; }
+  .mk-machine-cardwrap { min-height: 82vh; display: flex; align-items: center; }
+  .mk-machine-cardwrap .mk-bento-cell { width: 100%; }
+  @media (max-width: 980px) {
+    .mk-machine-grid { grid-template-columns: 1fr; gap: 26px; padding-top: clamp(56px, 8vh, 84px); }
+    .mk-machine-aside { position: static; height: auto; display: block; }
+    .mk-machine-nav, .mk-machine-count { display: none; }
+    .mk-machine-cardwrap { min-height: 0; margin-bottom: 22px; }
+  }
 
   /* ════════ THE HOST BENTO (Movement II) ════════
      Feature cards on a 6-col bento grid. Each card tilts toward the cursor

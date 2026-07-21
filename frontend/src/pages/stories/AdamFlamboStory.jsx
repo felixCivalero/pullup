@@ -305,14 +305,14 @@ export default function AdamFlamboStory() {
           <Reveal delay={0.05}><p className="fl-kicker">Stockholm Photo Walks · @adam_flambo</p></Reveal>
           <Reveal delay={0.12}>
             <h1 className="fl-hero-h">
-              A photo walk became<br />a <span className="fl-ink-pink">printed magazine.</span>
+              A following became a community.<br /><span className="fl-ink-pink">He gave it back in print.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.2}>
             <p className="fl-hero-sub">
-              Adam Flambo started with a handful of people and a camera. Two months on
-              PullUp later, his room had shot 334 photographs — and every one of them
-              had a name.
+              Adam Flambo took people who followed him online out into real life — six
+              photo walks across Stockholm. Then he gave the community back to itself:
+              a printed journal of their own photographs, every name credited.
             </p>
           </Reveal>
         </div>
@@ -322,7 +322,7 @@ export default function AdamFlamboStory() {
             [S.community, "in the community"],
             [S.photos, "photos in the room"],
             [S.contributors, "photographers"],
-            [1, "printed magazine"],
+            [1, "printed journal"],
           ].map(([n, l], i) => (
             <Reveal key={l} delay={0.28 + i * 0.05} y={10} className="fl-stat">
               <b>{n}</b><span>{l}</span>
@@ -411,16 +411,16 @@ export default function AdamFlamboStory() {
       <section className="fl-mag">
         <div className="fl-grain" aria-hidden="true" />
         <div className="fl-mag-in">
-          <Reveal><p className="fl-eyebrow">The payoff</p></Reveal>
+          <Reveal><p className="fl-eyebrow">Giving it back</p></Reveal>
           <Reveal delay={0.06}>
-            <h2 className="fl-h2">Every photo had a name.<br /><span className="fl-ink-pink">So Adam printed them.</span></h2>
+            <h2 className="fl-h2">He didn’t keep the community.<br /><span className="fl-ink-pink">He gave it back — in print.</span></h2>
           </Reveal>
           <Reveal delay={0.12}>
             <p className="fl-lede fl-lede-center">
-              Because each photograph in the room arrived with its photographer’s handle
-              and their consent to use it, Adam could go from a shared album to an actual
-              paper magazine — with the community as the credited contributors. No rights
-              chase, no “who shot this?”. The room already knew.
+              Adam turned the room into a printed journal and handed it back to the people
+              who made it — their photographs, their names, their book. Because every image
+              arrived with its photographer and their consent, there was no rights chase,
+              no “who shot this?”. The community was already on the page.
             </p>
           </Reveal>
           <Reveal delay={0.16} y={16}>
@@ -449,7 +449,7 @@ export default function AdamFlamboStory() {
           {[
             { t: "It’s yours", b: `Every name, number and photograph sits in Adam’s own database — ${S.peopleUnique} people, ${S.photos} images, in his name. Not rented from an algorithm.` },
             { t: "Credit is built in", b: "Each upload carries its photographer’s handle and consent. That’s what turned a shared album into a printable, licensable magazine." },
-            { t: "You can sell to it", b: "A room is a storefront for the people who actually show up — sell a link, a preset pack, a print run, real merch, or a magazine. To your people, not to strangers." },
+            { t: "You can sell to it", b: "A room is a storefront for the people who actually show up — sell a link, a preset pack, a print run, real merch, or a printed journal. To your people, not to strangers." },
           ].map((c, i) => (
             <Reveal key={c.t} delay={i * 0.08} y={20} className="fl-why-card">
               <span className="fl-why-t">{c.t}</span>

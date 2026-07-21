@@ -1014,10 +1014,11 @@ function AdamFlipTeaser({ onStory }) {
           <div className="mk-flipstory-copy">
             <span className="mk-flipstory-tag">A true story · Stockholm</span>
             <p className="mk-flipstory-h">
-              Adam turned <b>334</b> room photos into a <span className="pink">printed magazine.</span>
+              He took a following into real life — <span className="pink">then gave it back in print.</span>
             </p>
             <p className="mk-flipstory-b">
-              Six photo walks. A room that came alive. 26 of his people, credited as contributors.
+              Adam's photo walks turned followers into a real community. So he printed
+              their photos into a journal — every name credited.
             </p>
           </div>
           <span className="mk-flipstory-cta">Read the story <ArrowRight size={18} /></span>
@@ -1031,7 +1032,7 @@ function AdamFlipTeaser({ onStory }) {
    The private room isn't just where the community lives — it's where you sell to
    the people who actually showed up: a link, a pack, prints, merch, a printed
    magazine. Anchored by Adam Flambo's real story, which links to the case page. */
-const ROOM_SELLS = ["A link", "A preset pack", "Prints", "Real merch", "Early drops", "A printed magazine"];
+const ROOM_SELLS = ["A link", "A preset pack", "Prints", "Real merch", "Early drops", "A printed journal"];
 function RoomCommerceSection({ onStory }) {
   return (
     <section className="mk-room" data-mk-section="room" data-mk-order="11.5">

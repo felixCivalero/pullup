@@ -8,6 +8,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
 import { PullupEyes } from "../components/PullupEyes.jsx";
 import { transformedImageUrl } from "../lib/imageUtils.js";
+import { CASE_GALLERY } from "./stories/adamFlamboData.js";
 
 
 const LOGOS = [
@@ -746,9 +747,10 @@ function PullUpSection() {
   const ref = useRef(null);
   const motion = useDesktopMotion();
   const p = useSectionProgress(ref, motion);
-  // parallax: the word drifts up and the glow blooms as the section passes.
+  // parallax: the word drifts gently as the section passes (kept small so it
+  // never rides down into the paragraph), and the glow blooms at mid-scroll.
   const wordStyle = motion
-    ? { transform: `translate3d(0, ${((0.5 - p) * 90).toFixed(1)}px, 0) scale(${(1 + (0.5 - Math.abs(p - 0.5)) * 0.12).toFixed(3)})` }
+    ? { transform: `translate3d(0, ${((0.5 - p) * 26).toFixed(1)}px, 0) scale(${(1 + (0.5 - Math.abs(p - 0.5)) * 0.06).toFixed(3)})` }
     : undefined;
   const glowStyle = motion ? { opacity: 0.45 + (0.5 - Math.abs(p - 0.5)) * 1.1 } : undefined;
   return (
@@ -758,6 +760,8 @@ function PullUpSection() {
       <div className="mk-turn-inner">
         <Reveal><p className="mk-part-tag mk-part-tag-dark">The turn</p></Reveal>
         <Reveal delay={0.06}><p className="mk-turn-a">It all comes down to one moment.</p></Reveal>
+        {/* the eyes, watching the room — they follow your cursor */}
+        <PullupEyes variant="big" className="mk-turn-eyes" />
         <h2 className="mk-turn-word" style={wordStyle}>pull up<span className="mk-turn-dot">.</span></h2>
         <Reveal delay={0.2}>
           <p className="mk-turn-body">
@@ -975,6 +979,54 @@ function BentoCard({ row, order, index = 0 }) {
   );
 }
 
+/* ════════ THE FLIP PROOF — a real host, told with his real photos ════════
+   Replaces the old outline ticker: a film-reel of Adam Flambo's actual room
+   photographs behind a hook that leads to the full case study. Proof that the
+   moment ("pull up") is real before we open up the machine. */
+function AdamFlipTeaser({ onStory }) {
+  const photos = useMemo(
+    () => CASE_GALLERY.filter((g) => g.o === "l").slice(0, 14),
+    [],
+  );
+  return (
+    <Reveal delay={0.26} y={30}>
+      <button type="button" className="mk-flipstory" onClick={onStory}>
+        <div className="mk-flipstory-reel" aria-hidden="true">
+          <div className="mk-flipstory-track">
+            {[0, 1].map((copy) => (
+              <div className="mk-flipstory-group" key={copy}>
+                {photos.map((g, i) => (
+                  <span className="mk-flipstory-ph" key={`${copy}-${i}`}>
+                    <img
+                      src={transformedImageUrl(STORAGE_BASE + g.p, { width: 220, quality: 62 })}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+          <span className="mk-flipstory-reel-fade" />
+        </div>
+        <div className="mk-flipstory-txt">
+          <div className="mk-flipstory-copy">
+            <span className="mk-flipstory-tag">A true story · Stockholm</span>
+            <p className="mk-flipstory-h">
+              Adam turned <b>334</b> room photos into a <span className="pink">printed magazine.</span>
+            </p>
+            <p className="mk-flipstory-b">
+              Six photo walks. A room that came alive. 26 of his people, credited as contributors.
+            </p>
+          </div>
+          <span className="mk-flipstory-cta">Read the story <ArrowRight size={18} /></span>
+        </div>
+      </button>
+    </Reveal>
+  );
+}
+
 /* ════════ THE ROOM PAYS OFF — the room is a storefront for your people ════════
    The private room isn't just where the community lives — it's where you sell to
    the people who actually showed up: a link, a pack, prints, merch, a printed
@@ -1008,14 +1060,9 @@ function RoomCommerceSection({ onStory }) {
       </Reveal>
       <Reveal delay={0.14} y={26}>
         <button type="button" className="mk-room-proof" onClick={onStory}>
-          <span className="mk-room-proof-tag">A true story</span>
+          <span className="mk-room-proof-tag">See it in action</span>
           <span className="mk-room-proof-h">
-            Adam Flambo turned his room into a <span className="pink">printed magazine.</span>
-          </span>
-          <span className="mk-room-proof-b">
-            Six Stockholm photo walks. 334 photos, uploaded by the people who came.
-            Because every one carried a name and their consent, he printed them —
-            with 26 pullupers as credited contributors.
+            One host. One room. <span className="pink">A community that shows up — and buys.</span>
           </span>
           <span className="mk-room-proof-cta">Read Adam's story <ArrowRight size={16} /></span>
         </button>
@@ -1229,23 +1276,14 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin, onStory }) {
       {/* ════════ THE FLIP — the feeling ends, the machine begins ════════ */}
       <section className="mk-flip" data-mk-section="flip" data-mk-order="6">
         <div className="mk-grain" aria-hidden="true" />
-        <Reveal><p className="mk-flip-a">That's what turns a follower into someone who shows up.</p></Reveal>
+        <Reveal><p className="mk-flip-a">That's the moment everything is built for.</p></Reveal>
         <Reveal delay={0.12}>
           <p className="mk-flip-b">
-            Here's the machine <span className="pink">that makes it happen.</span>
+            And real hosts are <span className="pink">already living it.</span>
           </p>
         </Reveal>
-        <Reveal delay={0.2}><p className="mk-part-tag mk-part-tag-dark">For you, the host</p></Reveal>
-        {/* the machine's parts, drifting by in outline — pure vibe */}
-        <div className="mk-flip-ticker" aria-hidden="true">
-          <div className="mk-flip-ticker-track">
-            {[0, 1].map((copy) => (
-              <span key={copy}>
-                Auto-DM<i>·</i>One inbox<i>·</i>Living CRM<i>·</i>Your own database<i>·</i>MCP / AI<i>·</i>
-              </span>
-            ))}
-          </div>
-        </div>
+        {/* proof: a real creator, told with his real photos → the case study */}
+        <AdamFlipTeaser onStory={onStory} />
       </section>
 
       {/* ════════ THE MACHINE — sticky-rail scrollytelling of the tools ════════ */}
@@ -1877,8 +1915,19 @@ const STYLES = `
     animation: mk-breathe 7s ease-in-out infinite;
   }
   .mk-turn-a { margin: 14px 0 2px; font-size: clamp(15px, 2vw, 19px); font-weight: 600; color: rgba(255,255,255,0.55); }
+  /* the eyes — white on the dark stage, tracking the cursor */
+  .mk-turn-eyes {
+    display: block; width: clamp(120px, 17vmin, 190px); height: auto;
+    margin: clamp(18px, 3.5vh, 34px) auto clamp(6px, 1.5vh, 14px);
+    filter: brightness(0) invert(1) drop-shadow(0 8px 30px rgba(236,23,143,0.4));
+  }
+  .mk-turn-eyes svg { width: 100%; height: 100%; display: block; }
   .mk-turn-word {
-    margin: 0; font-size: clamp(72px, 17vw, 200px); font-weight: 850; letter-spacing: -0.05em; line-height: 0.9;
+    /* line-height + padding contain the descenders; margin-bottom clears the
+       parallax drift so the word never rides down into the paragraph */
+    margin: clamp(4px, 1vh, 14px) 0 clamp(44px, 7vh, 72px);
+    padding-bottom: 0.06em;
+    font-size: clamp(66px, 16vw, 190px); font-weight: 850; letter-spacing: -0.05em; line-height: 0.95;
     background: linear-gradient(100deg, #ff5cc0, ${PINK} 45%, #ff88d2);
     background-size: 220% 100%;
     -webkit-background-clip: text; background-clip: text;
@@ -1888,7 +1937,7 @@ const STYLES = `
   }
   .mk-turn-dot { -webkit-text-fill-color: #fff; color: #fff; }
   .mk-turn-body {
-    margin: clamp(26px, 4.5vh, 40px) auto 0; max-width: 56ch;
+    margin: 0 auto; max-width: 56ch;
     font-size: clamp(16px, 2.2vw, 21px); line-height: 1.6; color: rgba(255,255,255,0.72);
   }
 
@@ -2490,7 +2539,51 @@ const STYLES = `
   .mk-bento-tone-ink .own-card-t { color: #fff; font-size: 13.5px; }
   .mk-bento-tone-ink .own-card-b { display: none; }
 
-  /* ─── the flip band's outline ticker ─── */
+  /* ─── the flip proof teaser (Adam's real photos → the case study) ─── */
+  .mk-flipstory {
+    display: block; width: 100%; max-width: 860px; margin: clamp(40px, 7vh, 72px) auto 0;
+    padding: 0; text-align: left; font: inherit; cursor: pointer;
+    border-radius: 26px; overflow: hidden;
+    background: linear-gradient(165deg, #17121c, #0a0a10);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 44px 100px -54px rgba(236,23,143,0.65);
+    transition: transform 0.28s cubic-bezier(0.16,1,0.3,1), border-color 0.28s, box-shadow 0.28s;
+  }
+  .mk-flipstory:hover { transform: translateY(-4px); border-color: rgba(236,23,143,0.42); box-shadow: 0 56px 120px -54px rgba(236,23,143,0.8); }
+  /* the film reel of real photographs */
+  .mk-flipstory-reel { position: relative; overflow: hidden; height: clamp(120px, 20vw, 168px); background: #08080e; }
+  .mk-flipstory-track { display: flex; width: max-content; animation: mk-reel 44s linear infinite; will-change: transform; }
+  .mk-flipstory:hover .mk-flipstory-track { animation-play-state: paused; }
+  .mk-flipstory-group { display: flex; flex: none; }
+  .mk-flipstory-ph { flex: none; width: clamp(150px, 22vw, 210px); height: clamp(120px, 20vw, 168px); }
+  .mk-flipstory-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  @keyframes mk-reel { to { transform: translateX(-50%); } }
+  .mk-flipstory-reel-fade {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(8,8,14,0.55), transparent 12% 88%, rgba(8,8,14,0.55)),
+                linear-gradient(180deg, transparent 55%, rgba(10,10,16,0.5));
+  }
+  .mk-flipstory-txt {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    padding: clamp(20px, 2.6vw, 30px) clamp(22px, 3vw, 34px);
+  }
+  .mk-flipstory-tag { display: block; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: ${PINK}; margin-bottom: 10px; }
+  .mk-flipstory-h { margin: 0; font-size: clamp(20px, 2.8vw, 28px); font-weight: 850; letter-spacing: -0.03em; line-height: 1.1; color: #fff; }
+  .mk-flipstory-h b { color: #fff; }
+  .mk-flipstory-b { margin: 8px 0 0; font-size: 14.5px; line-height: 1.5; color: rgba(255,255,255,0.6); }
+  .mk-flipstory-cta {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px;
+    padding: 13px 22px; border-radius: 999px; background: ${PINK}; color: #fff;
+    font-size: 14.5px; font-weight: 700; box-shadow: 0 12px 30px -10px rgba(236,23,143,0.7);
+  }
+  .mk-flipstory-cta svg { transition: transform 0.2s; }
+  .mk-flipstory:hover .mk-flipstory-cta svg { transform: translateX(4px); }
+  @media (max-width: 620px) {
+    .mk-flipstory-txt { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .mk-flipstory-cta { width: 100%; justify-content: center; }
+  }
+
+  /* ─── the flip band's outline ticker (legacy, retained) ─── */
   .mk-flip-ticker {
     margin-top: clamp(44px, 8vh, 80px);
     overflow: hidden;
@@ -2889,7 +2982,7 @@ const STYLES = `
 
 
   @media (prefers-reduced-motion: reduce) {
-    .logo-marquee-track, .mk-hf-col, .mk-flip-ticker-track { animation: none; }
+    .logo-marquee-track, .mk-hf-col, .mk-flip-ticker-track, .mk-flipstory-track { animation: none; }
     .mk-bento-card { transform: none; transition: box-shadow 0.3s ease; }
     .mk-progress span { transition: none; }
   }

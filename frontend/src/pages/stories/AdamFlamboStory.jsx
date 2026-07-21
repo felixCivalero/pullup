@@ -240,7 +240,13 @@ function WalkMap() {
           <div className="fl-map-photos">
             {CASE_WALK_PHOTOS[w.vol].slice(0, 6).map((ph, i) => (
               <span className="fl-map-photo" key={`${w.vol}-${i}`}>
-                <img src={imgUrl(ph.p, 150, 60)} alt="" loading="lazy" decoding="async" />
+                <img
+                  src={imgUrl(ph.p, 150, 60)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => { const c = e.currentTarget.parentElement; if (c) c.style.display = "none"; }}
+                />
               </span>
             ))}
           </div>
@@ -347,11 +353,11 @@ export default function AdamFlamboStory() {
         <Reveal><p className="fl-eyebrow">Who</p></Reveal>
         <Reveal delay={0.06}>
           <p className="fl-lede">
-            Adam runs <strong>Flambo</strong>, a creative practice in Stockholm. The
-            flagship is <strong>Stockholm Photo Walks</strong> — ninety unhurried
-            minutes through one neighbourhood, a few stops, a short prompt at each
-            (<em>“reflections”, “a single silhouette”</em>), landing at a café for fika.
-            Small, intentional, no-workshop. Introvert-friendly by design.
+            <strong>Adam Flambo</strong> is a photographer and community-builder in
+            Stockholm. His flagship is <strong>Stockholm Photo Walks</strong> — ninety
+            unhurried minutes through one neighbourhood, a few stops, a short prompt at
+            each (<em>“reflections”, “a single silhouette”</em>), landing at a café for
+            fika. Small, intentional, no-workshop. Introvert-friendly by design.
           </p>
         </Reveal>
         <Reveal delay={0.12}>

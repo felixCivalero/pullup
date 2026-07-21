@@ -1917,8 +1917,10 @@ const STYLES = `
   .mk-turn-a { margin: 14px 0 2px; font-size: clamp(15px, 2vw, 19px); font-weight: 600; color: rgba(255,255,255,0.55); }
   /* the eyes — white on the dark stage, tracking the cursor */
   .mk-turn-eyes {
-    display: block; width: clamp(120px, 17vmin, 190px); height: auto;
-    margin: clamp(18px, 3.5vh, 34px) auto clamp(6px, 1.5vh, 14px);
+    /* size by HEIGHT + aspect-ratio: the injected SVG is height:100%, so the
+       box needs a concrete height or it collapses to 0 (eyes are 2761x2418) */
+    display: block; height: clamp(96px, 15vmin, 152px); aspect-ratio: 2761 / 2418; width: auto;
+    margin: clamp(18px, 3.5vh, 34px) auto clamp(8px, 1.6vh, 16px);
     filter: brightness(0) invert(1) drop-shadow(0 8px 30px rgba(236,23,143,0.4));
   }
   .mk-turn-eyes svg { width: 100%; height: 100%; display: block; }

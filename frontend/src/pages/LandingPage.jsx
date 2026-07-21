@@ -975,6 +975,55 @@ function BentoCard({ row, order, index = 0 }) {
   );
 }
 
+/* ════════ THE ROOM PAYS OFF — the room is a storefront for your people ════════
+   The private room isn't just where the community lives — it's where you sell to
+   the people who actually showed up: a link, a pack, prints, merch, a printed
+   magazine. Anchored by Adam Flambo's real story, which links to the case page. */
+const ROOM_SELLS = ["A link", "A preset pack", "Prints", "Real merch", "Early drops", "A printed magazine"];
+function RoomCommerceSection({ onStory }) {
+  return (
+    <section className="mk-room" data-mk-section="room" data-mk-order="11.5">
+      <div className="mk-room-head">
+        <Reveal><p className="mk-part-tag">Where it pays off</p></Reveal>
+        <Reveal delay={0.06}>
+          <h2 className="mk-h2" style={{ marginBottom: 0 }}>
+            A room full of people who showed up —{" "}
+            <span className="pink">and want what you make.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.12}>
+          <p className="mk-room-lede">
+            The private room isn't a group chat. It's your storefront for the people
+            who actually pulled up — sell straight to them, no algorithm in the
+            middle, no strangers.
+          </p>
+        </Reveal>
+      </div>
+      <Reveal delay={0.1}>
+        <div className="mk-room-chips">
+          {ROOM_SELLS.map((s, i) => (
+            <span key={s} className="mk-room-chip" style={{ "--i": i }}>{s}</span>
+          ))}
+        </div>
+      </Reveal>
+      <Reveal delay={0.14} y={26}>
+        <button type="button" className="mk-room-proof" onClick={onStory}>
+          <span className="mk-room-proof-tag">A true story</span>
+          <span className="mk-room-proof-h">
+            Adam Flambo turned his room into a <span className="pink">printed magazine.</span>
+          </span>
+          <span className="mk-room-proof-b">
+            Six Stockholm photo walks. 334 photos, uploaded by the people who came.
+            Because every one carried a name and their consent, he printed them —
+            with 26 pullupers as credited contributors.
+          </span>
+          <span className="mk-room-proof-cta">Read Adam's story <ArrowRight size={16} /></span>
+        </button>
+      </Reveal>
+    </section>
+  );
+}
+
 /* ─── The marketing scroll ───
    Two movements over a cinematic dark→light→dark rhythm. Movement I is the
    guest's story, told top-down as they live it: the dark hero (real rooms
@@ -988,7 +1037,7 @@ function BentoCard({ row, order, index = 0 }) {
 // their room) or goes straight to their room URL. Keeping the public page
 // auth-agnostic is what makes it stable — no optimistic redirect off a token
 // that might be dead.
-function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
+function MarketingScroll({ onGetStarted, onStartHosting, onLogin, onStory }) {
   const [scrolled, setScrolled] = useState(false);
   const [progress, setProgress] = useState(0);
   const heroRef = useRef(null);
@@ -1205,6 +1254,9 @@ function MarketingScroll({ onGetStarted, onStartHosting, onLogin }) {
       {/* ════════ OWNERSHIP — the asset is yours, and only yours ════════ */}
       <OwnershipSection />
 
+      {/* ════════ THE ROOM PAYS OFF — sell to the people who show up ════════ */}
+      <RoomCommerceSection onStory={onStory} />
+
       {/* ─── JOIN (pricing — one honest number, then the door. The old
           waitlist is retired: the subscription IS the gate now.) ─── */}
       <section id="join" className="mk-final" data-mk-section="join" data-mk-order="12">
@@ -1367,6 +1419,7 @@ export function LandingPage() {
         onGetStarted={() => navigate("/start")}
         onStartHosting={() => navigate("/start")}
         onLogin={() => navigate("/login")}
+        onStory={() => navigate("/stories/adam-flambo")}
       />
       {view === "login" && (
         <AuthGate
@@ -1864,6 +1917,61 @@ const STYLES = `
     font-size: clamp(18px, 2.6vw, 26px); font-weight: 850; letter-spacing: -0.02em;
     box-shadow: 0 24px 60px -34px rgba(10,10,10,0.6);
   }
+
+  /* ════════ THE ROOM PAYS OFF (room = storefront + Adam proof) ════════ */
+  .mk-room {
+    max-width: 980px; margin: 0 auto;
+    padding: clamp(70px, 12vh, 140px) clamp(22px, 6vw, 48px);
+    text-align: center;
+  }
+  .mk-room-head { max-width: 720px; margin: 0 auto; }
+  .mk-room-lede {
+    margin: 18px auto 0; max-width: 52ch;
+    font-size: clamp(16px, 2.1vw, 20px); line-height: 1.62; color: rgba(10,10,10,0.6);
+  }
+  .mk-room-chips {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin: clamp(30px, 5vh, 44px) auto clamp(36px, 6vh, 56px);
+  }
+  .mk-room-chip {
+    padding: 10px 18px; border-radius: 999px;
+    background: #fff; border: 1px solid rgba(10,10,10,0.12);
+    font-size: 14.5px; font-weight: 700; color: ${INK};
+    box-shadow: 0 10px 24px -18px rgba(10,10,10,0.4);
+  }
+  .mk-room-chip:last-child { background: rgba(236,23,143,0.08); border-color: rgba(236,23,143,0.3); color: ${PINK}; }
+  /* the Adam proof card — dark, clickable, leads to the case study */
+  .mk-room-proof {
+    display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+    padding: clamp(26px, 3.4vw, 40px);
+    border-radius: 26px; border: 1px solid rgba(255,255,255,0.1);
+    background: linear-gradient(165deg, #16111b, #0a0a0e);
+    color: #fff; position: relative; overflow: hidden;
+    box-shadow: 0 40px 90px -50px rgba(236,23,143,0.6);
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s;
+  }
+  .mk-room-proof:hover { transform: translateY(-3px); border-color: rgba(236,23,143,0.4); box-shadow: 0 48px 110px -50px rgba(236,23,143,0.75); }
+  .mk-room-proof::after {
+    content: ""; position: absolute; top: -40%; right: -10%; width: 340px; height: 340px;
+    background: radial-gradient(circle, rgba(236,23,143,0.22), transparent 62%); pointer-events: none;
+  }
+  .mk-room-proof-tag {
+    display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+    color: ${PINK}; margin-bottom: 14px;
+  }
+  .mk-room-proof-h {
+    display: block; font-size: clamp(22px, 3.2vw, 32px); font-weight: 850; letter-spacing: -0.03em; line-height: 1.08;
+  }
+  .mk-room-proof-b {
+    display: block; margin-top: 14px; max-width: 62ch;
+    font-size: clamp(14.5px, 1.8vw, 16px); line-height: 1.6; color: rgba(255,255,255,0.66);
+  }
+  .mk-room-proof-cta {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 22px;
+    font-size: 14.5px; font-weight: 700; color: #fff;
+  }
+  .mk-room-proof-cta svg { transition: transform 0.2s; }
+  .mk-room-proof:hover .mk-room-proof-cta svg { transform: translateX(4px); }
 
   /* ════════ THE JOURNEY SECTION (pinned scroll-scrub on desktop) ════════ */
   .mk-story { position: relative; }

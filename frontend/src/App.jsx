@@ -60,6 +60,7 @@ import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
 const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
+const AdamFlamboStory = lazyPage(() => import("./pages/stories/AdamFlamboStory"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
 const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"), "ResetPasswordPage");
 const NewsletterPage = lazyPage(() => import("./pages/NewsletterPage"), "NewsletterPage");
@@ -156,6 +157,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         {/* /start = the creator onboarding line: account → subscribe → build. */}
         <Route path="/start" element={<StartHostingPage />} />
+        {/* Creator case study — Adam Flambo, real production data (see stories/). */}
+        <Route path="/stories/adam-flambo" element={<AdamFlamboStory />} />
         <Route path="/waitlist" element={<LandingPage />} />
         <Route path="/login" element={<LandingPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />

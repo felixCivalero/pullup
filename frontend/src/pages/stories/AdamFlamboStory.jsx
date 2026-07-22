@@ -310,19 +310,25 @@ export default function AdamFlamboStory() {
       <section className="fl-hero">
         {!reduced && <HeroWall />}
         <div className="fl-grain" aria-hidden="true" />
-        <div className="fl-hero-in">
-          <Reveal delay={0.05}><p className="fl-kicker">Stockholm Photo Walks · @adam_flambo</p></Reveal>
-          <Reveal delay={0.12}>
-            <h1 className="fl-hero-h">
-              A following became a community.<br /><span className="fl-ink-pink">He gave it back in print.</span>
-            </h1>
-          </Reveal>
-          <Reveal delay={0.2}>
-            <p className="fl-hero-sub">
-              Adam Flambo took people who followed him online out into real life — six
-              photo walks across Stockholm. Then he gave the community back to itself:
-              a printed journal of their own photographs, every name credited.
-            </p>
+        <div className="fl-hero-in fl-hero-split">
+          <div className="fl-hero-copy">
+            <Reveal delay={0.05}><p className="fl-kicker">Stockholm Photo Walks · @adam_flambo</p></Reveal>
+            <Reveal delay={0.12}>
+              <h1 className="fl-hero-h">
+                A following became a community.<br /><span className="fl-ink-pink">He gave it back in print.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={0.2}>
+              <p className="fl-hero-sub">
+                Adam Flambo took people who followed him online out into real life — six
+                photo walks across Stockholm. Then he gave the community back to itself:
+                a printed journal of their own photographs, every name credited.
+              </p>
+            </Reveal>
+          </div>
+          <Reveal delay={0.16} y={16} className="fl-hero-portrait">
+            <img src="/stories/adam-hero.jpg" alt="Adam Flambo shooting on a Stockholm photo walk" loading="eager" decoding="async" />
+            <span className="fl-hero-portrait-cap">Adam, mid-walk · Stockholm</span>
           </Reveal>
         </div>
         <div className="fl-hero-strip">
@@ -567,6 +573,36 @@ const STYLES = `
   .fl-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .fl-stat b { font-size: clamp(28px, 4vw, 44px); font-weight: 850; letter-spacing: -0.03em; }
   .fl-stat span { font-size: 12px; letter-spacing: 0.05em; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+
+  /* ─── split editorial hero: copy beside a framed portrait of Adam.
+     The printed-journal story earns a magazine cover, not centered text. ─── */
+  .fl-hero-split {
+    max-width: 1120px; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.82fr);
+    align-items: center; gap: clamp(28px, 5vw, 72px); text-align: left;
+  }
+  .fl-hero-split .fl-hero-h { margin: 0; max-width: 15ch; }
+  .fl-hero-split .fl-hero-sub { margin-top: 22px; margin-left: 0; max-width: 46ch; }
+  .fl-hero-portrait {
+    position: relative; justify-self: end; width: 100%; max-width: 400px;
+    aspect-ratio: 2 / 3; border-radius: 18px; overflow: hidden;
+    background: #14141c; border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,0.85), 0 0 0 1px rgba(0,0,0,0.4);
+  }
+  .fl-hero-portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+  .fl-hero-portrait-cap {
+    position: absolute; left: 14px; bottom: 12px; z-index: 2;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600;
+    color: rgba(255,255,255,0.92); text-shadow: 0 1px 12px rgba(0,0,0,0.9);
+  }
+  .fl-hero-portrait::after {
+    content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(8,8,14,0.6) 100%);
+  }
+  @media (max-width: 860px) {
+    .fl-hero-split { grid-template-columns: 1fr; gap: clamp(28px, 6vh, 44px); justify-items: center; text-align: center; }
+    .fl-hero-split .fl-hero-h, .fl-hero-split .fl-hero-sub { margin-left: auto; margin-right: auto; }
+    .fl-hero-portrait { justify-self: center; order: -1; max-width: min(300px, 74vw); }
+  }
 
   /* hero photo wall */
   .fl-wall { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }

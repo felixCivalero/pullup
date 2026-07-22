@@ -25,6 +25,24 @@ const STORAGE_BASE =
 
 const imgUrl = (p, w, q = 74) => transformedImageUrl(STORAGE_BASE + p, { width: w, quality: q });
 
+// Hand-picked hero frames from the walks — real, high-res, already web-optimized
+// (public/stories). `local` so they bypass the storage transform. Woven through
+// the drifting wall + reels and shown big in the full-bleed bands, so the whole
+// story is carried by actual photographs from the room, not stock.
+const LOCAL_SHOTS = [
+  { src: "/stories/pathfinder.jpeg", o: "p", cap: "Vol.06 — leading the walk into Riddarhuset light" },
+  { src: "/stories/photogang.jpg", o: "p", cap: "The room, gathered — a corner of Gamla stan" },
+  { src: "/stories/eveningalley.jpeg", o: "p", cap: "Down the alley, toward the evening" },
+  { src: "/stories/softbuildinglight.jpg", o: "p", cap: "A photographer, working the last light" },
+  { src: "/stories/vibedude.jpg", o: "p", cap: "One of the 208 — camera in hand" },
+  { src: "/stories/window.jpg", o: "p", cap: "A frame within a frame" },
+  { src: "/stories/birdinsky.jpg", o: "p", cap: "“A single silhouette.”" },
+  { src: "/stories/sthlmneveninglight.jpg", o: "l", cap: "Storkyrkobrinken, gold hour" },
+  { src: "/stories/hollywoodshot.jpg", o: "l", cap: "Caught on the street" },
+];
+// unified src for either a local shot or a storage-backed gallery item
+const shotSrc = (it, w, q = 74) => (it.local || it.src ? it.src : imgUrl(it.p, w, q));
+
 const prefersReduced = () =>
   typeof window !== "undefined" &&
   typeof window.matchMedia === "function" &&
@@ -67,7 +85,8 @@ function Reveal({ children, delay = 0, y = 22, className, style }) {
 /* ─── the drifting photo wall behind the hero (real room photos) ─── */
 function HeroWall() {
   const cols = useMemo(() => {
-    const pick = CASE_GALLERY.slice(0, 21);
+    // real curated frames up front, then the room's wall behind them
+    const pick = [...LOCAL_SHOTS, ...CASE_GALLERY].slice(0, 24);
     return [0, 1, 2].map((c) => pick.filter((_, i) => i % 3 === c));
   }, []);
   return (
@@ -79,7 +98,7 @@ function HeroWall() {
               <div className="fl-wall-stack" key={copy}>
                 {items.map((it, i) => (
                   <div className="fl-wall-card" key={`${copy}-${i}`}>
-                    <img src={imgUrl(it.p, 300)} alt="" loading={copy === 0 && i < 2 ? "eager" : "lazy"} decoding="async" />
+                    <img src={shotSrc(it, 300)} alt="" loading={copy === 0 && i < 2 ? "eager" : "lazy"} decoding="async" />
                   </div>
                 ))}
               </div>
@@ -130,7 +149,8 @@ function ArcChart() {
    the masthead. Rows drift in alternating directions and fade at the edges. */
 function PhotoReels() {
   const rows = useMemo(() => {
-    const pick = CASE_GALLERY.slice(0, 33); // a curated stream, not the whole wall
+    // the curated frames threaded through the room's own wall
+    const pick = [...LOCAL_SHOTS, ...CASE_GALLERY].slice(0, 36);
     return [0, 1, 2].map((r) => pick.filter((_, i) => i % 3 === r));
   }, []);
   return (
@@ -142,7 +162,7 @@ function PhotoReels() {
               <div className="fl-reel-group" key={copy}>
                 {row.map((it, i) => (
                   <span className={`fl-reel-ph fl-reel-${it.o}`} key={`${copy}-${i}`}>
-                    <img src={imgUrl(it.p, 360, 62)} alt="" loading="lazy" decoding="async" />
+                    <img src={shotSrc(it, 360, 62)} alt="" loading="lazy" decoding="async" />
                   </span>
                 ))}
               </div>
@@ -279,6 +299,32 @@ function WalkMap() {
   );
 }
 
+/* ─── a full-bleed triptych of real frames — the story, carried by photographs.
+   Three portrait shots edge-to-edge, each captioned, gently zooming on hover. ─── */
+function PhotoTriptych({ shots, kicker, line }) {
+  return (
+    <section className="fl-trip">
+      {(kicker || line) && (
+        <div className="fl-trip-head">
+          {kicker && <Reveal><p className="fl-eyebrow">{kicker}</p></Reveal>}
+          {line && <Reveal delay={0.06}><h2 className="fl-h2">{line}</h2></Reveal>}
+        </div>
+      )}
+      <div className="fl-trip-grid">
+        {shots.map((s, i) => (
+          <Reveal key={s.src} delay={i * 0.08} y={18} className={`fl-trip-cell fl-trip-${s.o}`}>
+            <img src={shotSrc(s, 900)} alt="" loading="lazy" decoding="async" />
+            {s.cap && <span className="fl-trip-cap">{s.cap}</span>}
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// pull specific curated frames by filename for the featured bands
+const shot = (name) => LOCAL_SHOTS.find((s) => s.src.includes(name));
+
 export default function AdamFlamboStory() {
   const navigate = useNavigate();
   const reduced = useMemo(() => prefersReduced(), []);
@@ -363,28 +409,12 @@ export default function AdamFlamboStory() {
         <WalkMap />
       </section>
 
-      {/* ─── WHO ─── */}
-      <section className="fl-who">
-        <Reveal><p className="fl-eyebrow">Who</p></Reveal>
-        <Reveal delay={0.06}>
-          <p className="fl-lede">
-            <strong>Adam Flambo</strong> is a photographer and community-builder in
-            Stockholm. His flagship is <strong>Stockholm Photo Walks</strong> — ninety
-            unhurried minutes through one neighbourhood, a few stops, a short prompt at
-            each (<em>“reflections”, “a single silhouette”</em>), landing at a café for
-            fika. Small, intentional, no-workshop. Introvert-friendly by design.
-          </p>
-        </Reveal>
-        <Reveal delay={0.12}>
-          <blockquote className="fl-quote">
-            “I wouldn’t be here this smooth without PullUp.”
-            <cite className="fl-quote-cite">
-              Adam Flambo
-              <a className="fl-ig-link" href="https://instagram.com/adam_flambo" target="_blank" rel="noreferrer">@adam_flambo</a>
-            </cite>
-          </blockquote>
-        </Reveal>
-      </section>
+      {/* ─── FEATURED FRAMES · the walk ─── */}
+      <PhotoTriptych
+        kicker="Out on the walk"
+        line={<>Ninety minutes.<br /><span className="fl-ink-pink">One neighbourhood at a time.</span></>}
+        shots={[shot("photogang"), shot("pathfinder"), shot("softbuildinglight")]}
+      />
 
       {/* ─── THE ARC ─── */}
       <section className="fl-section">
@@ -473,6 +503,36 @@ export default function AdamFlamboStory() {
           ))}
         </div>
       </section>
+
+      {/* ─── WHO — Adam's word, landing as the testimonial right before the ask ─── */}
+      <section className="fl-who">
+        <Reveal><p className="fl-eyebrow">Who</p></Reveal>
+        <Reveal delay={0.06}>
+          <p className="fl-lede">
+            <strong>Adam Flambo</strong> is a photographer and community-builder in
+            Stockholm. His flagship is <strong>Stockholm Photo Walks</strong> — ninety
+            unhurried minutes through one neighbourhood, a few stops, a short prompt at
+            each (<em>“reflections”, “a single silhouette”</em>), landing at a café for
+            fika. Small, intentional, no-workshop. Introvert-friendly by design.
+          </p>
+        </Reveal>
+        <Reveal delay={0.12}>
+          <blockquote className="fl-quote">
+            “I wouldn’t be here this smooth without PullUp.”
+            <cite className="fl-quote-cite">
+              Adam Flambo
+              <a className="fl-ig-link" href="https://instagram.com/adam_flambo" target="_blank" rel="noreferrer">@adam_flambo</a>
+            </cite>
+          </blockquote>
+        </Reveal>
+      </section>
+
+      {/* ─── FEATURED FRAMES · the people ─── */}
+      <PhotoTriptych
+        kicker="The people who showed up"
+        line={<>Not followers.<br /><span className="fl-ink-pink">Faces he knows.</span></>}
+        shots={[shot("vibedude"), shot("eveningalley"), shot("window")]}
+      />
 
       {/* ─── CTA ─── */}
       <section className="fl-cta">
@@ -735,6 +795,33 @@ const STYLES = `
   .fl-map-chip { padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: none; color: rgba(255,255,255,0.6); font: inherit; font-size: 12.5px; font-weight: 700; transition: color 0.2s, background 0.2s, border-color 0.2s; }
   .fl-map-chip:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
   .fl-map-chip.on { background: ${PINK}; border-color: ${PINK}; color: #fff; }
+
+  /* ─── featured triptych — real frames, edge to edge ─── */
+  .fl-trip { position: relative; background: ${NIGHT}; padding: clamp(52px, 9vh, 116px) 0; }
+  .fl-trip-head { max-width: 1080px; margin: 0 auto clamp(30px, 5vh, 54px); padding: 0 clamp(22px, 6vw, 48px); text-align: center; }
+  .fl-trip-head .fl-h2 { margin-top: 12px; }
+  .fl-trip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 10px; }
+  .fl-trip-cell {
+    position: relative; overflow: hidden; border-radius: 12px; aspect-ratio: 3 / 4;
+    background: #14141c; box-shadow: 0 24px 60px -30px rgba(0,0,0,0.8);
+  }
+  .fl-trip-cell img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s cubic-bezier(0.16,1,0.3,1); }
+  .fl-trip-cell:hover img { transform: scale(1.045); }
+  .fl-trip-cell::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,0) 52%, rgba(0,0,0,0.55) 100%); }
+  .fl-trip-cap {
+    position: absolute; left: 13px; right: 13px; bottom: 11px; z-index: 2;
+    font-size: 12px; font-weight: 600; line-height: 1.35; color: rgba(255,255,255,0.94);
+    text-shadow: 0 1px 14px rgba(0,0,0,0.9);
+  }
+  @media (max-width: 760px) {
+    .fl-trip-grid { grid-template-columns: 1fr 1fr; }
+    .fl-trip-grid > :nth-child(3) { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+    .fl-trip-cell { aspect-ratio: 3 / 4; }
+  }
+  @media (max-width: 440px) {
+    .fl-trip-grid { grid-template-columns: 1fr; }
+    .fl-trip-grid > :nth-child(3) { aspect-ratio: 3 / 4; }
+  }
 
   /* ─── eyes break ─── */
   .fl-eyes {

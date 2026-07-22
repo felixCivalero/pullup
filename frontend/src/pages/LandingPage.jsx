@@ -1956,6 +1956,21 @@ const STYLES = `
     margin: 0 0 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.28em;
     text-transform: uppercase; color: rgba(255,255,255,0.4);
   }
+  /* phone: freeze the trust band into a still, centered, wrapping row — no
+     infinite scroll (steadier, kinder to the battery) and every logo legible,
+     so it reads as settled proof instead of a strip sliding past */
+  @media (max-width: 640px) {
+    .mk-turn-brands { margin-top: clamp(24px, 4vh, 40px); }
+    .mk-turn-brands .logo-marquee {
+      padding: 16px 0; overflow: visible; content-visibility: visible;
+    }
+    .mk-turn-brands .logo-marquee-track { animation: none; width: 100%; }
+    .mk-turn-brands .logo-marquee-group { display: none; }
+    .mk-turn-brands .logo-marquee-group:first-child {
+      display: flex; flex-wrap: wrap; min-width: 0; width: 100%;
+      justify-content: center; align-items: center; gap: 20px 26px; padding: 0 8px;
+    }
+  }
   /* the world of real rooms — an orb beneath the word, every glowing beacon a
      city a PullUp has actually happened in. This is the focus of the beat. */
   .mk-turn-globe {

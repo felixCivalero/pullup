@@ -484,21 +484,13 @@ export default function AdamFlamboStory() {
         </div>
       </section>
 
-      {/* ─── WHO — Adam's word, landing as the testimonial right before the ask ─── */}
+      {/* ─── Adam's word — the testimonial landing right before the ask ─── */}
       <section className="fl-who">
-        <Reveal><p className="fl-eyebrow">Who</p></Reveal>
-        <Reveal delay={0.06}>
-          <p className="fl-lede">
-            <strong>Adam Flambo</strong> is a photographer and community-builder in
-            Stockholm. His flagship is <strong>Stockholm Photo Walks</strong> — ninety
-            unhurried minutes through one neighbourhood, a few stops, a short prompt at
-            each (<em>“reflections”, “a single silhouette”</em>), landing at a café for
-            fika. Small, intentional, no-workshop. Introvert-friendly by design.
-          </p>
-        </Reveal>
-        <Reveal delay={0.12}>
+        <Reveal>
           <blockquote className="fl-quote">
-            “I wouldn’t be here this smooth without PullUp.”
+            “PullUp is the backbone of all of this. It carries everything behind
+            the scenes — so I get to just be out there with a camera and the
+            people.”
             <cite className="fl-quote-cite">
               Adam Flambo
               <a className="fl-ig-link" href="https://instagram.com/adam_flambo" target="_blank" rel="noreferrer">@adam_flambo</a>
@@ -675,7 +667,6 @@ const STYLES = `
 
   /* who */
   .fl-who { max-width: 780px; margin: 0 auto; padding: clamp(70px, 12vh, 140px) clamp(22px, 6vw, 48px); text-align: center; }
-  .fl-who .fl-lede { margin-top: 4px; }
   .fl-quote {
     margin: clamp(36px, 6vh, 60px) 0 0; padding: 0;
     font-size: clamp(24px, 3.6vw, 38px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.2; color: #fff;

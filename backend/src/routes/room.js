@@ -19,6 +19,7 @@ import {
 } from "./roomShared.js";
 import { getRoomForHost } from "../services/roomService.js";
 import { unionWorldPersonIds } from "../services/worldPeople.js";
+import { selectInChunks } from "../db/safeQuery.js";
 
 export function registerRoomRoutes(app) {
   // The scan landing target. The guest scanned the host's live QR → verify the
@@ -436,6 +437,11 @@ export function registerRoomRoutes(app) {
           draft: e.status !== "PUBLISHED",
           viewer: viewerState,
           pullups: pullupCountByEvent[e.id] || 0,
+          // A preview of the event's wall — turns the profile into a scrollable
+          // feed of what actually happened. Only populated for events this viewer
+          // is allowed inside (see photosByEvent); locked tiles stay a teaser.
+          photos: photosByEvent[e.id]?.items || [],
+          photoCount: photosByEvent[e.id]?.total || 0,
         };
       };
 
@@ -492,6 +498,46 @@ export function registerRoomRoutes(app) {
           products = await listMainRoomProducts(accountId, { forHost: effectiveOwner });
         } catch (e) {
           console.error("[node-profile] products build failed:", e.message);
+        }
+      }
+
+      // ── Wall-photo previews, per event → the profile becomes a feed ──────
+      // Access mirrors the event Room itself: the owner/admin see every wall;
+      // a visitor sees the wall only for events they have a real relationship
+      // with (pulled up / going / waitlisted). Everything else stays a locked
+      // teaser. One batched, chunked query; newest first; capped per event so a
+      // busy room can't bloat the payload.
+      const PREVIEW_PER_EVENT = 12;
+      const photosByEvent = {};
+      const unlockedIds = (effectiveOwner || adminViewer)
+        ? hostedIds
+        : hostedIds.filter((id) => myPullups.has(id) || myRsvps.has(id) || myWaitlist.has(id));
+      if (unlockedIds.length) {
+        try {
+          const rows = await selectInChunks(
+            () => supabase
+              .from("room_content")
+              .select("id, event_id, url, display_url, media_type, width, height")
+              .order("created_at", { ascending: false }),
+            "event_id",
+            unlockedIds,
+          );
+          for (const r of rows || []) {
+            const b = (photosByEvent[r.event_id] ||= { items: [], total: 0 });
+            b.total += 1;
+            if (b.items.length < PREVIEW_PER_EVENT) {
+              b.items.push({
+                id: r.id,
+                url: r.url,
+                displayUrl: r.display_url || null,
+                type: r.media_type,
+                width: r.width || null,
+                height: r.height || null,
+              });
+            }
+          }
+        } catch (e) {
+          console.error("[node-profile] wall previews failed:", e.message);
         }
       }
 

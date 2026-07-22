@@ -313,15 +313,22 @@ export default function NodeProfilePage() {
 
       {asEmail && <div style={{ fontSize: 11.5, color: colors.textFaded, marginBottom: 16, padding: "6px 10px", borderRadius: 8, border: `1px dashed ${colors.border}`, display: "inline-block" }}>Previewing as {asEmail}</div>}
 
-      {/* Events slider — "your events" inside, "[Name]'s events" outside */}
+      {/* The feed — each event a chapter: a header + a reel of the real photos
+          shot in that room. Events you can't enter stay a locked teaser, so the
+          feed rewards being in the room. "Your events" inside, "[Name]'s" out. */}
       <SectionLabel>{isOwner ? "Your events" : `${firstName(node.name)}'s events`}</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
-        {isOwner && <CreateCard onClick={() => (createLocked ? setShowPaywall(true) : navigate("/create"))} />}
-        {hosted.slice(0, shown).map((e) => <EventCard key={e.id} e={e} onClick={() => enter(e)} />)}
-        {hosted.length === 0 && !isOwner && <div style={{ fontSize: 13, color: colors.textFaded }}>No events yet.</div>}
-      </div>
+      {isOwner && (
+        <button
+          onClick={() => (createLocked ? setShowPaywall(true) : navigate("/create"))}
+          style={{ width: "100%", marginBottom: 22, padding: "13px 16px", borderRadius: 14, border: `1.5px dashed ${colors.borderStrong}`, background: colors.surface, color: colors.textMuted, fontFamily: SF, fontSize: 13.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <span style={{ fontSize: 20, fontWeight: 300, color: colors.accent, lineHeight: 1 }}>+</span> Create event
+        </button>
+      )}
+      {hosted.slice(0, shown).map((e) => <EventChapter key={e.id} e={e} onOpen={() => enter(e)} />)}
+      {hosted.length === 0 && !isOwner && <div style={{ fontSize: 13, color: colors.textFaded }}>No events yet.</div>}
       {hosted.length > shown && (
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
           <button
             onClick={() => setShown((s) => s + 8)}
             style={{ padding: "9px 20px", borderRadius: 999, border: `1px solid ${colors.borderStrong}`, background: colors.surface, color: colors.text, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: SF }}
@@ -392,34 +399,76 @@ function tagFor(e) {
   return { t: e.ended ? "Missed" : "Locked", c: colors.textSubtle };
 }
 
-function CreateCard({ onClick }) {
+// A horizontal reel of the real photos shot at one event — the thing that makes
+// the profile scroll like a feed. Tapping any frame (or the "+N more" tile at the
+// end) steps into that event's Room, where the whole wall lives.
+function PhotoReel({ photos, total, onOpen }) {
+  const more = Math.max(0, (total || photos.length) - photos.length);
   return (
-    <button onClick={onClick} style={{ textAlign: "left", border: `1.5px dashed ${colors.borderStrong}`, borderRadius: 16, background: colors.surface, cursor: "pointer", color: colors.text, fontFamily: SF, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 160, gap: 6 }}>
-      <span style={{ fontSize: 30, fontWeight: 300, color: colors.accent, lineHeight: 1 }}>+</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: colors.textMuted }}>Create event</span>
+    <div className="np-reel" style={{ display: "flex", gap: 6, overflowX: "auto", overflowY: "hidden", padding: "1px 0 4px" }}>
+      {photos.map((p, i) => {
+        const ar = p.width && p.height ? `${p.width} / ${p.height}` : "3 / 4";
+        const isVid = p.type === "video";
+        return (
+          <button key={p.id} onClick={onOpen} aria-label="Open the room" style={{ flex: "0 0 auto", height: 176, aspectRatio: ar, minWidth: 90, border: "none", padding: 0, borderRadius: 12, overflow: "hidden", background: colors.surfaceMuted, cursor: "pointer", position: "relative" }}>
+            {isVid
+              ? <video src={p.url} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : <img src={p.displayUrl || p.url} alt="" loading={i < 3 ? "eager" : "lazy"} decoding="async" onError={(ev) => { ev.currentTarget.parentElement.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />}
+            {isVid && <span style={{ position: "absolute", top: 7, left: 7, fontSize: 10, color: "#fff", background: "rgba(0,0,0,0.5)", borderRadius: 6, padding: "1px 5px", fontWeight: 800 }}>▶</span>}
+          </button>
+        );
+      })}
+      <button onClick={onOpen} style={{ flex: "0 0 auto", height: 176, width: 124, border: `1px solid ${colors.border}`, borderRadius: 12, background: colors.surface, cursor: "pointer", color: colors.text, fontFamily: SF, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3 }}>
+        {more > 0 && <span style={{ fontSize: 19, fontWeight: 800 }}>+{more}</span>}
+        <span style={{ fontSize: 12, color: colors.textMuted, fontWeight: 700 }}>{more > 0 ? "See all →" : "Open room →"}</span>
+      </button>
+    </div>
+  );
+}
+
+// A locked event you have no relationship with — a blurred teaser that says the
+// only way in is to have been there. The access model IS the feed's engine.
+function LockedStrip({ e, onOpen }) {
+  return (
+    <button onClick={onOpen} style={{ width: "100%", height: 124, position: "relative", border: `1px solid ${colors.border}`, borderRadius: 12, overflow: "hidden", cursor: "pointer", background: "linear-gradient(135deg,#fde7f3,#f4f4f5)", padding: 0 }}>
+      {e.cover && <img src={transformedImageUrl(e.cover, { width: 480 })} alt="" onError={(ev) => { ev.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "blur(5px)", transform: "scale(1.06)" }} />}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: colors.text, border: `1px solid ${colors.borderStrong}`, borderRadius: 999, padding: "6px 14px", background: "rgba(255,255,255,0.78)" }}>{e.ended ? "Missed — you weren't there" : "Pull up to unlock"}</span>
+      </div>
     </button>
   );
 }
 
-function EventCard({ e, onClick }) {
-  const locked = e.viewer === "none" && e.kind !== "community";
+// One event, as a chapter in the feed: a compact header (cover, title, your
+// badge, pull-ups, entry affordance) over its photo reel or a locked teaser.
+function EventChapter({ e, onOpen }) {
   const tag = tagFor(e);
+  const locked = e.viewer === "none" && e.kind !== "community";
+  const hasPhotos = Array.isArray(e.photos) && e.photos.length > 0;
+  const enterHint = (e.viewer === "pulledup" || e.viewer === "owner") ? " · enter →"
+    : (e.viewer === "rsvped" || e.viewer === "waitlist") ? " · view →" : "";
   return (
-    <button onClick={onClick} style={{ textAlign: "left", border: `1px solid ${colors.border}`, borderRadius: 16, overflow: "hidden", background: colors.surface, cursor: "pointer", padding: 0, color: colors.text, fontFamily: SF }}>
-      <div style={{ position: "relative", aspectRatio: "1.3", background: "linear-gradient(135deg, #fde7f3, #f4f4f5)" }}>
-        {e.cover && <img src={transformedImageUrl(e.cover, { width: 480 })} alt="" onError={(ev) => { ev.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
-        {locked && (
-          <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: colors.text, border: `1px solid ${colors.borderStrong}`, borderRadius: 999, padding: "5px 12px", background: "rgba(255,255,255,0.7)" }}>{e.ended ? "Missed" : "Pull up to unlock"}</span>
+    <div style={{ marginBottom: 24 }}>
+      <button onClick={onOpen} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 11, background: "none", border: "none", padding: "0 0 9px", cursor: "pointer", color: colors.text, fontFamily: SF }}>
+        <div style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 10, overflow: "hidden", background: "linear-gradient(135deg,#fde7f3,#f4f4f5)" }}>
+          {e.cover && <img src={transformedImageUrl(e.cover, { width: 120 })} alt="" onError={(ev) => { ev.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: locked ? "blur(2px)" : "none" }} />}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 750, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</span>
+            {tag && <span style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", color: "#fff", background: tag.c, borderRadius: 999, padding: "2px 8px" }}>{tag.t}</span>}
           </div>
-        )}
-        {tag && <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.04em", color: "#fff", background: tag.c, borderRadius: 999, padding: "3px 9px" }}>{tag.t}</span>}
-      </div>
-      <div style={{ padding: "10px 12px" }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title || "Untitled"}</div>
-        <div style={{ fontSize: 11.5, color: colors.textFaded, marginTop: 2 }}>{e.kind === "community" ? "Community" : e.kind === "product" ? "Product" : whenLabel(e.startsAt)}{e.viewer === "pulledup" ? " · enter →" : (e.viewer === "rsvped" || e.viewer === "waitlist") ? " · view" : ""}</div>
-      </div>
-    </button>
+          <div style={{ fontSize: 12, color: colors.textFaded, marginTop: 2 }}>
+            {whenLabel(e.startsAt)}{e.pullups > 0 ? ` · ${e.pullups} pulled up` : ""}{enterHint}
+          </div>
+        </div>
+      </button>
+      {hasPhotos
+        ? <PhotoReel photos={e.photos} total={e.photoCount} onOpen={onOpen} />
+        : locked
+          ? <LockedStrip e={e} onOpen={onOpen} />
+          : null}
+    </div>
   );
 }
 

@@ -763,6 +763,12 @@ function PullUpSection() {
     ? { transform: `translate3d(0, ${(-wp * 20).toFixed(1)}px, 0) scale(${(1 + wp * 0.16).toFixed(3)})` }
     : undefined;
   const glowStyle = motion ? { opacity: 0.28 + Math.sin(wp * Math.PI) * 0.55 } : undefined;
+  // The trust band rides in on the movie's final beat — as the camera pulls back
+  // to the whole lit network, the brands fade up from the bottom of the frame.
+  const bandReveal = motion ? Math.min(1, Math.max(0, (wp - 0.68) / 0.24)) : 1;
+  const bandStyle = motion
+    ? { opacity: bandReveal.toFixed(3), transform: `translateY(${((1 - bandReveal) * 26).toFixed(1)}px)` }
+    : undefined;
   return (
     <section
       className={`mk-turn${motion ? " mk-turn--cinema" : ""}`}
@@ -783,6 +789,10 @@ function PullUpSection() {
           <div className="mk-turn-globe-wrap" style={globeStyle}>
             <TurnGlobe progress={p} active={motion} />
           </div>
+        </div>
+        <div className="mk-turn-brands" style={bandStyle}>
+          <p className="mk-turn-brands-label">Trusted by the rooms you already know</p>
+          <LogoMarquee invert />
         </div>
       </div>
     </section>
@@ -1934,6 +1944,18 @@ const STYLES = `
   .mk-turn-stage .mk-grain { z-index: 0; }
   .mk-turn-eyes-wrap, .mk-turn-globe-wrap { will-change: transform; }
   .mk-turn--cinema .mk-turn-globe { width: min(500px, 54vh, 84vw); }
+  /* the trust band under the globe — normal flow on mobile, pinned to the
+     bottom of the pinned stage in cinema so it reveals from the frame's edge */
+  .mk-turn-brands { position: relative; z-index: 2; width: 100%; margin: clamp(30px, 5vh, 56px) auto 0; text-align: center; }
+  .mk-turn--cinema .mk-turn-brands {
+    position: absolute; left: 0; right: 0; bottom: clamp(18px, 4.5vh, 50px); margin: 0;
+    padding-top: 48px; will-change: opacity, transform;
+    background: linear-gradient(to top, ${NIGHT} 26%, rgba(8,8,14,0) 100%);
+  }
+  .mk-turn-brands-label {
+    margin: 0 0 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.28em;
+    text-transform: uppercase; color: rgba(255,255,255,0.4);
+  }
   /* the world of real rooms — an orb beneath the word, every glowing beacon a
      city a PullUp has actually happened in. This is the focus of the beat. */
   .mk-turn-globe {

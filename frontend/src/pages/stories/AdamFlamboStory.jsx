@@ -484,26 +484,6 @@ export default function AdamFlamboStory() {
         </div>
       </section>
 
-      {/* ─── WHY IT WORKED — the platform, and what a room can sell ─── */}
-      <section className="fl-why">
-        <Reveal><p className="fl-eyebrow">Why it worked</p></Reveal>
-        <Reveal delay={0.06}>
-          <h2 className="fl-h2">The room isn’t a group chat.<br /><span className="fl-ink-pink">It’s where the work — and the money — lives.</span></h2>
-        </Reveal>
-        <div className="fl-why-grid">
-          {[
-            { t: "It’s yours", b: `Every name, number and photograph sits in Adam’s own database — ${S.peopleUnique} people, ${S.photos} images, in his name. Not rented from an algorithm.` },
-            { t: "Credit is built in", b: "Each upload carries its photographer’s handle and consent. That’s what turned a shared album into a printable, licensable magazine." },
-            { t: "You can sell to it", b: "A room is a storefront for the people who actually show up — sell a link, a preset pack, a print run, real merch, or a printed journal. To your people, not to strangers." },
-          ].map((c, i) => (
-            <Reveal key={c.t} delay={i * 0.08} y={20} className="fl-why-card">
-              <span className="fl-why-t">{c.t}</span>
-              <span className="fl-why-b">{c.b}</span>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
       {/* ─── WHO — Adam's word, landing as the testimonial right before the ask ─── */}
       <section className="fl-who">
         <Reveal><p className="fl-eyebrow">Who</p></Reveal>
@@ -613,26 +593,26 @@ const STYLES = `
   .fl-hero {
     position: relative; isolation: isolate; overflow: hidden;
     min-height: 92vh; display: flex; flex-direction: column; justify-content: center;
-    padding: clamp(60px, 12vh, 120px) clamp(22px, 6vw, 56px) clamp(30px, 5vh, 60px);
+    padding: clamp(40px, 7vh, 84px) clamp(22px, 6vw, 56px) clamp(22px, 3.5vh, 44px);
   }
   .fl-hero-in { position: relative; z-index: 3; max-width: 960px; margin: 0 auto; text-align: center; }
-  .fl-kicker { margin: 0 0 20px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 600; }
+  .fl-kicker { margin: 0 0 16px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 600; }
   .fl-hero-h {
     margin: 0 auto; max-width: 14ch;
-    font-size: clamp(36px, 6vw, 72px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.03;
+    font-size: clamp(32px, 4.8vw, 58px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.04;
     text-shadow: 0 2px 40px rgba(0,0,0,0.5);
   }
   .fl-hero-sub {
-    margin: 22px auto 0; max-width: 52ch; font-size: clamp(16px, 2vw, 20px); line-height: 1.6;
+    margin: 16px auto 0; max-width: 50ch; font-size: clamp(15px, 1.7vw, 18px); line-height: 1.55;
     color: rgba(255,255,255,0.66);
   }
   .fl-hero-strip {
-    position: relative; z-index: 3; margin: clamp(40px, 7vh, 72px) auto 0;
-    display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(20px, 5vw, 60px);
+    position: relative; z-index: 3; margin: clamp(22px, 3.6vh, 42px) auto 0;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(16px, 3.6vw, 44px);
   }
-  .fl-stat { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-  .fl-stat b { font-size: clamp(28px, 4vw, 44px); font-weight: 850; letter-spacing: -0.03em; }
-  .fl-stat span { font-size: 12px; letter-spacing: 0.05em; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+  .fl-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .fl-stat b { font-size: clamp(24px, 3.2vw, 38px); font-weight: 850; letter-spacing: -0.03em; }
+  .fl-stat span { font-size: 11.5px; letter-spacing: 0.05em; color: rgba(255,255,255,0.5); text-transform: uppercase; }
 
   /* ─── split editorial hero: copy beside a framed portrait of Adam.
      The printed-journal story earns a magazine cover, not centered text. ─── */
@@ -641,10 +621,10 @@ const STYLES = `
     align-items: center; gap: clamp(28px, 5vw, 72px); text-align: left;
   }
   .fl-hero-split .fl-hero-h { margin: 0; max-width: 15ch; }
-  .fl-hero-split .fl-hero-sub { margin-top: 22px; margin-left: 0; max-width: 46ch; }
+  .fl-hero-split .fl-hero-sub { margin-top: 16px; margin-left: 0; max-width: 46ch; }
   .fl-hero-portrait {
-    position: relative; justify-self: end; width: 100%; max-width: 400px;
-    aspect-ratio: 2 / 3; border-radius: 18px; overflow: hidden;
+    position: relative; justify-self: end; width: 100%; max-width: 348px;
+    aspect-ratio: 2 / 3; max-height: 56vh; border-radius: 18px; overflow: hidden;
     background: #14141c; border: 1px solid rgba(255,255,255,0.1);
     box-shadow: 0 40px 90px -30px rgba(0,0,0,0.85), 0 0 0 1px rgba(0,0,0,0.4);
   }
@@ -879,17 +859,6 @@ const STYLES = `
      protected credits. */
   .fl-mast-blur { filter: blur(4.5px); opacity: 0.82; user-select: none; -webkit-user-select: none; }
 
-  /* ─── why ─── */
-  .fl-why { max-width: 1080px; margin: 0 auto; padding: clamp(70px, 12vh, 140px) clamp(22px, 6vw, 48px); text-align: center; }
-  .fl-why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: clamp(40px, 6vh, 60px); text-align: left; }
-  .fl-why-card {
-    display: flex; flex-direction: column; gap: 10px;
-    padding: clamp(22px, 2.6vw, 30px); border-radius: 20px;
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
-  }
-  .fl-why-t { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
-  .fl-why-b { font-size: 14.5px; line-height: 1.6; color: rgba(255,255,255,0.64); }
-  @media (max-width: 820px) { .fl-why-grid { grid-template-columns: 1fr; } }
 
   /* ─── cta ─── */
   .fl-cta {

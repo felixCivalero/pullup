@@ -12,7 +12,7 @@
 //   3. PULL    — single or multi-select download, straight from storage (the
 //      bytes never touch our server), and every download bumps a live counter
 //      so the room can see what's resonating.
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
 import { buildZip } from "../../lib/zip.js";
@@ -151,6 +151,15 @@ export default function RoomContentWall({ eventId, event, initial, can, meName, 
 
   const canUpload = !!can?.upload || isHost;
   const canDownload = !!can?.download || isHost;
+
+  // Reading-order masonry, so the wall loads top-to-bottom (see hook comment).
+  const { ref: wallRef, columns, cols } = useMasonryColumns(items);
+  // The first ~2 visual rows are the earliest items now — load them eagerly so
+  // the top of the wall fills immediately; everything below stays lazy.
+  const eagerIds = useMemo(
+    () => new Set(items.slice(0, cols * 2).map((it) => it.id)),
+    [items, cols],
+  );
 
   const setBusy = useCallback((id, on) => {
     setBusyIds((prev) => {
@@ -295,32 +304,31 @@ export default function RoomContentWall({ eventId, event, initial, can, meName, 
         )}
       </div>
 
-      {/* ── The masonry. CSS columns = true masonry, zero layout JS. ── */}
+      {/* ── The masonry. Greedy shortest-column fill (see useMasonryColumns)
+             so array order == visual reading order and the wall loads
+             top-to-bottom instead of popping in from everywhere at once. ── */}
       {count === 0 ? (
         <EmptyWall canUpload={canUpload} onAdd={() => setUploadOpen(true)} />
       ) : (
-        <div
-          style={{
-            columnGap: 6,
-            columns: "auto",
-            // responsive column width via inline media isn't possible; we lean on
-            // column-width so the browser packs as many ~220px columns as fit.
-            columnWidth: 220,
-          }}
-        >
-          {items.map((it) => (
-            <Tile
-              key={it.id}
-              it={it}
-              selecting={selecting}
-              selected={selected.has(it.id)}
-              busy={busyIds.has(it.id)}
-              canDownload={canDownload}
-              onOpen={() => (selecting ? toggleSelect(it.id) : setLightbox(it))}
-              onToggle={() => toggleSelect(it.id)}
-              onDownload={() => downloadOne(it)}
-              onDelete={it.canDelete ? () => removeItem(it) : null}
-            />
+        <div ref={wallRef} style={{ display: "flex", gap: WALL_GAP, alignItems: "flex-start" }}>
+          {columns.map((col, ci) => (
+            <div key={ci} style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", gap: WALL_GAP }}>
+              {col.map((it) => (
+                <Tile
+                  key={it.id}
+                  it={it}
+                  selecting={selecting}
+                  selected={selected.has(it.id)}
+                  busy={busyIds.has(it.id)}
+                  canDownload={canDownload}
+                  eager={eagerIds.has(it.id)}
+                  onOpen={() => (selecting ? toggleSelect(it.id) : setLightbox(it))}
+                  onToggle={() => toggleSelect(it.id)}
+                  onDownload={() => downloadOne(it)}
+                  onDelete={it.canDelete ? () => removeItem(it) : null}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -369,8 +377,53 @@ export default function RoomContentWall({ eventId, event, initial, can, meName, 
   );
 }
 
+// ── Greedy masonry ────────────────────────────────────────────────────
+// CSS `columns` is column-major: the browser fills column 1 top-to-bottom,
+// THEN column 2, etc. So the visual top row is stitched from items scattered
+// all across the array, and native lazy-load fetches that scattered set — a big
+// wall pops in from everywhere at once. Instead we place each item into the
+// currently-shortest column (heights derived from the aspect ratios we already
+// store — no waiting on image load). That makes array order == visual reading
+// order, so the top rows are always the earliest items and the wall fills
+// top-to-bottom. Recomputes only when the column count changes on resize.
+const WALL_GAP = 6;
+const WALL_COL_W = 220;
+function useMasonryColumns(items) {
+  const ref = useRef(null);
+  const [cols, setCols] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth || 0;
+      setCols(Math.max(1, Math.floor((w + WALL_GAP) / (WALL_COL_W + WALL_GAP))));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const columns = useMemo(() => {
+    const buckets = Array.from({ length: cols }, () => []);
+    const heights = new Array(cols).fill(0);
+    for (const it of items) {
+      const w = it.width || 3;
+      const h = it.height || 4;
+      let target = 0;
+      for (let c = 1; c < cols; c++) if (heights[c] < heights[target]) target = c;
+      buckets[target].push(it);
+      heights[target] += h / w + 0.04; // relative tile height + a little gap
+    }
+    return buckets;
+  }, [items, cols]);
+
+  return { ref, columns, cols };
+}
+
 // ── One tile ──────────────────────────────────────────────────────────
-function Tile({ it, selecting, selected, busy, canDownload, onOpen, onToggle, onDownload, onDelete }) {
+function Tile({ it, selecting, selected, busy, canDownload, eager, onOpen, onToggle, onDownload, onDelete }) {
   const [hover, setHover] = useState(false);
   const ar = it.width && it.height ? `${it.width} / ${it.height}` : "3 / 4";
   const video = isVideo(it);
@@ -382,7 +435,6 @@ function Tile({ it, selecting, selected, busy, canDownload, onOpen, onToggle, on
       onMouseLeave={() => setHover(false)}
       onClick={onOpen}
       style={{
-        breakInside: "avoid", WebkitColumnBreakInside: "avoid", marginBottom: 6,
         position: "relative", borderRadius: 0, overflow: "hidden", cursor: "pointer",
         background: colors.surfaceMuted, border: `1px solid ${selected ? colors.accent : colors.borderFaint}`,
         boxShadow: selected ? `0 0 0 2px ${colors.accent}` : (hover ? "0 10px 26px rgba(10,10,10,0.14)" : "0 1px 2px rgba(10,10,10,0.05)"),
@@ -392,7 +444,7 @@ function Tile({ it, selecting, selected, busy, canDownload, onOpen, onToggle, on
       {video ? (
         <video ref={mutedAutoplay} src={it.url} muted loop autoPlay playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
       ) : (
-        <img src={it.displayUrl || it.url} alt={it.caption || ""} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
+        <img src={it.displayUrl || it.url} alt={it.caption || ""} loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : "auto"} decoding="async" style={{ display: "block", width: "100%", aspectRatio: ar, objectFit: "cover" }} />
       )}
 
       {/* video glyph */}

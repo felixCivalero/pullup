@@ -5,7 +5,7 @@
 
 import { useEffect, useState, Suspense, lazy } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Globe2, Activity, DoorOpen, Sparkles, ShieldCheck, Users, GitMerge, LogOut } from "lucide-react";
+import { Globe2, Activity, DoorOpen, Sparkles, ShieldCheck, Users, GitMerge, Scale, LogOut } from "lucide-react";
 import { authenticatedFetch } from "../lib/api.js";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -53,6 +53,7 @@ export function AdminShell({ children }) {
   const tools = [
     { path: "/admin/crm", label: "CRM", Icon: Users },
     { path: "/admin/matches", label: "Matching", Icon: GitMerge },
+    { path: "/admin/arsredovisning", label: "Årsredovisning", Icon: Scale },
   ];
 
   const label = (text) => (

@@ -84,6 +84,7 @@ const AdminEventsPage = lazyPage(() => import("./pages/AdminEventsPage"), "Admin
 const AdminCrmPage = lazyPage(() => import("./pages/AdminCrmPage"), "AdminCrmPage");
 const AdminInboxPage = lazyPage(() => import("./pages/AdminInboxPage"), "AdminInboxPage");
 const AdminMatchesPage = lazyPage(() => import("./pages/AdminMatchesPage"), "AdminMatchesPage");
+const AdminArsredovisningPage = lazyPage(() => import("./pages/AdminArsredovisningPage"), "AdminArsredovisningPage");
 const AdminPresentationPage = lazyPage(() => import("./pages/AdminPresentationPage"), "AdminPresentationPage");
 const EventAnalyticsPage = lazyPage(() => import("./pages/EventAnalyticsPage"), "EventAnalyticsPage");
 const PrivacyPage = lazyPage(() => import("./pages/PrivacyPage"), "PrivacyPage");
@@ -261,6 +262,7 @@ function App() {
           <Route path="/admin/events" element={<AdminEventsPage />} />
           <Route path="/admin/crm" element={<AdminCrmPage />} />
           <Route path="/admin/matches" element={<AdminMatchesPage />} />
+          <Route path="/admin/arsredovisning" element={<AdminArsredovisningPage />} />
           {/* Admin platform newsletter / broadcast was removed with campaigns. */}
           <Route path="/admin/email" element={<Navigate to="/admin/crm" replace />} />
           <Route path="/admin/presentation" element={<AdminPresentationPage />} />

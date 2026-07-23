@@ -72,6 +72,7 @@ import { registerAdminSystemInboxRoutes } from "./routes/adminSystemInbox.js";
 import { registerAdminOverviewRoutes } from "./routes/adminOverview.js";
 import { registerAdminPulseRoutes } from "./routes/adminPulse.js";
 import { registerAdminIdeaRoutes } from "./routes/adminIdeas.js";
+import { registerAdminArsredovisningRoutes } from "./routes/adminArsredovisning.js";
 import { registerInternalMetricsRoutes } from "./routes/internalMetrics.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { requestMetrics } from "./middleware/requestMetrics.js";
@@ -368,6 +369,8 @@ registerAdminEcosystemRoutes(app);
 // file remains on disk, unmounted; re-register here to resurrect deliberately.
 
 registerAdminIdeaRoutes(app);
+
+registerAdminArsredovisningRoutes(app);
 
 registerInternalMetricsRoutes(app);
 

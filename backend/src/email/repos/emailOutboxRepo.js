@@ -137,47 +137,106 @@ async function updateOutbox(id, fields) {
   return data;
 }
 
-export function markSent(id, { providerMessageId }) {
-  return updateOutbox(id, {
-    status: "sent",
+// ─── Monotonic status transitions ──────────────────────────────────
+//
+// A row's lifecycle only ever moves FORWARD. Provider delivery webhooks race
+// the worker's own bookkeeping: Resend's email.delivered for a Gmail address
+// routinely lands within ~1s of the API call returning, i.e. before/while
+// markSent writes. With plain last-write-wins updates, a late markSent
+// overwrote an already-`delivered` row back to `sent`, and the send looked
+// unconfirmed forever. Ranking the states and refusing to move backwards makes
+// the two writers order-independent.
+//
+// Later-than-delivered failure states (bounce/complaint) still apply on top of
+// delivered — a delayed hard bounce hours after acceptance is a real sequence.
+// The reverse (bounced → delivered) is not, and is now rejected.
+export const STATUS_RANK = {
+  queued: 0,
+  retrying: 1,
+  sending: 2,
+  sent: 3,
+  delivered: 4,
+  failed: 5,
+  bounced: 5,
+  complaint: 6,
+  suppressed: 7,
+};
+
+// Statuses a row may currently be in for `target` to be a forward move.
+export function statusesAdvanceableTo(target) {
+  const rank = STATUS_RANK[target];
+  if (rank === undefined) return Object.keys(STATUS_RANK);
+  return Object.keys(STATUS_RANK).filter((s) => STATUS_RANK[s] <= rank);
+}
+
+// Apply `status` + fields only if it is a forward move. Returns the row either
+// way (an already-past row is returned untouched, not an error) so callers keep
+// the same shape as the old unconditional update.
+async function advanceOutbox(id, status, fields = {}) {
+  const { data, error } = await supabase
+    .from("email_outbox")
+    .update({
+      ...fields,
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .in("status", statusesAdvanceableTo(status))
+    .select();
+
+  if (error) {
+    console.error("[emailOutboxRepo] advanceOutbox error", error);
+    throw new Error(`Failed to update email_outbox: ${error.message}`);
+  }
+
+  if (data && data.length) return data[0];
+
+  // No row matched → it already sits at a later status. Leave it alone.
+  return findById(id);
+}
+
+export async function markSent(id, { providerMessageId }) {
+  const row = await advanceOutbox(id, "sent", {
     provider_message_id: providerMessageId ?? null,
   });
+
+  // The status may have been held back (a webhook already advanced this row),
+  // but the provider message id MUST still land — it is the only key delivery
+  // webhooks can match on, so dropping it would strand every later event.
+  if (providerMessageId && row && !row.provider_message_id) {
+    return updateOutbox(id, { provider_message_id: providerMessageId });
+  }
+
+  return row;
 }
 
 export function markDelivered(id) {
-  return updateOutbox(id, {
-    status: "delivered",
-  });
+  return advanceOutbox(id, "delivered");
 }
 
 export function markBounced(id, { errorCode = null, errorMessage = null } = {}) {
-  return updateOutbox(id, {
-    status: "bounced",
+  return advanceOutbox(id, "bounced", {
     last_error_code: errorCode,
     last_error_message: errorMessage,
   });
 }
 
 export function markComplaint(id, { errorCode = null, errorMessage = null } = {}) {
-  return updateOutbox(id, {
-    status: "complaint",
+  return advanceOutbox(id, "complaint", {
     last_error_code: errorCode,
     last_error_message: errorMessage,
   });
 }
 
 export function markFailed(id, { errorCode = null, errorMessage = null } = {}) {
-  return updateOutbox(id, {
-    status: "failed",
+  return advanceOutbox(id, "failed", {
     last_error_code: errorCode,
     last_error_message: errorMessage,
   });
 }
 
 export function markSuppressed(id) {
-  return updateOutbox(id, {
-    status: "suppressed",
-  });
+  return advanceOutbox(id, "suppressed");
 }
 
 export function markRetrying(
@@ -210,6 +269,45 @@ export async function countSentSinceUtc(sinceIso) {
     return 0;
   }
   return count ?? 0;
+}
+
+// Lifetime bounce/delivery counts for one address. Feeds bouncePolicy: an
+// address that has bounced repeatedly and never once landed is dead, whatever
+// the provider labelled today's bounce. Counts are head-only (no rows pulled).
+export async function getDeliveryHistoryFor(email) {
+  if (!email) return { bounced: 0, delivered: 0 };
+  // to_email is stored as the sender typed it, so the match has to be
+  // case-insensitive — but ILIKE treats _ and % as wildcards and plenty of real
+  // addresses contain an underscore (amandaa_1996@…), which would silently pull
+  // in other people's rows. Escape them so this stays an exact match.
+  const pattern = String(email)
+    .trim()
+    .toLowerCase()
+    .replace(/[\\%_]/g, (c) => `\\${c}`);
+
+  async function countWithStatus(statuses) {
+    const { count, error } = await supabase
+      .from("email_outbox")
+      .select("id", { count: "exact", head: true })
+      .ilike("to_email", pattern)
+      .in("status", statuses);
+    if (error) {
+      console.error("[emailOutboxRepo] getDeliveryHistoryFor error", error);
+      return null;
+    }
+    return count ?? 0;
+  }
+
+  const [bounced, delivered] = await Promise.all([
+    countWithStatus(["bounced"]),
+    countWithStatus(["delivered"]),
+  ]);
+
+  // A failed count must never read as "0 deliveries" — that would let a
+  // transient DB error suppress a healthy address. Claim a delivery instead.
+  if (bounced === null || delivered === null) return { bounced: 0, delivered: 1 };
+
+  return { bounced, delivered };
 }
 
 export async function findByProviderMessageId(providerMessageId) {

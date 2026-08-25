@@ -2,13 +2,20 @@
 
 import { supabase } from "../../supabase.js";
 
+export function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+// Addresses are stored lower-cased (see upsertSuppression). The read used to
+// match on the raw string, so a row queued as "Foo@x.com" walked straight past
+// a suppression stored as "foo@x.com" and sent anyway.
 export async function isSuppressed(email) {
   if (!email) return { suppressed: false, row: null };
 
   const { data, error } = await supabase
     .from("email_suppressions")
     .select("*")
-    .eq("email", email)
+    .eq("email", normalizeEmail(email))
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
@@ -65,7 +72,7 @@ export async function upsertSuppression({
   }
 
   const payload = {
-    email,
+    email: normalizeEmail(email),
     reason,
     source,
     details,

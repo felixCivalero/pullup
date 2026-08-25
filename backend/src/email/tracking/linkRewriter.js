@@ -170,10 +170,17 @@ export function addTracking(html, { trackingId, baseUrl, campaignTag }) {
   const pixelUrl = buildOpenPixelUrl(baseUrl, trackingId);
   const pixelHtml = `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0;" />`;
 
-  const withPixel = rewritten.replace(
-    /<\/body>/i,
-    `${pixelHtml}</body>`
-  );
+  return injectPixel(rewritten, pixelHtml);
+}
 
-  return withPixel;
+// Place the pixel at the end of the document. This used to be a bare
+// `replace(/<\/body>/i, ...)`, which silently did nothing when the HTML had no
+// </body> — and host-composed campaign HTML is a fragment with no <body>
+// wrapper at all. Links still got wrapped, so the only "opens" those sends
+// could ever record were the ones back-inferred from a click, and every host's
+// open rate read far too low. Fall back to </html>, then to a plain append.
+function injectPixel(html, pixelHtml) {
+  if (/<\/body\s*>/i.test(html)) return html.replace(/<\/body\s*>/i, `${pixelHtml}$&`);
+  if (/<\/html\s*>/i.test(html)) return html.replace(/<\/html\s*>/i, `${pixelHtml}$&`);
+  return `${html}${pixelHtml}`;
 }

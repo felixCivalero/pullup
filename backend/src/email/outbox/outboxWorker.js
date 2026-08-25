@@ -14,9 +14,6 @@ import { sendEmailViaResend } from "../providers/resendProvider.js";
 import {
   claimOutboxBatch,
   markSent,
-  markDelivered,
-  markBounced,
-  markComplaint,
   markFailed,
   markSuppressed,
   markRetrying,
@@ -218,15 +215,17 @@ export async function processBatch({
       });
 
       if (providerName === "resend") {
-        if (result?.messageId) {
-          await markDelivered(row.id);
-        }
-
+        // NB: a 200 from Resend means ACCEPTED FOR DELIVERY, not delivered.
+        // This used to call markDelivered() here — every Resend send was
+        // stamped "delivered" the instant the API returned, before any mail
+        // server had seen it, and was then immediately overwritten back to
+        // "sent" by markSent() two statements later. Real delivery is
+        // confirmed by the email.delivered webhook and nothing else.
         try {
           await insertEvent({
             provider: "resend",
             providerMessageId: result?.messageId || null,
-            eventType: "delivery",
+            eventType: "accepted",
             emailOutboxId: row.id,
             recipient: row.to_email,
             payload: {
@@ -237,7 +236,7 @@ export async function processBatch({
           });
         } catch (eventError) {
           console.error(
-            "[outboxWorker] Failed to insert Resend delivery event",
+            "[outboxWorker] Failed to insert Resend accepted event",
             {
               outboxId: row.id,
               error: eventError?.message,

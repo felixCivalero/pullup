@@ -21,8 +21,8 @@ export function boardApi({ id, token }) {
 }
 
 export const listBoards = () => authenticatedFetch("/canvas/boards").then(json);
-export const createBoard = (title, { loggedIn } = {}) =>
-  (loggedIn ? authenticatedFetch : publicFetch)("/canvas/boards", { method: "POST", body: JSON.stringify({ title }) }).then(json);
+export const createBoard = (title, { loggedIn, doc } = {}) =>
+  (loggedIn ? authenticatedFetch : publicFetch)("/canvas/boards", { method: "POST", body: JSON.stringify({ title, doc }) }).then(json);
 
 // Boards opened on this device (by share token) — the open canvas has no
 // account to list them, so the browser remembers them.

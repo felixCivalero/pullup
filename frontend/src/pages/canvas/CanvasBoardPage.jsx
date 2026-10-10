@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, ArrowUpRight, BringToFront, Check, GripHorizontal, Link2, Maximize,
+  ArrowLeft, ArrowUpRight, BringToFront, Check, Frame, GripHorizontal, Link2, Maximize,
   Minus, Plus, Share2, StickyNote, Trash2, Type, X,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext.jsx";
@@ -9,9 +9,9 @@ import { boardApi, rememberBoard, resolveUrl } from "./canvasApi.js";
 import { PLATFORM_LABEL, isUrl, needsResolve, socialEmbed } from "./socialEmbed.js";
 
 /* ════════════════════════════════════════════════════════════════════════
-   A planning canvas for content meetings. Pan/zoom board with three item
-   types: social embeds (play in place, with a stats strip), text boxes and
-   sticky notes. The board is one doc; edits save debounced with a version
+   A planning canvas for content meetings. Pan/zoom board with four item
+   types: social embeds (play in place, with a stats strip), text boxes,
+   sticky notes and frames (labelled areas that carry what's inside them). The board is one doc; edits save debounced with a version
    guard, a 409 merges by item id (our dirty items win, everything else takes
    the server's), and a 4s poll pulls other people's edits in when idle.
    Routes: /canvas/:id (owner) · /canvas/s/:token (anyone with the link).
@@ -327,11 +327,19 @@ export default function CanvasBoardPage() {
     if (e.button !== undefined && e.button !== 0) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture?.(e.pointerId);
+    const isFrame = item.type === "frame";
     const topZ = Math.max(0, ...itemsRef.current.map((i) => i.z || 0));
-    if ((item.z || 0) < topZ) patchItem(item.id, { z: topZ + 1 });
+    if (!isFrame && (item.z || 0) < topZ) patchItem(item.id, { z: topZ + 1 });
     setSelected(item.id);
     if (editing !== item.id) setEditing(null);
-    dragRef.current = { kind, id: item.id, sx: e.clientX, sy: e.clientY, ox: item.x, oy: item.y, ow: item.w, oh: item.h, moved: false };
+    // Moving a frame moves everything sitting fully inside it.
+    const children =
+      isFrame && kind === "move"
+        ? itemsRef.current
+            .filter((i) => i.type !== "frame" && i.x >= item.x && i.y >= item.y && i.x + i.w <= item.x + item.w && i.y + i.h <= item.y + item.h)
+            .map((i) => ({ id: i.id, x: i.x, y: i.y }))
+        : null;
+    dragRef.current = { kind, id: item.id, sx: e.clientX, sy: e.clientY, ox: item.x, oy: item.y, ow: item.w, oh: item.h, moved: false, children };
     setInteracting(true);
   };
 
@@ -361,11 +369,16 @@ export default function CanvasBoardPage() {
     }
     const z = viewRef.current.z;
     if (Math.abs(dx) + Math.abs(dy) > 2) d.moved = true;
+    const kids = d.children ? new Map(d.children.map((c) => [c.id, c])) : null;
     const list = itemsRef.current.map((i) => {
+      if (kids?.has(i.id)) {
+        const c = kids.get(i.id);
+        return { ...i, x: Math.round(c.x + dx / z), y: Math.round(c.y + dy / z) };
+      }
       if (i.id !== d.id) return i;
       if (d.kind === "move") return { ...i, x: Math.round(d.ox + dx / z), y: Math.round(d.oy + dy / z) };
-      const minW = i.type === "embed" ? 220 : 120;
-      const minH = i.type === "embed" ? 200 : 60;
+      const minW = i.type === "embed" ? 220 : i.type === "frame" ? 240 : 120;
+      const minH = i.type === "embed" ? 200 : i.type === "frame" ? 160 : 60;
       return { ...i, w: Math.round(Math.max(minW, d.ow + dx / z)), h: Math.round(Math.max(minH, d.oh + dy / z)) };
     });
     setItems(list);
@@ -379,6 +392,7 @@ export default function CanvasBoardPage() {
     setInteracting(false);
     if (d && d.kind !== "pan" && d.moved) {
       dirty.current.add(d.id);
+      d.children?.forEach((c) => dirty.current.add(c.id));
       scheduleSave();
     }
   };
@@ -391,7 +405,7 @@ export default function CanvasBoardPage() {
     const c = screenToWorld(sx, sy);
     const gap = 32;
     const hits = (x, y) =>
-      itemsRef.current.some((i) => x < i.x + i.w + gap && x + w + gap > i.x && y < i.y + i.h + gap && y + h + gap > i.y);
+      itemsRef.current.some((i) => i.type !== "frame" && x < i.x + i.w + gap && x + w + gap > i.x && y < i.y + i.h + gap && y + h + gap > i.y);
     const x0 = Math.round(c.x - w / 2);
     const y0 = Math.round(c.y - h / 2);
     for (let row = 0; row < 6; row++) {
@@ -408,7 +422,7 @@ export default function CanvasBoardPage() {
   const topZ = () => Math.max(0, ...itemsRef.current.map((i) => i.z || 0)) + 1;
 
   const addItem = (item) => {
-    const full = { id: uid(), z: topZ(), ...item };
+    const full = { id: uid(), z: item.type === "frame" ? 0 : topZ(), ...item };
     mutate((list) => [...list, full], { changed: [full.id] });
     setSelected(full.id);
     return full;
@@ -426,6 +440,13 @@ export default function CanvasBoardPage() {
     const h = 220;
     const it = addItem({ type: "sticky", text, color: STICKY_COLORS[0], w, h, ...spawnPoint(w, h) });
     if (!text) setEditing(it.id);
+  };
+
+  const addFrame = () => {
+    const w = 800;
+    const h = 500;
+    const it = addItem({ type: "frame", title: "New frame", z: 0, w, h, ...spawnPoint(w, h) });
+    setEditing(it.id);
   };
 
   const addLink = async (raw) => {
@@ -635,7 +656,9 @@ export default function CanvasBoardPage() {
               </button>
             ))}
           {(sel.type === "sticky" || sel.type === "text") && <span className="cv-sep" />}
-          <button type="button" className="cv-icon" onClick={() => patchItem(sel.id, { z: topZ() })} aria-label="Bring to front"><BringToFront size={16} /></button>
+          {sel.type !== "frame" && (
+            <button type="button" className="cv-icon" onClick={() => patchItem(sel.id, { z: topZ() })} aria-label="Bring to front"><BringToFront size={16} /></button>
+          )}
           <button type="button" className="cv-icon cv-danger" onClick={() => removeItem(sel.id)} aria-label="Delete"><Trash2 size={16} /></button>
         </div>
       )}
@@ -671,6 +694,7 @@ export default function CanvasBoardPage() {
             <button type="button" className="cv-tool" onClick={() => setLinkOpen(true)}><Link2 size={18} /> Post</button>
             <button type="button" className="cv-tool" onClick={addText}><Type size={18} /> Text</button>
             <button type="button" className="cv-tool" onClick={() => addSticky()}><StickyNote size={18} /> Sticky</button>
+            <button type="button" className="cv-tool cv-tool-frame" onClick={addFrame}><Frame size={18} /> Frame</button>
           </>
         )}
       </div>
@@ -686,6 +710,28 @@ function CanvasItem({ item, selected, editing, onDragStart, onEdit, onPatch, onR
   const style = { left: item.x, top: item.y, width: item.w, height: item.h, zIndex: item.z || 0 };
   const cls = `cv-item cv-${item.type}${selected ? " is-selected" : ""}${editing ? " is-editing" : ""}`;
   const resize = <span className="cv-resize" onPointerDown={(e) => onDragStart(e, item, "resize")} aria-hidden="true" />;
+
+  if (item.type === "frame") {
+    return (
+      <div className={cls} style={style}>
+        <div className="cv-frame-head" onPointerDown={(ev) => !editing && onDragStart(ev, item, "move")} onDoubleClick={onEdit}>
+          {editing ? (
+            <input
+              autoFocus
+              className="cv-frame-input"
+              value={item.title || ""}
+              onChange={(ev) => onPatch({ title: ev.target.value.slice(0, 140) })}
+              onPointerDown={(ev) => ev.stopPropagation()}
+              onKeyDown={(ev) => ev.key === "Enter" && ev.currentTarget.blur()}
+            />
+          ) : (
+            <span className="cv-frame-title">{item.title || "Frame"}</span>
+          )}
+        </div>
+        {resize}
+      </div>
+    );
+  }
 
   if (item.type === "embed") {
     const e = item.embed || {};
@@ -858,6 +904,18 @@ const CSS = `
   .cv-stats span { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8a8a; }
   .cv-stats input { font: inherit; font-size: 15px; font-weight: 600; border: 0; outline: none; background: transparent; width: 100%; padding: 0; font-variant-numeric: tabular-nums; }
 
+  .cv-frame {
+    border-radius: 18px; background: rgba(255,255,255,0.55); border: 1.5px solid rgba(0,0,0,0.14);
+    pointer-events: none; /* the empty area passes through to the board */
+  }
+  .cv-frame.is-selected { outline: 2px solid #000; outline-offset: 3px; }
+  .cv-frame-head {
+    pointer-events: auto; position: absolute; left: 0; top: 0; right: 0; height: 64px;
+    display: flex; align-items: center; padding: 0 22px; cursor: move; border-radius: 18px 18px 0 0;
+  }
+  .cv-frame-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cv-frame-input { font: inherit; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; width: 100%; border: 0; outline: none; background: transparent; padding: 0; }
+  .cv-frame .cv-resize { pointer-events: auto; }
   .cv-text { cursor: move; }
   .cv-sticky { border-radius: 4px; box-shadow: 0 14px 28px -18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.12); padding: 16px; cursor: move; }
   .cv-textview { width: 100%; height: 100%; overflow: hidden; white-space: pre-wrap; word-break: break-word; line-height: 1.25; font-weight: 500; }
@@ -918,6 +976,7 @@ const CSS = `
     .cv-status { display: none; }
     .cv-zoom span { display: none; }
     .cv-tool { padding: 0 12px; font-size: 14px; }
+    .cv-tool-frame { display: none; }
     .cv-share { padding: 0 12px; }
   }
 `;

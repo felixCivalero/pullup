@@ -182,7 +182,12 @@ export function registerCanvasRoutes(app) {
     if (!ownerId && createLimited(req.ip || "unknown")) return res.status(429).json({ error: "rate_limited" });
     const { data, error } = await supabase
       .from("canvas_boards")
-      .insert({ owner_id: ownerId, title: cleanTitle(req.body?.title) || "Untitled board" })
+      .insert({
+        owner_id: ownerId,
+        title: cleanTitle(req.body?.title) || "Untitled board",
+        // A template can seed the board's first doc.
+        ...(validDoc(req.body?.doc) ? { doc: req.body.doc } : {}),
+      })
       .select(BOARD_COLS)
       .single();
     if (error) {

@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
 import { createBoard, deleteBoard, forgetBoard, listBoards, readRecent } from "./canvasApi.js";
+import { coreBoardTemplate } from "./coreBoard.js";
 
 /* /canvas — open to everyone. "New board" works without an account: the
    board's share link is the board, and this device remembers the ones you've
@@ -15,6 +16,8 @@ export default function CanvasBoardsPage() {
   const [recent, setRecent] = useState(() => readRecent());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [askClient, setAskClient] = useState(false);
+  const [client, setClient] = useState("");
 
   useEffect(() => {
     if (loading || !user) return;
@@ -27,11 +30,17 @@ export default function CanvasBoardsPage() {
     };
   }, [user, loading]);
 
-  const create = async () => {
+  // Blank board, or a Core board for a client: the engagement template.
+  const create = async (clientName) => {
     if (busy) return;
     setBusy(true);
     setError("");
-    const { ok, status, data } = await createBoard("Untitled board", { loggedIn: Boolean(user) });
+    const core = clientName !== undefined;
+    const title = core ? `Core board — ${clientName.trim() || "Client"}` : "Untitled board";
+    const { ok, status, data } = await createBoard(title, {
+      loggedIn: Boolean(user),
+      doc: core ? coreBoardTemplate(clientName) : undefined,
+    });
     setBusy(false);
     if (!ok) {
       setError(status === 429 ? "That's a lot of new boards — try again in a while." : "Couldn't create a board. Try again.");
@@ -81,9 +90,41 @@ export default function CanvasBoardsPage() {
             Paste posts from Instagram, TikTok, YouTube and Facebook, play them on the board,
             and plan around them with text and stickies — live, in the meeting.
           </p>
-          <button type="button" className="pc-btn pc-btn-light" onClick={create} disabled={busy}>
-            <Plus size={18} strokeWidth={2} /> {busy ? "Creating…" : "New board"}
-          </button>
+          {askClient ? (
+            <form
+              className="cb-client"
+              onSubmit={(e) => {
+                e.preventDefault();
+                create(client);
+              }}
+            >
+              <input
+                autoFocus
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                placeholder="Client name"
+                aria-label="Client name"
+                maxLength={80}
+              />
+              <button type="submit" className="pc-btn pc-btn-light" disabled={busy}>
+                {busy ? "Creating…" : "Create Core board"}
+              </button>
+              <button type="button" className="cb-cancel" onClick={() => setAskClient(false)}>Cancel</button>
+            </form>
+          ) : (
+            <div className="cb-actions">
+              <button type="button" className="pc-btn pc-btn-light" onClick={() => setAskClient(true)} disabled={busy}>
+                <Plus size={18} strokeWidth={2} /> New Core board
+              </button>
+              <button type="button" className="pc-btn pc-btn-ghost" onClick={() => create()} disabled={busy}>
+                Blank board
+              </button>
+            </div>
+          )}
+          <p className="cb-note">
+            A Core board is the client engagement on one canvas: Direction, Identity, daily alignment,
+            the 3-month onboarding and both 30-minute tracks — ready to edit.
+          </p>
         </div>
       </section>
 
@@ -125,6 +166,15 @@ const CSS = `
   .cb-sub { margin: 24px 0 36px !important; max-width: 58ch; font-size: 18px; line-height: 1.55; color: rgba(255,255,255,0.7); }
   .cb-head .pc-btn svg { transition: none; }
   .cb-head .pc-btn:hover svg { transform: none; }
+  .cb-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .cb-client { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 640px; }
+  .cb-client input {
+    flex: 1 1 240px; height: 58px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.06); color: #fff; font: inherit; font-size: 17px; padding: 0 24px; outline: none;
+  }
+  .cb-client input:focus { border-color: #fff; }
+  .cb-cancel { background: none; border: 0; color: rgba(255,255,255,0.6); font: inherit; font-size: 15px; cursor: pointer; padding: 8px; }
+  .cb-note { margin-top: 20px !important; font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.5); max-width: 60ch; }
   .cb-list { padding-top: clamp(48px, 6vw, 72px); min-height: 40vh; }
   .cb-muted { color: var(--pc-grey); font-size: 16px; }
   .cb-error { color: #b42318; font-size: 16px; }

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ArrowLeft } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { PullupEyes } from "../../components/PullupEyes.jsx";
 import { transformedImageUrl } from "../../lib/imageUtils.js";
 import { trackPageView, initTracking } from "../../lib/track.js";
+import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
+import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
+import { casePath, nextCase } from "../../components/agency/agencyData.js";
 import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_PHOTOS } from "./adamFlamboData.js";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -16,10 +19,10 @@ import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_P
    caught fire — and, because every photo carried a name and commercial
    consent, became a printed magazine with the pullupers as contributors.
    Design: dark editorial "exhibition at night" — the photos are the stars.
+   Lives at /work/adam-flambo inside the agency shell (black and white).
    ════════════════════════════════════════════════════════════════════════ */
 
-const PINK = "#EC178F";
-const NIGHT = "#08080e";
+const NIGHT = "#000";
 const STORAGE_BASE =
   (import.meta.env.VITE_SUPABASE_URL || "") + "/storage/v1/object/public/event-images/";
 
@@ -215,10 +218,15 @@ function WalkMap() {
       attributionControl: true,
     });
     mapRef.current = map;
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd",
-      maxZoom: 20,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    // Esri's dark-grey canvas: keyless (CARTO's basemaps now demand an API
+    // key and render a watermark without one). Base + labels as two layers.
+    const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
+    L.tileLayer(`${ESRI}/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
+      maxZoom: 16,
+      attribution: "Tiles &copy; Esri — Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+    }).addTo(map);
+    L.tileLayer(`${ESRI}/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`, {
+      maxZoom: 16,
     }).addTo(map);
     markersRef.current = walks.map((w, i) => {
       const icon = L.divIcon({
@@ -325,6 +333,8 @@ function PhotoTriptych({ shots, kicker, line }) {
 // pull specific curated frames by filename for the featured bands
 const shot = (name) => LOCAL_SHOTS.find((s) => s.src.includes(name));
 
+const NEXT = nextCase("adam-flambo");
+
 export default function AdamFlamboStory() {
   const navigate = useNavigate();
   const reduced = useMemo(() => prefersReduced(), []);
@@ -338,19 +348,8 @@ export default function AdamFlamboStory() {
   const S = CASE_STATS;
 
   return (
-    <div className="fl-root">
-      <style>{STYLES}</style>
-
-      {/* top bar */}
-      <header className="fl-nav">
-        <button type="button" className="fl-nav-back" onClick={() => navigate("/")}>
-          <ArrowLeft size={16} /> PullUp
-        </button>
-        <span className="fl-nav-tag">A creator story</span>
-        <button type="button" className="fl-nav-cta" onClick={() => navigate("/start")}>
-          Start your room
-        </button>
-      </header>
+    <AgencyShell css={STYLES}>
+    <div className="fl-root" data-pc-tone="dark">
 
       {/* ─── HERO ─── */}
       <section className="fl-hero">
@@ -389,6 +388,49 @@ export default function AdamFlamboStory() {
               <b>{n}</b><span>{l}</span>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      {/* ─── THE BRIEF — the agency case, before the photographs ─── */}
+      <section className="fl-brief" data-pc-section="adam_brief" data-pc-order="2">
+        <div className="fl-brief-in">
+          <Reveal>
+            <p className="fl-eyebrow">The brief</p>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <h2 className="fl-h2">Out of the execution trap.</h2>
+          </Reveal>
+          <div className="fl-brief-cols">
+            <Reveal delay={0.1}>
+              <div className="fl-brief-col">
+                <p className="fl-brief-k">The problem</p>
+                <p>
+                  Like many visionary operators, Adam had deep messages and a profound
+                  mission — but traditional structures let execution slip through the
+                  cracks. The content team operated in a vacuum, disconnected from daily
+                  operational reality.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal delay={0.16}>
+              <div className="fl-brief-col">
+                <p className="fl-brief-k">The turnaround</p>
+                <p>
+                  We deployed the Alignment Bridge: his high-level philosophy wired
+                  directly into the team's real-time project tracking. Core concepts
+                  became line-by-line reel scripts in brief, focused syncs — and the team
+                  was held accountable to a publishing pipeline that actually ships.
+                </p>
+              </div>
+            </Reveal>
+          </div>
+          <Reveal delay={0.2}>
+            <blockquote className="fl-brief-quote">
+              “Execution used to be our bottleneck. Turning our mission into a structured
+              dramaturgical script completely changed how our team produces.”
+              <cite>Adam Flambo</cite>
+            </blockquote>
+          </Reveal>
         </div>
       </section>
 
@@ -506,49 +548,36 @@ export default function AdamFlamboStory() {
         shots={[shot("vibedude"), shot("eveningalley"), shot("window")]}
       />
 
-      {/* ─── CTA ─── */}
-      <section className="fl-cta">
-        <div className="fl-grain" aria-hidden="true" />
-        <div className="fl-cta-glow" aria-hidden="true" />
-        <PullupEyes variant="big" className="fl-cta-eyes" />
-        <Reveal delay={0.06}>
-          <h2 className="fl-cta-h">Your room is waiting.<br /><span className="fl-ink-pink">Give it a reason to fill up.</span></h2>
-        </Reveal>
-        <Reveal delay={0.12}>
-          <div className="fl-cta-row">
-            <button type="button" className="fl-btn" onClick={() => navigate("/start")}>
-              Start hosting <ArrowRight size={17} />
-            </button>
-            <button type="button" className="fl-btn-ghost" onClick={() => navigate("/")}>
-              See how it works
-            </button>
-          </div>
-        </Reveal>
-        <Reveal delay={0.18}>
-          <p className="fl-cta-fine">A snapshot of adam flambo’s real rooms, as of July 2026. His numbers, his photos, his people.</p>
-        </Reveal>
+      {/* ─── NEXT CASE ─── */}
+      <section className="fl-next">
+        <a
+          className="fl-next-in"
+          href={casePath(NEXT.slug)}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(casePath(NEXT.slug));
+          }}
+        >
+          <span className="fl-next-k">Next case — {NEXT.client}</span>
+          <span className="fl-next-t">{NEXT.title}</span>
+          <ArrowRight className="fl-next-arrow" size={36} strokeWidth={1.5} />
+        </a>
+        <p className="fl-cta-fine">A snapshot of Adam Flambo’s real rooms, as of July 2026. His numbers, his photos, his people.</p>
       </section>
-
-      <footer className="fl-footer">
-        <span>PullUp &copy; {new Date().getFullYear()}</span>
-        <span className="fl-dot">·</span>
-        <a href="/">Home</a>
-        <a href="mailto:hello@pullup.se">hello@pullup.se</a>
-      </footer>
     </div>
+    <AgencyOffer source="case_adam-flambo" heading="Want this engine inside your organization?" />
+    </AgencyShell>
   );
 }
 
 const STYLES = `
   .fl-root {
-    --pink: ${PINK};
+    --pink: #fff;
     background: ${NIGHT}; color: #fff;
     min-height: 100dvh; position: relative; overflow-x: clip;
     -webkit-font-smoothing: antialiased;
-    cursor: url('/cursor-finger.png') 11 2, auto;
   }
-  .fl-root *:not(input):not(textarea):not(select) { cursor: inherit; }
-  .fl-ink-pink { color: var(--pink); }
+  .fl-ink-pink { color: rgba(255,255,255,0.5); }
 
   /* filmic grain, reused on the dark acts */
   .fl-grain {
@@ -558,40 +587,17 @@ const STYLES = `
     background-size: 160px 160px;
   }
 
-  /* ─── nav ─── */
-  .fl-nav {
-    position: sticky; top: 0; z-index: 40;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px clamp(16px, 4vw, 40px);
-    background: rgba(8,8,14,0.6); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-  }
-  .fl-nav-back, .fl-nav-cta {
-    display: inline-flex; align-items: center; gap: 7px;
-    font: inherit; font-size: 14px; font-weight: 600; border: 0;
-  }
-  .fl-nav-back { background: none; color: rgba(255,255,255,0.7); padding: 6px; }
-  .fl-nav-back:hover { color: #fff; }
-  .fl-nav-tag { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
-  @media (max-width: 560px) { .fl-nav-tag { display: none; } }
-  .fl-nav-cta {
-    padding: 9px 18px; border-radius: 999px; background: var(--pink); color: #fff;
-    box-shadow: 0 6px 20px -8px rgba(236,23,143,0.7);
-    transition: transform 0.18s;
-  }
-  .fl-nav-cta:hover { transform: translateY(-1px); }
-
   /* ─── hero ─── */
   .fl-hero {
     position: relative; isolation: isolate; overflow: hidden;
     min-height: 92vh; display: flex; flex-direction: column; justify-content: center;
-    padding: clamp(40px, 7vh, 84px) clamp(22px, 6vw, 56px) clamp(22px, 3.5vh, 44px);
+    padding: clamp(104px, 14vh, 140px) clamp(22px, 6vw, 56px) clamp(22px, 3.5vh, 44px);
   }
   .fl-hero-in { position: relative; z-index: 3; max-width: 960px; margin: 0 auto; text-align: center; }
   .fl-kicker { margin: 0 0 16px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 600; }
   .fl-hero-h {
     margin: 0 auto; max-width: 14ch;
-    font-size: clamp(32px, 4.8vw, 58px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.04;
+    font-size: clamp(32px, 4.8vw, 58px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.04;
     text-shadow: 0 2px 40px rgba(0,0,0,0.5);
   }
   .fl-hero-sub {
@@ -603,7 +609,7 @@ const STYLES = `
     display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(16px, 3.6vw, 44px);
   }
   .fl-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .fl-stat b { font-size: clamp(24px, 3.2vw, 38px); font-weight: 850; letter-spacing: -0.03em; }
+  .fl-stat b { font-size: clamp(24px, 3.2vw, 38px); font-weight: 600; letter-spacing: -0.03em; }
   .fl-stat span { font-size: 11.5px; letter-spacing: 0.05em; color: rgba(255,255,255,0.5); text-transform: uppercase; }
 
   /* ─── split editorial hero: copy beside a framed portrait of Adam.
@@ -657,8 +663,8 @@ const STYLES = `
   }
 
   /* ─── shared editorial bits ─── */
-  .fl-eyebrow { margin: 0 0 16px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--pink); font-weight: 700; }
-  .fl-h2 { margin: 0; font-size: clamp(28px, 4.6vw, 52px); font-weight: 850; letter-spacing: -0.035em; line-height: 1.04; }
+  .fl-eyebrow { margin: 0 0 16px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 500; }
+  .fl-h2 { margin: 0; font-size: clamp(28px, 4.6vw, 52px); font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
   .fl-lede { margin: 0; font-size: clamp(17px, 2.1vw, 21px); line-height: 1.62; color: rgba(255,255,255,0.72); }
   .fl-lede strong { color: #fff; font-weight: 700; }
   .fl-lede em { font-style: italic; color: rgba(255,255,255,0.85); }
@@ -669,18 +675,18 @@ const STYLES = `
   .fl-who { max-width: 780px; margin: 0 auto; padding: clamp(70px, 12vh, 140px) clamp(22px, 6vw, 48px); text-align: center; }
   .fl-quote {
     margin: clamp(36px, 6vh, 60px) 0 0; padding: 0;
-    font-size: clamp(24px, 3.6vw, 38px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.2; color: #fff;
+    font-size: clamp(24px, 3.6vw, 38px); font-weight: 600; letter-spacing: -0.025em; line-height: 1.2; color: #fff;
   }
-  .fl-quote cite { display: block; margin-top: 16px; font-style: normal; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pink); }
+  .fl-quote cite { display: block; margin-top: 16px; font-style: normal; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
   .fl-quote-cite { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .fl-ig-link {
     display: inline-flex; align-items: center; letter-spacing: 0.01em; text-transform: none;
     padding: 7px 15px; border-radius: 999px;
-    background: rgba(236,23,143,0.12); border: 1px solid rgba(236,23,143,0.4);
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.4);
     color: #fff; font-size: 14px; font-weight: 700; text-decoration: none;
     transition: background 0.18s, transform 0.18s, box-shadow 0.18s;
   }
-  .fl-ig-link:hover { background: rgba(236,23,143,0.24); transform: translateY(-1px); box-shadow: 0 8px 24px -10px rgba(236,23,143,0.7); }
+  .fl-ig-link:hover { background: rgba(255,255,255,0.24); transform: translateY(-1px); box-shadow: 0 8px 24px -10px rgba(255,255,255,0.7); }
 
   /* ─── the arc chart ─── */
   .fl-arc { max-width: 760px; margin: clamp(40px, 6vh, 64px) auto 0; }
@@ -693,18 +699,18 @@ const STYLES = `
     padding-bottom: 0;
   }
   .fl-arc-col { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 8px; }
-  .fl-arc-val { font-size: clamp(13px, 1.6vw, 16px); font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+  .fl-arc-val { font-size: clamp(13px, 1.6vw, 16px); font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; }
   .fl-arc-bar-track { flex: 1; width: clamp(20px, 4vw, 46px); display: flex; align-items: flex-end; }
   .fl-arc-bar {
     width: 100%; border-radius: 5px 5px 0 0; min-height: 3px;
-    background: linear-gradient(180deg, #ff6cc4, var(--pink));
-    box-shadow: 0 0 24px -6px rgba(236,23,143,0.5);
+    background: linear-gradient(180deg, #fff, #9a9a9a);
+    box-shadow: 0 0 24px -6px rgba(255,255,255,0.5);
     transition: height 1s cubic-bezier(0.16,1,0.3,1) var(--d);
   }
   .fl-arc-x { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.7); }
   .fl-arc-sub { font-size: 10.5px; color: rgba(255,255,255,0.4); }
   .fl-arc-note { margin: 26px auto 0; max-width: 54ch; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,0.6); text-align: center; }
-  .fl-arc-note strong { color: var(--pink); font-weight: 800; }
+  .fl-arc-note strong { color: #fff; font-weight: 600; }
 
   @media (max-width: 720px) { .fl-arc-plot { height: 200px; } }
 
@@ -731,11 +737,11 @@ const STYLES = `
   .fl-pin-dot {
     display: flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; border-radius: 999px;
-    background: ${PINK}; color: #fff; font-size: 12px; font-weight: 800;
-    border: 2px solid #fff; box-shadow: 0 4px 14px rgba(236,23,143,0.6);
+    background: #fff; color: #000; font-size: 12px; font-weight: 600;
+    border: 2px solid #fff; box-shadow: 0 4px 14px rgba(255,255,255,0.6);
     transition: transform 0.2s, box-shadow 0.2s;
   }
-  .fl-pin.is-active .fl-pin-dot { transform: scale(1.3); box-shadow: 0 0 0 6px rgba(236,23,143,0.25), 0 6px 18px rgba(236,23,143,0.85); }
+  .fl-pin.is-active .fl-pin-dot { transform: scale(1.3); box-shadow: 0 0 0 6px rgba(255,255,255,0.25), 0 6px 18px rgba(255,255,255,0.85); }
   .fl-tip {
     background: #141420 !important; color: #fff !important;
     border: 1px solid rgba(255,255,255,0.14) !important; border-radius: 8px !important;
@@ -750,12 +756,12 @@ const STYLES = `
     background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
   }
   .fl-map-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-  .fl-map-vol { font-size: 19px; font-weight: 850; letter-spacing: -0.02em; }
+  .fl-map-vol { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
   .fl-map-date { font-size: 12.5px; color: rgba(255,255,255,0.5); }
   .fl-map-place { margin: -6px 0 0; font-size: 14px; color: rgba(255,255,255,0.7); }
   .fl-map-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .fl-map-stats div { display: flex; flex-direction: column; gap: 2px; padding: 12px 6px; border-radius: 12px; background: rgba(255,255,255,0.045); text-align: center; }
-  .fl-map-stats b { font-size: clamp(20px, 2.4vw, 24px); font-weight: 850; letter-spacing: -0.02em; color: #fff; }
+  .fl-map-stats b { font-size: clamp(20px, 2.4vw, 24px); font-weight: 600; letter-spacing: -0.02em; color: #fff; }
   .fl-map-stats span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.45); }
   .fl-map-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .fl-map-photo { aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #14141c; }
@@ -765,7 +771,7 @@ const STYLES = `
   .fl-map-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; }
   .fl-map-chip { padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); background: none; color: rgba(255,255,255,0.6); font: inherit; font-size: 12.5px; font-weight: 700; transition: color 0.2s, background 0.2s, border-color 0.2s; }
   .fl-map-chip:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
-  .fl-map-chip.on { background: ${PINK}; border-color: ${PINK}; color: #fff; }
+  .fl-map-chip.on { background: #fff; border-color: #fff; color: #000; }
 
   /* ─── featured triptych — real frames, edge to edge ─── */
   .fl-trip { position: relative; background: ${NIGHT}; padding: clamp(52px, 9vh, 116px) 0; }
@@ -799,11 +805,11 @@ const STYLES = `
     position: relative; isolation: isolate; overflow: hidden;
     min-height: 78vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
     padding: clamp(60px, 10vh, 120px) 22px;
-    background: radial-gradient(60% 60% at 50% 45%, rgba(236,23,143,0.08), transparent 62%), ${NIGHT};
+    background: radial-gradient(60% 60% at 50% 45%, rgba(255,255,255,0.08), transparent 62%), ${NIGHT};
   }
   .fl-eyes-svg { position: relative; z-index: 2; width: clamp(180px, 34vmin, 360px); height: auto; filter: brightness(0) invert(1); }
   .fl-eyes-svg svg { width: 100%; height: 100%; display: block; }
-  .fl-eyes-line { position: relative; z-index: 2; margin: 8px 0 0; font-size: clamp(20px, 3vw, 30px); font-weight: 800; letter-spacing: -0.02em; color: rgba(255,255,255,0.9); text-align: center; }
+  .fl-eyes-line { position: relative; z-index: 2; margin: 8px 0 0; font-size: clamp(20px, 3vw, 30px); font-weight: 600; letter-spacing: -0.02em; color: rgba(255,255,255,0.9); text-align: center; }
 
   /* ─── photo reels (drifting rows, edge-faded — a taste, not the whole wall) ─── */
   .fl-galwrap { padding: clamp(60px, 10vh, 120px) 0 clamp(50px, 8vh, 100px); overflow: hidden; }
@@ -852,47 +858,36 @@ const STYLES = `
 
 
   /* ─── cta ─── */
-  .fl-cta {
-    position: relative; isolation: isolate; overflow: hidden; text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 22px;
-    padding: clamp(80px, 14vh, 170px) clamp(22px, 6vw, 48px) clamp(60px, 10vh, 110px);
-  }
-  .fl-cta-glow { position: absolute; inset: 0; z-index: 0; background: radial-gradient(56% 50% at 50% 38%, rgba(236,23,143,0.22), transparent 62%); animation: fl-breathe 7s ease-in-out infinite; }
-  @keyframes fl-breathe { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
-  .fl-cta > * { position: relative; z-index: 1; }
-  .fl-cta-eyes { width: clamp(120px, 20vmin, 190px); height: auto; filter: brightness(0) invert(1); }
-  .fl-cta-eyes svg { width: 100%; height: 100%; display: block; }
-  .fl-cta-h { margin: 0; font-size: clamp(32px, 5.4vw, 62px); font-weight: 850; letter-spacing: -0.04em; line-height: 1.03; }
-  .fl-cta-row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
-  .fl-btn {
-    display: inline-flex; align-items: center; gap: 9px;
-    padding: 16px 30px; border-radius: 999px; border: 0; background: var(--pink); color: #fff;
-    font: inherit; font-size: 16px; font-weight: 700;
-    box-shadow: 0 12px 34px -8px rgba(236,23,143,0.6); transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .fl-btn:hover { transform: translateY(-2px); box-shadow: 0 18px 46px -10px rgba(236,23,143,0.75); }
-  .fl-btn svg { transition: transform 0.2s; }
-  .fl-btn:hover svg { transform: translateX(3px); }
-  .fl-btn-ghost {
-    padding: 15px 26px; border-radius: 999px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.2); color: #fff; font: inherit; font-size: 15px; font-weight: 600;
-    transition: background 0.18s, transform 0.18s;
-  }
-  .fl-btn-ghost:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
   .fl-cta-fine { margin: 6px 0 0; font-size: 12.5px; color: rgba(255,255,255,0.4); max-width: 52ch; }
 
   /* ─── footer ─── */
-  .fl-footer {
-    display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
-    padding: 28px 16px calc(28px + env(safe-area-inset-bottom));
-    font-size: 12px; color: rgba(255,255,255,0.45);
-    border-top: 1px solid rgba(255,255,255,0.07);
+  /* ─── the brief ─── */
+  .fl-brief { padding: clamp(72px, 11vw, 140px) clamp(22px, 6vw, 56px); border-top: 1px solid rgba(255,255,255,0.1); }
+  .fl-brief-in { max-width: 1128px; margin: 0 auto; }
+  .fl-brief-cols { display: grid; grid-template-columns: 1fr; gap: clamp(28px, 5vw, 64px); margin-top: clamp(36px, 5vw, 56px); }
+  @media (min-width: 800px) { .fl-brief-cols { grid-template-columns: 1fr 1fr; } }
+  .fl-brief-col { border-top: 1px solid rgba(255,255,255,0.5); padding-top: 22px; font-size: 18px; line-height: 1.6; color: rgba(255,255,255,0.75); }
+  .fl-brief-col p { margin: 0; }
+  .fl-brief-k { margin: 0 0 12px !important; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; }
+  .fl-brief-quote { margin: clamp(48px, 7vw, 88px) 0 0; font-size: clamp(24px, 3.2vw, 40px); line-height: 1.24; letter-spacing: -0.02em; max-width: 30ch; }
+  .fl-brief-quote cite { display: block; margin-top: 20px; font-style: normal; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+
+  /* ─── next case ─── */
+  .fl-next { border-top: 1px solid rgba(255,255,255,0.1); padding: 0 clamp(22px, 6vw, 56px) clamp(32px, 5vw, 56px); }
+  .fl-next-in {
+    max-width: 1128px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px 24px;
+    padding: clamp(56px, 9vw, 120px) 0 clamp(28px, 4vw, 40px);
+    color: #fff; text-decoration: none;
   }
-  .fl-footer a { color: inherit; text-decoration: none; }
-  .fl-footer a:hover { color: #fff; }
+  .fl-next-k { grid-column: 1 / -1; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .fl-next-t { font-size: clamp(32px, 5vw, 64px); font-weight: 600; line-height: 1.02; letter-spacing: -0.035em; max-width: 18ch; }
+  .fl-next-arrow { transition: transform 0.25s ease; margin-bottom: 8px; }
+  .fl-next-in:hover .fl-next-arrow { transform: translateX(8px); }
+  .fl-next .fl-cta-fine { max-width: 1128px; margin: 0 auto; }
   .fl-dot { opacity: 0.4; }
 
   @media (prefers-reduced-motion: reduce) {
-    .fl-wall-col, .fl-cta-glow, .fl-arc-bar, .fl-reel-track { animation: none !important; transition: none !important; }
+    .fl-wall-col, .fl-arc-bar, .fl-reel-track { animation: none !important; transition: none !important; }
   }
 `;

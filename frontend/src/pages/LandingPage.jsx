@@ -1,20 +1,20 @@
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { ArrowRight } from "lucide-react";
 import { AuthGate, resolveNext } from "../components/auth/AuthGate.jsx";
 import { supabase } from "../lib/supabase.js";
 import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
-import { initTracking, trackPageView, track } from "../lib/track.js";
-import { EyesCursor } from "../components/EyesCursor.jsx";
+import { initTracking, trackPageView } from "../lib/track.js";
+import { AgencyShell } from "../components/agency/AgencyShell.jsx";
+import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
+import { Reveal } from "../components/agency/Reveal.jsx";
+import { CASES, casePath } from "../components/agency/agencyData.js";
+import { STIGA_TOTALS } from "./work/caseContent.js";
 
 /* The public front door: PullUp as an agency — The Production Core.
-   Black and white, typography first. The only product surface left on the
-   page is "Log in" in the nav (→ /login modal → the host's room). */
-
-const CONTACT = "hello@pullup.se";
-const mailto = (subject) =>
-  `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
+   Black and white, typography first. Each story here is a teaser for its full
+   case page at /work/:slug; the only product surface is "Log in" in the nav. */
 
 const TESTIMONIALS = [
   {
@@ -75,54 +75,6 @@ const LOGOS = [
 
 const DRAMATURGY = ["Hook", "Credibility", "Core", "Outro"];
 
-const OFFERS = [
-  {
-    name: "The Blueprint Restructure",
-    price: "$4,820",
-    cadence: "One-time",
-    body: "We audit your stack, build your content templates, and map your 3-part BKM engine.",
-    cta: "Secure the Blueprint",
-  },
-  {
-    name: "The Retained Architecture",
-    price: "$3,000",
-    cadence: "/ month · 12+ months",
-    body: "A global partnership where we run the engine, moderate the dual tracks, and script your dramaturgical assets line-by-line.",
-    cta: "Apply for retainer",
-  },
-];
-
-/* ─── scroll reveal ─── */
-function Reveal({ children, delay = 0, className }) {
-  const ref = useRef(null);
-  // No IntersectionObserver (old browsers, some bots) → just show it.
-  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          obs.disconnect();
-        }
-      },
-      { threshold: 0.12 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-  return (
-    <div
-      ref={ref}
-      className={`pc-reveal${visible ? " is-in" : ""}${className ? ` ${className}` : ""}`}
-      style={{ transitionDelay: `${delay}s` }}
-    >
-      {children}
-    </div>
-  );
-}
-
 // An endless strip: two identical groups slide left by exactly one group.
 function LogoBand() {
   return (
@@ -161,95 +113,74 @@ function SectionLabel({ n, children }) {
   );
 }
 
-function AgencyPage({ onLogin }) {
-  const [scrolled, setScrolled] = useState(false);
-  const [navDark, setNavDark] = useState(true);
-  const navRef = useRef(null);
+// SPA link styled as an underlined "Read the case →".
+function CaseLink({ slug, children = "Read the case" }) {
+  const navigate = useNavigate();
+  return (
+    <a
+      className="pc-caselink"
+      href={casePath(slug)}
+      onClick={(e) => {
+        e.preventDefault();
+        trackEvent("cta_click", { location: `landing_case_${slug}` });
+        navigate(casePath(slug));
+      }}
+    >
+      {children}
+      <ArrowRight size={16} strokeWidth={1.75} />
+    </a>
+  );
+}
 
-  // The bar takes the tone of whatever section sits under it — black over
-  // the dark beats, white over the light ones — so it never sits on text.
-  useEffect(() => {
-    let raf = null;
-    const compute = () => {
-      raf = null;
-      setScrolled(window.scrollY > 8);
-      const probe = (navRef.current?.getBoundingClientRect().bottom || 64) - 1;
-      let dark = false;
-      document.querySelectorAll("[data-pc-tone='dark']").forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.top <= probe && r.bottom > probe) dark = true;
-      });
-      setNavDark(dark);
-    };
-    const onScroll = () => {
-      if (raf == null) raf = requestAnimationFrame(compute);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    compute();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (raf != null) cancelAnimationFrame(raf);
-    };
-  }, []);
+// The index of full case pages — every story on the page has a door here.
+function WorkIndex() {
+  const navigate = useNavigate();
+  return (
+    <section id="work" className="pc-section pc-rule" data-pc-section="work" data-pc-order="3">
+      <div className="pc-wrap">
+        <SectionLabel n="02">Selected work</SectionLabel>
+        <Reveal>
+          <h2 className="pc-h2">Four organizations. One production core.</h2>
+        </Reveal>
+        <div className="pc-work">
+          {CASES.map((c, i) => (
+            <Reveal key={c.slug} delay={(i % 2) * 0.08}>
+              <a
+                className={`pc-workcard${c.image ? " has-image" : ""}`}
+                href={casePath(c.slug)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  trackEvent("cta_click", { location: `work_card_${c.slug}` });
+                  navigate(casePath(c.slug));
+                }}
+              >
+                {c.image && <img src={c.image} alt="" loading="lazy" decoding="async" />}
+                <span className="pc-workcard-top">
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <span>{c.kicker}</span>
+                </span>
+                <span className="pc-workcard-client">{c.client}</span>
+                <span className="pc-workcard-bottom">
+                  <span className="pc-workcard-title">{c.title}</span>
+                  <ArrowRight className="pc-workcard-arrow" size={22} strokeWidth={1.75} />
+                </span>
+              </a>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-  // Scroll-depth: each named beat fires section_view once per mount.
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const seen = new Set();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const el = entry.target;
-          const section = el.getAttribute("data-pc-section");
-          if (!section || seen.has(section)) continue;
-          seen.add(section);
-          track("section_view", {
-            section,
-            order: Number(el.getAttribute("data-pc-order")) || 0,
-          });
-          observer.unobserve(el);
-        }
-      },
-      { threshold: 0.2 },
-    );
-    document.querySelectorAll("[data-pc-section]").forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-
+function AgencyPage() {
   const toOffer = (location) => {
     trackEvent("cta_click", { location });
     document.getElementById("offer")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <div className="pc">
-      <header
-        ref={navRef}
-        className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}`}
-      >
-        <button
-          type="button"
-          className="pc-nav-brand"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          aria-label="PullUp — back to top"
-        >
-          <img src="/pullup-textlogo.svg" alt="PullUp" />
-        </button>
-        <button
-          type="button"
-          className="pc-nav-login"
-          onClick={() => {
-            trackEvent("cta_click", { location: "nav_login" });
-            onLogin();
-          }}
-        >
-          Log in
-        </button>
-      </header>
-
+    <>
       {/* ─── 1. HERO — the solo offer ─── */}
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
@@ -306,11 +237,13 @@ function AgencyPage({ onLogin }) {
         </div>
       </section>
 
+      <WorkIndex />
+
       {/* ─── 3. BKM 0–10k — founder-led marketing ─── */}
-      <section className="pc-section pc-rule" data-pc-section="bkm" data-pc-order="3">
+      <section className="pc-section pc-rule" data-pc-section="bkm" data-pc-order="4">
         <div className="pc-wrap pc-split">
           <div>
-            <SectionLabel n="02">Founder-led marketing</SectionLabel>
+            <SectionLabel n="03">Founder-led marketing</SectionLabel>
             <Reveal>
               <p className="pc-bignum">
                 BKM
@@ -343,14 +276,15 @@ function AgencyPage({ onLogin }) {
                 </p>
               </div>
             </Reveal>
+            <Reveal delay={0.18}><CaseLink slug="bkm">Read the BKM case</CaseLink></Reveal>
           </div>
         </div>
       </section>
 
       {/* ─── the method — dual-track 30-minute system ─── */}
-      <section className="pc-section pc-rule" data-pc-section="method" data-pc-order="4">
+      <section className="pc-section pc-rule" data-pc-section="method" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="03">The 30-minute BKM flow</SectionLabel>
+          <SectionLabel n="04">The 30-minute BKM flow</SectionLabel>
           <Reveal>
             <h2 className="pc-h2">Two tracks. Thirty minutes each. One bridge.</h2>
           </Reveal>
@@ -369,9 +303,9 @@ function AgencyPage({ onLogin }) {
       </section>
 
       {/* ─── 4. LI KARLSÉN — cinematic profile ─── */}
-      <section className="pc-section pc-dark pc-li" data-pc-tone="dark" data-pc-section="li" data-pc-order="5">
+      <section className="pc-section pc-dark pc-li" data-pc-tone="dark" data-pc-section="li" data-pc-order="6">
         <div className="pc-wrap">
-          <SectionLabel n="04">Profile — Li Karlsén</SectionLabel>
+          <SectionLabel n="05">Profile — Li Karlsén</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 pc-h2-xl">
               Content doesn't need to be loud to be powerful. It needs to be precise.
@@ -404,47 +338,49 @@ function AgencyPage({ onLogin }) {
               </li>
             ))}
           </ol>
+          <Reveal><CaseLink slug="li-karlsen">Read Li's profile</CaseLink></Reveal>
         </div>
       </section>
 
       {/* ─── 5. STIGA — enterprise validation ─── */}
-      <section className="pc-section" data-pc-section="stiga" data-pc-order="6">
+      <section className="pc-section" data-pc-section="stiga" data-pc-order="7">
         <div className="pc-wrap">
-          <SectionLabel n="05">Enterprise — STIGA</SectionLabel>
+          <SectionLabel n="06">Enterprise — STIGA</SectionLabel>
           <Reveal>
             <h2 className="pc-h2">
               Not just for agile startups. It scales to legacy global giants.
             </h2>
           </Reveal>
-          <div className="pc-metrics">
-            <Reveal>
-              <div className="pc-metric">
-                <p className="pc-metric-k">Operational drag</p>
-                <p className="pc-metric-v">Eliminated</p>
-                <p>
-                  Internal corporate alignment sped up by turning legacy communication
-                  models into high-frequency, 30-minute tactical structures.
-                </p>
-              </div>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <div className="pc-metric">
-                <p className="pc-metric-k">Production core volume</p>
-                <p className="pc-metric-v">Month after month</p>
-                <p>
-                  Massive corporate systems and technical data pipelines translated
-                  into premium public-facing assets — running sustainably.
-                </p>
-              </div>
-            </Reveal>
+          <div className="pc-metrics pc-metrics-3">
+            {[
+              [STIGA_TOTALS.views, "Views"],
+              [STIGA_TOTALS.interactions, "Interactions"],
+              [STIGA_TOTALS.followers, "Followers"],
+            ].map(([n, l], i) => (
+              <Reveal key={l} delay={i * 0.08}>
+                <div className="pc-metric">
+                  <p className="pc-metric-k">{l}</p>
+                  <p className="pc-metric-v">
+                    {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n)}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
           </div>
+          <Reveal>
+            <p className="pc-metrics-note">
+              Facebook, Instagram, TikTok and YouTube · 1 Dec 2024 – 30 Jun 2025. Growing on
+              every metric, across every channel.
+            </p>
+          </Reveal>
+          <Reveal><CaseLink slug="stiga">Read the STIGA case</CaseLink></Reveal>
         </div>
       </section>
 
       {/* ─── 6. ADAM FLAMBO — the execution case ─── */}
-      <section className="pc-section pc-rule" data-pc-section="adam" data-pc-order="7">
+      <section className="pc-section pc-rule" data-pc-section="adam" data-pc-order="8">
         <div className="pc-wrap">
-          <SectionLabel n="06">Case — Adam Flambo</SectionLabel>
+          <SectionLabel n="07">Case — Adam Flambo</SectionLabel>
           <Reveal>
             <h2 className="pc-h2">Out of the execution trap.</h2>
           </Reveal>
@@ -472,58 +408,12 @@ function AgencyPage({ onLogin }) {
               </div>
             </Reveal>
           </div>
+          <Reveal><CaseLink slug="adam-flambo">Read Adam's story</CaseLink></Reveal>
         </div>
       </section>
 
-      {/* ─── 7. THE OFFER & CLOSE ─── */}
-      <section id="offer" className="pc-section pc-dark pc-close" data-pc-tone="dark" data-pc-section="offer" data-pc-order="8">
-        <div className="pc-wrap">
-          <Reveal>
-            <h2 className="pc-h2 pc-h2-xl">
-              Your business does incredible work behind closed doors.
-            </h2>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <p className="pc-close-sub">
-              Stop letting your marketing team guess what that work looks like.
-              Restructure your organization around a Production Core.
-            </p>
-          </Reveal>
-          <div className="pc-offers">
-            {OFFERS.map((o, i) => (
-              <Reveal key={o.name} delay={i * 0.08}>
-                <div className="pc-offer">
-                  <p className="pc-offer-name">{o.name}</p>
-                  <p className="pc-offer-price">
-                    {o.price}
-                    <span>{o.cadence}</span>
-                  </p>
-                  <p className="pc-offer-body">{o.body}</p>
-                  <a
-                    className={`pc-btn ${i === 0 ? "pc-btn-light" : "pc-btn-ghost"}`}
-                    href={mailto(o.name)}
-                    onClick={() => trackEvent("cta_click", { location: `offer_${i === 0 ? "blueprint" : "retained"}` })}
-                  >
-                    {o.cta}
-                    <ArrowUpRight size={18} strokeWidth={1.75} />
-                  </a>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer className="pc-footer" data-pc-tone="dark">
-        <span>PullUp &copy; {new Date().getFullYear()}</span>
-        <nav>
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a href="/cookies">Cookies</a>
-          <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
-        </nav>
-      </footer>
-    </div>
+      <AgencyOffer id="offer" />
+    </>
   );
 }
 
@@ -544,15 +434,19 @@ export function LandingPage() {
     trackPageView("landing");
     const prev = document.title;
     document.title = "PullUp — The Production Core";
-    // Phone browser chrome matches the black hero instead of a white strip.
-    const theme = document.querySelector('meta[name="theme-color"]');
-    const prevTheme = theme?.getAttribute("content");
-    theme?.setAttribute("content", "#000000");
     return () => {
       document.title = prev;
-      if (theme && prevTheme) theme.setAttribute("content", prevTheme);
     };
   }, []);
+
+  // Arriving from a case page's "Work" link (/#work) lands on the index.
+  useEffect(() => {
+    if (location.hash !== "#work") return;
+    const t = setTimeout(() => {
+      document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [location.hash]);
 
   // The one auth check — only on the login action. A stored session is
   // validated server-side: valid → straight into the room; dead → cleared so
@@ -589,10 +483,10 @@ export function LandingPage() {
   }, [view]);
 
   return (
-    <div className="landing-root">
-      <style>{STYLES}</style>
-      <AgencyPage onLogin={() => navigate("/login")} />
-      <EyesCursor hidden={view === "login"} />
+    <>
+      <AgencyShell css={STYLES} hideCursor={view === "login"}>
+        <AgencyPage />
+      </AgencyShell>
       {view === "login" && (
         <AuthGate
           initialMode="login"
@@ -601,136 +495,12 @@ export function LandingPage() {
           onSignupIntent={() => navigate("/start")}
         />
       )}
-    </div>
+    </>
   );
 }
 
 /* ─── styles ─── */
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap');
-
-  html, body { overflow-x: clip; }
-  body.pullup-auth-locked { overflow: hidden; }
-
-  /* the eyes are the cursor once EyesCursor has drawn them (mouse/trackpad only) */
-  html.eyes-cursor-on .pc, html.eyes-cursor-on .pc * { cursor: none !important; }
-
-  .landing-root {
-    --pc-black: #000;
-    --pc-white: #fff;
-    --pc-grey: #6b6b6b;
-    --pc-line: rgba(0,0,0,0.12);
-    --pc-line-dark: rgba(255,255,255,0.16);
-    min-height: 100dvh;
-    background: var(--pc-white);
-    color: var(--pc-black);
-    font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    overflow-x: clip;
-  }
-  .pc { width: 100%; }
-  .pc *, .pc *::before, .pc *::after { box-sizing: border-box; }
-  :where(.pc) :where(p, h1, h2, h3, figure, blockquote, ol) { margin: 0; }
-  .pc h1, .pc h2, .pc h3 { text-wrap: balance; }
-  .pc p, .pc blockquote { text-wrap: pretty; }
-  .pc button, .pc a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-  .landing-root { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-  .pc :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
-
-  .pc-wrap {
-    width: 100%;
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 0 clamp(16px, 5vw, 56px);
-  }
-
-  .pc-reveal {
-    opacity: 0;
-    transform: translateY(18px);
-    transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.16,1,0.3,1);
-  }
-  .pc-reveal.is-in { opacity: 1; transform: none; }
-  @media (prefers-reduced-motion: reduce) {
-    .pc-reveal { opacity: 1; transform: none; transition: none; }
-  }
-
-  /* ─── nav: takes the tone of the section beneath it ─── */
-  .pc-nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-    height: 64px;
-    padding: env(safe-area-inset-top, 0px) clamp(16px, 5vw, 56px) 0;
-    box-sizing: content-box;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid transparent;
-    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
-  }
-  .pc-nav.is-dark { color: #fff; }
-  .pc-nav.is-light { color: #000; }
-  .pc-nav.is-scrolled.is-dark { background: rgba(0,0,0,0.88); border-bottom-color: rgba(255,255,255,0.08); }
-  .pc-nav.is-scrolled.is-light { background: rgba(255,255,255,0.9); border-bottom-color: rgba(0,0,0,0.08); }
-  .pc-nav.is-scrolled { backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); }
-  .pc-nav-brand {
-    background: none; border: 0; padding: 10px 0; margin: -10px 0;
-    display: flex; cursor: pointer;
-  }
-  .pc-nav-brand img { height: 22px; width: auto; display: block; transition: filter 0.25s ease; }
-  .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
-  .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
-  .pc-nav-login {
-    background: none; border: 1px solid currentColor; color: inherit;
-    font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
-    min-height: 40px; padding: 0 18px; border-radius: 999px; cursor: pointer;
-    position: relative;
-    transition: background-color 0.2s ease, color 0.2s ease;
-  }
-  /* 44px hit area without a bigger pill */
-  .pc-nav-login::after { content: ""; position: absolute; inset: -4px -6px; }
-  .pc-nav.is-dark .pc-nav-login:hover { background: #fff; color: #000; }
-  .pc-nav.is-light .pc-nav-login:hover { background: #000; color: #fff; }
-
-  /* ─── shared type ─── */
-  .pc-dark { background: var(--pc-black); color: var(--pc-white); }
-  .pc-section { padding: clamp(80px, 12vw, 160px) 0; }
-  .pc-rule { border-top: 1px solid var(--pc-line); }
-  .pc-label {
-    display: flex; gap: 14px; align-items: baseline;
-    font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--pc-grey);
-    margin-bottom: clamp(32px, 5vw, 56px);
-  }
-  .pc-label span { color: inherit; font-variant-numeric: tabular-nums; }
-  .pc-dark .pc-label { color: rgba(255,255,255,0.5); }
-  .pc-h2 {
-    font-size: clamp(32px, 5vw, 60px);
-    font-weight: 600; line-height: 1.04; letter-spacing: -0.03em;
-    max-width: 18ch;
-    margin-bottom: clamp(40px, 6vw, 72px);
-  }
-  .pc-h2-xl { font-size: clamp(36px, 6.4vw, 84px); max-width: 20ch; }
-  .pc-close .pc-h2-xl { margin-bottom: 28px; }
-  .pc-lead { font-size: clamp(20px, 2.2vw, 26px); line-height: 1.4; letter-spacing: -0.01em; }
-  .pc-prose { display: grid; gap: 28px; font-size: 18px; line-height: 1.6; }
-  .pc-split {
-    display: grid; gap: clamp(32px, 6vw, 96px);
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 900px) { .pc-split { grid-template-columns: 5fr 7fr; } }
-
-  /* ─── buttons ─── */
-  .pc-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-    font: inherit; font-size: 16px; font-weight: 600; letter-spacing: -0.005em;
-    padding: 18px 28px; border-radius: 999px; cursor: pointer;
-    text-decoration: none; border: 1px solid transparent;
-    transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
-  }
-  .pc-btn:hover { transform: translateY(-1px); }
-  .pc-btn svg { transition: transform 0.2s ease; }
-  .pc-btn:hover svg { transform: translateX(3px); }
-  .pc-btn-light { background: var(--pc-white); color: var(--pc-black); }
-  .pc-btn-ghost { background: transparent; color: var(--pc-white); border-color: var(--pc-line-dark); }
-  .pc-btn-ghost:hover { border-color: var(--pc-white); }
-
   /* ─── hero ─── */
   .pc-hero {
     min-height: 100svh;
@@ -778,11 +548,6 @@ const STYLES = `
     .pc-logos-group { flex-wrap: wrap; justify-content: center; row-gap: 12px; }
     .pc-logos-group + .pc-logos-group { display: none; }
     .pc-logos-viewport { -webkit-mask-image: none; mask-image: none; }
-  }
-  .pc-eyebrow {
-    font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
-    color: rgba(255,255,255,0.55);
-    margin-bottom: 28px;
   }
   .pc-hero-h {
     font-size: clamp(40px, min(8.6vw, 10vh), 128px);
@@ -890,49 +655,44 @@ const STYLES = `
   .pc-case-col { border-top: 1px solid var(--pc-black); padding-top: 24px; font-size: 18px; line-height: 1.6; }
   .pc-case-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
 
-  /* ─── close / offer ─── */
-  .pc-close-sub {
-    max-width: 52ch;
-    font-size: clamp(18px, 1.8vw, 22px); line-height: 1.5; color: rgba(255,255,255,0.7);
-  }
-  .pc-offers {
-    margin-top: clamp(56px, 8vw, 96px);
-    display: grid; grid-template-columns: 1fr; gap: 16px;
-  }
-  @media (min-width: 900px) { .pc-offers { grid-template-columns: 1fr 1fr; gap: 24px; } }
-  .pc-offer {
-    height: 100%;
-    border: 1px solid var(--pc-line-dark); border-radius: 20px;
-    padding: clamp(28px, 4vw, 48px);
-    display: flex; flex-direction: column; gap: 20px;
-  }
-  .pc-offer-name { font-size: 15px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
-  .pc-offer-price {
-    font-size: clamp(48px, 6vw, 80px); font-weight: 600; line-height: 1; letter-spacing: -0.045em;
-    font-variant-numeric: tabular-nums;
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
-  }
-  .pc-offer-price span { font-size: 16px; font-weight: 500; letter-spacing: 0; color: rgba(255,255,255,0.55); }
-  .pc-offer-body { flex: 1; font-size: 17px; line-height: 1.55; color: rgba(255,255,255,0.75); max-width: 44ch; }
-  .pc-offer .pc-btn { align-self: flex-start; margin-top: 8px; }
 
-  /* ─── footer ─── */
-  .pc-footer {
-    background: var(--pc-black); color: rgba(255,255,255,0.45);
-    border-top: 1px solid var(--pc-line-dark);
-    padding: 28px clamp(16px, 5vw, 56px) calc(28px + env(safe-area-inset-bottom, 0px));
-    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px;
-    font-size: 13px;
+  /* ─── selected work ─── */
+  .pc-work { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 800px) { .pc-work { grid-template-columns: 1fr 1fr; gap: 20px; } }
+  .pc-workcard {
+    position: relative; overflow: hidden; isolation: isolate;
+    min-height: clamp(300px, 34vw, 440px);
+    display: flex; flex-direction: column; justify-content: space-between; gap: 24px;
+    padding: clamp(24px, 3vw, 36px);
+    border-radius: 20px; background: #000; color: #fff; text-decoration: none;
+    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
   }
-  .pc-footer nav { display: flex; flex-wrap: wrap; gap: 20px; }
-  .pc-footer a { color: inherit; text-decoration: none; }
-  .pc-footer a:hover { color: #fff; }
+  .pc-workcard:hover { transform: translateY(-4px); }
+  .pc-workcard img {
+    position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover;
+    filter: grayscale(1) contrast(1.05) brightness(0.55);
+    transition: transform 0.8s cubic-bezier(0.16,1,0.3,1), filter 0.4s ease;
+  }
+  .pc-workcard:hover img { transform: scale(1.04); filter: grayscale(0.2) brightness(0.6); }
+  .pc-workcard-top { display: flex; gap: 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+  .pc-workcard-client { font-size: clamp(44px, 6vw, 84px); font-weight: 600; line-height: 0.92; letter-spacing: -0.05em; }
+  .pc-workcard-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 18px; }
+  .pc-workcard-title { font-size: 17px; line-height: 1.35; max-width: 30ch; color: rgba(255,255,255,0.85); }
+  .pc-workcard-arrow { flex: none; transition: transform 0.25s ease; }
+  .pc-workcard:hover .pc-workcard-arrow { transform: translateX(6px); }
+
+  .pc-metrics-note { margin-top: 20px; font-size: 15px; line-height: 1.5; color: var(--pc-grey); max-width: 56ch; }
+  @media (min-width: 800px) {
+    .pc-metrics-3 { grid-template-columns: repeat(3, 1fr); }
+    .pc-metrics-3 > * .pc-metric { border-right: 0 !important; padding-right: 0 !important; padding-left: 0 !important; }
+    .pc-metrics-3 > * + * .pc-metric { border-left: 1px solid var(--pc-line); padding-left: clamp(24px, 3vw, 40px) !important; }
+  }
 
   /* ─── phone ─── */
   @media (max-width: 640px) {
-    .pc-section { padding: 72px 0; }
-    .pc-label { margin-bottom: 28px; font-size: 12px; }
-    .pc-h2 { margin-bottom: 36px; }
+    .pc-workcard { min-height: 280px; border-radius: 18px; }
+    .pc-workcard-client { font-size: 48px; }
+    .pc-workcard-title { font-size: 15px; }
     .pc-hero { padding: clamp(88px, 13vh, 112px) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
     .pc-hero-logos { margin-top: clamp(28px, 5vh, 44px); }
     .pc-logos-label { margin-bottom: 12px; font-size: 11px; }
@@ -944,11 +704,9 @@ const STYLES = `
     .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
     .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 14px; }
     .pc-hero-price { text-align: center; font-size: 14px; }
-    .pc-btn { width: 100%; min-height: 56px; padding: 0 22px; }
     .pc-quote { padding: 32px 0; gap: 24px; }
     .pc-quote blockquote { font-size: 20px; }
-    .pc-prose, .pc-li-body, .pc-case-col { font-size: 17px; }
-    .pc-lead { font-size: 21px; }
+    .pc-li-body, .pc-case-col { font-size: 17px; }
     .pc-track { padding: 28px 0; }
     .pc-track h3 { font-size: 22px; }
     .pc-dramaturgy { margin-top: 56px; }
@@ -957,14 +715,6 @@ const STYLES = `
     .pc-dramaturgy li:nth-child(n+3) { border-top: 1px solid var(--pc-line-dark); }
     .pc-metric { padding: 28px 0; }
     .pc-metric-v { font-size: 44px; }
-    .pc-close-sub { font-size: 18px; }
-    .pc-offers { margin-top: 48px; gap: 12px; }
-    .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
-    .pc-offer-price { font-size: 52px; }
-    .pc-offer .pc-btn { align-self: stretch; }
-    .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }
-    .pc-footer nav { gap: 8px 20px; }
-    .pc-footer a { padding: 6px 0; }
   }
 
   /* ─── short screens (small laptops, iPhone SE): keep the brand band above the fold ─── */

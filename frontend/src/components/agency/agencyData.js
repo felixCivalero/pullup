@@ -15,7 +15,7 @@ export const OFFER = {
   body: "We run the engine with you: we moderate the dual tracks, script your assets line by line, and hold the whole team to the daily rhythm.",
   terms: [
     ["Start", "A 3‑month trust period at $3,000/month — with no commitment."],
-    ["In those 3 months", "We take you through the core of the system, fast: direction, identity, daily alignment. Your marketing is sharper whether you stay or not."],
+    ["In those 3 months", "The multi-channel start-and-grow process: Instagram scheduled 3 months ahead, your existing content put to work on TikTok, YouTube and Facebook — one system, measured and grown. Your marketing is sharper whether you stay or not."],
     ["After 3 months", "It's clear where our future time together is best invested. Commit to continue — the longer the commitment, the lower the monthly rate."],
   ],
   cta: "Start the trust period",

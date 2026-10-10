@@ -16,7 +16,7 @@ export const OFFER = {
   terms: [
     ["Start", "A 3‑month trust period at $3,000/month — with no commitment."],
     ["In those 3 months", "We take you through the core of the system, fast: direction, identity, daily alignment. Your marketing is sharper whether you stay or not."],
-    ["Then", "Commit to continue. The longer the commitment, the lower the monthly rate."],
+    ["After 3 months", "It's clear where our future time together is best invested. Commit to continue — the longer the commitment, the lower the monthly rate."],
   ],
   cta: "Start the trust period",
 };

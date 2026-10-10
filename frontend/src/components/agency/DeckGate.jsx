@@ -106,7 +106,7 @@ export function DeckGate({ source = "landing" }) {
                 <ArrowDown size={18} strokeWidth={1.75} />
               </button>
               {state === "error" && <p className="pc-deck-error" role="alert">{error}</p>}
-              <p className="pc-deck-fine">PDF · 15 slides. We'll email you the link too. No spam, no list-selling.</p>
+              <p className="pc-deck-fine">PDF · 16 slides. We'll email you the link too. No spam, no list-selling.</p>
             </form>
           )}
         </div>

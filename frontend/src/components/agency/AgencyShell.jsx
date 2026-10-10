@@ -91,6 +91,12 @@ export function AgencyShell({ children, css = "", hideCursor = false }) {
     else navigate("/#work");
   };
 
+  // Every agency page ends with the deck gate (#deck) — jump there in place.
+  const goDeck = () => {
+    trackEvent("cta_click", { location: "nav_deck" });
+    document.getElementById("deck")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="agency-root">
       <style>{AGENCY_CSS + css}</style>
@@ -105,6 +111,9 @@ export function AgencyShell({ children, css = "", hideCursor = false }) {
           <div className="pc-nav-actions">
             <button type="button" className="pc-nav-link" onClick={goWork}>
               Work
+            </button>
+            <button type="button" className="pc-nav-link" onClick={goDeck}>
+              Deck
             </button>
             <button
               type="button"

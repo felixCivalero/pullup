@@ -8,6 +8,7 @@ import { transformedImageUrl } from "../../lib/imageUtils.js";
 import { trackPageView, initTracking } from "../../lib/track.js";
 import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
+import { DeckGate } from "../../components/agency/DeckGate.jsx";
 import { casePath, nextCase } from "../../components/agency/agencyData.js";
 import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_PHOTOS } from "./adamFlamboData.js";
 
@@ -565,6 +566,7 @@ export default function AdamFlamboStory() {
         <p className="fl-cta-fine">A snapshot of Adam Flambo’s real rooms, as of July 2026. His numbers, his photos, his people.</p>
       </section>
     </div>
+    <DeckGate source="case_adam-flambo" />
     <AgencyOffer source="case_adam-flambo" heading="Want this engine inside your organization?" />
     </AgencyShell>
   );

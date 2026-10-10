@@ -8,6 +8,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
+import { DeckGate } from "../components/agency/DeckGate.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { CASES, casePath } from "../components/agency/agencyData.js";
 import { STIGA_TOTALS } from "./work/caseContent.js";
@@ -412,6 +413,7 @@ function AgencyPage() {
         </div>
       </section>
 
+      <DeckGate source="landing" />
       <AgencyOffer id="offer" />
     </>
   );

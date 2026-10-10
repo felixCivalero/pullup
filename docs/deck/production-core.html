@@ -1,0 +1,352 @@
+<!doctype html>
+<!--
+  "The Production Core" — the downloadable deck (lead magnet).
+  Source of truth for backend/assets/the-production-core.pdf.
+  Rebuild: node docs/deck/build.mjs   (Playwright → 16:9 PDF, one slide per page)
+  Facts used: agency blueprint + STIGA Growhouse results (1 Dec 2024 – 30 Jun 2025).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Production Core — PullUp</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  @page { size: 1920px 1080px; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  body { font-family: "Inter Tight", -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #000; }
+
+  .s {
+    width: 1920px; height: 1080px; position: relative; overflow: hidden;
+    padding: 112px 144px 120px;
+    display: flex; flex-direction: column;
+    page-break-after: always; break-after: page;
+  }
+  .s:last-child { page-break-after: auto; break-after: auto; }
+  .dark { background: #000; color: #fff; }
+  .light { background: #fff; color: #000; }
+
+  /* chrome */
+  .top { display: flex; justify-content: space-between; align-items: center; font-size: 22px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8a; }
+  .dark .top { color: rgba(255,255,255,0.5); }
+  .top img { height: 36px; }
+  .light .top img { filter: brightness(0); }
+  .dark .top img { filter: brightness(0) invert(1); }
+  .foot { position: absolute; left: 144px; right: 144px; bottom: 56px; display: flex; justify-content: space-between; font-size: 18px; color: #9a9a9a; letter-spacing: 0.04em; }
+  .dark .foot { color: rgba(255,255,255,0.4); }
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  /* type */
+  .eyebrow { font-size: 24px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 40px; }
+  .dark .eyebrow { color: rgba(255,255,255,0.5); }
+  h1 { font-size: 148px; font-weight: 600; line-height: 0.95; letter-spacing: -0.045em; max-width: 14ch; }
+  h2 { font-size: 104px; font-weight: 600; line-height: 1.0; letter-spacing: -0.04em; max-width: 16ch; }
+  h3 { font-size: 44px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+  .lead { font-size: 38px; line-height: 1.38; letter-spacing: -0.01em; max-width: 46ch; color: #333; }
+  .dark .lead { color: rgba(255,255,255,0.72); }
+  .muted { color: #8a8a8a; }
+  .dark .muted { color: rgba(255,255,255,0.45); }
+  .k { font-size: 20px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #8a8a8a; }
+  .dark .k { color: rgba(255,255,255,0.5); }
+  p.small { font-size: 26px; line-height: 1.5; color: #444; }
+  .dark p.small { color: rgba(255,255,255,0.7); }
+
+  /* the two questions */
+  .qs { display: grid; gap: 0; border-top: 2px solid currentColor; margin-top: 64px; }
+  .q { display: grid; grid-template-columns: 120px 1fr; align-items: baseline; padding: 40px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
+  .dark .q { border-bottom-color: rgba(255,255,255,0.16); }
+  .q span { font-size: 28px; font-weight: 500; color: #8a8a8a; font-variant-numeric: tabular-nums; }
+  .q b { font-size: 84px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+
+  /* columns */
+  .cols { display: grid; gap: 0; border-top: 2px solid currentColor; margin-top: 72px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .col { padding: 40px 48px 0 0; }
+  .col + .col { padding-left: 48px; border-left: 1px solid rgba(0,0,0,0.14); }
+  .dark .col + .col { border-left-color: rgba(255,255,255,0.16); }
+  .col .k { margin-bottom: 20px; }
+  .col h3 { margin-bottom: 18px; }
+  .col p { font-size: 26px; line-height: 1.5; color: #444; }
+  .dark .col p { color: rgba(255,255,255,0.7); }
+  .col ul { list-style: none; }
+  .col li { font-size: 30px; line-height: 1.35; padding: 18px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  .col .big, .big { font-size: 120px; color: #000; font-weight: 600; letter-spacing: -0.05em; line-height: 0.95; font-variant-numeric: tabular-nums; margin-bottom: 20px; }
+
+  .dark .col .big, .dark .big { color: #fff; }
+
+  /* people diagram */
+  .people { display: grid; grid-template-columns: 1.1fr 1fr; gap: 96px; align-items: center; flex: 1; }
+  .people svg { width: 100%; height: auto; }
+
+  /* worksheet mock cards */
+  .sheets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 56px; }
+  .sheet { border: 2px solid #000; border-radius: 18px; padding: 36px; height: 380px; display: flex; flex-direction: column; }
+  .sheet .k { margin-bottom: 14px; }
+  .sheet h3 { font-size: 40px; margin-bottom: 26px; }
+  .sheet .line { border-bottom: 1px solid rgba(0,0,0,0.18); height: 46px; font-size: 20px; color: #9a9a9a; display: flex; align-items: flex-end; padding-bottom: 8px; }
+
+  /* worksheets (appendix) */
+  .ws { padding: 96px 144px 104px; }
+  .ws h2 { font-size: 72px; max-width: none; }
+  .ws .lead { font-size: 28px; margin-top: 18px; max-width: 70ch; }
+  .fields { margin-top: 56px; display: grid; gap: 30px; }
+  .field { display: grid; grid-template-columns: 460px 1fr; gap: 40px; align-items: start; }
+  .field .label { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+  .field .label small { display: block; margin-top: 8px; font-size: 19px; font-weight: 400; color: #8a8a8a; letter-spacing: 0; }
+  .rule { border-bottom: 1px solid rgba(0,0,0,0.25); height: 48px; }
+  table.grid { width: 100%; border-collapse: collapse; margin-top: 48px; table-layout: fixed; }
+  table.grid th { text-align: left; font-size: 19px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 14px 18px 14px 0; border-bottom: 2px solid #000; vertical-align: bottom; }
+  table.grid td { height: 88px; border-bottom: 1px solid rgba(0,0,0,0.22); border-right: 1px solid rgba(0,0,0,0.1); }
+  table.grid td:last-child { border-right: 0; }
+  .note { margin-top: 20px; font-size: 20px; color: #8a8a8a; }
+</style>
+</head>
+<body>
+
+<!-- 1 · cover -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="PullUp" /><span>The Production Core</span></div>
+  <div class="body">
+    <p class="eyebrow">A system for brands held by many people</p>
+    <h1>Where do we want to go — and how do we get there?</h1>
+  </div>
+  <div class="foot"><span>PullUp · pullup.se</span><span>2026</span></div>
+</section>
+
+<!-- 2 · the personal questions -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>01 — Where it starts</span></div>
+  <div class="body">
+    <h2>Every person asks two questions.</h2>
+    <div class="qs">
+      <div class="q"><span>01</span><b>Where do I want to go?</b></div>
+      <div class="q"><span>02</span><b>How am I going to get there?</b></div>
+    </div>
+    <p class="small" style="margin-top:44px;max-width:60ch">It's the core of personal development. Direction first, then the route. Everything else is noise.</p>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>2</span></div>
+</section>
+
+<!-- 3 · the brand questions -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>01 — Where it starts</span></div>
+  <div class="body">
+    <h2>A brand asks exactly the same two.</h2>
+    <div class="qs">
+      <div class="q"><span>01</span><b>Where do we want to go?</b></div>
+      <div class="q"><span>02</span><b>How are we going to get there?</b></div>
+    </div>
+    <p class="small" style="margin-top:44px;max-width:60ch">Building a brand today faces the same challenge as personal development — at the scale of an organization.</p>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>3</span></div>
+</section>
+
+<!-- 4 · many people hold the brand -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>02 — The difference</span></div>
+  <div class="people">
+    <div>
+      <h2>But a brand is held by many people.</h2>
+      <p class="lead" style="margin-top:48px">Founders, marketing, sales, product, operations. Every one of them carries the brand — and every one of them answers the two questions. Usually alone. Usually differently.</p>
+    </div>
+    <svg viewBox="0 0 600 600" aria-hidden="true">
+      <circle cx="300" cy="300" r="250" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2" stroke-dasharray="4 10"/>
+      <g fill="#fff">
+        <circle cx="300" cy="300" r="26"/>
+        <circle cx="160" cy="170" r="18"/><circle cx="450" cy="150" r="18"/><circle cx="500" cy="340" r="18"/>
+        <circle cx="390" cy="480" r="18"/><circle cx="170" cy="460" r="18"/><circle cx="100" cy="310" r="18"/>
+      </g>
+      <g stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M160 170 L95 95"/><path d="M95 95 l20 2 M95 95 l2 20"/>
+        <path d="M450 150 L540 120"/><path d="M540 120 l-18 -9 M540 120 l-12 16"/>
+        <path d="M500 340 L560 420"/><path d="M560 420 l-2 -20 M560 420 l-19 -5"/>
+        <path d="M390 480 L360 570"/><path d="M360 570 l-9 -18 M360 570 l14 -13"/>
+        <path d="M170 460 L80 520"/><path d="M80 520 l20 -1 M80 520 l9 -18"/>
+        <path d="M100 310 L20 290"/><path d="M20 290 l18 -9 M20 290 l15 13"/>
+      </g>
+      <text x="300" y="370" fill="rgba(255,255,255,0.5)" font-family="Inter Tight" font-size="20" text-anchor="middle" letter-spacing="2">THE BRAND</text>
+    </svg>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>4</span></div>
+</section>
+
+<!-- 5 · the workers are the core -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>03 — The core</span></div>
+  <div class="body">
+    <h2>The workers are the core.</h2>
+    <div class="cols cols-2">
+      <div class="col">
+        <p class="k">When they pull in different directions</p>
+        <ul>
+          <li>Content gets invented in a vacuum.</li>
+          <li>Marketing guesses what the work looks like.</li>
+          <li>Meetings multiply. Decisions don't.</li>
+          <li>The brand says one thing; the business does another.</li>
+        </ul>
+      </div>
+      <div class="col">
+        <p class="k">When they align</p>
+        <ul>
+          <li>The daily work becomes the content.</li>
+          <li>Everyone can say where we're going.</li>
+          <li>Thirty minutes is enough to decide.</li>
+          <li>Brand and business tell one story.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>5</span></div>
+</section>
+
+<!-- 6 · statement -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>04 — The system</span></div>
+  <div class="body">
+    <h2 style="max-width:18ch">This system aligns everyone who holds the brand — around the same two questions.</h2>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>6</span></div>
+</section>
+
+<!-- 7 · how it works -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>04 — The system</span></div>
+  <div class="body">
+    <p class="eyebrow">The 30-minute BKM flow</p>
+    <h2>Two tracks. Thirty minutes each. One bridge.</h2>
+    <div class="cols cols-3">
+      <div class="col"><p class="k">Track A</p><h3>Operational Sprints</h3><p>Thirty minutes on the stack, the pipelines and the system. Nothing else enters the room.</p></div>
+      <div class="col"><p class="k">Track B</p><h3>Content Extraction</h3><p>Thirty minutes of the founder talking, shaped on the spot: Hook, Credibility, Core, Outro.</p></div>
+      <div class="col"><p class="k">Bridge</p><h3>The Alignment Bridge</h3><p>Where A and B meet: the operational truth becomes line-by-line content the team can execute.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>7</span></div>
+</section>
+
+<!-- 8 · worksheets -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>05 — Delivery</span></div>
+  <div class="body">
+    <h2>Delivered in simple shared worksheets.</h2>
+    <div class="sheets">
+      <div class="sheet"><p class="k">Worksheet 01</p><h3>Direction</h3><div class="line">Where do we want to go?</div><div class="line">What will we be known for?</div><div class="line">How will we know we're there?</div><div class="line"></div></div>
+      <div class="sheet"><p class="k">Worksheet 02</p><h3>Route</h3><div class="line">How do we get there?</div><div class="line">What do we already do that proves it?</div><div class="line">What do we stop doing?</div><div class="line"></div></div>
+      <div class="sheet"><p class="k">Worksheet 03 + 04</p><h3>Align &amp; Sprint</h3><div class="line">Everyone answers both questions</div><div class="line">Compare. Close the gaps.</div><div class="line">Log every 30-minute sprint</div><div class="line"></div></div>
+    </div>
+    <p class="small" style="margin-top:40px">No new software. One shared sheet everyone can open. The blank worksheets are at the back of this deck.</p>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>8</span></div>
+</section>
+
+<!-- 9 · scales -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>06 — Proof</span></div>
+  <div class="body">
+    <h2>It works from one person to a global brand.</h2>
+    <div class="cols cols-4">
+      <div class="col"><p class="k">Individual</p><h3>Li Karlsén</h3><p>An elite freediver's precision, turned into a four-beat dramaturgy for every piece of content.</p></div>
+      <div class="col"><p class="k">Founder</p><h3>BKM</h3><p>From 0 to 10k on a strict 30-minute rhythm — without a marketing department.</p></div>
+      <div class="col"><p class="k">Team</p><h3>Adam Flambo</h3><p>A deep mission and a team in a vacuum, wired together through the Alignment Bridge.</p></div>
+      <div class="col"><p class="k">Enterprise</p><h3>STIGA</h3><p><b style="font-size:40px;letter-spacing:-0.03em;color:#000">28.1M views</b><br/>335K interactions across four channels, 1 Dec 2024 – 30 Jun 2025.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>9</span></div>
+</section>
+
+<!-- 10 · easy -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>07 — Implementation</span></div>
+  <div class="body">
+    <h2>Easy to implement. Easy to align.</h2>
+    <div class="cols cols-3">
+      <div class="col"><p class="big">30</p><p>Minutes per sprint. Short enough to protect, long enough to decide.</p></div>
+      <div class="col"><p class="big">2</p><p>Questions everyone answers — where we're going, and how we get there.</p></div>
+      <div class="col"><p class="big">1</p><p>Shared worksheet set. Run it internally, from day one.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>10</span></div>
+</section>
+
+<!-- 11 · offers -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>08 — Working with us</span></div>
+  <div class="body">
+    <h2>Two ways to start.</h2>
+    <div class="cols cols-2">
+      <div class="col"><p class="k">The Blueprint Restructure</p><p class="big">$4,820</p><p>One-time. We audit your stack, build your content templates, and map your 3-part BKM engine — for your team to run.</p></div>
+      <div class="col"><p class="k">The Retained Architecture</p><p class="big">$3,000<span style="font-size:32px;letter-spacing:0;color:#8a8a8a"> / month</span></p><p>A 12+ month partnership. We run the engine, moderate the dual tracks, and script your assets line by line.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>11</span></div>
+</section>
+
+<!-- 12 · close -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>The Production Core</span></div>
+  <div class="body">
+    <h1 style="max-width:13ch">Start with the two questions.</h1>
+    <p class="lead" style="margin-top:56px">Run the worksheets that follow with your team this week. When you want the engine built — or run for you — we're here.</p>
+    <p style="margin-top:56px;font-size:44px;font-weight:600;letter-spacing:-0.02em">hello@pullup.se &nbsp;·&nbsp; pullup.se</p>
+  </div>
+  <div class="foot"><span>PullUp</span><span>12</span></div>
+</section>
+
+<!-- W1 · direction -->
+<section class="s light ws">
+  <div class="top"><span>Worksheet 01 — Direction</span><span>The Production Core</span></div>
+  <h2 style="margin-top:44px">Where do we want to go?</h2>
+  <p class="lead">Fill in alone first, then together. Keep every answer to one sentence.</p>
+  <div class="fields">
+    <div class="field"><p class="label">In 12 months, we are…<small>The destination, stated plainly.</small></p><div><div class="rule"></div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">We want to be known for…<small>One thing, not a list.</small></p><div><div class="rule"></div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">We'll know we're there when…<small>Three signs anyone could check.</small></p><div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">The people who hold this brand<small>Names and roles.</small></p><div><div class="rule"></div><div class="rule"></div></div></div>
+  </div>
+  <div class="foot"><span>pullup.se</span><span>W1</span></div>
+</section>
+
+<!-- W2 · route -->
+<section class="s light ws">
+  <div class="top"><span>Worksheet 02 — Route</span><span>The Production Core</span></div>
+  <h2 style="margin-top:44px">How are we going to get there?</h2>
+  <p class="lead">Start from what you already do. The route is built from real work, not invented campaigns.</p>
+  <div class="fields">
+    <div class="field"><p class="label">Our three pillars<small>The themes every piece of work ladders up to.</small></p><div><div class="rule"></div><div class="rule"></div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">Daily work that already proves it<small>Deliverables, decisions, results — raw material.</small></p><div><div class="rule"></div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">What we stop doing<small>Anything that doesn't move us toward the destination.</small></p><div><div class="rule"></div></div></div>
+    <div class="field"><p class="label">Our rhythm<small>Track A day + time · Track B day + time.</small></p><div><div class="rule"></div></div></div>
+  </div>
+  <div class="foot"><span>pullup.se</span><span>W2</span></div>
+</section>
+
+<!-- W3 · alignment -->
+<section class="s light ws">
+  <div class="top"><span>Worksheet 03 — Alignment</span><span>The Production Core</span></div>
+  <h2 style="margin-top:44px">Does everyone answer the same way?</h2>
+  <p class="lead">Each person answers both questions without looking at the others. Then compare. The gaps are the agenda.</p>
+  <table class="grid">
+    <colgroup><col style="width:18%"/><col style="width:31%"/><col style="width:31%"/><col style="width:20%"/></colgroup>
+    <thead><tr><th>Person · role</th><th>Where do we want to go?</th><th>How do we get there?</th><th>Gap to close</th></tr></thead>
+    <tbody><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr></tbody>
+  </table>
+  <div class="foot"><span>pullup.se</span><span>W3</span></div>
+</section>
+
+<!-- W4 · sprint log -->
+<section class="s light ws">
+  <div class="top"><span>Worksheet 04 — Sprint log</span><span>The Production Core</span></div>
+  <h2 style="margin-top:44px">Thirty minutes. One line each.</h2>
+  <p class="lead">Log every sprint. Track B output goes straight into the four beats, ready for the team to produce.</p>
+  <table class="grid" style="margin-top:36px">
+    <colgroup><col style="width:10%"/><col style="width:8%"/><col style="width:22%"/><col style="width:15%"/><col style="width:15%"/><col style="width:15%"/><col style="width:15%"/></colgroup>
+    <thead><tr><th>Date</th><th>A / B</th><th>30-minute focus</th><th>Hook</th><th>Credibility</th><th>Core</th><th>Outro</th></tr></thead>
+    <tbody><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody>
+  </table>
+  <p class="note">Track A rows: leave the four beats empty and note the system change instead.</p>
+  <div class="foot"><span>pullup.se</span><span>W4</span></div>
+</section>
+
+</body>
+</html>

@@ -6,17 +6,17 @@ export const CONTACT = "hello@pullup.se";
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 
-// One package. Every engagement opens with a 3‑month trust period; longer
-// commitments after that bring the monthly rate down.
+// One package. Every engagement opens with a 3-month trust period — paid, but
+// no commitment; the commitment starts after it, and longer commitments cost less.
 export const OFFER = {
   name: "The Retained Architecture",
   price: "$3,000",
   cadence: "/ month",
   body: "We run the engine with you: we moderate the dual tracks, script your assets line by line, and hold the whole team to the daily rhythm.",
   terms: [
-    ["Start", "Every engagement opens with a 3‑month trust period."],
-    ["Then", "Commit for longer, and the monthly rate goes down."],
-    ["Always", "Built around your team — it keeps running when we step back."],
+    ["Start", "A 3‑month trust period at $3,000/month — with no commitment."],
+    ["In those 3 months", "We take you through the core of the system, fast: direction, identity, daily alignment. Your marketing is sharper whether you stay or not."],
+    ["Then", "Commit to continue. The longer the commitment, the lower the monthly rate."],
   ],
   cta: "Start the trust period",
 };

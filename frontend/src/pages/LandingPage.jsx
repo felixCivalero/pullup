@@ -208,7 +208,7 @@ function AgencyPage() {
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <p className="pc-hero-price">
-                $3,000 per month <span>/</span> lower for longer commitments
+                $3,000 per month <span>/</span> no commitment for the first 3 months
               </p>
             </div>
           </Reveal>

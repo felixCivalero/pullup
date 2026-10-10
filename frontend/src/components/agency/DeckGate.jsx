@@ -64,8 +64,8 @@ export function DeckGate({ source = "landing" }) {
           <Reveal delay={0.06}>
             <p className="pc-deck-lede">
               Building a brand asks the same two questions as personal development —
-              except many people hold the answer. The deck shows how to align them,
-              and ends with the four shared worksheets to run it with your team.
+              except many people hold the answer. The deck shows how one system aligns
+              them — from a single founder to a global brand.
             </p>
           </Reveal>
 
@@ -106,13 +106,13 @@ export function DeckGate({ source = "landing" }) {
                 <ArrowDown size={18} strokeWidth={1.75} />
               </button>
               {state === "error" && <p className="pc-deck-error" role="alert">{error}</p>}
-              <p className="pc-deck-fine">PDF · 12 slides + 4 worksheets. We'll email you the link too. No spam, no list-selling.</p>
+              <p className="pc-deck-fine">PDF · 12 slides. We'll email you the link too. No spam, no list-selling.</p>
             </form>
           )}
         </div>
 
         <Reveal delay={0.1} className="pc-deck-stack">
-          <img src="/deck/worksheet.webp" alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
+          <img src="/deck/system.webp" alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
           <img src="/deck/questions.webp" alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
           <img
             src="/deck/cover.webp"

@@ -61,7 +61,7 @@ function deckEmail({ name, url, title }) {
       <h1 style="font-size:28px;line-height:1.1;font-weight:700;letter-spacing:-0.02em;margin:0 0 18px;">${esc(title)}</h1>
       <p style="font-size:15px;line-height:1.6;color:rgba(0,0,0,0.72);margin:0 0 14px;">${hi}</p>
       <p style="font-size:15px;line-height:1.6;color:rgba(0,0,0,0.72);margin:0 0 24px;">
-        Here is your copy. It starts with two questions every person and every brand has to answer — where do we want to go, and how do we get there — and ends with the worksheets to run it with your team.
+        Here is your copy. It starts with two questions every person and every brand has to answer — where do we want to go, and how do we get there — and shows how one system aligns everyone who holds the brand.
       </p>
       <p style="margin:0 0 28px;">
         <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 24px;border-radius:999px;">Download the deck (PDF)</a>

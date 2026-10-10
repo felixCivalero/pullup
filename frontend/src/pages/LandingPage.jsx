@@ -197,18 +197,18 @@ function AgencyPage() {
             <p className="pc-hero-sub">
               Stop inventing marketing content. We turn your daily operational
               deliverables and high-level vision into a high-retention, global
-              content engine — driven by a precise, 12+ month BKM alignment flow
+              content engine — driven by a precise, long-term BKM alignment flow
               and high-frequency, 30-minute tactical sprints.
             </p>
           </Reveal>
           <Reveal delay={0.24}>
             <div className="pc-hero-cta">
               <button type="button" className="pc-btn pc-btn-light" onClick={() => toOffer("hero")}>
-                Secure your operational blueprint
+                Start with a 3‑month trust period
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <p className="pc-hero-price">
-                $4,820 one-time <span>/</span> $3,000 per month
+                $3,000 per month <span>/</span> lower for longer commitments
               </p>
             </div>
           </Reveal>

@@ -1,4 +1,4 @@
-// The agency's single sources of truth: contact, the two offers, and the case
+// The agency's single sources of truth: contact, the offer, and the case
 // registry every surface links from (landing work index, nav, footer, each
 // case page's "next case"). Order here = order everywhere.
 
@@ -6,22 +6,20 @@ export const CONTACT = "hello@pullup.se";
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 
-export const OFFERS = [
-  {
-    name: "The Blueprint Restructure",
-    price: "$4,820",
-    cadence: "One-time",
-    body: "We audit your stack, build your content templates, and map your 3-part BKM engine.",
-    cta: "Secure the Blueprint",
-  },
-  {
-    name: "The Retained Architecture",
-    price: "$3,000",
-    cadence: "/ month · 12+ months",
-    body: "A global partnership where we run the engine, moderate the dual tracks, and script your dramaturgical assets line-by-line.",
-    cta: "Apply for retainer",
-  },
-];
+// One package. Every engagement opens with a 3‑month trust period; longer
+// commitments after that bring the monthly rate down.
+export const OFFER = {
+  name: "The Retained Architecture",
+  price: "$3,000",
+  cadence: "/ month",
+  body: "We run the engine with you: we moderate the dual tracks, script your assets line by line, and hold the whole team to the daily rhythm.",
+  terms: [
+    ["Start", "Every engagement opens with a 3‑month trust period."],
+    ["Then", "Commit for longer, and the monthly rate goes down."],
+    ["Always", "Built around your team — it keeps running when we step back."],
+  ],
+  cta: "Start the trust period",
+};
 
 // `image` is optional — cards and case heroes fall back to pure typography.
 export const CASES = [

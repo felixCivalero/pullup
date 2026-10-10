@@ -59,13 +59,13 @@ export function DeckGate({ source = "landing" }) {
         <div className="pc-deck-copy">
           <p className="pc-label">The deck · free</p>
           <Reveal>
-            <h2 className="pc-h2">Where do we want to go — and how do we get there?</h2>
+            <h2 className="pc-h2">Where do we want to go — and who do we need to be to get there?</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="pc-deck-lede">
-              Building a brand asks the same two questions as personal development —
-              except many people hold the answer. The deck shows how one system aligns
-              them — from a single founder to a global brand.
+              Getting there isn't a plan you finish — it's a decision you take every day:
+              who we are. A brand is held by many people, so that decision has to be taken
+              together. The deck shows how one system aligns them, from a founder to a global brand.
             </p>
           </Reveal>
 
@@ -106,14 +106,14 @@ export function DeckGate({ source = "landing" }) {
                 <ArrowDown size={18} strokeWidth={1.75} />
               </button>
               {state === "error" && <p className="pc-deck-error" role="alert">{error}</p>}
-              <p className="pc-deck-fine">PDF · 12 slides. We'll email you the link too. No spam, no list-selling.</p>
+              <p className="pc-deck-fine">PDF · 13 slides. We'll email you the link too. No spam, no list-selling.</p>
             </form>
           )}
         </div>
 
         <Reveal delay={0.1} className="pc-deck-stack">
           <img src="/deck/system.webp" alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
-          <img src="/deck/questions.webp" alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
+          <img src="/deck/who.webp" alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
           <img
             src="/deck/cover.webp"
             alt="The Production Core deck — cover slide"

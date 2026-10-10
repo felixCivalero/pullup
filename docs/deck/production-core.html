@@ -58,6 +58,12 @@
   .q span { font-size: 28px; font-weight: 500; color: #8a8a8a; font-variant-numeric: tabular-nums; }
   .q b { font-size: 84px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 
+  .qs-3 { margin-top: 44px; }
+  .qs-3 .q { padding: 26px 0; }
+  .qs-3 .q b { font-size: 72px; }
+  .q.is-answer b { text-decoration: underline; text-decoration-thickness: 4px; text-underline-offset: 14px; }
+  .q.is-answer span { color: #000; }
+
   /* columns */
   .cols { display: grid; gap: 0; border-top: 2px solid currentColor; margin-top: 72px; }
   .cols-2 { grid-template-columns: 1fr 1fr; }
@@ -96,7 +102,7 @@
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="PullUp" /><span>The Production Core</span></div>
   <div class="body">
     <p class="eyebrow">A system for brands held by many people</p>
-    <h1>Where do we want to go — and how do we get there?</h1>
+    <h1 style="font-size:132px;max-width:15ch">Where do we want to go — and who do we need to be to get there?</h1>
   </div>
   <div class="foot"><span>PullUp · pullup.se</span><span>2026</span></div>
 </section>
@@ -110,32 +116,44 @@
       <div class="q"><span>01</span><b>Where do I want to go?</b></div>
       <div class="q"><span>02</span><b>How am I going to get there?</b></div>
     </div>
-    <p class="small" style="margin-top:44px;max-width:60ch">It's the core of personal development. Direction first, then the route. Everything else is noise.</p>
+    <p class="small" style="margin-top:44px;max-width:60ch">It's the core of personal development. Direction first, then the route.</p>
   </div>
   <div class="foot"><span>The Production Core</span><span>2</span></div>
 </section>
 
-<!-- 3 · the brand questions -->
-<section class="s light">
+<!-- 3 · how = who -->
+<section class="s dark">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>01 — Where it starts</span></div>
   <div class="body">
-    <h2>A brand asks exactly the same two.</h2>
-    <div class="qs">
-      <div class="q"><span>01</span><b>Where do we want to go?</b></div>
-      <div class="q"><span>02</span><b>How are we going to get there?</b></div>
-    </div>
-    <p class="small" style="margin-top:44px;max-width:60ch">Building a brand today faces the same challenge as personal development — at the scale of an organization.</p>
+    <p class="eyebrow">How do I get there?</p>
+    <h2 style="max-width:15ch">By deciding who I am. Now.</h2>
+    <p class="lead" style="margin-top:56px">Not someday. The person who arrives is the person you decide to be today — and decide again tomorrow. Getting there isn't a plan you finish. It's a decision you take every day.</p>
   </div>
   <div class="foot"><span>The Production Core</span><span>3</span></div>
 </section>
 
-<!-- 4 · many people hold the brand -->
+<!-- 4 · the brand questions -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>01 — Where it starts</span></div>
+  <div class="body">
+    <h2>A brand asks exactly the same.</h2>
+    <div class="qs qs-3">
+      <div class="q"><span>01</span><b>Where do we want to go?</b></div>
+      <div class="q"><span>02</span><b>How do we get there?</b></div>
+      <div class="q is-answer"><span>→</span><b>Who are we — today?</b></div>
+    </div>
+    <p class="small" style="margin-top:40px;max-width:62ch">Building a brand is personal development at the scale of an organization. The route is an identity, decided now — every day.</p>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>4</span></div>
+</section>
+
+<!-- 5 · many people hold the brand -->
 <section class="s dark">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>02 — The difference</span></div>
   <div class="people">
     <div>
       <h2>But a brand is held by many people.</h2>
-      <p class="lead" style="margin-top:48px">Founders, marketing, sales, product, operations. Every one of them carries the brand — and every one of them answers the two questions. Usually alone. Usually differently.</p>
+      <p class="lead" style="margin-top:48px">Founders, marketing, sales, product, operations. Every one of them decides who we are — in every email, meeting, post and product call. Every day. Usually alone. Usually differently.</p>
     </div>
     <svg viewBox="0 0 600 600" aria-hidden="true">
       <circle cx="300" cy="300" r="250" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2" stroke-dasharray="4 10"/>
@@ -155,17 +173,17 @@
       <text x="300" y="370" fill="rgba(255,255,255,0.5)" font-family="Inter Tight" font-size="20" text-anchor="middle" letter-spacing="2">THE BRAND</text>
     </svg>
   </div>
-  <div class="foot"><span>The Production Core</span><span>4</span></div>
+  <div class="foot"><span>The Production Core</span><span>5</span></div>
 </section>
 
-<!-- 5 · the workers are the core -->
+<!-- 6 · the workers are the core -->
 <section class="s light">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>03 — The core</span></div>
   <div class="body">
     <h2>The workers are the core.</h2>
     <div class="cols cols-2">
       <div class="col">
-        <p class="k">When they pull in different directions</p>
+        <p class="k">When everyone decides alone</p>
         <ul>
           <li>Content gets invented in a vacuum.</li>
           <li>Marketing guesses what the work looks like.</li>
@@ -174,59 +192,60 @@
         </ul>
       </div>
       <div class="col">
-        <p class="k">When they align</p>
+        <p class="k">When they decide together, every day</p>
         <ul>
           <li>The daily work becomes the content.</li>
-          <li>Everyone can say where we're going.</li>
+          <li>Everyone can say who we are — and where we're going.</li>
           <li>Thirty minutes is enough to decide.</li>
           <li>Brand and business tell one story.</li>
         </ul>
       </div>
     </div>
   </div>
-  <div class="foot"><span>The Production Core</span><span>5</span></div>
-</section>
-
-<!-- 6 · statement -->
-<section class="s dark">
-  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>04 — The system</span></div>
-  <div class="body">
-    <h2 style="max-width:18ch">This system aligns everyone who holds the brand — around the same two questions.</h2>
-  </div>
   <div class="foot"><span>The Production Core</span><span>6</span></div>
 </section>
 
-<!-- 7 · how it works -->
-<section class="s light">
+<!-- 7 · statement -->
+<section class="s dark">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>04 — The system</span></div>
   <div class="body">
-    <p class="eyebrow">The 30-minute BKM flow</p>
-    <h2>Two tracks. Thirty minutes each. One bridge.</h2>
-    <div class="cols cols-3">
-      <div class="col"><p class="k">Track A</p><h3>Operational Sprints</h3><p>Thirty minutes on the stack, the pipelines and the system. Nothing else enters the room.</p></div>
-      <div class="col"><p class="k">Track B</p><h3>Content Extraction</h3><p>Thirty minutes of the founder talking, shaped on the spot: Hook, Credibility, Core, Outro.</p></div>
-      <div class="col"><p class="k">Bridge</p><h3>The Alignment Bridge</h3><p>Where A and B meet: the operational truth becomes line-by-line content the team can execute.</p></div>
-    </div>
+    <p class="eyebrow">This is where alignment comes in</p>
+    <h2 style="max-width:17ch">One decision, taken together, every day: who we are.</h2>
   </div>
   <div class="foot"><span>The Production Core</span><span>7</span></div>
 </section>
 
-<!-- 8 · worksheets -->
+<!-- 8 · how it works -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>04 — The system</span></div>
+  <div class="body">
+    <p class="eyebrow">The 30-minute BKM flow</p>
+    <h2>Where the daily decision gets made.</h2>
+    <div class="cols cols-3">
+      <div class="col"><p class="k">Track A · 30 min</p><h3>Operational Sprints</h3><p>Who we are in how we work: the stack, the pipelines, the system. Nothing else enters the room.</p></div>
+      <div class="col"><p class="k">Track B · 30 min</p><h3>Content Extraction</h3><p>Who we are in what we say: the founder's voice, shaped on the spot into Hook, Credibility, Core, Outro.</p></div>
+      <div class="col"><p class="k">Bridge</p><h3>The Alignment Bridge</h3><p>How we work and what we say become one story — line by line, for the whole team to act on.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>8</span></div>
+</section>
+
+<!-- 9 · worksheets -->
 <section class="s light">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>05 — Delivery</span></div>
   <div class="body">
     <h2>Delivered in simple shared worksheets.</h2>
     <div class="sheets">
       <div class="sheet"><p class="k">Worksheet 01</p><h3>Direction</h3><div class="line">Where do we want to go?</div><div class="line">What will we be known for?</div><div class="line">How will we know we're there?</div><div class="line"></div></div>
-      <div class="sheet"><p class="k">Worksheet 02</p><h3>Route</h3><div class="line">How do we get there?</div><div class="line">What do we already do that proves it?</div><div class="line">What do we stop doing?</div><div class="line"></div></div>
-      <div class="sheet"><p class="k">Worksheet 03 + 04</p><h3>Align &amp; Sprint</h3><div class="line">Everyone answers both questions</div><div class="line">Compare. Close the gaps.</div><div class="line">Log every 30-minute sprint</div><div class="line"></div></div>
+      <div class="sheet"><p class="k">Worksheet 02</p><h3>Identity</h3><div class="line">Who are we?</div><div class="line">Who do we need to be to get there?</div><div class="line">What do we decide today?</div><div class="line"></div></div>
+      <div class="sheet"><p class="k">Worksheet 03</p><h3>Daily alignment</h3><div class="line">Everyone answers: who are we today?</div><div class="line">Compare. Close the gaps.</div><div class="line">Log the 30-minute sprint</div><div class="line"></div></div>
     </div>
     <p class="small" style="margin-top:40px">No new software. One shared sheet everyone can open.</p>
   </div>
-  <div class="foot"><span>The Production Core</span><span>8</span></div>
+  <div class="foot"><span>The Production Core</span><span>9</span></div>
 </section>
 
-<!-- 9 · scales -->
+<!-- 10 · scales -->
 <section class="s light">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>06 — Proof</span></div>
   <div class="body">
@@ -238,45 +257,51 @@
       <div class="col"><p class="k">Enterprise</p><h3>STIGA</h3><p><b style="font-size:40px;letter-spacing:-0.03em;color:#000">28.1M views</b><br/>335K interactions across four channels, 1 Dec 2024 – 30 Jun 2025.</p></div>
     </div>
   </div>
-  <div class="foot"><span>The Production Core</span><span>9</span></div>
-</section>
-
-<!-- 10 · easy -->
-<section class="s dark">
-  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>07 — Implementation</span></div>
-  <div class="body">
-    <h2>Easy to implement. Easy to align.</h2>
-    <div class="cols cols-3">
-      <div class="col"><p class="big">30</p><p>Minutes per sprint. Short enough to protect, long enough to decide.</p></div>
-      <div class="col"><p class="big">2</p><p>Questions everyone answers — where we're going, and how we get there.</p></div>
-      <div class="col"><p class="big">1</p><p>Shared worksheet set. Run it internally, from day one.</p></div>
-    </div>
-  </div>
   <div class="foot"><span>The Production Core</span><span>10</span></div>
 </section>
 
-<!-- 11 · offers -->
-<section class="s light">
-  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>08 — Working with us</span></div>
+<!-- 11 · every day -->
+<section class="s dark">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>07 — Implementation</span></div>
   <div class="body">
-    <h2>Two ways to start.</h2>
-    <div class="cols cols-2">
-      <div class="col"><p class="k">The Blueprint Restructure</p><p class="big">$4,820</p><p>One-time. We audit your stack, build your content templates, and map your 3-part BKM engine — for your team to run.</p></div>
-      <div class="col"><p class="k">The Retained Architecture</p><p class="big">$3,000<span style="font-size:32px;letter-spacing:0;color:#8a8a8a"> / month</span></p><p>A 12+ month partnership. We run the engine, moderate the dual tracks, and script your assets line by line.</p></div>
+    <h2>Easy to implement. Easy to align. Every day.</h2>
+    <div class="cols cols-3">
+      <div class="col"><p class="big">30</p><p>Minutes per sprint. Short enough to protect, long enough to decide.</p></div>
+      <div class="col"><p class="big">1</p><p>Decision everyone takes: who we are — in service of where we're going.</p></div>
+      <div class="col"><p class="big">Daily</p><p>Not a workshop once a year. A shared sheet and a rhythm, run internally from day one.</p></div>
     </div>
   </div>
   <div class="foot"><span>The Production Core</span><span>11</span></div>
 </section>
 
-<!-- 12 · close -->
+<!-- 12 · offers -->
+<section class="s light">
+  <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>08 — Working with us</span></div>
+  <div class="body">
+    <h2>One way to start.</h2>
+    <div class="cols cols-2">
+      <div class="col"><p class="k">The Retained Architecture</p><p class="big">$3,000<span style="font-size:32px;letter-spacing:0;color:#8a8a8a"> / month</span></p><p>We run the engine with you: we moderate the dual tracks, script your assets line by line, and hold the whole team to the daily rhythm.</p></div>
+      <div class="col">
+        <ul>
+          <li><b>Starts with a 3-month trust period.</b> Every engagement, no exceptions.</li>
+          <li><b>Then commit for longer</b> — and the monthly rate goes down.</li>
+          <li><b>Built around your team,</b> so it keeps running when we step back.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>The Production Core</span><span>12</span></div>
+</section>
+
+<!-- 13 · close -->
 <section class="s dark">
   <div class="top"><img src="../../frontend/public/pullup-textlogo.svg" alt="" /><span>The Production Core</span></div>
   <div class="body">
-    <h1 style="max-width:13ch">Start with the two questions.</h1>
-    <p class="lead" style="margin-top:56px">Ask your team the two questions this week. When you want the engine built — or run for you — we're here.</p>
+    <h1 style="max-width:13ch">Decide who you are. Today.</h1>
+    <p class="lead" style="margin-top:56px">Where you want to go sets the direction. Who you decide to be — every day, together — is how you get there. When you want the engine built, or run for you, we're here.</p>
     <p style="margin-top:56px;font-size:44px;font-weight:600;letter-spacing:-0.02em">hello@pullup.se &nbsp;·&nbsp; pullup.se</p>
   </div>
-  <div class="foot"><span>PullUp</span><span>12</span></div>
+  <div class="foot"><span>PullUp</span><span>13</span></div>
 </section>
 
 </body>

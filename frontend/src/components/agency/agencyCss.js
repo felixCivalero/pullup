@@ -154,11 +154,6 @@ export const AGENCY_CSS = `
     max-width: 52ch;
     font-size: clamp(18px, 1.8vw, 22px); line-height: 1.5; color: rgba(255,255,255,0.7);
   }
-  .pc-offers {
-    margin-top: clamp(56px, 8vw, 96px);
-    display: grid; grid-template-columns: 1fr; gap: 16px;
-  }
-  @media (min-width: 900px) { .pc-offers { grid-template-columns: 1fr 1fr; gap: 24px; } }
   .pc-offer {
     height: 100%;
     border: 1px solid var(--pc-line-dark); border-radius: 20px;
@@ -176,6 +171,15 @@ export const AGENCY_CSS = `
   .pc-offer .pc-btn { align-self: flex-start; margin-top: 8px; }
 
   .pc-close .pc-h2-xl { margin-bottom: 28px; }
+  .pc-offer-one { margin-top: clamp(56px, 8vw, 96px); display: grid; grid-template-columns: 1fr; gap: clamp(32px, 4vw, 56px); }
+  @media (min-width: 900px) { .pc-offer-one { grid-template-columns: 7fr 5fr; align-items: stretch; } }
+  .pc-offer-main { display: flex; flex-direction: column; gap: 20px; }
+  .pc-offer-terms { margin: 0; display: grid; align-content: center; border-top: 1px solid var(--pc-line-dark); }
+  @media (min-width: 900px) { .pc-offer-terms { border-top: 0; border-left: 1px solid var(--pc-line-dark); padding-left: clamp(28px, 3vw, 48px); } }
+  .pc-offer-terms > div { padding: 20px 0; border-bottom: 1px solid var(--pc-line-dark); }
+  .pc-offer-terms > div:last-child { border-bottom: 0; }
+  .pc-offer-terms dt { font-size: 12px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+  .pc-offer-terms dd { margin: 0; font-size: 18px; line-height: 1.45; color: #fff; }
 
   /* ─── footer ─── */
   .pc-footer {
@@ -245,8 +249,7 @@ export const AGENCY_CSS = `
     .pc-lead { font-size: 21px; }
     .pc-nav-link { font-size: 15px; }
     .pc-close-sub { font-size: 18px; }
-    .pc-offers { margin-top: 48px; gap: 12px; }
-    .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
+      .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
     .pc-offer-price { font-size: 52px; }
     .pc-offer .pc-btn { align-self: stretch; }
     .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }

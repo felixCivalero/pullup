@@ -1,9 +1,9 @@
 import { ArrowUpRight } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
-import { OFFERS, mailto } from "./agencyData.js";
+import { OFFER, mailto } from "./agencyData.js";
 import { Reveal } from "./Reveal.jsx";
 
-// The closing offer — the same two doors on the landing and every case page.
+// The closing offer — the one package, on the landing and every case page.
 export function AgencyOffer({
   id,
   source = "landing",
@@ -25,33 +25,34 @@ export function AgencyOffer({
         <Reveal delay={0.08}>
           <p className="pc-close-sub">{sub}</p>
         </Reveal>
-        <div className="pc-offers">
-          {OFFERS.map((o, i) => (
-            <Reveal key={o.name} delay={i * 0.08}>
-              <div className="pc-offer">
-                <p className="pc-offer-name">{o.name}</p>
-                <p className="pc-offer-price">
-                  {o.price}
-                  <span>{o.cadence}</span>
-                </p>
-                <p className="pc-offer-body">{o.body}</p>
-                <a
-                  className={`pc-btn ${i === 0 ? "pc-btn-light" : "pc-btn-ghost"}`}
-                  href={mailto(o.name)}
-                  onClick={() =>
-                    trackEvent("cta_click", {
-                      location: `offer_${i === 0 ? "blueprint" : "retained"}`,
-                      source,
-                    })
-                  }
-                >
-                  {o.cta}
-                  <ArrowUpRight size={18} strokeWidth={1.75} />
-                </a>
-              </div>
-            </Reveal>
-          ))}
-        </div>
+        <Reveal delay={0.12}>
+          <div className="pc-offer pc-offer-one">
+            <div className="pc-offer-main">
+              <p className="pc-offer-name">{OFFER.name}</p>
+              <p className="pc-offer-price">
+                {OFFER.price}
+                <span>{OFFER.cadence}</span>
+              </p>
+              <p className="pc-offer-body">{OFFER.body}</p>
+              <a
+                className="pc-btn pc-btn-light"
+                href={mailto(`${OFFER.name} — trust period`)}
+                onClick={() => trackEvent("cta_click", { location: "offer_trust_period", source })}
+              >
+                {OFFER.cta}
+                <ArrowUpRight size={18} strokeWidth={1.75} />
+              </a>
+            </div>
+            <dl className="pc-offer-terms">
+              {OFFER.terms.map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

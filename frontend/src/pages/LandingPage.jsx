@@ -120,12 +120,35 @@ function SectionLabel({ n, children }) {
 
 function AgencyPage({ onLogin }) {
   const [scrolled, setScrolled] = useState(false);
+  const [navDark, setNavDark] = useState(true);
+  const navRef = useRef(null);
 
+  // The bar takes the tone of whatever section sits under it — black over
+  // the dark beats, white over the light ones — so it never sits on text.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    let raf = null;
+    const compute = () => {
+      raf = null;
+      setScrolled(window.scrollY > 8);
+      const probe = (navRef.current?.getBoundingClientRect().bottom || 64) - 1;
+      let dark = false;
+      document.querySelectorAll("[data-pc-tone='dark']").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top <= probe && r.bottom > probe) dark = true;
+      });
+      setNavDark(dark);
+    };
+    const onScroll = () => {
+      if (raf == null) raf = requestAnimationFrame(compute);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+    compute();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
   }, []);
 
   // Scroll-depth: each named beat fires section_view once per mount.
@@ -160,7 +183,10 @@ function AgencyPage({ onLogin }) {
 
   return (
     <div className="pc">
-      <header className={`pc-nav${scrolled ? " is-scrolled" : ""}`}>
+      <header
+        ref={navRef}
+        className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}`}
+      >
         <button
           type="button"
           className="pc-nav-brand"
@@ -182,7 +208,7 @@ function AgencyPage({ onLogin }) {
       </header>
 
       {/* ─── 1. HERO — the solo offer ─── */}
-      <section className="pc-hero pc-dark" data-pc-section="hero" data-pc-order="1">
+      <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
             <p className="pc-eyebrow">The Production Core</p>
@@ -297,7 +323,7 @@ function AgencyPage({ onLogin }) {
       </section>
 
       {/* ─── 4. LI KARLSÉN — cinematic profile ─── */}
-      <section className="pc-section pc-dark pc-li" data-pc-section="li" data-pc-order="5">
+      <section className="pc-section pc-dark pc-li" data-pc-tone="dark" data-pc-section="li" data-pc-order="5">
         <div className="pc-wrap">
           <SectionLabel n="04">Profile — Li Karlsén</SectionLabel>
           <Reveal>
@@ -404,7 +430,7 @@ function AgencyPage({ onLogin }) {
       </section>
 
       {/* ─── 7. THE OFFER & CLOSE ─── */}
-      <section id="offer" className="pc-section pc-dark pc-close" data-pc-section="offer" data-pc-order="8">
+      <section id="offer" className="pc-section pc-dark pc-close" data-pc-tone="dark" data-pc-section="offer" data-pc-order="8">
         <div className="pc-wrap">
           <Reveal>
             <h2 className="pc-h2 pc-h2-xl">
@@ -442,7 +468,7 @@ function AgencyPage({ onLogin }) {
         </div>
       </section>
 
-      <footer className="pc-footer">
+      <footer className="pc-footer" data-pc-tone="dark">
         <span>PullUp &copy; {new Date().getFullYear()}</span>
         <nav>
           <a href="/privacy">Privacy</a>
@@ -549,7 +575,12 @@ const STYLES = `
   }
   .pc { width: 100%; }
   .pc *, .pc *::before, .pc *::after { box-sizing: border-box; }
-  .pc p, .pc h1, .pc h2, .pc h3, .pc figure, .pc blockquote, .pc ol { margin: 0; }
+  :where(.pc) :where(p, h1, h2, h3, figure, blockquote, ol) { margin: 0; }
+  .pc h1, .pc h2, .pc h3 { text-wrap: balance; }
+  .pc p, .pc blockquote { text-wrap: pretty; }
+  .pc button, .pc a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .landing-root { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  .pc :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
   .pc-wrap {
     width: 100%;
@@ -568,25 +599,39 @@ const STYLES = `
     .pc-reveal { opacity: 1; transform: none; transition: none; }
   }
 
-  /* ─── nav: difference blend keeps it legible on black and white ─── */
+  /* ─── nav: takes the tone of the section beneath it ─── */
   .pc-nav {
     position: fixed; top: 0; left: 0; right: 0; z-index: 50;
     height: 64px;
     padding: env(safe-area-inset-top, 0px) clamp(16px, 5vw, 56px) 0;
     box-sizing: content-box;
     display: flex; align-items: center; justify-content: space-between;
-    mix-blend-mode: difference;
-    color: #fff;
+    border-bottom: 1px solid transparent;
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   }
-  .pc-nav-brand { background: none; border: 0; padding: 0; display: flex; cursor: pointer; }
-  .pc-nav-brand img { height: 24px; width: auto; display: block; filter: brightness(0) invert(1); }
+  .pc-nav.is-dark { color: #fff; }
+  .pc-nav.is-light { color: #000; }
+  .pc-nav.is-scrolled.is-dark { background: rgba(0,0,0,0.88); border-bottom-color: rgba(255,255,255,0.08); }
+  .pc-nav.is-scrolled.is-light { background: rgba(255,255,255,0.9); border-bottom-color: rgba(0,0,0,0.08); }
+  .pc-nav.is-scrolled { backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); }
+  .pc-nav-brand {
+    background: none; border: 0; padding: 10px 0; margin: -10px 0;
+    display: flex; cursor: pointer;
+  }
+  .pc-nav-brand img { height: 22px; width: auto; display: block; transition: filter 0.25s ease; }
+  .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
+  .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
   .pc-nav-login {
     background: none; border: 1px solid currentColor; color: inherit;
     font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
-    padding: 9px 18px; border-radius: 999px; cursor: pointer;
-    transition: opacity 0.2s;
+    min-height: 40px; padding: 0 18px; border-radius: 999px; cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
-  .pc-nav-login:hover { opacity: 0.7; }
+  /* 44px hit area without a bigger pill */
+  .pc-nav-login::after { content: ""; position: absolute; inset: -4px -6px; }
+  .pc-nav.is-dark .pc-nav-login:hover { background: #fff; color: #000; }
+  .pc-nav.is-light .pc-nav-login:hover { background: #000; color: #fff; }
 
   /* ─── shared type ─── */
   .pc-dark { background: var(--pc-black); color: var(--pc-white); }
@@ -692,7 +737,7 @@ const STYLES = `
   .pc-insight { border-top: 1px solid var(--pc-black); padding-top: 24px; margin-top: 12px; }
   .pc-insight-k {
     font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-    margin-bottom: 12px !important;
+    margin-bottom: 12px;
   }
 
   /* ─── method tracks ─── */
@@ -715,7 +760,7 @@ const STYLES = `
   .pc-li-body .pc-lead { color: var(--pc-white); }
   .pc-dramaturgy {
     list-style: none; padding: 0;
-    margin-top: clamp(56px, 8vw, 104px) !important;
+    margin-top: clamp(56px, 8vw, 104px);
     display: grid; grid-template-columns: repeat(2, 1fr);
     border-top: 1px solid var(--pc-line-dark);
   }
@@ -746,7 +791,7 @@ const STYLES = `
   .pc-case { display: grid; grid-template-columns: 1fr; gap: clamp(32px, 5vw, 72px); }
   @media (min-width: 800px) { .pc-case { grid-template-columns: 1fr 1fr; } }
   .pc-case-col { border-top: 1px solid var(--pc-black); padding-top: 24px; font-size: 18px; line-height: 1.6; }
-  .pc-case-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px !important; }
+  .pc-case-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
 
   /* ─── close / offer ─── */
   .pc-close-sub {
@@ -785,4 +830,38 @@ const STYLES = `
   .pc-footer nav { display: flex; flex-wrap: wrap; gap: 20px; }
   .pc-footer a { color: inherit; text-decoration: none; }
   .pc-footer a:hover { color: #fff; }
+
+  /* ─── phone ─── */
+  @media (max-width: 640px) {
+    .pc-section { padding: 72px 0; }
+    .pc-label { margin-bottom: 28px; font-size: 12px; }
+    .pc-h2 { margin-bottom: 36px; }
+    .pc-hero { padding: 120px 0 calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .pc-eyebrow { margin-bottom: 20px; font-size: 12px; }
+    .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
+    .pc-hero-sub { margin-top: 24px; font-size: 17px; }
+    .pc-hero-cta { margin-top: 32px; flex-direction: column; align-items: stretch; gap: 14px; }
+    .pc-hero-price { text-align: center; font-size: 14px; }
+    .pc-btn { width: 100%; min-height: 56px; padding: 0 22px; }
+    .pc-quote { padding: 32px 0; gap: 24px; }
+    .pc-quote blockquote { font-size: 20px; }
+    .pc-prose, .pc-li-body, .pc-case-col { font-size: 17px; }
+    .pc-lead { font-size: 21px; }
+    .pc-track { padding: 28px 0; }
+    .pc-track h3 { font-size: 22px; }
+    .pc-dramaturgy { margin-top: 56px; }
+    .pc-dramaturgy li { padding: 24px 0 20px; font-size: 26px; }
+    .pc-dramaturgy li:nth-child(odd) { padding-right: 12px; }
+    .pc-dramaturgy li:nth-child(n+3) { border-top: 1px solid var(--pc-line-dark); }
+    .pc-metric { padding: 28px 0; }
+    .pc-metric-v { font-size: 44px; }
+    .pc-close-sub { font-size: 18px; }
+    .pc-offers { margin-top: 48px; gap: 12px; }
+    .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
+    .pc-offer-price { font-size: 52px; }
+    .pc-offer .pc-btn { align-self: stretch; }
+    .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }
+    .pc-footer nav { gap: 8px 20px; }
+    .pc-footer a { padding: 6px 0; }
+  }
 `;

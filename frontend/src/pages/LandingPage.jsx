@@ -58,6 +58,21 @@ const TRACKS = [
   },
 ];
 
+// Brand marks. Pure-black silhouettes (Zoda ships white) — the hero band
+// forces them all to white. `boost` evens out the optical size of the
+// square badges against the wide wordmarks.
+const LOGOS = [
+  { src: "/landing/logos/soho-house.png", alt: "Soho House", width: 280, height: 179, boost: 1.6 },
+  { src: "/landing/logos/doberman.png", alt: "EY Doberman", width: 705, height: 139 },
+  { src: "/landing/logos/cliff-barnes.svg", alt: "Cliff Barnes Bränneri", width: 408, height: 176 },
+  { src: "/landing/logos/aperol.png", alt: "Aperol", width: 1280, height: 618, boost: 1.2 },
+  { src: "/zoda_logotype_white.webp", alt: "Zoda", width: 1600, height: 541 },
+  { src: "/landing/logos/showlighters.png", alt: "Kaijas", // file is the Kaijas mark
+    width: 3830, height: 2267 },
+  { src: "/landing/logos/hendricks-gin.png", alt: "Hendrick's Gin", width: 160, height: 160, boost: 2.6 },
+  { src: "/landing/logos/jagermeister.png", alt: "Jägermeister", width: 160, height: 160, boost: 1.9 },
+];
+
 const DRAMATURGY = ["Hook", "Credibility", "Core", "Outro"];
 
 const OFFERS = [
@@ -104,6 +119,35 @@ function Reveal({ children, delay = 0, className }) {
       style={{ transitionDelay: `${delay}s` }}
     >
       {children}
+    </div>
+  );
+}
+
+// An endless strip: two identical groups slide left by exactly one group.
+function LogoBand() {
+  return (
+    <div className="pc-logos">
+      <p className="pc-logos-label">Trusted by</p>
+      <div className="pc-logos-viewport">
+        <div className="pc-logos-track">
+          {[0, 1].map((copy) => (
+            <ul className="pc-logos-group" key={copy} aria-hidden={copy === 1 ? "true" : undefined}>
+              {LOGOS.map((logo) => (
+                <li key={logo.alt}>
+                  <img
+                    src={logo.src}
+                    alt={copy === 0 ? logo.alt : ""}
+                    width={logo.width}
+                    height={logo.height}
+                    style={{ "--boost": logo.boost || 1 }}
+                    decoding="async"
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -237,6 +281,9 @@ function AgencyPage({ onLogin }) {
             </div>
           </Reveal>
         </div>
+        <Reveal delay={0.36} className="pc-hero-logos">
+          <LogoBand />
+        </Reveal>
       </section>
 
       {/* ─── 2. WALL OF AUTHORITY ─── */}
@@ -687,8 +734,50 @@ const STYLES = `
   /* ─── hero ─── */
   .pc-hero {
     min-height: 100svh;
-    display: flex; align-items: flex-end;
-    padding: 140px 0 clamp(56px, 9vw, 112px);
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: clamp(104px, 14vh, 140px) 0 clamp(24px, 3.4vh, 40px);
+  }
+  .pc-hero-logos { margin-top: clamp(40px, 7vh, 88px); }
+
+  /* ─── brand band ─── */
+  .pc-logos {
+    border-top: 1px solid var(--pc-line-dark);
+    padding-top: clamp(20px, 2.6vw, 28px);
+  }
+  .pc-logos-label {
+    max-width: 1240px; margin: 0 auto 18px;
+    padding: 0 clamp(16px, 5vw, 56px);
+    font-size: 12px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+  }
+  .pc-logos-viewport {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .pc-logos-track {
+    display: flex; width: max-content;
+    animation: pc-logos 40s linear infinite;
+  }
+  .pc-logos-viewport:hover .pc-logos-track { animation-play-state: paused; }
+  .pc-logos-group {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; align-items: center; flex: none;
+  }
+  .pc-logos-group li { flex: none; padding: 0 clamp(26px, 3.4vw, 48px); display: flex; align-items: center; height: 48px; }
+  .pc-logos-group img {
+    display: block; width: auto;
+    height: calc(24px * var(--boost, 1));
+    max-width: 150px; max-height: 62px; object-fit: contain;
+    filter: brightness(0) invert(1);
+    opacity: 0.85;
+  }
+  @keyframes pc-logos { to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .pc-logos-track { animation: none; width: 100%; }
+    .pc-logos-group { flex-wrap: wrap; justify-content: center; row-gap: 12px; }
+    .pc-logos-group + .pc-logos-group { display: none; }
+    .pc-logos-viewport { -webkit-mask-image: none; mask-image: none; }
   }
   .pc-eyebrow {
     font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
@@ -696,18 +785,18 @@ const STYLES = `
     margin-bottom: 28px;
   }
   .pc-hero-h {
-    font-size: clamp(44px, 8.6vw, 128px);
+    font-size: clamp(40px, min(8.6vw, 10vh), 128px);
     font-weight: 600; line-height: 0.96; letter-spacing: -0.045em;
     max-width: 14ch;
   }
   .pc-hero-sub {
-    margin-top: clamp(28px, 4vw, 44px);
-    max-width: 58ch;
+    margin-top: clamp(20px, 3.4vh, 44px);
+    max-width: 64ch;
     font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55;
     color: rgba(255,255,255,0.7);
   }
   .pc-hero-cta {
-    margin-top: clamp(36px, 5vw, 56px);
+    margin-top: clamp(24px, 4.4vh, 56px);
     display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px;
   }
   .pc-hero-price { font-size: 15px; color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; }
@@ -844,11 +933,16 @@ const STYLES = `
     .pc-section { padding: 72px 0; }
     .pc-label { margin-bottom: 28px; font-size: 12px; }
     .pc-h2 { margin-bottom: 36px; }
-    .pc-hero { padding: 120px 0 calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .pc-hero { padding: clamp(88px, 13vh, 112px) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
+    .pc-hero-logos { margin-top: clamp(28px, 5vh, 44px); }
+    .pc-logos-label { margin-bottom: 12px; font-size: 11px; }
+    .pc-logos-group li { padding: 0 22px; height: 40px; }
+    .pc-logos-group img { height: calc(19px * var(--boost, 1)); max-width: 112px; max-height: 50px; }
+    .pc-logos-track { animation-duration: 30s; }
     .pc-eyebrow { margin-bottom: 20px; font-size: 12px; }
     .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
-    .pc-hero-sub { margin-top: 24px; font-size: 17px; }
-    .pc-hero-cta { margin-top: 32px; flex-direction: column; align-items: stretch; gap: 14px; }
+    .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
+    .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 14px; }
     .pc-hero-price { text-align: center; font-size: 14px; }
     .pc-btn { width: 100%; min-height: 56px; padding: 0 22px; }
     .pc-quote { padding: 32px 0; gap: 24px; }
@@ -871,5 +965,14 @@ const STYLES = `
     .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }
     .pc-footer nav { gap: 8px 20px; }
     .pc-footer a { padding: 6px 0; }
+  }
+
+  /* ─── short screens (small laptops, iPhone SE): keep the brand band above the fold ─── */
+  @media (max-height: 760px) {
+    .pc-hero { padding-top: 84px; padding-bottom: 16px; }
+    .pc-hero-logos { margin-top: 24px; }
+    .pc-logos { padding-top: 14px; }
+    .pc-logos-label { margin-bottom: 8px; }
+    .pc-logos-group li { height: 36px; }
   }
 `;

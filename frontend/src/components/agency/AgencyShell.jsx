@@ -9,7 +9,7 @@ import { CASES, CONTACT, casePath } from "./agencyData.js";
 /* The frame every agency page sits in: tone-aware nav (Work + Log in), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
    footer with every case linked. Pages pass their own CSS via `css`. */
-export function AgencyShell({ children, css = "", hideCursor = false }) {
+export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
@@ -93,6 +93,10 @@ export function AgencyShell({ children, css = "", hideCursor = false }) {
 
   // Every agency page ends with the deck gate (#deck) — jump there in place.
   const goDeck = () => {
+    if (!document.getElementById("deck")) {
+      navigate("/#deck");
+      return;
+    }
     trackEvent("cta_click", { location: "nav_deck" });
     document.getElementById("deck")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -112,8 +116,19 @@ export function AgencyShell({ children, css = "", hideCursor = false }) {
             <button type="button" className="pc-nav-link" onClick={goWork}>
               Work
             </button>
-            <button type="button" className="pc-nav-link" onClick={goDeck}>
+            <button type="button" className="pc-nav-link pc-nav-deck" onClick={goDeck}>
               Deck
+            </button>
+            <button
+              type="button"
+              className="pc-nav-link"
+              aria-current={pathname.startsWith("/canvas") ? "page" : undefined}
+              onClick={() => {
+                trackEvent("cta_click", { location: "nav_canvas" });
+                navigate("/canvas");
+              }}
+            >
+              Canvas
             </button>
             <button
               type="button"
@@ -156,7 +171,7 @@ export function AgencyShell({ children, css = "", hideCursor = false }) {
           </nav>
         </footer>
       </div>
-      <EyesCursor hidden={hideCursor} />
+      {cursor && <EyesCursor hidden={hideCursor} />}
     </div>
   );
 }

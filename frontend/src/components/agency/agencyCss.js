@@ -132,6 +132,7 @@ export const AGENCY_CSS = `
     text-decoration: none; opacity: 0.8; transition: opacity 0.2s ease;
   }
   .pc-nav-link:hover, .pc-nav-link[aria-current="page"] { opacity: 1; }
+  @media (max-width: 380px) { .pc-nav-deck { display: none; } }
 
   .pc-eyebrow {
     font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
@@ -248,6 +249,7 @@ export const AGENCY_CSS = `
     .pc-prose { font-size: 17px; }
     .pc-lead { font-size: 21px; }
     .pc-nav-link { font-size: 15px; }
+    .pc-nav-actions { gap: 14px; }
     .pc-close-sub { font-size: 18px; }
       .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
     .pc-offer-price { font-size: 52px; }

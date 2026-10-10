@@ -441,11 +441,12 @@ export function LandingPage() {
     };
   }, []);
 
-  // Arriving from a case page's "Work" link (/#work) lands on the index.
+  // Arriving via a nav link from another page (/#work, /#deck) lands on it.
   useEffect(() => {
-    if (location.hash !== "#work") return;
+    const target = { "#work": "work", "#deck": "deck" }[location.hash];
+    if (!target) return;
     const t = setTimeout(() => {
-      document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
     return () => clearTimeout(t);
   }, [location.hash]);

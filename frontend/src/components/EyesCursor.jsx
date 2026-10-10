@@ -36,11 +36,12 @@ function Cursor({ color = "#FF5F1F", hidden = false }) {
   const rootRef = useRef(null);
   const [rawSvg, setRawSvg] = useState(null);
 
-  // Own async chunk, same file the brand eyes use.
+  // Plain fetch of the public file — a `?raw` import of /public 404s in dev.
   useEffect(() => {
     let alive = true;
-    import("/pullup-smalleyes.svg?raw")
-      .then((m) => alive && setRawSvg(m.default))
+    fetch("/pullup-smalleyes.svg")
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then((text) => alive && setRawSvg(text))
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -58,6 +59,14 @@ function Cursor({ color = "#FF5F1F", hidden = false }) {
       })
       .replace(/fill="#000000"/gi, `fill="${color}"`);
   }, [rawSvg, color]);
+
+  // The native cursor is hidden only once the eyes are actually drawn, so a
+  // failed load degrades to the normal pointer instead of no pointer at all.
+  useEffect(() => {
+    if (!svgHtml) return;
+    document.documentElement.classList.add("eyes-cursor-on");
+    return () => document.documentElement.classList.remove("eyes-cursor-on");
+  }, [svgHtml]);
 
   useEffect(() => {
     const root = rootRef.current;

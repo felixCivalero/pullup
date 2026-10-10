@@ -565,10 +565,8 @@ const STYLES = `
   html, body { overflow-x: clip; }
   body.pullup-auth-locked { overflow: hidden; }
 
-  /* the eyes are the cursor (mouse/trackpad only — see EyesCursor) */
-  @media (hover: hover) and (pointer: fine) {
-    .pc, .pc * { cursor: none !important; }
-  }
+  /* the eyes are the cursor once EyesCursor has drawn them (mouse/trackpad only) */
+  html.eyes-cursor-on .pc, html.eyes-cursor-on .pc * { cursor: none !important; }
 
   .landing-root {
     --pc-black: #000;

@@ -12,6 +12,7 @@ import { DeckGate } from "../components/agency/DeckGate.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { CASES, casePath } from "../components/agency/agencyData.js";
 import { STIGA_TOTALS } from "./work/caseContent.js";
+import { MANIFESTO_OPENER } from "../components/agency/manifesto.js";
 
 /* The public front door: PullUp as an agency — The Production Core.
    Black and white, typography first. Each story here is a teaser for its full
@@ -117,14 +118,15 @@ function SectionLabel({ n, children }) {
 // SPA link styled as an underlined "Read the case →".
 function CaseLink({ slug, children = "Read the case" }) {
   const navigate = useNavigate();
+  const href = slug === "__manifesto" ? "/manifesto" : casePath(slug);
   return (
     <a
       className="pc-caselink"
-      href={casePath(slug)}
+      href={href}
       onClick={(e) => {
         e.preventDefault();
-        trackEvent("cta_click", { location: `landing_case_${slug}` });
-        navigate(casePath(slug));
+        trackEvent("cta_click", { location: `landing_${slug === "__manifesto" ? "manifesto" : `case_${slug}`}` });
+        navigate(href);
       }}
     >
       {children}
@@ -235,6 +237,25 @@ function AgencyPage() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ─── WHY NOW — the manifesto's opening, as the bridge to the work ─── */}
+      <section className="pc-section pc-dark pc-why" data-pc-tone="dark" data-pc-section="why_now" data-pc-order="3">
+        <div className="pc-wrap">
+          <p className="pc-label">Why now · The PullUp manifesto</p>
+          <Reveal>
+            <h2 className="pc-h2 pc-h2-xl">{MANIFESTO_OPENER.title}</h2>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <p className="pc-why-body">{MANIFESTO_OPENER.body}</p>
+          </Reveal>
+          <Reveal delay={0.14}>
+            <p className="pc-why-close">{MANIFESTO_OPENER.close}</p>
+          </Reveal>
+          <Reveal delay={0.18}>
+            <CaseLink slug="__manifesto">Read the manifesto</CaseLink>
+          </Reveal>
         </div>
       </section>
 
@@ -658,6 +679,12 @@ const STYLES = `
   .pc-case-col { border-top: 1px solid var(--pc-black); padding-top: 24px; font-size: 18px; line-height: 1.6; }
   .pc-case-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
 
+
+  /* ─── why now (manifesto teaser) ─── */
+  .pc-why .pc-h2-xl { max-width: 16ch; margin-bottom: 32px; }
+  .pc-why-body { max-width: 58ch; font-size: clamp(18px, 1.7vw, 22px); line-height: 1.55; color: rgba(255,255,255,0.72); }
+  .pc-why-close { margin-top: clamp(32px, 4vw, 48px) !important; font-size: clamp(26px, 3.2vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+  .pc-why .pc-caselink { color: #fff; }
 
   /* ─── selected work ─── */
   .pc-work { display: grid; grid-template-columns: 1fr; gap: 16px; }

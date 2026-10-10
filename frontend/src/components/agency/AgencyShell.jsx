@@ -113,6 +113,17 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <img src="/pullup-textlogo.svg" alt="PullUp" />
           </button>
           <div className="pc-nav-actions">
+            <button
+              type="button"
+              className="pc-nav-link"
+              aria-current={pathname === "/manifesto" ? "page" : undefined}
+              onClick={() => {
+                trackEvent("cta_click", { location: "nav_manifesto" });
+                navigate("/manifesto");
+              }}
+            >
+              Manifesto
+            </button>
             <button type="button" className="pc-nav-link" onClick={goWork}>
               Work
             </button>
@@ -121,7 +132,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             </button>
             <button
               type="button"
-              className="pc-nav-link"
+              className="pc-nav-link pc-nav-canvas"
               aria-current={pathname.startsWith("/canvas") ? "page" : undefined}
               onClick={() => {
                 trackEvent("cta_click", { location: "nav_canvas" });
@@ -162,6 +173,28 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 {c.client}
               </a>
             ))}
+          </nav>
+          <nav aria-label="PullUp">
+            <a
+              className="pc-footer-work"
+              href="/manifesto"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate("/manifesto");
+              }}
+            >
+              Manifesto
+            </a>
+            <a
+              className="pc-footer-work"
+              href="/canvas"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate("/canvas");
+              }}
+            >
+              Canvas
+            </a>
           </nav>
           <nav aria-label="Legal">
             <a href="/privacy">Privacy</a>

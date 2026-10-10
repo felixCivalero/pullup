@@ -62,6 +62,7 @@ const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage")
 const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
 const AdamFlamboStory = lazyPage(() => import("./pages/stories/AdamFlamboStory"));
 const CasePage = lazyPage(() => import("./pages/work/CasePage"));
+const ManifestoPage = lazyPage(() => import("./pages/ManifestoPage"));
 const CanvasBoardsPage = lazyPage(() => import("./pages/canvas/CanvasBoardsPage"));
 const CanvasBoardPage = lazyPage(() => import("./pages/canvas/CanvasBoardPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
@@ -164,6 +165,7 @@ function App() {
         {/* Creator case study — Adam Flambo, real production data (see stories/). */}
         <Route path="/work/adam-flambo" element={<AdamFlamboStory />} />
         <Route path="/work/:slug" element={<CasePage />} />
+        <Route path="/manifesto" element={<ManifestoPage />} />
         {/* Planning canvas — boards for content meetings (login; share links open one board). */}
         <Route path="/canvas" element={<CanvasBoardsPage />} />
         <Route path="/canvas/s/:token" element={<CanvasBoardPage />} />

@@ -1,6 +1,6 @@
 // frontend/src/components/EyesCursor.jsx
 //
-// The PullUp eyes as the mouse cursor. The pupils roll toward wherever the
+// The PullUp eyes as the mouse cursor — black rings, orange pupils. The pupils roll toward wherever the
 // pointer is heading (velocity, eased), go wide over anything clickable and
 // blink on press. Pointer-fine devices only — touch keeps the native
 // behaviour. The host page hides the native cursor via `cursor: none`.
@@ -32,7 +32,7 @@ export function EyesCursor(props) {
   return enabled ? <Cursor {...props} /> : null;
 }
 
-function Cursor({ color = "#FF5F1F", hidden = false }) {
+function Cursor({ ringColor = "#000000", pupilColor = "#D9480F", hidden = false }) {
   const rootRef = useRef(null);
   const [rawSvg, setRawSvg] = useState(null);
 
@@ -46,19 +46,23 @@ function Cursor({ color = "#FF5F1F", hidden = false }) {
     return () => { alive = false; };
   }, []);
 
-  // Crop to the eyes, size to the box, recolor black → brand orange.
+  // Crop to the eyes, size to the box; rings in ringColor, pupils in
+  // pupilColor, eye interiors left see-through.
   const svgHtml = useMemo(() => {
     if (!rawSvg) return "";
     return rawSvg
       .replace(/<svg\b([^>]*)>/i, (_m, attrs) => {
-        const cleaned = attrs
-          .replace(/\s(width|height|viewBox)="[^"]*"/gi, "");
-        // solid whites behind the rings so text never shows through
-        return `<svg${cleaned} viewBox="${VIEWBOX}" width="100%" height="100%">` +
-          `<circle cx="1145" cy="1209" r="185" fill="#fff"/><circle cx="1622" cy="1209" r="185" fill="#fff"/>`;
+        const cleaned = attrs.replace(/\s(width|height|viewBox)="[^"]*"/gi, "");
+        return `<svg${cleaned} viewBox="${VIEWBOX}" width="100%" height="100%">`;
       })
-      .replace(/fill="#000000"/gi, `fill="${color}"`);
-  }, [rawSvg, color]);
+      .replace(
+        /fill="#000000"(\s+transform="translate\(([-\d.]+),([-\d.]+)\)")/gi,
+        (_m, rest, x, y) => {
+          const isPupil = PUPILS.some((p) => Math.abs(p.x - x) < 6 && Math.abs(p.y - y) < 6);
+          return `fill="${isPupil ? pupilColor : ringColor}"${rest}`;
+        },
+      );
+  }, [rawSvg, ringColor, pupilColor]);
 
   // The native cursor is hidden only once the eyes are actually drawn, so a
   // failed load degrades to the normal pointer instead of no pointer at all.

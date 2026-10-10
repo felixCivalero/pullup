@@ -498,8 +498,13 @@ export function LandingPage() {
     trackPageView("landing");
     const prev = document.title;
     document.title = "PullUp — The Production Core";
+    // Phone browser chrome matches the black hero instead of a white strip.
+    const theme = document.querySelector('meta[name="theme-color"]');
+    const prevTheme = theme?.getAttribute("content");
+    theme?.setAttribute("content", "#000000");
     return () => {
       document.title = prev;
+      if (theme && prevTheme) theme.setAttribute("content", prevTheme);
     };
   }, []);
 

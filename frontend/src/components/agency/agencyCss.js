@@ -132,7 +132,7 @@ export const AGENCY_CSS = `
     text-decoration: none; opacity: 0.8; transition: opacity 0.2s ease;
   }
   .pc-nav-link:hover, .pc-nav-link[aria-current="page"] { opacity: 1; }
-  @media (max-width: 520px) { .pc-nav-deck, .pc-nav-canvas { display: none; } }
+  @media (max-width: 520px) { .pc-nav-deck { display: none; } }
 
   .pc-eyebrow {
     font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase.js";
 import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView, track } from "../lib/track.js";
+import { EyesCursor } from "../components/EyesCursor.jsx";
 
 /* The public front door: PullUp as an agency — The Production Core.
    Black and white, typography first. The only product surface left on the
@@ -79,13 +80,11 @@ const OFFERS = [
 /* ─── scroll reveal ─── */
 function Reveal({ children, delay = 0, className }) {
   const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+  // No IntersectionObserver (old browsers, some bots) → just show it.
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
+    if (!el || typeof IntersectionObserver === "undefined") return;
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -546,6 +545,7 @@ export function LandingPage() {
     <div className="landing-root">
       <style>{STYLES}</style>
       <AgencyPage onLogin={() => navigate("/login")} />
+      <EyesCursor hidden={view === "login"} />
       {view === "login" && (
         <AuthGate
           initialMode="login"
@@ -564,6 +564,11 @@ const STYLES = `
 
   html, body { overflow-x: clip; }
   body.pullup-auth-locked { overflow: hidden; }
+
+  /* the eyes are the cursor (mouse/trackpad only — see EyesCursor) */
+  @media (hover: hover) and (pointer: fine) {
+    .pc, .pc * { cursor: none !important; }
+  }
 
   .landing-root {
     --pc-black: #000;

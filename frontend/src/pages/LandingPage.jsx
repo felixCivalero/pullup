@@ -310,7 +310,7 @@ function AgencyPage() {
       </section>
 
       {/* ─── HOW WE WORK ─── */}
-      <section id="how" className="pc-section" data-pc-section="how" data-pc-order="5">
+      <section id="services" className="pc-section" data-pc-section="services" data-pc-order="5">
         <div className="pc-wrap">
           <SectionLabel n="03">How we work</SectionLabel>
           <Reveal>
@@ -419,7 +419,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#work": "stories", "#why": "why", "#how": "how", "#superpowers": "superpowers", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "superpowers", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });

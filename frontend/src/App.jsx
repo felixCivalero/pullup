@@ -165,7 +165,8 @@ function App() {
         {/* Creator case study — Adam Flambo, real production data (see stories/). */}
         <Route path="/work/adam-flambo" element={<AdamFlamboStory />} />
         <Route path="/work/:slug" element={<CasePage />} />
-        <Route path="/deck" element={<DeckPage />} />
+        <Route path="/booklet" element={<DeckPage />} />
+        <Route path="/deck" element={<Navigate to="/booklet" replace />} />
         {/* Manifesto is internal now (docs/manifesto.md) — old links land home. */}
         <Route path="/manifesto" element={<Navigate to="/" replace />} />
         {/* Planning canvas — boards for content meetings (login; share links open one board). */}

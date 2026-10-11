@@ -1,12 +1,13 @@
-/* The Production Core deck — slide styles, scoped under .deck. Shared by the
-   open page (/deck, scaled to fit, reflowed on phones) and the PDF build
-   (docs/deck/build.mjs renders each slide at 1920×1080). */
+/* The Production Core booklet — page styles, scoped under .deck. Shared by
+   the open page (/booklet: spreads, scaled to fit, reflowed on phones) and
+   the PDF build (docs/deck/build.mjs prints each page at 1240×1754, A-series
+   portrait). */
 .deck { font-family: "Inter Tight", -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #000; }
 .deck *, .deck *::before, .deck *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 .deck .s {
-  width: 1920px; height: 1080px; position: relative; overflow: hidden;
-  padding: 112px 144px 120px;
+  width: 1240px; height: 1754px; position: relative; overflow: hidden;
+  padding: 120px 110px 150px;
   display: flex; flex-direction: column;
   text-align: left;
 }
@@ -19,17 +20,17 @@
 .deck .top img { height: 36px; width: auto; }
 .deck .light .top img { filter: brightness(0); }
 .deck .dark .top img { filter: brightness(0) invert(1); }
-.deck .foot { position: absolute; left: 144px; right: 144px; bottom: 56px; display: flex; justify-content: space-between; font-size: 18px; color: #9a9a9a; letter-spacing: 0.04em; }
+.deck .foot { position: absolute; left: 110px; right: 110px; bottom: 64px; display: flex; justify-content: space-between; font-size: 18px; color: #9a9a9a; letter-spacing: 0.04em; }
 .deck .dark .foot { color: rgba(255,255,255,0.4); }
 .deck .body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 
 /* type */
 .deck .eyebrow { font-size: 24px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8a; margin-bottom: 40px; }
 .deck .dark .eyebrow { color: rgba(255,255,255,0.5); }
-.deck h1 { font-size: 148px; font-weight: 600; line-height: 0.95; letter-spacing: -0.045em; max-width: 14ch; }
-.deck h2 { font-size: 104px; font-weight: 600; line-height: 1.0; letter-spacing: -0.04em; max-width: 16ch; }
+.deck h1 { font-size: 128px; font-weight: 600; line-height: 0.95; letter-spacing: -0.045em; max-width: 14ch; }
+.deck h2 { font-size: 92px; font-weight: 600; line-height: 1.0; letter-spacing: -0.04em; max-width: 16ch; }
 .deck h3 { font-size: 44px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
-.deck .lead { font-size: 38px; line-height: 1.38; letter-spacing: -0.01em; max-width: 46ch; color: #333; }
+.deck .lead { font-size: 36px; line-height: 1.42; letter-spacing: -0.01em; max-width: 40ch; color: #333; }
 .deck .dark .lead { color: rgba(255,255,255,0.72); }
 .deck .muted { color: #8a8a8a; }
 .deck .dark .muted { color: rgba(255,255,255,0.45); }
@@ -40,35 +41,37 @@
 
 /* the two questions */
 .deck .qs { display: grid; gap: 0; border-top: 2px solid currentColor; margin-top: 64px; }
-.deck .q { display: grid; grid-template-columns: 120px 1fr; align-items: baseline; padding: 40px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
+.deck .q { display: grid; grid-template-columns: 90px 1fr; align-items: baseline; padding: 40px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
 .deck .dark .q { border-bottom-color: rgba(255,255,255,0.16); }
 .deck .q span { font-size: 28px; font-weight: 500; color: #8a8a8a; font-variant-numeric: tabular-nums; }
-.deck .q b { font-size: 84px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+.deck .q b { font-size: 72px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 .deck .qs-3 { margin-top: 44px; }
 .deck .qs-3 .q { padding: 26px 0; }
-.deck .qs-3 .q b { font-size: 72px; }
+.deck .qs-3 .q b { font-size: 60px; }
 .deck .q.is-answer b { text-decoration: underline; text-decoration-thickness: 4px; text-underline-offset: 14px; }
 .deck .q.is-answer span { color: #000; }
 
 /* columns */
 .deck .cols { display: grid; gap: 0; border-top: 2px solid currentColor; margin-top: 72px; }
-.deck .cols-2 { grid-template-columns: 1fr 1fr; }
-.deck .cols-3 { grid-template-columns: repeat(3, 1fr); }
-.deck .cols-4 { grid-template-columns: repeat(4, 1fr); }
-.deck .col { padding: 40px 48px 0 0; }
-.deck .col + .col { padding-left: 48px; border-left: 1px solid rgba(0,0,0,0.14); }
-.deck .dark .col + .col { border-left-color: rgba(255,255,255,0.16); }
+.deck .cols-2, .deck .cols-3 { grid-template-columns: 1fr; }
+.deck .cols-4 { grid-template-columns: 1fr 1fr; }
+.deck .col { padding: 36px 0; }
+.deck .cols-2 .col + .col, .deck .cols-3 .col + .col { border-top: 1px solid rgba(0,0,0,0.14); }
+.deck .cols-4 .col:nth-child(even) { padding-left: 48px; border-left: 1px solid rgba(0,0,0,0.14); }
+.deck .cols-4 .col:nth-child(odd) { padding-right: 48px; }
+.deck .cols-4 .col:nth-child(n+3) { border-top: 1px solid rgba(0,0,0,0.14); }
+.deck .dark .col + .col, .deck .dark .cols-4 .col { border-color: rgba(255,255,255,0.16); }
 .deck .col .k { margin-bottom: 20px; }
 .deck .col h3 { margin-bottom: 18px; }
 .deck .col p { font-size: 26px; line-height: 1.5; color: #444; }
 .deck .dark .col p { color: rgba(255,255,255,0.7); }
 .deck .col ul { list-style: none; }
 .deck .col li { font-size: 30px; line-height: 1.35; padding: 18px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
-.deck .col .big, .deck .big { font-size: 120px; color: #000; font-weight: 600; letter-spacing: -0.05em; line-height: 0.95; font-variant-numeric: tabular-nums; margin-bottom: 20px; }
+.deck .col .big, .deck .big { font-size: 112px; color: #000; font-weight: 600; letter-spacing: -0.05em; line-height: 0.95; font-variant-numeric: tabular-nums; margin-bottom: 20px; }
 .deck .dark .col .big, .deck .dark .big { color: #fff; }
 
 /* first 3 months */
-.deck .three { display: grid; grid-template-columns: 1.25fr 1fr; gap: 88px; align-items: center; margin-top: 48px; }
+.deck .three { display: grid; grid-template-columns: 1fr; gap: 48px; margin-top: 48px; }
 .deck .lanes { width: 100%; height: auto; }
 .deck .steps3 { display: grid; border-top: 2px solid #000; }
 .deck .steps3 > div { padding: 26px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
@@ -79,12 +82,12 @@
 .deck .steps3 .is-result h3 { font-size: 44px; }
 
 /* people diagram */
-.deck .people { display: grid; grid-template-columns: 1.1fr 1fr; gap: 96px; align-items: center; flex: 1; }
-.deck .people svg { width: 100%; height: auto; }
+.deck .people { display: grid; grid-template-columns: 1fr; gap: 72px; align-content: center; flex: 1; }
+.deck .people svg { width: 100%; max-width: 640px; height: auto; justify-self: center; }
 
 /* the long-term game */
-.deck .curve { display: grid; grid-template-columns: 1fr 1fr; gap: 96px; align-items: center; flex: 1; }
-.deck .curve svg { width: 100%; height: auto; }
+.deck .curve { display: grid; grid-template-columns: 1fr; gap: 64px; align-content: center; flex: 1; }
+.deck .curve svg { width: 100%; max-width: 760px; height: auto; }
 .deck .split { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid currentColor; margin-top: 64px; }
 .deck .split > div { padding: 36px 40px 0 0; }
 .deck .split > div + div { padding-left: 40px; border-left: 1px solid rgba(255,255,255,0.16); }
@@ -94,14 +97,22 @@
 
 /* Core board cards */
 .deck .sheets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 56px; }
-.deck .sheet { border: 2px solid #000; border-radius: 18px; padding: 36px; height: 380px; display: flex; flex-direction: column; }
+.deck .sheet { border: 2px solid #000; border-radius: 18px; padding: 28px; height: 400px; display: flex; flex-direction: column; }
 .deck .sheet .k { margin-bottom: 14px; }
-.deck .sheet h3 { font-size: 40px; margin-bottom: 26px; }
-.deck .sheet .line { border-bottom: 1px solid rgba(0,0,0,0.18); height: 46px; font-size: 20px; color: #9a9a9a; display: flex; align-items: flex-end; padding-bottom: 8px; }
+.deck .sheet h3 { font-size: 34px; margin-bottom: 20px; }
+.deck .sheet .line { border-bottom: 1px solid rgba(0,0,0,0.18); min-height: 46px; font-size: 19px; line-height: 1.25; color: #9a9a9a; display: flex; align-items: flex-end; padding-bottom: 8px; }
 
-/* ─── web: each slide scaled into a 16:9 frame (--k = frame width / 1920) ─── */
-.deck-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px rgba(0,0,0,0.1), 0 30px 60px -36px rgba(0,0,0,0.4); background: #fff; }
+/* ─── web: each page scaled into its frame (--k = frame width / 1240) ─── */
+.deck-frame { position: relative; width: 100%; aspect-ratio: 1240 / 1754; overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px rgba(0,0,0,0.1), 0 30px 60px -36px rgba(0,0,0,0.4); background: #fff; }
 .deck-frame > .s { position: absolute; top: 0; left: 0; transform-origin: 0 0; transform: scale(var(--k, 0.5)); }
+
+/* booklet spreads on wide screens: cover alone on the right, then pairs */
+@media (min-width: 900px) {
+  .dk-slides.deck { grid-template-columns: 1fr 1fr; column-gap: 6px; row-gap: clamp(24px, 3vw, 40px); }
+  .dk-slides.deck .deck-frame:first-child { grid-column: 2; }
+  .dk-slides.deck .deck-frame:nth-child(even) { border-radius: 14px 4px 4px 14px; }
+  .dk-slides.deck .deck-frame:nth-child(odd):not(:first-child) { border-radius: 4px 14px 14px 4px; }
+}
 
 /* ─── phones: slides reflow into readable cards instead of shrinking ─── */
 @media (max-width: 720px) {
@@ -124,7 +135,9 @@
   .deck .q b, .deck .qs-3 .q b { font-size: 26px; }
   .deck .q.is-answer b { text-decoration-thickness: 2px; text-underline-offset: 6px; }
   .deck .cols, .deck .cols-2, .deck .cols-3, .deck .cols-4 { grid-template-columns: 1fr; margin-top: 28px !important; }
-  .deck .col, .deck .col + .col { padding: 18px 0; border-left: 0; }
+  .deck .col, .deck .col + .col, .deck .cols-4 .col:nth-child(n) { padding: 18px 0; border-left: 0; }
+  .deck .cols-4 .col:nth-child(n+2) { border-top: 1px solid rgba(0,0,0,0.14); }
+  .deck .dark .cols-4 .col:nth-child(n+2) { border-top-color: rgba(255,255,255,0.16); }
   .deck .col + .col { border-top: 1px solid rgba(0,0,0,0.14); }
   .deck .dark .col + .col { border-top-color: rgba(255,255,255,0.16); }
   .deck .col .k { margin-bottom: 8px; }

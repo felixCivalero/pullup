@@ -7,8 +7,8 @@ import { trackEvent } from "../../lib/analytics.js";
 import slidesHtml from "./slides.html?raw";
 import "./deck.css";
 
-/* The deck, open to read — no email gate. slides.html is the single source:
-   this page renders it (each slide scaled into a 16:9 frame, reflowed on
+/* The booklet, open to read — no email gate. slides.html is the single
+   source: this page renders it (portrait pages as spreads, reflowed on
    phones) and docs/deck/build.mjs prints the same markup to the PDF. */
 const SLIDES = slidesHtml.split(/(?=<section)/).filter((s) => s.startsWith("<section"));
 
@@ -26,13 +26,13 @@ const CSS = `
 export default function DeckPage() {
   const listRef = useRef(null);
 
-  // --k scales every 1920×1080 slide to its frame's width.
+  // --k scales every 1240×1754 page to its frame's width.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
     const fit = () => {
       const w = list.querySelector(".deck-frame")?.clientWidth || list.clientWidth;
-      list.style.setProperty("--k", String(w / 1920));
+      list.style.setProperty("--k", String(w / 1240));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -41,7 +41,7 @@ export default function DeckPage() {
   }, []);
 
   useEffect(() => {
-    document.title = "The Production Core — the deck · PullUp";
+    document.title = "The Production Core — the booklet · PullUp";
     trackEvent("deck_view", {});
   }, []);
 
@@ -52,18 +52,18 @@ export default function DeckPage() {
       <main>
         <header className="dk-head" data-pc-section="deck_head" data-pc-order="1">
           <div className="pc-wrap">
-            <p className="pc-label">The deck</p>
+            <p className="pc-label">The booklet</p>
             <h1 className="dk-title">The Production Core</h1>
             <p className="dk-lede">
               Where do we want to go — and who do we need to be to get there? A brand is held by many
-              people, so the answer is a decision they take together, every day. Read it here, or take the PDF.
+              people, so the answer is a decision they take together, every day. Read the booklet here, or take the PDF.
             </p>
             <div className="dk-actions">
-              <a className="pc-btn pc-btn-dark" href={DECK_PDF} download onClick={() => download("top")}>
+              <a className="pc-btn pc-btn-dark" href={DECK_PDF} download="The Production Core - PullUp booklet.pdf" onClick={() => download("top")}>
                 Download PDF
                 <ArrowDown size={18} strokeWidth={1.75} />
               </a>
-              <span className="dk-meta">{SLIDES.length} slides</span>
+              <span className="dk-meta">{SLIDES.length} pages</span>
             </div>
           </div>
         </header>
@@ -79,7 +79,7 @@ export default function DeckPage() {
               Start a conversation
               <ArrowRight size={18} strokeWidth={1.75} />
             </button>
-            <a className="pc-btn pc-btn-line" href={DECK_PDF} download onClick={() => download("end")}>
+            <a className="pc-btn pc-btn-line" href={DECK_PDF} download="The Production Core - PullUp booklet.pdf" onClick={() => download("end")}>
               Download PDF
               <ArrowDown size={18} strokeWidth={1.75} />
             </a>

@@ -9,7 +9,7 @@ import { RequestDialog } from "./RequestDialog.jsx";
 import { ScrollLine } from "./ScrollLine.jsx";
 import { rememberArrival } from "./request.js";
 
-/* The frame every agency page sits in: tone-aware nav (Stories + Log in), the
+/* The frame every agency page sits in: tone-aware nav (Services · Booklet · Cases), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
    footer with every case linked. Pages pass their own CSS via `css`. */
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
@@ -93,15 +93,11 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
     else navigate("/");
   };
-  const goStories = () => {
-    trackEvent("cta_click", { location: "nav_stories" });
-    if (onHome) document.getElementById("stories")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else navigate("/#stories");
-  };
-
-  const goDeck = () => {
-    trackEvent("cta_click", { location: "nav_deck" });
-    navigate(DECK_PATH);
+  // Same-page sections scroll in place; from other pages, land on them.
+  const goSection = (id, location) => {
+    trackEvent("cta_click", { location });
+    if (onHome) document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    else navigate(`/#${id}`);
   };
 
   return (
@@ -116,37 +112,22 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <img src="/pullup-textlogo.svg" alt="PullUp" />
           </button>
           <div className="pc-nav-actions">
-            <button type="button" className="pc-nav-link" onClick={goStories}>
-              Stories
+            <button type="button" className="pc-nav-link" onClick={() => goSection("services", "nav_services")}>
+              Services
             </button>
             <button
               type="button"
-              className="pc-nav-link pc-nav-deck"
+              className="pc-nav-link"
               aria-current={pathname === DECK_PATH ? "page" : undefined}
-              onClick={goDeck}
-            >
-              Deck
-            </button>
-            <button
-              type="button"
-              className="pc-nav-link pc-nav-canvas"
-              aria-current={pathname.startsWith("/canvas") ? "page" : undefined}
               onClick={() => {
-                trackEvent("cta_click", { location: "nav_canvas" });
-                navigate("/canvas");
+                trackEvent("cta_click", { location: "nav_booklet" });
+                navigate(DECK_PATH);
               }}
             >
-              Canvas
+              Booklet
             </button>
-            <button
-              type="button"
-              className="pc-nav-login"
-              onClick={() => {
-                trackEvent("cta_click", { location: "nav_login" });
-                navigate("/login");
-              }}
-            >
-              Log in
+            <button type="button" className="pc-nav-link" onClick={() => goSection("stories", "nav_cases")}>
+              Cases
             </button>
           </div>
         </header>
@@ -156,7 +137,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
 
         <footer className="pc-footer" data-pc-tone="dark">
           <span>PullUp &copy; {new Date().getFullYear()}</span>
-          <nav aria-label="Stories">
+          <nav aria-label="Cases">
             {CASES.map((c) => (
               <a
                 key={c.slug}
@@ -181,7 +162,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 navigate(DECK_PATH);
               }}
             >
-              Deck
+              Booklet
             </a>
             <a
               className="pc-footer-work"
@@ -192,6 +173,16 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
               }}
             >
               Canvas
+            </a>
+            <a
+              className="pc-footer-work"
+              href="/login"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate("/login");
+              }}
+            >
+              Log in
             </a>
           </nav>
           <nav aria-label="Legal">

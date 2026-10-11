@@ -3,8 +3,8 @@
 // case page's "next case"). Order here = order everywhere.
 
 export const CONTACT = "hello@pullup.se";
-// The deck: open page + the PDF built from the same slides (docs/deck/build.mjs).
-export const DECK_PATH = "/deck";
+// The booklet: open page + the PDF printed from the same pages (docs/deck/build.mjs).
+export const DECK_PATH = "/booklet";
 export const DECK_PDF = "/the-production-core.pdf";
 
 export const mailto = (subject) =>

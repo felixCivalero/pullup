@@ -132,7 +132,6 @@ export const AGENCY_CSS = `
     text-decoration: none; opacity: 0.8; transition: opacity 0.2s ease;
   }
   .pc-nav-link:hover, .pc-nav-link[aria-current="page"] { opacity: 1; }
-  @media (max-width: 520px) { .pc-nav-deck { display: none; } }
 
   .pc-eyebrow {
     font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
@@ -450,17 +449,19 @@ export const AGENCY_CSS = `
   .pc-deck .pc-h2 { max-width: 16ch; margin-bottom: 24px; }
   .pc-deck-lede { font-size: clamp(18px, 1.6vw, 20px); line-height: 1.55; color: #333; max-width: 52ch; }
   .pc-deck-actions { margin-top: clamp(32px, 4vw, 44px); display: flex; flex-wrap: wrap; gap: 12px; }
-  .pc-deck-stack { position: relative; aspect-ratio: 16 / 12; display: block; }
+  /* the booklet, fanned: three portrait pages */
+  .pc-deck-stack { position: relative; aspect-ratio: 5 / 4.4; display: block; }
   .pc-deck-slide {
-    position: absolute; width: 86%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
-    border-radius: 12px; box-shadow: 0 30px 60px -28px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.08);
+    position: absolute; bottom: 4%; width: 46%; aspect-ratio: 1240 / 1754; object-fit: cover; display: block;
+    border-radius: 8px; box-shadow: 0 30px 60px -28px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.08);
+    transform-origin: 50% 100%;
     transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
   }
-  .pc-deck-slide.s1 { left: 0; bottom: 0; z-index: 3; }
-  .pc-deck-slide.s2 { left: 7%; bottom: 14%; z-index: 2; }
-  .pc-deck-slide.s3 { left: 14%; bottom: 28%; z-index: 1; }
-  .pc-deck-stack:hover .s2 { transform: translate(8px, -10px); }
-  .pc-deck-stack:hover .s3 { transform: translate(16px, -20px); }
+  .pc-deck-slide.s1 { left: 8%; z-index: 3; transform: rotate(-6deg); }
+  .pc-deck-slide.s2 { left: 27%; z-index: 2; transform: rotate(1deg); }
+  .pc-deck-slide.s3 { left: 46%; z-index: 1; transform: rotate(8deg); }
+  .pc-deck-stack:hover .s1 { transform: rotate(-10deg) translateX(-6px); }
+  .pc-deck-stack:hover .s3 { transform: rotate(13deg) translateX(10px); }
 
   /* ─── phone ─── */
   @media (max-width: 640px) {

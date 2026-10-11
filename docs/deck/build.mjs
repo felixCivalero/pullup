@@ -1,5 +1,5 @@
-// Prints the deck to PDF from the same source the open /deck page renders:
-// frontend/src/pages/deck/slides.html + deck.css → 16:9, one slide per page.
+// Prints the booklet to PDF from the same source the open /booklet page renders:
+// frontend/src/pages/deck/slides.html + deck.css → A-series portrait pages.
 // Writes frontend/public/the-production-core.pdf (the open download) and
 // backend/assets/the-production-core.pdf (older emailed /deck/:token links).
 // Needs Playwright: `npx playwright install chromium`.
@@ -20,10 +20,10 @@ const pngIdx = process.argv.indexOf("--png");
 const pngDir = pngIdx > -1 ? process.argv[pngIdx + 1] : null;
 
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8" />
-<title>The Production Core — PullUp</title>
+<title>The Production Core — PullUp booklet</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>${css}
-@page { size: 1920px 1080px; margin: 0; }
+@page { size: 1240px 1754px; margin: 0; }
 html, body { margin: 0; background: #fff; }
 .deck .s { break-after: page; }
 .deck .s:last-child { break-after: auto; }
@@ -33,10 +33,10 @@ const tmp = path.join(here, ".deck-print.html");
 fs.writeFileSync(tmp, html);
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const page = await browser.newPage({ viewport: { width: 1240, height: 1754 } });
   await page.goto(pathToFileURL(tmp).href, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
-  const pdf = await page.pdf({ width: "1920px", height: "1080px", printBackground: true, preferCSSPageSize: true });
+  const pdf = await page.pdf({ width: "1240px", height: "1754px", printBackground: true, preferCSSPageSize: true });
   for (const out of outs) fs.writeFileSync(out, pdf);
   if (pngDir) {
     const n = await page.locator("section.s").count();

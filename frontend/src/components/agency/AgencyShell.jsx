@@ -6,6 +6,7 @@ import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
 import { CASES, CONTACT, DECK_PATH, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
+import { ScrollLine } from "./ScrollLine.jsx";
 import { rememberArrival } from "./request.js";
 
 /* The frame every agency page sits in: tone-aware nav (Stories + Log in), the
@@ -150,6 +151,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           </div>
         </header>
 
+        <ScrollLine />
         {children}
 
         <footer className="pc-footer" data-pc-tone="dark">

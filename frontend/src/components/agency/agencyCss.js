@@ -199,6 +199,28 @@ export const AGENCY_CSS = `
 
 
 
+
+  /* ─── far-left scroll line + drop ─── */
+  .pc-line {
+    position: fixed; z-index: 40; pointer-events: none;
+    left: clamp(6px, 1.6vw, 24px); top: calc(64px + env(safe-area-inset-top, 0px) + 28px); bottom: 36px; width: 1px;
+  }
+  .pc-line-track, .pc-line-fill, .pc-line-ticks { position: absolute; inset: 0; mix-blend-mode: difference; }
+  .pc-line-track { background: rgba(255,255,255,0.22); }
+  .pc-line-fill { left: -0.5px; right: -0.5px; background: #fff; transform-origin: 50% 0; transform: scaleY(0); }
+  .pc-line-ticks span { position: absolute; left: -3px; width: 7px; height: 1px; background: rgba(255,255,255,0.6); }
+  .pc-line-drop {
+    position: absolute; left: 0; top: -14px; transform-origin: 50% 100%;
+    will-change: transform;
+  }
+  .pc-line-drop svg { display: block; fill: #D9480F; filter: drop-shadow(0 2px 6px rgba(217,72,15,0.45)); }
+  @media (max-width: 640px) {
+    .pc-line { left: 5px; top: calc(64px + env(safe-area-inset-top, 0px) + 16px); bottom: 20px; }
+    .pc-line-drop svg { width: 10px; height: 14px; }
+    .pc-line-drop { top: -10px; }
+    .pc-line-ticks span { left: -2px; width: 5px; }
+  }
+
   /* ─── request dialog ─── */
   .rq-backdrop {
     position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.55);

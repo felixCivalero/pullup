@@ -5,12 +5,16 @@ import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
 import { DeckTeaser } from "../../components/agency/DeckTeaser.jsx";
 import { Reveal } from "../../components/agency/Reveal.jsx";
+import { CaseRail, CaseSpine, StoryMark } from "../../components/agency/CaseNav.jsx";
 import { caseBySlug, casePath, nextCase } from "../../components/agency/agencyData.js";
 import { initTracking, trackPageView } from "../../lib/track.js";
 import { CASE_CONTENT } from "./caseContent.js";
 
-/* /work/:slug — one template for the typographic cases (BKM, Li, STIGA).
-   Adam Flambo has his own photographic page at /work/adam-flambo. */
+/* /work/:slug — one template for the typographic cases. Every numbered story
+   opens the same way: "Story 0N / 05", its title, then the four-step spine
+   (Start → What we did → What we made → Result) before the long read, and
+   closes on the rail of all stories. Adam Flambo has his own photographic
+   page at /work/adam-flambo with the same opening and rail. */
 
 const fmt = (n) => n.toLocaleString("en-US");
 const compact = (n) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
@@ -174,8 +178,12 @@ export default function CasePage() {
       >
         {c.depth && <span className="cs-line" aria-hidden="true" />}
         <div className="pc-wrap cs-hero-in">
-          <Reveal><p className="pc-eyebrow cs-eyebrow">{c.eyebrow}</p></Reveal>
-          <Reveal delay={0.08}><h1 className="cs-hero-h">{c.title}</h1></Reveal>
+          <Reveal>
+            <p className="pc-eyebrow cs-eyebrow">
+              {meta.spine ? <><StoryMark slug={slug} /> — {meta.name}</> : `${meta.name} · ${meta.kicker}`}
+            </p>
+          </Reveal>
+          <Reveal delay={0.08}><h1 className="cs-hero-h">{meta.title}</h1></Reveal>
           <Reveal delay={0.16}><p className="cs-hero-sub">{c.sub}</p></Reveal>
           {c.heroStat && (
             <Reveal delay={0.24} className="cs-herostat">
@@ -186,16 +194,25 @@ export default function CasePage() {
         </div>
       </section>
 
-      <section className="cs-facts" data-pc-section="facts" data-pc-order="2">
-        <dl className="pc-wrap cs-facts-in">
-          {c.facts.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      {meta.spine ? (
+        <section className="pc-casespine" data-pc-section="spine" data-pc-order="2">
+          <div className="pc-wrap">
+            <p className="pc-label">The story in four steps</p>
+            <CaseSpine spine={meta.spine} page />
+          </div>
+        </section>
+      ) : (
+        <section className="cs-facts" data-pc-section="facts" data-pc-order="2">
+          <dl className="pc-wrap cs-facts-in">
+            {c.facts.map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       {c.stats && (
         <section className="cs-stats" data-pc-section="stats" data-pc-order="3">
@@ -224,12 +241,13 @@ export default function CasePage() {
             navigate(casePath(next.slug));
           }}
         >
-          <span className="cs-next-k">Next case — {next.client}</span>
+          <span className="cs-next-k">Next story — <StoryMark slug={next.slug} /> · {next.client}</span>
           <span className="cs-next-t">{next.title}</span>
           <ArrowRight className="cs-next-arrow" size={36} strokeWidth={1.5} />
         </a>
       </section>
 
+      <CaseRail slug={meta.spine ? slug : "bkm"} />
       <DeckTeaser source={`case_${slug}`} />
       <AgencyOffer source={`case_${slug}`} />
     </AgencyShell>

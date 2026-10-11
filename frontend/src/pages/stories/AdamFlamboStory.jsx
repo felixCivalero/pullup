@@ -9,7 +9,8 @@ import { trackPageView, initTracking } from "../../lib/track.js";
 import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
 import { DeckTeaser } from "../../components/agency/DeckTeaser.jsx";
-import { casePath, nextCase } from "../../components/agency/agencyData.js";
+import { CaseRail, CaseSpine, StoryMark } from "../../components/agency/CaseNav.jsx";
+import { caseBySlug, casePath, nextCase } from "../../components/agency/agencyData.js";
 import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_PHOTOS } from "./adamFlamboData.js";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -335,6 +336,7 @@ function PhotoTriptych({ shots, kicker, line }) {
 const shot = (name) => LOCAL_SHOTS.find((s) => s.src.includes(name));
 
 const NEXT = nextCase("adam-flambo");
+const META = caseBySlug("adam-flambo");
 
 export default function AdamFlamboStory() {
   const navigate = useNavigate();
@@ -358,7 +360,7 @@ export default function AdamFlamboStory() {
         <div className="fl-grain" aria-hidden="true" />
         <div className="fl-hero-in fl-hero-split">
           <div className="fl-hero-copy">
-            <Reveal delay={0.05}><p className="fl-kicker">Stockholm Photo Walks · @adam_flambo</p></Reveal>
+            <Reveal delay={0.05}><p className="fl-kicker"><StoryMark slug="adam-flambo" /> — Stockholm Photo Walks · @adam_flambo</p></Reveal>
             <Reveal delay={0.12}>
               <h1 className="fl-hero-h">
                 A following became a community.<br /><span className="fl-ink-pink">He gave it back in print.</span>
@@ -389,6 +391,14 @@ export default function AdamFlamboStory() {
               <b>{n}</b><span>{l}</span>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      {/* ─── THE STORY IN FOUR STEPS — same opening as every case ─── */}
+      <section className="pc-casespine fl-spine" data-pc-section="spine" data-pc-order="2">
+        <div className="pc-wrap">
+          <p className="pc-label">The story in four steps</p>
+          <CaseSpine spine={META.spine} page />
         </div>
       </section>
 
@@ -559,13 +569,14 @@ export default function AdamFlamboStory() {
             navigate(casePath(NEXT.slug));
           }}
         >
-          <span className="fl-next-k">Next case — {NEXT.client}</span>
+          <span className="fl-next-k">Next story — <StoryMark slug={NEXT.slug} /> · {NEXT.client}</span>
           <span className="fl-next-t">{NEXT.title}</span>
           <ArrowRight className="fl-next-arrow" size={36} strokeWidth={1.5} />
         </a>
         <p className="fl-cta-fine">A snapshot of Adam Flambo’s real rooms, as of July 2026. His numbers, his photos, his people.</p>
       </section>
     </div>
+    <CaseRail slug="adam-flambo" />
     <DeckTeaser source="case_adam-flambo" />
     <AgencyOffer source="case_adam-flambo" />
     </AgencyShell>
@@ -580,6 +591,8 @@ const STYLES = `
     -webkit-font-smoothing: antialiased;
   }
   .fl-ink-pink { color: rgba(255,255,255,0.5); }
+  .fl-spine { position: relative; z-index: 1; background: ${NIGHT}; border-bottom-color: rgba(255,255,255,0.1); }
+  .fl-spine .pc-label { color: rgba(255,255,255,0.5); }
 
   /* filmic grain, reused on the dark acts */
   .fl-grain {

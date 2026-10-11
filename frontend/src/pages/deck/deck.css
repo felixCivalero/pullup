@@ -115,6 +115,29 @@
 }
 
 /* ─── phones: slides reflow into readable cards instead of shrinking ─── */
+/* proof: every story in the same frame */
+.deck .stories { margin-top: 56px; border-top: 2px solid #000; }
+.deck .story { display: grid; grid-template-columns: 90px 1fr; padding: 30px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
+.deck .story .n { font-size: 28px; font-weight: 500; color: #8a8a8a; font-variant-numeric: tabular-nums; padding-top: 10px; }
+.deck .story h3 { font-size: 48px; margin-bottom: 14px; }
+.deck .story p { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; font-size: 26px; line-height: 1.4; color: #444; }
+.deck .story p + p { margin-top: 6px; }
+.deck .story p .k { font-size: 18px; }
+.deck .story p.res { color: #000; font-weight: 600; }
+.deck .story p.res .k { color: #D9480F; }
+
+/* what you get: input → output */
+.deck .get { margin-top: 64px; display: grid; grid-template-columns: 1fr; gap: 48px; }
+.deck .get-in { border-top: 2px solid #fff; padding-top: 32px; }
+.deck .get-in .big { font-size: 180px; margin: 20px 0 16px; }
+.deck .get-in p:last-child { font-size: 30px; color: rgba(255,255,255,0.7); }
+.deck .get-out { border-top: 2px solid #fff; padding-top: 32px; }
+.deck .get-row { display: grid; grid-template-columns: 240px 1fr; align-items: baseline; padding: 26px 0; border-bottom: 1px solid rgba(255,255,255,0.16); }
+.deck .get-row:last-child { border-bottom: 0; }
+.deck .get-row .k { color: #D9480F; }
+.deck .get-row h3 { font-size: 40px; margin-bottom: 8px; }
+.deck .get-row p:last-child { font-size: 25px; line-height: 1.45; color: rgba(255,255,255,0.7); }
+
 @media (max-width: 720px) {
   .deck-frame { aspect-ratio: auto; border-radius: 12px; }
   .deck-frame > .s { position: relative; transform: none; width: auto; height: auto; min-height: min(78vh, 560px); padding: 22px 20px 52px; }
@@ -164,5 +187,17 @@
   .deck .steps3 > div { padding: 14px 0; }
   .deck .steps3 h3, .deck .steps3 .is-result h3 { font-size: 19px; }
   .deck .steps3 p:last-child { font-size: 14px; }
+  .deck .stories, .deck .get { margin-top: 24px; gap: 20px; }
+  .deck .story { grid-template-columns: 30px 1fr; padding: 14px 0; }
+  .deck .story .n { font-size: 13px; padding-top: 4px; }
+  .deck .story h3 { font-size: 20px; margin-bottom: 6px; }
+  .deck .story p { grid-template-columns: 1fr; font-size: 14px; }
+  .deck .story p .k { font-size: 10px; }
+  .deck .get-in, .deck .get-out { padding-top: 14px; }
+  .deck .get-in .big { font-size: 56px; margin: 8px 0; }
+  .deck .get-in p:last-child { font-size: 15px; }
+  .deck .get-row { grid-template-columns: 1fr; gap: 4px; padding: 12px 0; }
+  .deck .get-row h3 { font-size: 19px; margin-bottom: 2px; }
+  .deck .get-row p:last-child { font-size: 14px; }
   .deck .s p[style*="font-size:44px"] { font-size: 20px !important; margin-top: 28px !important; }
 }

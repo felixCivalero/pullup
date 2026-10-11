@@ -77,8 +77,8 @@ export function Superpowers() {
         </Reveal>
         <Reveal delay={0.06}>
           <p className="sp-lede">
-            The core engine is where every brand and creator starts. Then switch on the
-            powers you need — and the more you add, the less each one costs. Or take
+            Everything in "What you get" is the core — {usd(BASE_MONTHLY)} a month. Then switch
+            on the powers you need, and the more you add, the less each one costs. Or take
             everything as one Full Service package.
           </p>
         </Reveal>

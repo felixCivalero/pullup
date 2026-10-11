@@ -10,60 +10,19 @@ import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
-import { casePath } from "../components/agency/agencyData.js";
+import { CaseSpine, StoryMark } from "../components/agency/CaseNav.jsx";
+import { MESSAGE, OUTPUT, SERIES, casePath } from "../components/agency/agencyData.js";
 import { openRequest } from "../components/agency/request.js";
-import { CASE_STATS as FLAMBO } from "./stories/adamFlamboData.js";
 
-/* The public front door: PullUp builds brands people actually feel — for
-   brands and creators. Black and white, typography first. Stories link to
-   their full case pages at /work/:slug; the product door is "Log in". */
+/* The public front door. One message (MESSAGE), told in a strict order:
+   what you get → the stories that prove it (every one in the same four
+   steps, from agencyData SERIES) → why it works → superpowers → booklet. */
 
 const PROOF = [
   { v: "28.1M", l: "views for STIGA in seven months" },
-  { v: "Sony Music", l: "Adam Dawood, from zero to signed" },
   { v: "10,000+", l: "BKM Health community, zero paid spend" },
+  { v: "Sony Music", l: "Adam Dawood, from zero to signed" },
   { v: "4 nights", l: "a week of live music at Kaijas" },
-];
-
-// Every claim: Felix's brief; STIGA figures trace to the Growhouse report
-// (1 Dec 2024 – 30 Jun 2025); Adam Flambo's from his rooms (adamFlamboData).
-const STORIES = [
-  {
-    slug: "stiga",
-    kicker: "Brand · Sport · with Sebastian",
-    name: "STIGA Table Tennis",
-    body: "A heritage brand with almost no social presence. We worked with Sebastian to put the people and the play at the centre, and let the sport speak in its own voice. From December 2024 to June 2025, STIGA went from about 50 Instagram followers to more than 15,000 — and from near zero to 11,000+ on Facebook.",
-    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["Dec – Jun", "all organic channels"]],
-  },
-  {
-    slug: "bkm",
-    kicker: "Brand · Health · with Li and Tolga",
-    name: "BKM Health",
-    body: "Li and Tolga had a vision. We helped turn it into a community: people who show up, talk back and bring their friends. That community is now the foundation the whole brand stands on — built in one to two years, without a single paid ad.",
-    stats: [["10,000+", "followers"], ["0 kr", "paid spend"], ["Community first", "the brand is built on it today", true]],
-  },
-  {
-    slug: "adam-dawood",
-    tone: "dark",
-    kicker: "Creator · Music",
-    name: "Adam Dawood",
-    body: "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.",
-    hero: ["0 → Sony", "Identity, story, rollout and growth"],
-  },
-  {
-    slug: "adam-flambo",
-    kicker: "Creator · @adam_flambo",
-    name: "Adam Flambo",
-    body: "A creator who turns his following into real rooms full of people. Adam runs his events and his community through PullUp, so every person who pulls up stays part of his world — and he owns that relationship, not a platform.",
-    stats: [[String(FLAMBO.walks), "events hosted"], [String(FLAMBO.pulledUnique), "people pulled up"], [String(FLAMBO.community), "in his community", true]],
-  },
-  {
-    tone: "dark",
-    kicker: "Our own · Live music venue, Stockholm",
-    name: "Kaijas Musiksalong",
-    body: "Before we did this for anyone else, we did it for ourselves. We took an empty room and built a live-music venue: the brand, the programme, the people, and the systems to run it. Instagram became the main way guests found us and booked.",
-    stats: [["4 nights", "of live music a week"], ["10,000+", "Instagram followers"], ["Built in-house", "our own booking system and operations dashboard", true]],
-  },
 ];
 
 const PRINCIPLES = [
@@ -77,19 +36,6 @@ const STEPS = [
   ["We find the story", "What in your week will make people stop, feel something and follow."],
   ["We produce", "Short-form video, posts and copy in your voice, ready to publish."],
   ["We measure and repeat", "We track what actually moves people and do more of it."],
-];
-
-const AUDIENCES = [
-  {
-    k: "For brands",
-    t: "Put the people behind your brand in front of it.",
-    items: ["Organic growth on the channels that matter to you", "A community that becomes the foundation of the brand", "Content made from your real operations, not stock ideas"],
-  },
-  {
-    k: "For creators",
-    t: "Turn who you are into a world people want in on.",
-    items: ["Identity and story that fit who you actually are", "From followers to real rooms, events and fans", "Your audience and its data stay yours, on PullUp"],
-  },
 ];
 
 // Brand marks. Pure-black silhouettes (Zoda ships white) — the hero band
@@ -146,46 +92,47 @@ function SectionLabel({ n, children }) {
 }
 
 
-function StoryCard({ story, i }) {
+function StoryCard({ story }) {
   const navigate = useNavigate();
-  const { slug, tone, kicker, name, body, stats, hero } = story;
+  const { slug, tone, kicker, name, title, spine, stats, hero } = story;
   return (
     <Reveal delay={0.04}>
       <article className={`st-card${tone === "dark" ? " is-dark" : ""}`} data-pc-tone={tone === "dark" ? "dark" : undefined}>
-        <div className="st-copy">
-          <p className="st-kicker"><span>{String(i + 1).padStart(2, "0")}</span>{kicker}</p>
-          <h3 className="st-name">{name}</h3>
-          <p className="st-body">{body}</p>
-          {slug && (
-            <a
-              className="st-link"
-              href={casePath(slug)}
-              onClick={(e) => {
-                e.preventDefault();
-                trackEvent("cta_click", { location: `landing_story_${slug}` });
-                navigate(casePath(slug));
-              }}
-            >
-              Read the story
-              <ArrowRight size={16} strokeWidth={1.75} />
-            </a>
+        <div className="st-head">
+          <div className="st-copy">
+            <p className="st-kicker"><StoryMark slug={slug} />{kicker}</p>
+            <h3 className="st-name">{name}</h3>
+            <p className="st-title">{title}</p>
+          </div>
+          {hero ? (
+            <div className="st-hero">
+              <p className="st-hero-v">{hero[0]}</p>
+              <p className="st-hero-l">{hero[1]}</p>
+            </div>
+          ) : (
+            <div className="st-stats">
+              {stats.map(([v, l, wide]) => (
+                <div key={l} className={`st-stat${wide ? " is-wide" : ""}`}>
+                  <p className="st-stat-v">{v}</p>
+                  <p className="st-stat-l">{l}</p>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-        {hero ? (
-          <div className="st-hero">
-            <p className="st-hero-v">{hero[0]}</p>
-            <p className="st-hero-l">{hero[1]}</p>
-          </div>
-        ) : (
-          <div className="st-stats">
-            {stats.map(([v, l, wide]) => (
-              <div key={l} className={`st-stat${wide ? " is-wide" : ""}`}>
-                <p className="st-stat-v">{v}</p>
-                <p className="st-stat-l">{l}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <CaseSpine spine={spine} />
+        <a
+          className="st-link"
+          href={casePath(slug)}
+          onClick={(e) => {
+            e.preventDefault();
+            trackEvent("cta_click", { location: `landing_story_${slug}` });
+            navigate(casePath(slug));
+          }}
+        >
+          Read the story
+          <ArrowRight size={16} strokeWidth={1.75} />
+        </a>
       </article>
     </Reveal>
   );
@@ -207,13 +154,11 @@ function AgencyPage() {
             <p className="pc-eyebrow">For brands and creators · Stockholm · Nairobi</p>
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="pc-hero-h">We build brands people actually feel.</h1>
+            <h1 className="pc-hero-h">{MESSAGE.promise}</h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="pc-hero-sub">
-              Success for a brand or a creator starts with the people inside it. We find what
-              makes you worth following, turn your everyday work into content, and grow an
-              audience that stays — organically.
+              {MESSAGE.deal}
             </p>
           </Reveal>
           <Reveal delay={0.24}>
@@ -252,25 +197,74 @@ function AgencyPage() {
         </div>
       </section>
 
-      {/* ─── THE STORIES ─── */}
-      <section id="stories" className="pc-section" data-pc-section="stories" data-pc-order="3">
+      {/* ─── WHAT YOU GET ─── */}
+      <section id="services" className="pc-section" data-pc-section="services" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">The stories</SectionLabel>
+          <SectionLabel n="01">What you get</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">Every one of these started with a person, not a post.</h2>
+            <h2 className="pc-h2 hw-h2">30 minutes of you. A week of content.</h2>
+          </Reveal>
+          <div className="og-ledger">
+            <Reveal className="og-in">
+              <p className="og-k">You give</p>
+              <p className="og-v">30 min</p>
+              <p className="og-l">a week. One sprint — we ask, you talk. That's all we need from you.</p>
+            </Reveal>
+            <div className="og-out">
+              <p className="og-k">You get</p>
+              <ul>
+                {OUTPUT.map((o, i) => (
+                  <Reveal key={o.t} delay={i * 0.06} className="og-row">
+                    <span className="og-when">{o.when}</span>
+                    <span>
+                      <b>{o.t}</b>
+                      <span className="og-b">{o.b}</span>
+                    </span>
+                  </Reveal>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="og-k hw-how">How every week runs</p>
+          <ol className="hw-steps">
+            {STEPS.map(([t, b], i) => (
+              <li key={t}>
+                <Reveal delay={i * 0.06} className="hw-step">
+                  <span className="hw-n">{i + 1}</span>
+                  <h3>{t}</h3>
+                  <p>{b}</p>
+                </Reveal>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ─── THE STORIES ─── */}
+      <section id="stories" className="pc-section pc-rule" data-pc-section="stories" data-pc-order="4">
+        <div className="pc-wrap">
+          <SectionLabel n="02">The stories</SectionLabel>
+          <Reveal>
+            <h2 className="pc-h2 st-h2">Five stories. The same four steps.</h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <p className="st-lede">
+              Every story starts with a person, not a post. Read each one the same way:
+              where it started, what we did, what we made — and the result.
+            </p>
           </Reveal>
           <div className="st-list">
-            {STORIES.map((story, i) => (
-              <StoryCard key={story.name} story={story} i={i} />
+            {SERIES.map((story) => (
+              <StoryCard key={story.slug} story={story} />
             ))}
           </div>
         </div>
       </section>
 
       {/* ─── WHY IT WORKS ─── */}
-      <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="4">
+      <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="02">Why it works</SectionLabel>
+          <SectionLabel n="03">Why it works</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 pc-h2-xl wy-h2">
               The strongest brands aren't invented. <span>They're revealed.</span>
@@ -306,45 +300,6 @@ function AgencyPage() {
           <Reveal>
             <p className="wy-close">Not marketing. <span>Becoming.</span></p>
           </Reveal>
-        </div>
-      </section>
-
-      {/* ─── HOW WE WORK ─── */}
-      <section id="services" className="pc-section" data-pc-section="services" data-pc-order="5">
-        <div className="pc-wrap">
-          <SectionLabel n="03">How we work</SectionLabel>
-          <Reveal>
-            <h2 className="pc-h2 hw-h2">30 minutes of you. A week of content.</h2>
-          </Reveal>
-          <Reveal delay={0.06}>
-            <p className="hw-lede">
-              Stop inventing marketing content. Your daily work and your vision are already the best
-              material you have. We run short, focused sprints with you and turn them into content
-              that grows.
-            </p>
-          </Reveal>
-          <ol className="hw-steps">
-            {STEPS.map(([t, b], i) => (
-              <li key={t}>
-                <Reveal delay={i * 0.06} className="hw-step">
-                  <span className="hw-n">{i + 1}</span>
-                  <h3>{t}</h3>
-                  <p>{b}</p>
-                </Reveal>
-              </li>
-            ))}
-          </ol>
-          <div className="hw-for">
-            {AUDIENCES.map((a, i) => (
-              <Reveal key={a.k} delay={i * 0.06} className="hw-card">
-                <p className="hw-k">{a.k}</p>
-                <h3>{a.t}</h3>
-                <ul>
-                  {a.items.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </Reveal>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -411,7 +366,7 @@ export function LandingPage() {
     initTracking();
     trackPageView("landing");
     const prev = document.title;
-    document.title = "PullUp — We build brands people actually feel";
+    document.title = `PullUp — ${MESSAGE.promise.replace(/\.$/, "")}`;
     return () => {
       document.title = prev;
     };
@@ -554,21 +509,26 @@ const STYLES = `
 
   /* ─── stories ─── */
   .st-h2 { max-width: 18ch; }
+  .st-lede { margin: -16px 0 clamp(32px, 4vw, 48px); max-width: 56ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
   .st-list { display: grid; gap: clamp(16px, 2vw, 24px); }
   .st-card {
-    display: grid; grid-template-columns: 1fr; gap: clamp(28px, 4vw, 56px);
+    display: grid; grid-template-columns: 1fr; gap: clamp(28px, 3.4vw, 44px);
     padding: clamp(24px, 4vw, 48px);
     border: 1px solid var(--pc-black); border-radius: 20px; background: #fff; color: #000;
   }
-  @media (min-width: 900px) { .st-card { grid-template-columns: 6fr 5fr; align-items: center; } }
+  .st-head { display: grid; grid-template-columns: 1fr; gap: clamp(24px, 3vw, 40px); }
+  @media (min-width: 900px) { .st-head { grid-template-columns: 6fr 5fr; align-items: center; } }
+  .st-card .pc-spine { border-top: 1px solid var(--pc-line); padding-top: 28px; }
+  .st-card.is-dark .pc-spine { border-top-color: var(--pc-line-dark); }
+  @media (min-width: 900px) { .st-card .pc-spine { padding-top: 32px; } }
   .st-card.is-dark { background: #000; color: #fff; border-color: #000; }
   .st-kicker { display: flex; gap: 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
   .st-card.is-dark .st-kicker { color: rgba(255,255,255,0.5); }
   .st-name { margin-top: 14px; font-size: clamp(32px, 4.4vw, 56px); font-weight: 600; line-height: 0.98; letter-spacing: -0.045em; }
-  .st-body { margin-top: 18px; font-size: 17px; line-height: 1.6; color: #333; max-width: 56ch; }
-  .st-card.is-dark .st-body { color: rgba(255,255,255,0.72); }
+  .st-title { margin-top: 14px; font-size: clamp(19px, 1.8vw, 24px); line-height: 1.3; letter-spacing: -0.015em; color: #333; max-width: 30ch; }
+  .st-card.is-dark .st-title { color: rgba(255,255,255,0.72); }
   .st-link {
-    margin-top: 22px; display: inline-flex; align-items: center; gap: 8px;
+    justify-self: start; display: inline-flex; align-items: center; gap: 8px;
     font-size: 15px; font-weight: 600; color: inherit; text-decoration: none;
     border-bottom: 1px solid currentColor; padding-bottom: 3px;
   }
@@ -603,22 +563,29 @@ const STYLES = `
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
-  .hw-lede { max-width: 56ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
-  .hw-steps { list-style: none; padding: 0; margin-top: clamp(36px, 5vw, 56px); display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .hw-how { margin-top: clamp(48px, 6vw, 72px); }
+  .hw-steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 12px; }
   @media (min-width: 640px) { .hw-steps { grid-template-columns: 1fr 1fr; } }
   @media (min-width: 1000px) { .hw-steps { grid-template-columns: repeat(4, 1fr); } }
   .hw-step { height: 100%; border: 1px solid var(--pc-black); border-radius: 18px; padding: 24px 22px 26px; }
   .hw-n { display: block; font-size: 36px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
   .hw-step h3 { margin-top: 18px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
   .hw-step p { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #444; }
-  .hw-for { margin-top: clamp(40px, 6vw, 72px); display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 800px) { .hw-for { grid-template-columns: 1fr 1fr; } }
-  .hw-card { height: 100%; background: #000; color: #fff; border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); }
-  .hw-k { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
-  .hw-card h3 { margin-top: 14px; font-size: clamp(24px, 2.6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.08; max-width: 20ch; }
-  .hw-card ul { list-style: none; padding: 0; margin: 24px 0 0; border-top: 1px solid var(--pc-line-dark); }
-  .hw-card li { padding: 14px 0; border-bottom: 1px solid var(--pc-line-dark); font-size: 16px; line-height: 1.45; color: rgba(255,255,255,0.8); }
-  .hw-card li:last-child { border-bottom: 0; padding-bottom: 0; }
+  .og-ledger { margin-top: clamp(8px, 1vw, 16px); display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 900px) { .og-ledger { grid-template-columns: 4fr 8fr; } }
+  .og-in { background: #000; color: #fff; border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); display: flex; flex-direction: column; }
+  .og-k { font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pc-grey); }
+  .og-in .og-k { color: rgba(255,255,255,0.5); }
+  .og-v { margin-top: auto; padding-top: 32px; white-space: nowrap; font-size: clamp(64px, 7vw, 100px); font-weight: 600; letter-spacing: -0.05em; line-height: 0.9; }
+  .og-l { margin-top: 14px; font-size: 16px; line-height: 1.5; color: rgba(255,255,255,0.7); max-width: 30ch; }
+  .og-out { border: 1px solid var(--pc-black); border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); }
+  .og-out ul { list-style: none; margin: 18px 0 0; padding: 0; border-top: 1px solid var(--pc-black); }
+  .og-row { display: grid; grid-template-columns: 1fr; gap: 6px 24px; padding: 18px 0; border-bottom: 1px solid var(--pc-line); }
+  .og-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  @media (min-width: 640px) { .og-row { grid-template-columns: 140px 1fr; align-items: baseline; } }
+  .og-when { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #D9480F; }
+  .og-row b { display: block; font-size: clamp(19px, 1.8vw, 22px); font-weight: 600; letter-spacing: -0.02em; }
+  .og-b { display: block; margin-top: 4px; font-size: 15px; line-height: 1.5; color: #444; }
 
   /* ─── close ─── */
   .cl-h2 { max-width: 14ch; }
@@ -642,11 +609,11 @@ const STYLES = `
     .pf-v { font-size: 26px; }
     .pf-l { font-size: 13px; }
     .st-card { border-radius: 18px; padding: 22px 20px 24px; }
-    .st-body { font-size: 16px; }
+    .st-title { font-size: 18px; }
     .st-stat { padding: 14px 14px 12px; border-radius: 12px; }
     .st-stat-v { font-size: 22px; }
     .wy-text { font-size: 15px; }
-    .hw-for .hw-card, .hw-step { border-radius: 16px; }
+    .og-in, .og-out, .hw-step { border-radius: 16px; }
     .cl-cta .pc-btn { width: 100%; }
   }
 

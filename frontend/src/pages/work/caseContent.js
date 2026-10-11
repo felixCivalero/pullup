@@ -1,4 +1,6 @@
-// Case page content. Every claim traces to the agency blueprint or, for STIGA,
+// Case page long reads. Title, number and the four-step spine live in the
+// registry (components/agency/agencyData.js CASES); this file holds the
+// sub-line, the facts (unnumbered pages only) and the blocks. Every claim traces to the agency blueprint or, for STIGA,
 // to the Growhouse results report (1 Dec 2024 – 30 Jun 2025); Adam Dawood:
 // Felix's brief (zero → signed by Sony Music; identity, story, rollout, growth) + his 'audience comes last' notes. No invented
 // numbers: a case without hard data stays typographic until data arrives.
@@ -26,15 +28,7 @@ export const STIGA_TOTALS = {
 
 export const CASE_CONTENT = {
   bkm: {
-    eyebrow: "Case 01 — BKM",
-    title: "0 to 10k without a marketing department.",
     sub: "When BKM was moving from 0 to 10k, the founders faced the ultimate dilemma: how to scale market authority without spending 20 hours a week trapped in creative loops.",
-    facts: [
-      ["Client", "BKM"],
-      ["Stage", "0 → 10k"],
-      ["Model", "Founder-led marketing"],
-      ["Rhythm", "30-minute sprints"],
-    ],
     stats: [
       { v: "0 → 10k", l: "The growth stage we built for" },
       { v: "30 min", l: "Per sprint. No exceptions." },
@@ -82,8 +76,6 @@ export const CASE_CONTENT = {
   },
 
   "li-karlsen": {
-    eyebrow: "Case 02 — Li Karlsén",
-    title: "Content doesn't need to be loud. It needs to be precise.",
     sub: "Picture Li Karlsén, co-founder of BKM and elite freediver, descending into absolute silence. In the deep there is no room for wasted energy, rambling thoughts, or hesitation.",
     facts: [
       ["Who", "Li Karlsén"],
@@ -135,15 +127,7 @@ export const CASE_CONTENT = {
   },
 
   stiga: {
-    eyebrow: "Case 03 — STIGA Table Tennis",
-    title: "A legacy global brand, growing on every channel.",
-    sub: "This methodology isn't just for agile startups. Inside a global sports brand with decades of history, the same engine turned corporate systems and technical depth into public assets — and every metric moved.",
-    facts: [
-      ["Client", "STIGA Table Tennis"],
-      ["Period", "1 Dec 2024 – 30 Jun 2025"],
-      ["Channels", "Facebook · Instagram · TikTok · YouTube"],
-      ["Method", "30-minute tactical structures"],
-    ],
+    sub: "A global sports brand with decades of history — and about 50 followers on Instagram. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.",
     heroStat: { v: "28.1M", l: "views across four channels" },
     blocks: [
       {
@@ -179,15 +163,7 @@ export const CASE_CONTENT = {
   },
 
   "adam-dawood": {
-    eyebrow: "Case 05 — Adam Dawood",
-    title: "From zero to signed.",
     sub: "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.",
-    facts: [
-      ["Artist", "Adam Dawood · DAWOOD"],
-      ["Start", "Zero"],
-      ["Outcome", "Signed by Sony Music"],
-      ["Work", "Identity, story, rollout and growth"],
-    ],
     heroStat: { v: "0 → Signed", l: "Sony Music" },
     blocks: [
       {
@@ -222,6 +198,44 @@ export const CASE_CONTENT = {
         ],
       },
       { type: "statement", text: "It's a long-term game. Consistency is the only part you hold." },
+    ],
+  },
+
+  kaijas: {
+    sub: "Before we did this for anyone else, we did it for ourselves. We took an empty room in Stockholm and built a live-music venue — the brand, the programme, the people, and the systems to run it.",
+    heroStat: { v: "4 nights", l: "of live music, every week" },
+    blocks: [
+      {
+        type: "chapter",
+        n: "01",
+        label: "The starting point",
+        title: "An empty room.",
+        body: [
+          "No name on the door, no programme, no guests. Everything a venue is had to be decided — and then produced, week after week.",
+          "It is the same work we now do for brands and creators: find who you are, say it clearly, and live it in public until people can feel it.",
+        ],
+      },
+      {
+        type: "steps",
+        label: "What we built",
+        title: "The whole venue, in-house.",
+        items: [
+          { k: "01", t: "The brand", b: "A name, a look and a voice for a live-music salon in Stockholm." },
+          { k: "02", t: "The programme", b: "Live music four nights a week." },
+          { k: "03", t: "The people", b: "The room is the musicians, the staff and the guests who come back." },
+          { k: "04", t: "The systems", b: "Our own booking system and operations dashboard, built in-house." },
+        ],
+      },
+      { type: "statement", text: "Instagram became the front door. Guests found us there — and booked." },
+      {
+        type: "chapter",
+        n: "02",
+        label: "Why it matters to you",
+        title: "We use it on ourselves first.",
+        body: [
+          "Every method on this site ran here before it ran for a client. 10,000+ people follow Kaijas on Instagram — the front door to the room.",
+        ],
+      },
     ],
   },
 };

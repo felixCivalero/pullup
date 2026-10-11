@@ -4,7 +4,7 @@ import { trackEvent } from "../../lib/analytics.js";
 import { track } from "../../lib/track.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
-import { CASES, CONTACT, DECK_PATH, casePath } from "./agencyData.js";
+import { CONTACT, DECK_PATH, SERIES, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { ScrollLine } from "./ScrollLine.jsx";
 import { rememberArrival } from "./request.js";
@@ -138,7 +138,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
         <footer className="pc-footer" data-pc-tone="dark">
           <span>PullUp &copy; {new Date().getFullYear()}</span>
           <nav aria-label="Cases">
-            {CASES.map((c) => (
+            {SERIES.map((c) => (
               <a
                 key={c.slug}
                 className="pc-footer-work"

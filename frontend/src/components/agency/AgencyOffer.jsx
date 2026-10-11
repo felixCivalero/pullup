@@ -3,12 +3,12 @@ import { trackEvent } from "../../lib/analytics.js";
 import { OFFER, mailto } from "./agencyData.js";
 import { Reveal } from "./Reveal.jsx";
 
-// The closing offer — the one package, on the landing and every case page.
+// The closing offer — the one package, at the end of every case page.
 export function AgencyOffer({
   id,
   source = "landing",
-  heading = "Your business does incredible work behind closed doors.",
-  sub = "Stop letting your marketing team guess what that work looks like. Restructure your organization around a Production Core.",
+  heading = "Your brand could be the next story.",
+  sub = "We take on a few brands and creators at a time. Your daily work and your vision are already the best material you have — we turn them into content that grows.",
 }) {
   return (
     <section

@@ -231,7 +231,7 @@ export default function CasePage() {
       </section>
 
       <DeckTeaser source={`case_${slug}`} />
-      <AgencyOffer source={`case_${slug}`} heading="Want this engine inside your organization?" />
+      <AgencyOffer source={`case_${slug}`} />
     </AgencyShell>
   );
 }

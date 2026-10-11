@@ -567,7 +567,7 @@ export default function AdamFlamboStory() {
       </section>
     </div>
     <DeckTeaser source="case_adam-flambo" />
-    <AgencyOffer source="case_adam-flambo" heading="Want this engine inside your organization?" />
+    <AgencyOffer source="case_adam-flambo" />
     </AgencyShell>
   );
 }

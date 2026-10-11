@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
-import { BASE_MONTHLY, CONTACT, SUPERPOWERS, monthlyPlan } from "./agencyData.js";
+import { BASE_MONTHLY, CONTACT, FULL_SERVICE, SUPERPOWERS, monthlyPlan } from "./agencyData.js";
 import { requestMeta } from "./request.js";
 
 /* "Start a conversation": who you are, where you want to go, when we can
@@ -187,10 +187,15 @@ export function RequestDialog() {
                 ))}
               </div>
               <p className="rq-total">
-                Core engine {usd(BASE_MONTHLY)}
-                {picked.length > 0 && ` + ${picked.length} power${picked.length > 1 ? "s" : ""}`} ·{" "}
+                {plan.full
+                  ? `${FULL_SERVICE.name} — the core engine + all four powers`
+                  : `Core engine ${usd(BASE_MONTHLY)}${picked.length > 0 ? ` + ${picked.length} power${picked.length > 1 ? "s" : ""}` : ""}`} ·{" "}
                 <strong>{plan.from && "from "}{usd(plan.total)} / month</strong>
-                {plan.saved > 0 && <span className="rq-save"> · bundle −{Math.round(plan.off * 100)}%, you save {usd(plan.saved)}</span>}
+                {plan.saved > 0 && (
+                  <span className="rq-save">
+                    {" "}· {plan.full ? "fixed price" : `bundle −${Math.round(plan.off * 100)}%`}, you save {usd(plan.saved)}
+                  </span>
+                )}
               </p>
             </fieldset>
 

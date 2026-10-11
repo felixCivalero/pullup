@@ -74,12 +74,18 @@ export const bundleOff = (count) => BUNDLE_OFF[Math.min(count, BUNDLE_OFF.length
 const round5 = (n) => Math.round(n / 5) * 5;
 // A power's monthly price when `count` powers are on in total.
 export const powerPrice = (p, count) => round5(p.price * (1 - bundleOff(count)));
+// Every power switched on = the Full Service package: one fixed price,
+// the core engine and all four powers, nothing "from".
+export const FULL_SERVICE = { name: "Full Service", price: 5500 };
 export function monthlyPlan(ids) {
   const picked = SUPERPOWERS.filter((p) => ids.includes(p.id));
   const n = picked.length;
   const list = picked.reduce((a, p) => a + p.price, 0);
+  if (n === SUPERPOWERS.length) {
+    return { picked, n, off: bundleOff(n), full: true, from: false, total: FULL_SERVICE.price, saved: BASE_MONTHLY + list - FULL_SERVICE.price };
+  }
   const powers = picked.reduce((a, p) => a + powerPrice(p, n), 0);
-  return { picked, n, off: bundleOff(n), saved: list - powers, total: BASE_MONTHLY + powers, from: picked.some((p) => p.from) };
+  return { picked, n, off: bundleOff(n), full: false, saved: list - powers, total: BASE_MONTHLY + powers, from: picked.some((p) => p.from) };
 }
 
 export const OFFER = {

@@ -19,6 +19,9 @@ const BASE_MONTHLY = 3000;
 // Bundle ladder — mirrors frontend agencyData BUNDLE_OFF: more powers, less each.
 const BUNDLE_OFF = [0, 0, 0.1, 0.15, 0.2];
 const bundleOff = (n) => BUNDLE_OFF[Math.min(n, BUNDLE_OFF.length - 1)] || 0;
+// All four powers = the Full Service package at one fixed price (mirrors FULL_SERVICE).
+const FULL_SERVICE = { name: "Full Service", price: 5500 };
+const isFull = (ids) => Object.keys(POWERS).every((id) => ids.includes(id));
 const powerPrice = (id, n) => Math.round((POWERS[id].price * (1 - bundleOff(n))) / 5) * 5;
 
 // Per-IP throttle: 6 requests / hour is plenty for a human.
@@ -80,7 +83,9 @@ function requestEmail(r, received) {
   const powers = r.powers.map((id) => POWERS[id]).filter(Boolean);
   const n = r.powers.length;
   const off = bundleOff(n);
-  const plan = powers.length
+  const plan = isFull(r.powers)
+    ? `${FULL_SERVICE.name} — core engine + all four powers, fixed`
+    : powers.length
     ? `Core engine ${usd(BASE_MONTHLY)} + ${r.powers.map((id) => `${POWERS[id].name} (${POWERS[id].from ? "from " : ""}+${usd(powerPrice(id, n))})`).join(" + ")}${off ? ` — bundle −${Math.round(off * 100)}%` : ""}`
     : `Core engine ${usd(BASE_MONTHLY)}`;
   const reply = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent("Re: your PullUp request")}`;
@@ -92,7 +97,7 @@ function requestEmail(r, received) {
       <div style="border-left:3px solid #000;padding:4px 0 4px 16px;margin:0 0 24px;font-size:16px;line-height:1.6;white-space:pre-wrap;">${esc(r.description)}</div>
       <table style="border-collapse:collapse;width:100%;border-top:1px solid rgba(0,0,0,0.1);margin:0 0 26px;">
         ${row("Wants", plan)}
-        ${row("Monthly", r.monthly_total ? `${powers.some((p) => p.from) ? "from " : ""}${usd(r.monthly_total)} / month` : "")}
+        ${row("Monthly", r.monthly_total ? `${!isFull(r.powers) && powers.some((p) => p.from) ? "from " : ""}${usd(r.monthly_total)} / month` : "")}
         ${row("Can talk", r.preferred_time)}
         ${row("Their timezone", r.timezone)}
         ${row("Clicked", r.source)}
@@ -149,7 +154,9 @@ export function registerAgencyRequestRoutes(app) {
         preferred_time: clip(body.preferredTime, 200),
         timezone: clip(body.timezone, 80),
         powers,
-        monthly_total: BASE_MONTHLY + powers.reduce((a, id) => a + powerPrice(id, powers.length), 0),
+        monthly_total: isFull(powers)
+          ? FULL_SERVICE.price
+          : BASE_MONTHLY + powers.reduce((a, id) => a + powerPrice(id, powers.length), 0),
         source: clip(body.source, 80),
         meta,
       };
@@ -161,7 +168,9 @@ export function registerAgencyRequestRoutes(app) {
       }
 
       const received = stockholmTime(new Date(data.created_at));
-      const subjectPowers = powers.length ? ` — ${powers.map((id) => POWERS[id].name).join(" + ")}` : "";
+      const subjectPowers = isFull(powers)
+        ? ` — ${FULL_SERVICE.name}`
+        : powers.length ? ` — ${powers.map((id) => POWERS[id].name).join(" + ")}` : "";
       sendEmail({
         to: INBOX,
         subject: `Request: ${name}${record.company ? ` (${record.company})` : ""}${subjectPowers}`,

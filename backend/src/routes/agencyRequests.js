@@ -16,6 +16,10 @@ const POWERS = {
   app: { name: "Your Own App", price: 1500, from: true },
 };
 const BASE_MONTHLY = 3000;
+// Bundle ladder — mirrors frontend agencyData BUNDLE_OFF: more powers, less each.
+const BUNDLE_OFF = [0, 0, 0.1, 0.15, 0.2];
+const bundleOff = (n) => BUNDLE_OFF[Math.min(n, BUNDLE_OFF.length - 1)] || 0;
+const powerPrice = (id, n) => Math.round((POWERS[id].price * (1 - bundleOff(n))) / 5) * 5;
 
 // Per-IP throttle: 6 requests / hour is plenty for a human.
 const hits = new Map(); // ip -> { count, resetAt }
@@ -74,8 +78,10 @@ function requestEmail(r, received) {
   const utm = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]
     .filter((k) => m[k]).map((k) => `${k.slice(4)}=${m[k]}`).join(" · ");
   const powers = r.powers.map((id) => POWERS[id]).filter(Boolean);
+  const n = r.powers.length;
+  const off = bundleOff(n);
   const plan = powers.length
-    ? `Core engine ${usd(BASE_MONTHLY)} + ${powers.map((p) => `${p.name} (${p.from ? "from " : ""}+${usd(p.price)})`).join(" + ")}`
+    ? `Core engine ${usd(BASE_MONTHLY)} + ${r.powers.map((id) => `${POWERS[id].name} (${POWERS[id].from ? "from " : ""}+${usd(powerPrice(id, n))})`).join(" + ")}${off ? ` — bundle −${Math.round(off * 100)}%` : ""}`
     : `Core engine ${usd(BASE_MONTHLY)}`;
   const reply = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent("Re: your PullUp request")}`;
   return `<!doctype html><html><body style="margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#000;">
@@ -143,7 +149,7 @@ export function registerAgencyRequestRoutes(app) {
         preferred_time: clip(body.preferredTime, 200),
         timezone: clip(body.timezone, 80),
         powers,
-        monthly_total: BASE_MONTHLY + powers.reduce((a, id) => a + POWERS[id].price, 0),
+        monthly_total: BASE_MONTHLY + powers.reduce((a, id) => a + powerPrice(id, powers.length), 0),
         source: clip(body.source, 80),
         meta,
       };

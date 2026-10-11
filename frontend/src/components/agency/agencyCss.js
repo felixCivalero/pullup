@@ -248,6 +248,7 @@ export const AGENCY_CSS = `
   .rq-at { margin-top: 10px; }
   .rq-total { margin-top: 10px; font-size: 14px; color: var(--pc-grey); font-variant-numeric: tabular-nums; }
   .rq-total strong { color: #000; font-weight: 600; }
+  .rq-save { color: #D9480F; font-weight: 500; }
   .rq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   .rq-send { justify-self: start; margin-top: 4px; }
   .rq-error { font-size: 15px; color: #b42318; }
@@ -326,6 +327,30 @@ export const AGENCY_CSS = `
   .sp-card:hover .sp-add { background: #000; color: #fff; }
   .sp-card.is-on .sp-add { background: #fff; color: #000; border-color: #fff; }
 
+  .sp-lede strong { font-weight: 600; color: #000; }
+  .sp-was { margin-left: 10px; font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: var(--pc-grey); text-decoration-thickness: 1.5px; }
+  .sp-card.is-on .sp-was { color: rgba(255,255,255,0.45); }
+  .sp-deal {
+    align-self: flex-start; display: inline-flex; align-items: center;
+    max-height: 0; opacity: 0; margin-top: -14px; overflow: hidden;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+    padding: 0 12px; border-radius: 999px; background: rgba(217,72,15,0.1); color: var(--sp-accent);
+    transition: max-height 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease, margin 0.4s ease, padding 0.4s ease;
+  }
+  .sp-deal.is-shown { max-height: 40px; opacity: 1; margin-top: -2px; padding: 7px 12px; }
+  .sp-card.is-on .sp-deal { background: rgba(217,72,15,0.22); color: #ff8a5c; }
+
+  .sp-ladder { list-style: none; padding: 0; margin: 0 0 12px; display: flex; gap: 6px; }
+  .sp-ladder li {
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.16);
+    font-size: 12px; color: rgba(255,255,255,0.5); font-variant-numeric: tabular-nums;
+    transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .sp-ladder-n { font-weight: 700; }
+  .sp-ladder li.is-hit { border-color: rgba(255,255,255,0.4); color: #fff; }
+  .sp-ladder li.is-now { background: var(--sp-accent); border-color: var(--sp-accent); color: #fff; transform: scale(1.06); }
+  .sp-total-k b { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
   .sp-total {
     position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5;
     margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px;
@@ -333,10 +358,10 @@ export const AGENCY_CSS = `
     background: #000; color: #fff; border-radius: 22px;
     box-shadow: 0 24px 60px -24px rgba(0,0,0,0.55);
   }
-  .sp-total-k { font-size: 13px; line-height: 1.4; color: rgba(255,255,255,0.55); }
+  .sp-total-k { margin-top: 8px; font-size: 13px; line-height: 1.4; color: rgba(255,255,255,0.6); }
   .sp-total-v {
     margin-top: 4px; font-size: clamp(30px, 3.6vw, 44px); font-weight: 600; letter-spacing: -0.045em; line-height: 1;
-    font-variant-numeric: tabular-nums; animation: sp-tick 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    font-variant-numeric: tabular-nums;
   }
   .sp-total-v span { font-size: 0.4em; font-weight: 500; letter-spacing: 0; color: rgba(255,255,255,0.55); }
   @keyframes sp-tick { 0% { transform: translateY(6px); opacity: 0.4; } 100% { transform: none; opacity: 1; } }
@@ -346,6 +371,7 @@ export const AGENCY_CSS = `
   @media (max-width: 640px) {
     .sp-card { border-radius: 18px; }
     .sp-total { border-radius: 18px; padding: 16px; }
+    .sp-ladder li { padding: 5px 8px; font-size: 11px; }
     .sp-total .pc-btn { width: 100%; min-height: 52px; }
   }
 

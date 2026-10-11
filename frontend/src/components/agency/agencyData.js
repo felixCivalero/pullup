@@ -67,6 +67,21 @@ export const SUPERPOWERS = [
   },
 ];
 
+// Bundle ladder: the more superpowers, the less each one costs.
+// Index = number of powers switched on → share off every power's price.
+export const BUNDLE_OFF = [0, 0, 0.1, 0.15, 0.2];
+export const bundleOff = (count) => BUNDLE_OFF[Math.min(count, BUNDLE_OFF.length - 1)] || 0;
+const round5 = (n) => Math.round(n / 5) * 5;
+// A power's monthly price when `count` powers are on in total.
+export const powerPrice = (p, count) => round5(p.price * (1 - bundleOff(count)));
+export function monthlyPlan(ids) {
+  const picked = SUPERPOWERS.filter((p) => ids.includes(p.id));
+  const n = picked.length;
+  const list = picked.reduce((a, p) => a + p.price, 0);
+  const powers = picked.reduce((a, p) => a + powerPrice(p, n), 0);
+  return { picked, n, off: bundleOff(n), saved: list - powers, total: BASE_MONTHLY + powers, from: picked.some((p) => p.from) };
+}
+
 export const OFFER = {
   name: "The Retained Architecture",
   price: "$3,000",

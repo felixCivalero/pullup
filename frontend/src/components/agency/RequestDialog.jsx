@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
-import { BASE_MONTHLY, CONTACT, SUPERPOWERS } from "./agencyData.js";
+import { BASE_MONTHLY, CONTACT, SUPERPOWERS, monthlyPlan } from "./agencyData.js";
 import { requestMeta } from "./request.js";
 
 /* "Start a conversation": who you are, where you want to go, when we can
@@ -51,8 +51,8 @@ export function RequestDialog() {
 
   if (!open) return null;
 
-  const picked = SUPERPOWERS.filter((p) => powers.has(p.id));
-  const total = BASE_MONTHLY + picked.reduce((a, p) => a + p.price, 0);
+  const plan = monthlyPlan([...powers]);
+  const picked = plan.picked;
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const togglePower = (id) =>
     setPowers((prev) => {
@@ -189,7 +189,8 @@ export function RequestDialog() {
               <p className="rq-total">
                 Core engine {usd(BASE_MONTHLY)}
                 {picked.length > 0 && ` + ${picked.length} power${picked.length > 1 ? "s" : ""}`} ·{" "}
-                <strong>{picked.some((p) => p.from) && "from "}{usd(total)} / month</strong>
+                <strong>{plan.from && "from "}{usd(plan.total)} / month</strong>
+                {plan.saved > 0 && <span className="rq-save"> · bundle −{Math.round(plan.off * 100)}%, you save {usd(plan.saved)}</span>}
               </p>
             </fieldset>
 

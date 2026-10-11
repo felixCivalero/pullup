@@ -8,6 +8,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
+import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { casePath, mailto } from "../components/agency/agencyData.js";
 import { CASE_STATS as FLAMBO } from "./stories/adamFlamboData.js";
@@ -340,6 +341,8 @@ function AgencyPage() {
         </div>
       </section>
 
+      <Superpowers />
+
       <DeckTeaser source="landing" />
 
       {/* ─── CLOSE ─── */}
@@ -402,7 +405,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#work": "stories", "#why": "why", "#how": "how", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#work": "stories", "#why": "why", "#how": "how", "#superpowers": "superpowers", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });

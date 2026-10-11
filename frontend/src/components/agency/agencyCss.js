@@ -197,6 +197,91 @@ export const AGENCY_CSS = `
 
 
 
+
+  /* ─── superpowers ─── */
+  .sp { --sp-accent: #D9480F; }
+  .sp-h2 { max-width: 14ch; }
+  .sp-lede { max-width: 54ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
+  .sp-grid { margin-top: clamp(36px, 5vw, 56px); display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 720px) { .sp-grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
+  .sp-grid > * { height: 100%; }
+  .sp-card {
+    all: unset; box-sizing: border-box; cursor: pointer; width: 100%; height: 100%;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: clamp(22px, 2.8vw, 32px);
+    border: 1px solid #000; border-radius: 22px; background: #fff; color: #000;
+    transition: background 0.35s ease, color 0.35s ease, transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sp-card:hover { transform: translateY(-4px) rotate(-0.4deg); box-shadow: 0 24px 48px -30px rgba(0,0,0,0.45); }
+  .sp-card:active { transform: scale(0.985); }
+  .sp-card:focus-visible { outline: 2px solid #000; outline-offset: 4px; }
+  .sp-card.is-on { background: #000; color: #fff; animation: sp-pop 0.45s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes sp-pop { 0% { transform: scale(0.97); } 55% { transform: scale(1.015); } 100% { transform: none; } }
+  .sp-top { display: flex; align-items: center; gap: 12px; }
+  .sp-icon {
+    width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+    background: #f1f1ef; transition: background 0.35s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .sp-card:hover .sp-icon { transform: rotate(-8deg) scale(1.06); }
+  .sp-card.is-on .sp-icon { background: rgba(255,255,255,0.1); }
+  .sp-by { font-size: 12px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pc-grey); }
+  .sp-card.is-on .sp-by { color: rgba(255,255,255,0.5); }
+  .sp-switch {
+    margin-left: auto; width: 46px; height: 28px; border-radius: 999px; padding: 3px;
+    background: #e6e6e3; transition: background 0.3s ease; flex: none;
+  }
+  .sp-switch span {
+    display: block; width: 22px; height: 22px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), background 0.3s ease;
+  }
+  .sp-card.is-on .sp-switch { background: var(--sp-accent); }
+  .sp-card.is-on .sp-switch span { transform: translateX(18px); }
+  .sp-name { font-size: clamp(28px, 3.4vw, 42px); font-weight: 600; letter-spacing: -0.045em; line-height: 0.98; margin-top: 6px; }
+  .sp-line { font-size: 17px; line-height: 1.4; font-weight: 500; letter-spacing: -0.01em; }
+  .sp-items { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--pc-line); }
+  .sp-card.is-on .sp-items { border-top-color: var(--pc-line-dark); }
+  .sp-item { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: start; font-size: 15px; line-height: 1.45; color: #444; }
+  .sp-item svg { margin-top: 3px; }
+  .sp-card.is-on .sp-item { color: rgba(255,255,255,0.75); }
+  .sp-card.is-on .sp-item svg { color: var(--sp-accent); }
+  .sp-price { margin-top: auto; padding-top: 18px; display: flex; align-items: baseline; gap: 8px; }
+  .sp-price-v { font-size: clamp(26px, 2.6vw, 32px); font-weight: 600; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+  .sp-price-v small, .sp-total-v small { font-size: 0.5em; font-weight: 500; letter-spacing: 0; opacity: 0.6; }
+  .sp-price-c { font-size: 14px; color: var(--pc-grey); }
+  .sp-card.is-on .sp-price-c { color: rgba(255,255,255,0.5); }
+  .sp-add {
+    margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 14px; border-radius: 999px; font-size: 14px; font-weight: 600;
+    border: 1px solid #000; transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+  .sp-card:hover .sp-add { background: #000; color: #fff; }
+  .sp-card.is-on .sp-add { background: #fff; color: #000; border-color: #fff; }
+
+  .sp-total {
+    position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 5;
+    margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px;
+    padding: 18px 18px 18px clamp(20px, 3vw, 32px);
+    background: #000; color: #fff; border-radius: 22px;
+    box-shadow: 0 24px 60px -24px rgba(0,0,0,0.55);
+  }
+  .sp-total-k { font-size: 13px; line-height: 1.4; color: rgba(255,255,255,0.55); }
+  .sp-total-v {
+    margin-top: 4px; font-size: clamp(30px, 3.6vw, 44px); font-weight: 600; letter-spacing: -0.045em; line-height: 1;
+    font-variant-numeric: tabular-nums; animation: sp-tick 0.5s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .sp-total-v span { font-size: 0.4em; font-weight: 500; letter-spacing: 0; color: rgba(255,255,255,0.55); }
+  @keyframes sp-tick { 0% { transform: translateY(6px); opacity: 0.4; } 100% { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .sp-card, .sp-card.is-on, .sp-total-v, .sp-icon, .sp-switch span { animation: none; transition: none; }
+  }
+  @media (max-width: 640px) {
+    .sp-card { border-radius: 18px; }
+    .sp-total { border-radius: 18px; padding: 16px; }
+    .sp-total .pc-btn { width: 100%; min-height: 52px; }
+  }
+
   /* ─── deck teaser ─── */
   .pc-btn-dark { background: var(--pc-black); color: var(--pc-white); }
   .pc-btn-line { background: transparent; color: var(--pc-black); border-color: rgba(0,0,0,0.22); }

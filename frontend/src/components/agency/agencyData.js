@@ -12,6 +12,61 @@ export const mailto = (subject) =>
 
 // One package. Every engagement opens with a 3-month trust period — paid, but
 // no commitment; the commitment starts after it, and longer commitments cost less.
+// Superpowers: add-ons on top of the retained engine (OFFER), monthly.
+// `from` marks a starting price that's scoped per client.
+export const BASE_MONTHLY = 3000;
+export const SUPERPOWERS = [
+  {
+    id: "crm",
+    name: "Real People CRM",
+    by: "PullUp",
+    line: "Know every person who pulls up.",
+    items: [
+      "Every follower, RSVP and guest as one real person — not a row in five tools",
+      "Community marketing and sales across email, WhatsApp and Instagram",
+      "Your audience and its data stay yours",
+    ],
+    price: 750,
+  },
+  {
+    id: "room",
+    name: "The Room",
+    by: "Access",
+    line: "What happens at the event stays with the people who were there.",
+    items: [
+      "A private room only the people who pulled up can enter",
+      "Guests share their photos and moments with each other — credited",
+      "Being there becomes the reason to come back",
+    ],
+    price: 500,
+  },
+  {
+    id: "tracking",
+    name: "Deep Tracking",
+    by: "Signal",
+    line: "See what actually moves people.",
+    items: [
+      "One trail from post to RSVP to pull-up",
+      "Every channel and every piece of content, attributed",
+      "A weekly read-out: what to do more of",
+    ],
+    price: 400,
+  },
+  {
+    id: "app",
+    name: "Your Own App",
+    by: "Lab",
+    line: "Your world, on their home screen.",
+    items: [
+      "Your community in an app with your name on it",
+      "Rooms, tickets and messages — in your brand",
+      "Built on PullUp, owned by you",
+    ],
+    price: 1500,
+    from: true,
+  },
+];
+
 export const OFFER = {
   name: "The Retained Architecture",
   price: "$3,000",

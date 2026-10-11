@@ -197,35 +197,16 @@ export const AGENCY_CSS = `
 
 
 
-  /* ─── deck gate ─── */
+  /* ─── deck teaser ─── */
   .pc-btn-dark { background: var(--pc-black); color: var(--pc-white); }
-  .pc-btn:disabled { opacity: 0.6; cursor: progress; transform: none; }
+  .pc-btn-line { background: transparent; color: var(--pc-black); border-color: rgba(0,0,0,0.22); }
+  .pc-btn-line:hover { border-color: var(--pc-black); }
   .pc-deck-in { display: grid; grid-template-columns: 1fr; gap: clamp(48px, 6vw, 96px); align-items: center; }
   @media (min-width: 960px) { .pc-deck-in { grid-template-columns: 6fr 5fr; } }
   .pc-deck .pc-h2 { max-width: 16ch; margin-bottom: 24px; }
   .pc-deck-lede { font-size: clamp(18px, 1.6vw, 20px); line-height: 1.55; color: #333; max-width: 52ch; }
-  .pc-deck-form { margin-top: clamp(32px, 4vw, 44px); display: grid; gap: 16px; max-width: 560px; }
-  .pc-deck-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .pc-deck-field { display: grid; gap: 8px; }
-  .pc-deck-field span { font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pc-grey); }
-  .pc-deck-field em { font-style: normal; text-transform: none; letter-spacing: 0; opacity: 0.7; margin-left: 4px; }
-  .pc-deck-field input {
-    font: inherit; font-size: 17px; color: #000; background: #fff;
-    border: 1px solid rgba(0,0,0,0.22); border-radius: 12px;
-    padding: 0 16px; height: 54px; outline: none; width: 100%;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  }
-  .pc-deck-field input:focus { border-color: #000; box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
-  .pc-deck-form .pc-btn { justify-self: start; margin-top: 6px; }
-  .pc-deck-error { font-size: 15px; color: #b42318; }
-  .pc-deck-fine { font-size: 13px; color: var(--pc-grey); }
-  .pc-deck-done {
-    margin-top: clamp(32px, 4vw, 44px); max-width: 560px;
-    display: flex; gap: 14px; align-items: flex-start;
-    border: 1px solid #000; border-radius: 16px; padding: 22px 24px; font-size: 16px; line-height: 1.5;
-  }
-  .pc-deck-done a { display: inline-block; margin-top: 6px; color: inherit; font-size: 14px; }
-  .pc-deck-stack { position: relative; aspect-ratio: 16 / 12; }
+  .pc-deck-actions { margin-top: clamp(32px, 4vw, 44px); display: flex; flex-wrap: wrap; gap: 12px; }
+  .pc-deck-stack { position: relative; aspect-ratio: 16 / 12; display: block; }
   .pc-deck-slide {
     position: absolute; width: 86%; aspect-ratio: 16 / 9; object-fit: cover; display: block;
     border-radius: 12px; box-shadow: 0 30px 60px -28px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.08);
@@ -239,9 +220,6 @@ export const AGENCY_CSS = `
 
   /* ─── phone ─── */
   @media (max-width: 640px) {
-    .pc-deck-row { grid-template-columns: 1fr; }
-    .pc-deck-form .pc-btn { justify-self: stretch; }
-    .pc-deck-field input { font-size: 16px; }
     .pc-section { padding: 72px 0; }
     .pc-label { margin-bottom: 28px; font-size: 12px; }
     .pc-h2 { margin-bottom: 36px; }

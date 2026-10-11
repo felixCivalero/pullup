@@ -4,7 +4,7 @@ import { trackEvent } from "../../lib/analytics.js";
 import { track } from "../../lib/track.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
-import { CASES, CONTACT, casePath } from "./agencyData.js";
+import { CASES, CONTACT, DECK_PATH, casePath } from "./agencyData.js";
 
 /* The frame every agency page sits in: tone-aware nav (Work + Log in), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
@@ -91,14 +91,9 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     else navigate("/#work");
   };
 
-  // Every agency page ends with the deck gate (#deck) — jump there in place.
   const goDeck = () => {
-    if (!document.getElementById("deck")) {
-      navigate("/#deck");
-      return;
-    }
     trackEvent("cta_click", { location: "nav_deck" });
-    document.getElementById("deck")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    navigate(DECK_PATH);
   };
 
   return (
@@ -116,7 +111,12 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <button type="button" className="pc-nav-link" onClick={goWork}>
               Work
             </button>
-            <button type="button" className="pc-nav-link pc-nav-deck" onClick={goDeck}>
+            <button
+              type="button"
+              className="pc-nav-link pc-nav-deck"
+              aria-current={pathname === DECK_PATH ? "page" : undefined}
+              onClick={goDeck}
+            >
               Deck
             </button>
             <button
@@ -164,6 +164,16 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             ))}
           </nav>
           <nav aria-label="PullUp">
+            <a
+              className="pc-footer-work"
+              href={DECK_PATH}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(DECK_PATH);
+              }}
+            >
+              Deck
+            </a>
             <a
               className="pc-footer-work"
               href="/canvas"

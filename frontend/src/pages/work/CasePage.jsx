@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
-import { DeckGate } from "../../components/agency/DeckGate.jsx";
+import { DeckTeaser } from "../../components/agency/DeckTeaser.jsx";
 import { Reveal } from "../../components/agency/Reveal.jsx";
 import { caseBySlug, casePath, nextCase } from "../../components/agency/agencyData.js";
 import { initTracking, trackPageView } from "../../lib/track.js";
@@ -230,7 +230,7 @@ export default function CasePage() {
         </a>
       </section>
 
-      <DeckGate source={`case_${slug}`} />
+      <DeckTeaser source={`case_${slug}`} />
       <AgencyOffer source={`case_${slug}`} heading="Want this engine inside your organization?" />
     </AgencyShell>
   );

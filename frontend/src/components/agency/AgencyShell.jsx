@@ -6,7 +6,7 @@ import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
 import { CASES, CONTACT, DECK_PATH, casePath } from "./agencyData.js";
 
-/* The frame every agency page sits in: tone-aware nav (Work + Log in), the
+/* The frame every agency page sits in: tone-aware nav (Stories + Log in), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
    footer with every case linked. Pages pass their own CSS via `css`. */
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
@@ -85,10 +85,10 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
     else navigate("/");
   };
-  const goWork = () => {
-    trackEvent("cta_click", { location: "nav_work" });
-    if (onHome) document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else navigate("/#work");
+  const goStories = () => {
+    trackEvent("cta_click", { location: "nav_stories" });
+    if (onHome) document.getElementById("stories")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    else navigate("/#stories");
   };
 
   const goDeck = () => {
@@ -108,8 +108,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <img src="/pullup-textlogo.svg" alt="PullUp" />
           </button>
           <div className="pc-nav-actions">
-            <button type="button" className="pc-nav-link" onClick={goWork}>
-              Work
+            <button type="button" className="pc-nav-link" onClick={goStories}>
+              Stories
             </button>
             <button
               type="button"
@@ -147,7 +147,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
 
         <footer className="pc-footer" data-pc-tone="dark">
           <span>PullUp &copy; {new Date().getFullYear()}</span>
-          <nav aria-label="Work">
+          <nav aria-label="Stories">
             {CASES.map((c) => (
               <a
                 key={c.slug}

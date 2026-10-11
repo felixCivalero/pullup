@@ -7,55 +7,86 @@ import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
-import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
-import { CASES, casePath } from "../components/agency/agencyData.js";
-import { STIGA_TOTALS } from "./work/caseContent.js";
+import { casePath, mailto } from "../components/agency/agencyData.js";
+import { CASE_STATS as FLAMBO } from "./stories/adamFlamboData.js";
 
-/* The public front door: PullUp as an agency — The Production Core.
-   Black and white, typography first. Each story here is a teaser for its full
-   case page at /work/:slug; the only product surface is "Log in" in the nav. */
+/* The public front door: PullUp builds brands people actually feel — for
+   brands and creators. Black and white, typography first. Stories link to
+   their full case pages at /work/:slug; the product door is "Log in". */
 
-const TESTIMONIALS = [
+const PROOF = [
+  { v: "28.1M", l: "views for STIGA in seven months" },
+  { v: "Sony Music", l: "Adam Dawood, from zero to signed" },
+  { v: "10,000+", l: "BKM Health community, zero paid spend" },
+  { v: "4 nights", l: "a week of live music at Kaijas" },
+];
+
+// Every claim: Felix's brief; STIGA figures trace to the Growhouse report
+// (1 Dec 2024 – 30 Jun 2025); Adam Flambo's from his rooms (adamFlamboData).
+const STORIES = [
   {
-    name: "Li Karlsén",
-    role: "Co-founder, BKM",
-    quote:
-      "The 30-minute BKM flow completely stripped the noise from my messaging. It brought the exact discipline of deep freediving straight into our content production.",
+    slug: "stiga",
+    kicker: "Brand · Sport · with Sebastian",
+    name: "STIGA Table Tennis",
+    body: "A heritage brand with almost no social presence. We worked with Sebastian to put the people and the play at the centre, and let the sport speak in its own voice. From December 2024 to June 2025, STIGA went from about 50 Instagram followers to more than 15,000 — and from near zero to 11,000+ on Facebook.",
+    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["Dec – Jun", "all organic channels"]],
   },
   {
-    name: "Tolga Duran",
-    quote:
-      "We didn't just scale; we built an infrastructure. The alignment between our internal systems and our market narrative became unshakeable.",
+    slug: "bkm",
+    kicker: "Brand · Health · with Li and Tolga",
+    name: "BKM Health",
+    body: "Li and Tolga had a vision. We helped turn it into a community: people who show up, talk back and bring their friends. That community is now the foundation the whole brand stands on — built in one to two years, without a single paid ad.",
+    stats: [["10,000+", "followers"], ["0 kr", "paid spend"], ["Community first", "the brand is built on it today", true]],
   },
   {
-    name: "Sebastian Ramsey",
-    quote:
-      "The shift to a production core eliminated the constant pressure to invent new angles. Our actual work became our greatest marketing asset.",
+    slug: "adam-dawood",
+    tone: "dark",
+    kicker: "Creator · Music",
+    name: "Adam Dawood",
+    body: "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.",
+    hero: ["0 → Sony", "Identity, story, rollout and growth"],
   },
   {
+    slug: "adam-flambo",
+    kicker: "Creator · @adam_flambo",
     name: "Adam Flambo",
-    quote:
-      "Execution used to be our bottleneck. Turning our mission into a structured dramaturgical script completely changed how our team produces.",
+    body: "A creator who turns his following into real rooms full of people. Adam runs his events and his community through PullUp, so every person who pulls up stays part of his world — and he owns that relationship, not a platform.",
+    stats: [[String(FLAMBO.walks), "events hosted"], [String(FLAMBO.pulledUnique), "people pulled up"], [String(FLAMBO.community), "in his community", true]],
+  },
+  {
+    tone: "dark",
+    kicker: "Our own · Live music venue, Stockholm",
+    name: "Kaijas Musiksalong",
+    body: "Before we did this for anyone else, we did it for ourselves. We took an empty room and built a live-music venue: the brand, the programme, the people, and the systems to run it. Instagram became the main way guests found us and booked.",
+    stats: [["4 nights", "of live music a week"], ["10,000+", "Instagram followers"], ["Built in-house", "our own booking system and operations dashboard", true]],
   },
 ];
 
-const TRACKS = [
+const PRINCIPLES = [
+  ["Listen", "Find the self.", "We listen past the pitch, to what you actually care about, how you talk, and what you would never do. That is the brand. It was there all along."],
+  ["Express", "Say it purely.", "One voice across everything, with nothing borrowed. No chasing trends or formats. Just you, said clearly enough that the right people recognise themselves in it."],
+  ["Become", "Live it in public.", "Expression, repeated, becomes identity. Content, community and real rooms on PullUp, until the brand is simply who you are, everywhere you show up."],
+];
+
+const STEPS = [
+  ["Sit down", "A 30-minute sprint with you or your team. We ask, you talk."],
+  ["We find the story", "What in your week will make people stop, feel something and follow."],
+  ["We produce", "Short-form video, posts and copy in your voice, ready to publish."],
+  ["We measure and repeat", "We track what actually moves people and do more of it."],
+];
+
+const AUDIENCES = [
   {
-    tag: "Track A",
-    title: "Operational Sprints",
-    body: "30 minutes on the tech stack, automated pipelines and system architecture. Nothing else.",
+    k: "For brands",
+    t: "Put the people behind your brand in front of it.",
+    items: ["Organic growth on the channels that matter to you", "A community that becomes the foundation of the brand", "Content made from your real operations, not stock ideas"],
   },
   {
-    tag: "Track B",
-    title: "Content Extraction Sprints",
-    body: "30 minutes of the founder expressing the message, run through a strict dramaturgical framework.",
-  },
-  {
-    tag: "Bridge",
-    title: "The Alignment Bridge",
-    body: "Where A and B fuse: cold internal systems translated into line-by-line reel blueprints your team executes.",
+    k: "For creators",
+    t: "Turn who you are into a world people want in on.",
+    items: ["Identity and story that fit who you actually are", "From followers to real rooms, events and fans", "Your audience and its data stay yours, on PullUp"],
   },
 ];
 
@@ -73,8 +104,6 @@ const LOGOS = [
   { src: "/landing/logos/hendricks-gin.png", alt: "Hendrick's Gin", width: 160, height: 160, boost: 2.6 },
   { src: "/landing/logos/jagermeister.png", alt: "Jägermeister", width: 160, height: 160, boost: 1.9 },
 ];
-
-const DRAMATURGY = ["Hook", "Credibility", "Core", "Outro"];
 
 // An endless strip: two identical groups slide left by exactly one group.
 function LogoBand() {
@@ -114,103 +143,87 @@ function SectionLabel({ n, children }) {
   );
 }
 
-// SPA link styled as an underlined "Read the case →".
-function CaseLink({ slug, children = "Read the case" }) {
-  const navigate = useNavigate();
-  const href = casePath(slug);
-  return (
-    <a
-      className="pc-caselink"
-      href={href}
-      onClick={(e) => {
-        e.preventDefault();
-        trackEvent("cta_click", { location: `landing_case_${slug}` });
-        navigate(href);
-      }}
-    >
-      {children}
-      <ArrowRight size={16} strokeWidth={1.75} />
-    </a>
-  );
-}
+const CONVERSATION = mailto("Let's build — PullUp");
 
-// The index of full case pages — every story on the page has a door here.
-function WorkIndex() {
+function StoryCard({ story, i }) {
   const navigate = useNavigate();
+  const { slug, tone, kicker, name, body, stats, hero } = story;
   return (
-    <section id="work" className="pc-section pc-rule" data-pc-section="work" data-pc-order="3">
-      <div className="pc-wrap">
-        <SectionLabel n="02">Selected work</SectionLabel>
-        <Reveal>
-          <h2 className="pc-h2">From one artist to a global brand. One production core.</h2>
-        </Reveal>
-        <div className="pc-work">
-          {CASES.map((c, i) => (
-            <Reveal key={c.slug} delay={(i % 2) * 0.08}>
-              <a
-                className={`pc-workcard${c.image ? " has-image" : ""}`}
-                href={casePath(c.slug)}
-                onClick={(e) => {
-                  e.preventDefault();
-                  trackEvent("cta_click", { location: `work_card_${c.slug}` });
-                  navigate(casePath(c.slug));
-                }}
-              >
-                {c.image && <img src={c.image} alt="" loading="lazy" decoding="async" />}
-                <span className="pc-workcard-top">
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                  <span>{c.kicker}</span>
-                </span>
-                <span className="pc-workcard-client">{c.client}</span>
-                <span className="pc-workcard-bottom">
-                  <span className="pc-workcard-title">{c.title}</span>
-                  <ArrowRight className="pc-workcard-arrow" size={22} strokeWidth={1.75} />
-                </span>
-              </a>
-            </Reveal>
-          ))}
+    <Reveal delay={0.04}>
+      <article className={`st-card${tone === "dark" ? " is-dark" : ""}`} data-pc-tone={tone === "dark" ? "dark" : undefined}>
+        <div className="st-copy">
+          <p className="st-kicker"><span>{String(i + 1).padStart(2, "0")}</span>{kicker}</p>
+          <h3 className="st-name">{name}</h3>
+          <p className="st-body">{body}</p>
+          {slug && (
+            <a
+              className="st-link"
+              href={casePath(slug)}
+              onClick={(e) => {
+                e.preventDefault();
+                trackEvent("cta_click", { location: `landing_story_${slug}` });
+                navigate(casePath(slug));
+              }}
+            >
+              Read the story
+              <ArrowRight size={16} strokeWidth={1.75} />
+            </a>
+          )}
         </div>
-      </div>
-    </section>
+        {hero ? (
+          <div className="st-hero">
+            <p className="st-hero-v">{hero[0]}</p>
+            <p className="st-hero-l">{hero[1]}</p>
+          </div>
+        ) : (
+          <div className="st-stats">
+            {stats.map(([v, l, wide]) => (
+              <div key={l} className={`st-stat${wide ? " is-wide" : ""}`}>
+                <p className="st-stat-v">{v}</p>
+                <p className="st-stat-l">{l}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+    </Reveal>
   );
 }
 
 function AgencyPage() {
-  const toOffer = (location) => {
-    trackEvent("cta_click", { location });
-    document.getElementById("offer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const navigate = useNavigate();
+  const toStories = () => {
+    trackEvent("cta_click", { location: "hero_stories" });
+    document.getElementById("stories")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
     <>
-      {/* ─── 1. HERO — the solo offer ─── */}
+      {/* ─── HERO ─── */}
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
-            <p className="pc-eyebrow">The Production Core</p>
+            <p className="pc-eyebrow">For brands and creators · Stockholm · Nairobi</p>
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="pc-hero-h">
-              Restructure your organization for 2027 and onwards.
-            </h1>
+            <h1 className="pc-hero-h">We build brands people actually feel.</h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="pc-hero-sub">
-              Stop inventing marketing content. We turn your daily operational
-              deliverables and high-level vision into a high-retention, global
-              content engine — driven by a precise, long-term BKM alignment flow
-              and high-frequency, 30-minute tactical sprints.
+              Success for a brand or a creator starts with the people inside it. We find what
+              makes you worth following, turn your everyday work into content, and grow an
+              audience that stays — organically.
             </p>
           </Reveal>
           <Reveal delay={0.24}>
             <div className="pc-hero-cta">
-              <button type="button" className="pc-btn pc-btn-light" onClick={() => toOffer("hero")}>
-                Start with a 3‑month trust period
+              <a className="pc-btn pc-btn-light" href={CONVERSATION} onClick={() => trackEvent("cta_click", { location: "hero_build" })}>
+                Build yours with us
                 <ArrowRight size={18} strokeWidth={1.75} />
+              </a>
+              <button type="button" className="pc-btn pc-btn-ghost" onClick={toStories}>
+                See the stories
               </button>
-              <p className="pc-hero-price">
-                $3,000 per month <span>/</span> no commitment for the first 3 months
-              </p>
             </div>
           </Reveal>
         </div>
@@ -219,203 +232,148 @@ function AgencyPage() {
         </Reveal>
       </section>
 
-      {/* ─── 2. WALL OF AUTHORITY ─── */}
-      <section className="pc-section" data-pc-section="authority" data-pc-order="2">
+      {/* ─── PROOF STRIP ─── */}
+      <section className="pf" data-pc-section="proof" data-pc-order="2">
+        <div className="pc-wrap pf-in">
+          {PROOF.map((p, i) => (
+            <Reveal key={p.l} delay={i * 0.06} className="pf-cell">
+              <p className="pf-v">{p.v}</p>
+              <p className="pf-l">{p.l}</p>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── THE STORIES ─── */}
+      <section id="stories" className="pc-section" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">In their words</SectionLabel>
-          <div className="pc-quotes">
-            {TESTIMONIALS.map((t, i) => (
-              <Reveal key={t.name} delay={(i % 2) * 0.08}>
-                <figure className="pc-quote">
-                  <blockquote>“{t.quote}”</blockquote>
-                  <figcaption>
-                    <strong>{t.name}</strong>
-                    {t.role && <span>{t.role}</span>}
-                  </figcaption>
-                </figure>
-              </Reveal>
+          <SectionLabel n="01">The stories</SectionLabel>
+          <Reveal>
+            <h2 className="pc-h2 st-h2">Every one of these started with a person, not a post.</h2>
+          </Reveal>
+          <div className="st-list">
+            {STORIES.map((story, i) => (
+              <StoryCard key={story.name} story={story} i={i} />
             ))}
           </div>
         </div>
       </section>
 
-      <WorkIndex />
-
-      {/* ─── 3. BKM 0–10k — founder-led marketing ─── */}
-      <section className="pc-section pc-rule" data-pc-section="bkm" data-pc-order="4">
-        <div className="pc-wrap pc-split">
-          <div>
-            <SectionLabel n="03">Founder-led marketing</SectionLabel>
-            <Reveal>
-              <p className="pc-bignum">
-                BKM
-                <br />
-                0–10k
-              </p>
-            </Reveal>
-          </div>
-          <div className="pc-prose">
-            <Reveal>
-              <p className="pc-lead">
-                When BKM was moving from 0 to 10k, we faced the ultimate founder
-                dilemma: how to scale market authority without spending 20 hours a
-                week trapped in creative loops.
-              </p>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <p>
-                The answer wasn't hiring a massive, expensive marketing agency. The
-                answer was a strict, 30-minute operational rhythm.
-              </p>
-            </Reveal>
-            <Reveal delay={0.14}>
-              <div className="pc-insight">
-                <p className="pc-insight-k">The insight</p>
-                <p>
-                  Founder-led marketing only succeeds when it is systematic. Capture
-                  raw founder genius, filter it instantly into operational proof — and
-                  you don't need a massive team. You need a bulletproof flow.
-                </p>
-              </div>
-            </Reveal>
-            <Reveal delay={0.18}><CaseLink slug="bkm">Read the BKM case</CaseLink></Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── the method — dual-track 30-minute system ─── */}
-      <section className="pc-section pc-rule" data-pc-section="method" data-pc-order="5">
+      {/* ─── WHY IT WORKS ─── */}
+      <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="4">
         <div className="pc-wrap">
-          <SectionLabel n="04">The 30-minute BKM flow</SectionLabel>
+          <SectionLabel n="02">Why it works</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2">Two tracks. Thirty minutes each. One bridge.</h2>
+            <h2 className="pc-h2 pc-h2-xl wy-h2">
+              The strongest brands aren't invented. <span>They're revealed.</span>
+            </h2>
           </Reveal>
-          <div className="pc-tracks">
-            {TRACKS.map((t, i) => (
-              <Reveal key={t.tag} delay={i * 0.08}>
-                <div className="pc-track">
-                  <p className="pc-track-tag">{t.tag}</p>
-                  <h3>{t.title}</h3>
-                  <p>{t.body}</p>
+          <Reveal delay={0.06}>
+            <p className="wy-lede">
+              Every brand already has a self. Most just haven't been allowed to express it. We don't
+              build you a persona. We help you become what you already are, out loud and without
+              compromise, until people can feel it.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <p className="wy-bio">
+              PullUp is led by Felix Civalero Stolpe, who spent four years studying people, with a
+              focus on cognition and pain, and more than three years treating them. He has published
+              a book and is writing the next. What it taught him: people trust what is real.
+            </p>
+          </Reveal>
+          <div className="wy-rows">
+            {PRINCIPLES.map(([word, title, text], i) => (
+              <Reveal key={word} delay={i * 0.06}>
+                <div className="wy-row">
+                  <p className="wy-word">{word}</p>
+                  <div>
+                    <h3 className="wy-title">{title}</h3>
+                    <p className="wy-text">{text}</p>
+                  </div>
                 </div>
               </Reveal>
             ))}
           </div>
+          <Reveal>
+            <p className="wy-close">Not marketing. <span>Becoming.</span></p>
+          </Reveal>
         </div>
       </section>
 
-      {/* ─── 4. LI KARLSÉN — cinematic profile ─── */}
-      <section className="pc-section pc-dark pc-li" data-pc-tone="dark" data-pc-section="li" data-pc-order="6">
+      {/* ─── HOW WE WORK ─── */}
+      <section id="how" className="pc-section" data-pc-section="how" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="05">Profile — Li Karlsén</SectionLabel>
+          <SectionLabel n="03">How we work</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 pc-h2-xl">
-              Content doesn't need to be loud to be powerful. It needs to be precise.
-            </h2>
+            <h2 className="pc-h2 hw-h2">30 minutes of you. A week of content.</h2>
           </Reveal>
-          <div className="pc-split pc-li-body">
-            <Reveal>
-              <p className="pc-lead">
-                Picture Li Karlsén, co-founder of BKM and elite freediver, descending
-                into absolute silence. In the deep ocean there is no room for wasted
-                energy, rambling thoughts, or hesitation. Every movement is deliberate.
-              </p>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <p>
-                We brought that exact operational stillness to her content. Dedicated,
-                hyper-focused 30-minute extraction sprints. No brainstorming. Her deep
-                expertise passed through a strict dramaturgical framework — raw thought
-                shaped instantly into a perfect sequence.
-              </p>
-            </Reveal>
-          </div>
-          <ol className="pc-dramaturgy">
-            {DRAMATURGY.map((step, i) => (
-              <li key={step}>
-                <Reveal delay={i * 0.08}>
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                  {step}
+          <Reveal delay={0.06}>
+            <p className="hw-lede">
+              Stop inventing marketing content. Your daily work and your vision are already the best
+              material you have. We run short, focused sprints with you and turn them into content
+              that grows.
+            </p>
+          </Reveal>
+          <ol className="hw-steps">
+            {STEPS.map(([t, b], i) => (
+              <li key={t}>
+                <Reveal delay={i * 0.06} className="hw-step">
+                  <span className="hw-n">{i + 1}</span>
+                  <h3>{t}</h3>
+                  <p>{b}</p>
                 </Reveal>
               </li>
             ))}
           </ol>
-          <Reveal><CaseLink slug="li-karlsen">Read Li's profile</CaseLink></Reveal>
-        </div>
-      </section>
-
-      {/* ─── 5. STIGA — enterprise validation ─── */}
-      <section className="pc-section" data-pc-section="stiga" data-pc-order="7">
-        <div className="pc-wrap">
-          <SectionLabel n="06">Enterprise — STIGA</SectionLabel>
-          <Reveal>
-            <h2 className="pc-h2">
-              Not just for agile startups. It scales to legacy global giants.
-            </h2>
-          </Reveal>
-          <div className="pc-metrics pc-metrics-3">
-            {[
-              [STIGA_TOTALS.views, "Views"],
-              [STIGA_TOTALS.interactions, "Interactions"],
-              [STIGA_TOTALS.followers, "Followers"],
-            ].map(([n, l], i) => (
-              <Reveal key={l} delay={i * 0.08}>
-                <div className="pc-metric">
-                  <p className="pc-metric-k">{l}</p>
-                  <p className="pc-metric-v">
-                    {new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n)}
-                  </p>
-                </div>
+          <div className="hw-for">
+            {AUDIENCES.map((a, i) => (
+              <Reveal key={a.k} delay={i * 0.06} className="hw-card">
+                <p className="hw-k">{a.k}</p>
+                <h3>{a.t}</h3>
+                <ul>
+                  {a.items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
               </Reveal>
             ))}
           </div>
-          <Reveal>
-            <p className="pc-metrics-note">
-              Facebook, Instagram, TikTok and YouTube · 1 Dec 2024 – 30 Jun 2025. Growing on
-              every metric, across every channel.
-            </p>
-          </Reveal>
-          <Reveal><CaseLink slug="stiga">Read the STIGA case</CaseLink></Reveal>
-        </div>
-      </section>
-
-      {/* ─── 6. ADAM FLAMBO — the execution case ─── */}
-      <section className="pc-section pc-rule" data-pc-section="adam" data-pc-order="8">
-        <div className="pc-wrap">
-          <SectionLabel n="07">Case — Adam Flambo</SectionLabel>
-          <Reveal>
-            <h2 className="pc-h2">Out of the execution trap.</h2>
-          </Reveal>
-          <div className="pc-case">
-            <Reveal>
-              <div className="pc-case-col">
-                <p className="pc-case-k">The problem</p>
-                <p>
-                  Like many visionary operators, Adam had deep messages and a profound
-                  mission — but traditional structures let execution slip through the
-                  cracks. The content team operated in a vacuum, disconnected from
-                  daily operational reality.
-                </p>
-              </div>
-            </Reveal>
-            <Reveal delay={0.08}>
-              <div className="pc-case-col">
-                <p className="pc-case-k">The turnaround</p>
-                <p>
-                  We deployed the Alignment Bridge: Adam's high-level philosophy wired
-                  directly into his team's real-time project tracking. His core
-                  concepts became line-by-line reel scripts in brief, focused syncs —
-                  and his team was held accountable to a flawless publishing pipeline.
-                </p>
-              </div>
-            </Reveal>
-          </div>
-          <Reveal><CaseLink slug="adam-flambo">Read Adam's story</CaseLink></Reveal>
         </div>
       </section>
 
       <DeckTeaser source="landing" />
-      <AgencyOffer id="offer" />
+
+      {/* ─── CLOSE ─── */}
+      <section id="start" className="pc-section pc-dark cl" data-pc-tone="dark" data-pc-section="close" data-pc-order="90">
+        <div className="pc-wrap">
+          <Reveal>
+            <h2 className="pc-h2 pc-h2-xl cl-h2">Your brand could be the next story.</h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <p className="cl-lede">
+              We take on a few brands and creators at a time. Tell us who you are and where you want to go.
+            </p>
+          </Reveal>
+          <Reveal delay={0.12}>
+            <div className="cl-cta">
+              <a className="pc-btn pc-btn-light" href={CONVERSATION} onClick={() => trackEvent("cta_click", { location: "close_conversation" })}>
+                Start a conversation
+                <ArrowRight size={18} strokeWidth={1.75} />
+              </a>
+              <a
+                className="pc-btn pc-btn-ghost"
+                href="/start"
+                onClick={(e) => {
+                  e.preventDefault();
+                  trackEvent("cta_click", { location: "close_host" });
+                  navigate("/start");
+                }}
+              >
+                Host on PullUp
+              </a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
     </>
   );
 }
@@ -436,15 +394,15 @@ export function LandingPage() {
     initTracking();
     trackPageView("landing");
     const prev = document.title;
-    document.title = "PullUp — The Production Core";
+    document.title = "PullUp — We build brands people actually feel";
     return () => {
       document.title = prev;
     };
   }, []);
 
-  // Arriving via a nav link from another page (/#work, /#deck) lands on it.
+  // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#work": "work", "#deck": "deck" }[location.hash];
+    const target = { "#stories": "stories", "#work": "stories", "#why": "why", "#how": "how", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -568,138 +526,90 @@ const STYLES = `
     margin-top: clamp(24px, 4.4vh, 56px);
     display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px;
   }
-  .pc-hero-price { font-size: 15px; color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; }
-  .pc-hero-price span { margin: 0 6px; opacity: 0.5; }
 
-  /* ─── wall of authority ─── */
-  .pc-quotes {
-    display: grid; grid-template-columns: 1fr;
-    border-top: 1px solid var(--pc-line);
-  }
-  @media (min-width: 800px) {
-    .pc-quotes { grid-template-columns: 1fr 1fr; }
-    .pc-quotes > :nth-child(odd) .pc-quote { border-right: 1px solid var(--pc-line); padding-right: clamp(24px, 4vw, 56px); }
-    .pc-quotes > :nth-child(even) .pc-quote { padding-left: clamp(24px, 4vw, 56px); }
-  }
-  .pc-quote {
-    height: 100%;
-    display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
-    padding: clamp(32px, 4vw, 52px) 0;
-    border-bottom: 1px solid var(--pc-line);
-  }
-  .pc-quote blockquote {
-    font-size: clamp(20px, 2vw, 26px); line-height: 1.35; letter-spacing: -0.015em;
-  }
-  .pc-quote figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
-  .pc-quote figcaption strong { font-weight: 600; }
-  .pc-quote figcaption span { color: var(--pc-grey); }
+  /* ─── proof strip ─── */
+  .pf { border-bottom: 1px solid var(--pc-black); }
+  .pf-in { display: grid; grid-template-columns: 1fr 1fr; }
+  @media (min-width: 900px) { .pf-in { grid-template-columns: repeat(4, 1fr); } }
+  .pf-cell { padding: clamp(24px, 3vw, 36px) clamp(12px, 2vw, 24px) clamp(24px, 3vw, 36px) 0; }
+  .pf-v { font-size: clamp(28px, 3.4vw, 44px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pf-l { margin-top: 10px; font-size: 14px; line-height: 1.4; color: var(--pc-grey); max-width: 26ch; }
 
-  /* ─── BKM ─── */
-  .pc-bignum {
-    font-size: clamp(64px, 10vw, 148px);
-    font-weight: 600; line-height: 0.9; letter-spacing: -0.05em;
-    font-variant-numeric: tabular-nums;
+  /* ─── stories ─── */
+  .st-h2 { max-width: 18ch; }
+  .st-list { display: grid; gap: clamp(16px, 2vw, 24px); }
+  .st-card {
+    display: grid; grid-template-columns: 1fr; gap: clamp(28px, 4vw, 56px);
+    padding: clamp(24px, 4vw, 48px);
+    border: 1px solid var(--pc-black); border-radius: 20px; background: #fff; color: #000;
   }
-  .pc-insight { border-top: 1px solid var(--pc-black); padding-top: 24px; margin-top: 12px; }
-  .pc-insight-k {
-    font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-    margin-bottom: 12px;
+  @media (min-width: 900px) { .st-card { grid-template-columns: 6fr 5fr; align-items: center; } }
+  .st-card.is-dark { background: #000; color: #fff; border-color: #000; }
+  .st-kicker { display: flex; gap: 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
+  .st-card.is-dark .st-kicker { color: rgba(255,255,255,0.5); }
+  .st-name { margin-top: 14px; font-size: clamp(32px, 4.4vw, 56px); font-weight: 600; line-height: 0.98; letter-spacing: -0.045em; }
+  .st-body { margin-top: 18px; font-size: 17px; line-height: 1.6; color: #333; max-width: 56ch; }
+  .st-card.is-dark .st-body { color: rgba(255,255,255,0.72); }
+  .st-link {
+    margin-top: 22px; display: inline-flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; color: inherit; text-decoration: none;
+    border-bottom: 1px solid currentColor; padding-bottom: 3px;
   }
+  .st-link svg { transition: transform 0.2s ease; }
+  .st-link:hover svg { transform: translateX(4px); }
+  .st-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .st-stat { background: #f3f3f1; border-radius: 14px; padding: 18px 18px 16px; }
+  .st-card.is-dark .st-stat { background: rgba(255,255,255,0.08); }
+  .st-stat.is-wide { grid-column: 1 / -1; }
+  .st-stat-v { font-size: clamp(24px, 2.6vw, 34px); font-weight: 600; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .st-stat.is-wide .st-stat-v { font-size: clamp(20px, 2vw, 24px); letter-spacing: -0.02em; }
+  .st-stat-l { margin-top: 8px; font-size: 13px; line-height: 1.35; color: var(--pc-grey); }
+  .st-card.is-dark .st-stat-l { color: rgba(255,255,255,0.55); }
+  .st-hero-v { font-size: clamp(56px, 8vw, 112px); font-weight: 600; letter-spacing: -0.05em; line-height: 0.92; }
+  .st-hero-l { margin-top: 14px; font-size: 15px; color: rgba(255,255,255,0.6); }
 
-  /* ─── method tracks ─── */
-  .pc-tracks { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--pc-line); }
-  @media (min-width: 900px) {
-    .pc-tracks { grid-template-columns: repeat(3, 1fr); }
-    .pc-tracks > * + * .pc-track { border-left: 1px solid var(--pc-line); padding-left: clamp(24px, 3vw, 40px); }
-    .pc-tracks > :not(:last-child) .pc-track { padding-right: clamp(24px, 3vw, 40px); }
+  /* ─── why it works ─── */
+  .wy-h2 { max-width: 16ch; }
+  .wy-h2 span, .wy-close span { color: rgba(255,255,255,0.45); }
+  .wy-lede { margin-top: clamp(28px, 4vw, 44px); max-width: 52ch; font-size: clamp(19px, 1.9vw, 24px); line-height: 1.45; letter-spacing: -0.01em; }
+  .wy-bio { margin-top: 20px; max-width: 64ch; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,0.55); }
+  .wy-rows { margin-top: clamp(48px, 7vw, 88px); border-top: 1px solid var(--pc-line-dark); }
+  .wy-row {
+    display: grid; grid-template-columns: 1fr; gap: 10px 48px;
+    padding: clamp(24px, 3vw, 36px) 0; border-bottom: 1px solid var(--pc-line-dark);
   }
-  .pc-track {
-    height: 100%; padding: 32px 0; border-bottom: 1px solid var(--pc-line);
-    display: grid; gap: 12px; align-content: start;
-  }
-  .pc-track-tag { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
-  .pc-track h3 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
-  .pc-track p:last-child { font-size: 16px; line-height: 1.55; color: #333; }
+  @media (min-width: 800px) { .wy-row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; } }
+  .wy-word { font-size: clamp(48px, 7vw, 104px); font-weight: 600; letter-spacing: -0.05em; line-height: 0.9; }
+  .wy-title { font-size: clamp(20px, 2vw, 26px); font-weight: 600; letter-spacing: -0.02em; }
+  .wy-text { margin-top: 8px; font-size: 16px; line-height: 1.6; color: rgba(255,255,255,0.68); max-width: 56ch; }
+  .wy-close { margin-top: clamp(40px, 6vw, 72px); font-size: clamp(28px, 4vw, 52px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 
-  /* ─── Li ─── */
-  .pc-li-body { font-size: 18px; line-height: 1.6; color: rgba(255,255,255,0.72); }
-  .pc-li-body .pc-lead { color: var(--pc-white); }
-  .pc-dramaturgy {
-    list-style: none; padding: 0;
-    margin-top: clamp(56px, 8vw, 104px);
-    display: grid; grid-template-columns: repeat(2, 1fr);
-    border-top: 1px solid var(--pc-line-dark);
-  }
-  @media (min-width: 800px) { .pc-dramaturgy { grid-template-columns: repeat(4, 1fr); } }
-  .pc-dramaturgy li {
-    padding: 28px 0 0;
-    font-size: clamp(24px, 3vw, 40px); font-weight: 600; letter-spacing: -0.03em;
-  }
-  .pc-dramaturgy li span {
-    display: block; margin-bottom: 10px;
-    font-size: 13px; font-weight: 500; letter-spacing: 0.08em;
-    color: rgba(255,255,255,0.45); font-variant-numeric: tabular-nums;
-  }
+  /* ─── how we work ─── */
+  .hw-h2 { max-width: 16ch; }
+  .hw-lede { max-width: 56ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
+  .hw-steps { list-style: none; padding: 0; margin-top: clamp(36px, 5vw, 56px); display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 640px) { .hw-steps { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1000px) { .hw-steps { grid-template-columns: repeat(4, 1fr); } }
+  .hw-step { height: 100%; border: 1px solid var(--pc-black); border-radius: 18px; padding: 24px 22px 26px; }
+  .hw-n { display: block; font-size: 36px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hw-step h3 { margin-top: 18px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
+  .hw-step p { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #444; }
+  .hw-for { margin-top: clamp(40px, 6vw, 72px); display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 800px) { .hw-for { grid-template-columns: 1fr 1fr; } }
+  .hw-card { height: 100%; background: #000; color: #fff; border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); }
+  .hw-k { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .hw-card h3 { margin-top: 14px; font-size: clamp(24px, 2.6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.08; max-width: 20ch; }
+  .hw-card ul { list-style: none; padding: 0; margin: 24px 0 0; border-top: 1px solid var(--pc-line-dark); }
+  .hw-card li { padding: 14px 0; border-bottom: 1px solid var(--pc-line-dark); font-size: 16px; line-height: 1.45; color: rgba(255,255,255,0.8); }
+  .hw-card li:last-child { border-bottom: 0; padding-bottom: 0; }
 
-  /* ─── STIGA ─── */
-  .pc-metrics { display: grid; grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--pc-black); }
-  @media (min-width: 800px) {
-    .pc-metrics { grid-template-columns: 1fr 1fr; }
-    .pc-metrics > :first-child .pc-metric { border-right: 1px solid var(--pc-line); padding-right: clamp(24px, 4vw, 56px); }
-    .pc-metrics > :last-child .pc-metric { padding-left: clamp(24px, 4vw, 56px); }
-  }
-  .pc-metric { height: 100%; padding: 36px 0; display: grid; gap: 14px; align-content: start; border-bottom: 1px solid var(--pc-line); }
-  .pc-metric-k { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
-  .pc-metric-v { font-size: clamp(40px, 5.6vw, 72px); font-weight: 600; line-height: 1; letter-spacing: -0.04em; }
-  .pc-metric p:last-child { font-size: 17px; line-height: 1.55; color: #333; max-width: 46ch; }
-
-  /* ─── Adam ─── */
-  .pc-case { display: grid; grid-template-columns: 1fr; gap: clamp(32px, 5vw, 72px); }
-  @media (min-width: 800px) { .pc-case { grid-template-columns: 1fr 1fr; } }
-  .pc-case-col { border-top: 1px solid var(--pc-black); padding-top: 24px; font-size: 18px; line-height: 1.6; }
-  .pc-case-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
-
-
-  /* ─── selected work ─── */
-  .pc-work { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  @media (min-width: 800px) {
-    .pc-work { grid-template-columns: 1fr 1fr; gap: 20px; }
-    .pc-work > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-  }
-  .pc-workcard {
-    position: relative; overflow: hidden; isolation: isolate;
-    min-height: clamp(300px, 34vw, 440px);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 24px;
-    padding: clamp(24px, 3vw, 36px);
-    border-radius: 20px; background: #000; color: #fff; text-decoration: none;
-    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
-  }
-  .pc-workcard:hover { transform: translateY(-4px); }
-  .pc-workcard img {
-    position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover;
-    filter: grayscale(1) contrast(1.05) brightness(0.55);
-    transition: transform 0.8s cubic-bezier(0.16,1,0.3,1), filter 0.4s ease;
-  }
-  .pc-workcard:hover img { transform: scale(1.04); filter: grayscale(0.2) brightness(0.6); }
-  .pc-workcard-top { display: flex; gap: 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
-  .pc-workcard-client { font-size: clamp(44px, 6vw, 84px); font-weight: 600; line-height: 0.92; letter-spacing: -0.05em; }
-  .pc-workcard-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 18px; }
-  .pc-workcard-title { font-size: 17px; line-height: 1.35; max-width: 30ch; color: rgba(255,255,255,0.85); }
-  .pc-workcard-arrow { flex: none; transition: transform 0.25s ease; }
-  .pc-workcard:hover .pc-workcard-arrow { transform: translateX(6px); }
-
-  .pc-metrics-note { margin-top: 20px; font-size: 15px; line-height: 1.5; color: var(--pc-grey); max-width: 56ch; }
-  @media (min-width: 800px) {
-    .pc-metrics-3 { grid-template-columns: repeat(3, 1fr); }
-    .pc-metrics-3 > * .pc-metric { border-right: 0 !important; padding-right: 0 !important; padding-left: 0 !important; }
-    .pc-metrics-3 > * + * .pc-metric { border-left: 1px solid var(--pc-line); padding-left: clamp(24px, 3vw, 40px) !important; }
-  }
+  /* ─── close ─── */
+  .cl-h2 { max-width: 14ch; }
+  .cl-lede { margin-top: 24px; max-width: 48ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: rgba(255,255,255,0.7); }
+  .cl-cta { margin-top: clamp(28px, 4vw, 44px); display: flex; flex-wrap: wrap; gap: 12px; }
 
   /* ─── phone ─── */
   @media (max-width: 640px) {
-    .pc-workcard { min-height: 280px; border-radius: 18px; }
-    .pc-workcard-client { font-size: 48px; }
-    .pc-workcard-title { font-size: 15px; }
     .pc-hero { padding: clamp(88px, 13vh, 112px) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
     .pc-hero-logos { margin-top: clamp(28px, 5vh, 44px); }
     .pc-logos-label { margin-bottom: 12px; font-size: 11px; }
@@ -709,19 +619,18 @@ const STYLES = `
     .pc-eyebrow { margin-bottom: 20px; font-size: 12px; }
     .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
     .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
-    .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 14px; }
-    .pc-hero-price { text-align: center; font-size: 14px; }
-    .pc-quote { padding: 32px 0; gap: 24px; }
-    .pc-quote blockquote { font-size: 20px; }
-    .pc-li-body, .pc-case-col { font-size: 17px; }
-    .pc-track { padding: 28px 0; }
-    .pc-track h3 { font-size: 22px; }
-    .pc-dramaturgy { margin-top: 56px; }
-    .pc-dramaturgy li { padding: 24px 0 20px; font-size: 26px; }
-    .pc-dramaturgy li:nth-child(odd) { padding-right: 12px; }
-    .pc-dramaturgy li:nth-child(n+3) { border-top: 1px solid var(--pc-line-dark); }
-    .pc-metric { padding: 28px 0; }
-    .pc-metric-v { font-size: 44px; }
+    .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 12px; }
+    .pf-cell { padding: 22px 12px 22px 0; }
+    .pf-cell:nth-child(n+3) { border-top: 1px solid var(--pc-line); }
+    .pf-v { font-size: 26px; }
+    .pf-l { font-size: 13px; }
+    .st-card { border-radius: 18px; padding: 22px 20px 24px; }
+    .st-body { font-size: 16px; }
+    .st-stat { padding: 14px 14px 12px; border-radius: 12px; }
+    .st-stat-v { font-size: 22px; }
+    .wy-text { font-size: 15px; }
+    .hw-for .hw-card, .hw-step { border-radius: 16px; }
+    .cl-cta .pc-btn { width: 100%; }
   }
 
   /* ─── short screens (small laptops, iPhone SE): keep the brand band above the fold ─── */

@@ -159,7 +159,7 @@ export default function CasePage() {
     };
   }, [slug, content, meta]);
 
-  if (!meta || !content) return <Navigate to="/#work" replace />;
+  if (!meta || !content) return <Navigate to="/#stories" replace />;
 
   const next = nextCase(slug);
   const c = content;

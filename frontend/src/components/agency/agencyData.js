@@ -61,7 +61,7 @@ export const CASES = [
     client: "Adam Dawood",
     kicker: "Artist",
     title: "From zero to signed.",
-    summary: "No audience to aim at — so the core came first. Today DAWOOD is signed by Sony Sweden.",
+    summary: "No audience to aim at — so the core came first. Today DAWOOD is signed by Sony Music.",
   },
 ];
 

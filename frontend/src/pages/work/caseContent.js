@@ -1,6 +1,6 @@
 // Case page content. Every claim traces to the agency blueprint or, for STIGA,
 // to the Growhouse results report (1 Dec 2024 – 30 Jun 2025); Adam Dawood:
-// Felix's brief (zero → signed by Sony Sweden) + his 'audience comes last' notes. No invented
+// Felix's brief (zero → signed by Sony Music; identity, story, rollout, growth) + his 'audience comes last' notes. No invented
 // numbers: a case without hard data stays typographic until data arrives.
 //
 // Block types rendered by CasePage:
@@ -181,14 +181,14 @@ export const CASE_CONTENT = {
   "adam-dawood": {
     eyebrow: "Case 05 — Adam Dawood",
     title: "From zero to signed.",
-    sub: "Adam Dawood started from zero — no audience waiting, no label behind him. Today DAWOOD is signed by Sony Sweden.",
+    sub: "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.",
     facts: [
       ["Artist", "Adam Dawood · DAWOOD"],
       ["Start", "Zero"],
-      ["Outcome", "Signed by Sony Sweden"],
-      ["Principle", "The audience comes last"],
+      ["Outcome", "Signed by Sony Music"],
+      ["Work", "Identity, story, rollout and growth"],
     ],
-    heroStat: { v: "0 → Signed", l: "Sony Sweden" },
+    heroStat: { v: "0 → Signed", l: "Sony Music" },
     blocks: [
       {
         type: "chapter",
@@ -218,7 +218,7 @@ export const CASE_CONTENT = {
         items: [
           { k: "Controllable", t: "Consistency", b: "Decide who you are and produce it — every day, whether anyone is watching yet or not." },
           { k: "Uncontrollable", t: "The curve", b: "When it bends isn't yours to choose. It only bends for the ones still producing when it does." },
-          { k: "The result", t: "Signed", b: "From zero to a deal with Sony Sweden." },
+          { k: "The result", t: "Signed", b: "From zero to a deal with Sony Music." },
         ],
       },
       { type: "statement", text: "It's a long-term game. Consistency is the only part you hold." },

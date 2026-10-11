@@ -198,6 +198,73 @@ export const AGENCY_CSS = `
 
 
 
+
+  /* ─── request dialog ─── */
+  .rq-backdrop {
+    position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    animation: rq-fade 0.25s ease;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  @keyframes rq-fade { from { opacity: 0; } }
+  .rq {
+    position: relative; width: 100%; max-width: 620px; max-height: calc(100dvh - 48px); overflow-y: auto;
+    background: #fff; color: #000; border-radius: 24px; padding: clamp(24px, 4vw, 40px);
+    box-shadow: 0 40px 100px -30px rgba(0,0,0,0.6);
+    animation: rq-up 0.45s cubic-bezier(0.16,1,0.3,1);
+    overscroll-behavior: contain;
+  }
+  @keyframes rq-up { from { transform: translateY(24px) scale(0.98); opacity: 0; } }
+  .rq-close {
+    position: absolute; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%;
+    border: 0; background: #f1f1ef; color: #000; display: grid; place-items: center; cursor: pointer;
+  }
+  .rq form { display: grid; gap: 16px; }
+  .rq-k { font-size: 12px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pc-grey); }
+  .rq-h { font-size: clamp(26px, 3.4vw, 34px); font-weight: 600; letter-spacing: -0.035em; line-height: 1.05; max-width: 18ch; margin-bottom: 6px; padding-right: 36px; }
+  .rq-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rq-field { display: grid; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+  .rq-field > span, .rq-field legend { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); padding: 0; margin-bottom: 8px; }
+  .rq-field > span { margin-bottom: 0; }
+  .rq-field em { font-style: normal; text-transform: none; letter-spacing: 0; opacity: 0.7; margin-left: 4px; }
+  .rq-field input, .rq-field textarea {
+    font: inherit; font-size: 16px; color: #000; background: #fff; width: 100%;
+    border: 1px solid rgba(0,0,0,0.22); border-radius: 12px; padding: 13px 14px; outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .rq-field textarea { resize: vertical; min-height: 104px; line-height: 1.5; }
+  .rq-field input:focus, .rq-field textarea:focus { border-color: #000; box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
+  .rq-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rq-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; font-size: 14px; font-weight: 500; color: #000; background: #fff; cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.22); border-radius: 999px; padding: 9px 14px;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+  .rq-chip:hover { border-color: #000; }
+  .rq-chip:active { transform: scale(0.96); }
+  .rq-chip.is-on { background: #000; color: #fff; border-color: #000; }
+  .rq-power.is-on svg { color: #D9480F; }
+  .rq-at { margin-top: 10px; }
+  .rq-total { margin-top: 10px; font-size: 14px; color: var(--pc-grey); font-variant-numeric: tabular-nums; }
+  .rq-total strong { color: #000; font-weight: 600; }
+  .rq-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .rq-send { justify-self: start; margin-top: 4px; }
+  .rq-error { font-size: 15px; color: #b42318; }
+  .rq-fine { font-size: 13px; color: var(--pc-grey); }
+  .rq-done { display: grid; gap: 16px; justify-items: start; padding: 12px 0 4px; }
+  .rq-done-icon { width: 56px; height: 56px; border-radius: 50%; background: #000; color: #fff; display: grid; place-items: center; animation: sp-pop 0.5s cubic-bezier(0.16,1,0.3,1); }
+  .rq-done h2 { font-size: 34px; font-weight: 600; letter-spacing: -0.04em; }
+  .rq-done p { font-size: 17px; line-height: 1.55; color: #333; max-width: 44ch; }
+  @media (max-width: 640px) {
+    .rq-backdrop { align-items: flex-end; padding: 0; }
+    .rq { max-width: none; max-height: 92dvh; border-radius: 22px 22px 0 0; padding: 24px 18px calc(24px + env(safe-area-inset-bottom, 0px)); animation-name: rq-sheet; }
+    @keyframes rq-sheet { from { transform: translateY(100%); } }
+    .rq-row { grid-template-columns: 1fr; }
+    .rq-send { justify-self: stretch; width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .rq, .rq-backdrop { animation: none; } }
+
   /* ─── superpowers ─── */
   .sp { --sp-accent: #D9480F; }
   .sp-h2 { max-width: 14ch; }

@@ -10,7 +10,8 @@ import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
-import { casePath, mailto } from "../components/agency/agencyData.js";
+import { casePath } from "../components/agency/agencyData.js";
+import { openRequest } from "../components/agency/request.js";
 import { CASE_STATS as FLAMBO } from "./stories/adamFlamboData.js";
 
 /* The public front door: PullUp builds brands people actually feel — for
@@ -144,7 +145,6 @@ function SectionLabel({ n, children }) {
   );
 }
 
-const CONVERSATION = mailto("Let's build — PullUp");
 
 function StoryCard({ story, i }) {
   const navigate = useNavigate();
@@ -218,10 +218,17 @@ function AgencyPage() {
           </Reveal>
           <Reveal delay={0.24}>
             <div className="pc-hero-cta">
-              <a className="pc-btn pc-btn-light" href={CONVERSATION} onClick={() => trackEvent("cta_click", { location: "hero_build" })}>
+              <button
+                type="button"
+                className="pc-btn pc-btn-light"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "hero_build" });
+                  openRequest({ source: "hero" });
+                }}
+              >
                 Build yours with us
                 <ArrowRight size={18} strokeWidth={1.75} />
-              </a>
+              </button>
               <button type="button" className="pc-btn pc-btn-ghost" onClick={toStories}>
                 See the stories
               </button>
@@ -358,10 +365,17 @@ function AgencyPage() {
           </Reveal>
           <Reveal delay={0.12}>
             <div className="cl-cta">
-              <a className="pc-btn pc-btn-light" href={CONVERSATION} onClick={() => trackEvent("cta_click", { location: "close_conversation" })}>
+              <button
+                type="button"
+                className="pc-btn pc-btn-light"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "close_conversation" });
+                  openRequest({ source: "close" });
+                }}
+              >
                 Start a conversation
                 <ArrowRight size={18} strokeWidth={1.75} />
-              </a>
+              </button>
               <a
                 className="pc-btn pc-btn-ghost"
                 href="/start"

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { ArrowDown, ArrowRight } from "lucide-react";
 import { AgencyShell } from "../../components/agency/AgencyShell.jsx";
-import { CONTACT, DECK_PDF, mailto } from "../../components/agency/agencyData.js";
+import { CONTACT, DECK_PDF } from "../../components/agency/agencyData.js";
+import { openRequest } from "../../components/agency/request.js";
 import { trackEvent } from "../../lib/analytics.js";
 import slidesHtml from "./slides.html?raw";
 import "./deck.css";
@@ -74,10 +75,10 @@ export default function DeckPage() {
             ))}
           </div>
           <div className="dk-end">
-            <a className="pc-btn pc-btn-dark" href={mailto("The Production Core — trust period")}>
-              Start the trust period
+            <button type="button" className="pc-btn pc-btn-dark" onClick={() => openRequest({ source: "deck_page" })}>
+              Start a conversation
               <ArrowRight size={18} strokeWidth={1.75} />
-            </a>
+            </button>
             <a className="pc-btn pc-btn-line" href={DECK_PDF} download onClick={() => download("end")}>
               Download PDF
               <ArrowDown size={18} strokeWidth={1.75} />

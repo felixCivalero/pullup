@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
-import { OFFER, mailto } from "./agencyData.js";
+import { OFFER } from "./agencyData.js";
+import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
 // The closing offer — the one package, at the end of every case page.
@@ -34,14 +35,17 @@ export function AgencyOffer({
                 <span>{OFFER.cadence}</span>
               </p>
               <p className="pc-offer-body">{OFFER.body}</p>
-              <a
+              <button
+                type="button"
                 className="pc-btn pc-btn-light"
-                href={mailto(`${OFFER.name} — trust period`)}
-                onClick={() => trackEvent("cta_click", { location: "offer_trust_period", source })}
+                onClick={() => {
+                  trackEvent("cta_click", { location: "offer_trust_period", source });
+                  openRequest({ source: `offer_${source}` });
+                }}
               >
                 {OFFER.cta}
                 <ArrowUpRight size={18} strokeWidth={1.75} />
-              </a>
+              </button>
             </div>
             <dl className="pc-offer-terms">
               {OFFER.terms.map(([k, v]) => (

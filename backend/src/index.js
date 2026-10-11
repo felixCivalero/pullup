@@ -18,6 +18,7 @@ import { registerVerificationRoutes } from "./routes/verification.js";
 import { registerWaitlistRoutes } from "./routes/waitlist.js";
 import { registerDeckDownloadRoutes } from "./routes/deckDownloads.js";
 import { registerCanvasRoutes } from "./routes/canvasBoards.js";
+import { registerAgencyRequestRoutes } from "./routes/agencyRequests.js";
 import { registerCommunityRoutes } from "./routes/communities.js";
 import { registerLinkRoutes } from "./routes/links.js";
 import { registerEventsListRoutes } from "./routes/eventsList.js";
@@ -251,6 +252,7 @@ registerWaitlistRoutes(app);
 registerDeckDownloadRoutes(app);
 
 registerCanvasRoutes(app);
+registerAgencyRequestRoutes(app);
 
 registerCommunityRoutes(app);
 

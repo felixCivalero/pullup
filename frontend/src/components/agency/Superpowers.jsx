@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { Activity, ArrowRight, Check, DoorOpen, Plus, Smartphone, Users } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
-import { BASE_MONTHLY, CONTACT, SUPERPOWERS } from "./agencyData.js";
+import { BASE_MONTHLY, SUPERPOWERS } from "./agencyData.js";
+import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
 /* Add-ons on top of the retained engine: tap a card to switch a superpower
-   on, the monthly total follows, and the CTA carries the picks into the email. */
+   on, the monthly total follows, and the CTA opens the request form with the picks. */
 const ICONS = { crm: Users, room: DoorOpen, tracking: Activity, app: Smartphone };
 const usd = (n) => `$${n.toLocaleString("en-US")}`;
 
@@ -24,21 +25,6 @@ export function Superpowers() {
       return next;
     });
   };
-
-  const subject = picked.length
-    ? `PullUp + ${picked.map((p) => p.name).join(" + ")}`
-    : "PullUp — the core engine";
-  const body = [
-    "Hi PullUp,",
-    "",
-    "I'd like to talk about:",
-    `- The core engine (${usd(BASE_MONTHLY)}/month)`,
-    ...picked.map((p) => `- ${p.name} (${p.from ? "from " : ""}+${usd(p.price)}/month)`),
-    "",
-    "Who we are:",
-    "",
-  ].join("\n");
-  const href = `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   return (
     <section id="superpowers" className="pc-section pc-rule sp" data-pc-section="superpowers" data-pc-order="6">
@@ -109,14 +95,17 @@ export function Superpowers() {
               <span> / month</span>
             </p>
           </div>
-          <a
+          <button
+            type="button"
             className="pc-btn pc-btn-light"
-            href={href}
-            onClick={() => trackEvent("cta_click", { location: "superpowers", picks: picked.map((p) => p.id).join(",") })}
+            onClick={() => {
+              trackEvent("cta_click", { location: "superpowers", picks: picked.map((p) => p.id).join(",") });
+              openRequest({ source: "superpowers", powers: picked.map((p) => p.id) });
+            }}
           >
             {picked.length ? `Start with ${picked.length === 1 ? "this power" : `these ${picked.length} powers`}` : "Start with the core"}
             <ArrowRight size={18} strokeWidth={1.75} />
-          </a>
+          </button>
         </div>
       </div>
     </section>

@@ -5,6 +5,8 @@ import { track } from "../../lib/track.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
 import { CASES, CONTACT, DECK_PATH, casePath } from "./agencyData.js";
+import { RequestDialog } from "./RequestDialog.jsx";
+import { rememberArrival } from "./request.js";
 
 /* The frame every agency page sits in: tone-aware nav (Stories + Log in), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
@@ -69,6 +71,11 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     document.querySelectorAll("[data-pc-section]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [pathname]);
+
+  // First touch of the visit — so a later request can say where it came from.
+  useEffect(() => {
+    rememberArrival();
+  }, []);
 
   // Phone browser chrome matches the black heroes.
   useEffect(() => {
@@ -192,6 +199,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
           </nav>
         </footer>
+        <RequestDialog />
       </div>
       {cursor && <EyesCursor hidden={hideCursor} />}
     </div>

@@ -56,6 +56,13 @@ export const CASES = [
     summary: "A deep mission, a team in a vacuum — wired together through the Alignment Bridge.",
     image: "/stories/adam-hero.jpg",
   },
+  {
+    slug: "adam-dawood",
+    client: "Adam Dawood",
+    kicker: "Artist",
+    title: "From zero to signed.",
+    summary: "No audience to aim at — so the core came first. Today DAWOOD is signed by Sony Sweden.",
+  },
 ];
 
 export const casePath = (slug) => `/work/${slug}`;

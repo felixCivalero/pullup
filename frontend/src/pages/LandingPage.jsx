@@ -142,7 +142,7 @@ function WorkIndex() {
       <div className="pc-wrap">
         <SectionLabel n="02">Selected work</SectionLabel>
         <Reveal>
-          <h2 className="pc-h2">Four organizations. One production core.</h2>
+          <h2 className="pc-h2">From one artist to a global brand. One production core.</h2>
         </Reveal>
         <div className="pc-work">
           {CASES.map((c, i) => (
@@ -662,7 +662,10 @@ const STYLES = `
 
   /* ─── selected work ─── */
   .pc-work { display: grid; grid-template-columns: 1fr; gap: 16px; }
-  @media (min-width: 800px) { .pc-work { grid-template-columns: 1fr 1fr; gap: 20px; } }
+  @media (min-width: 800px) {
+    .pc-work { grid-template-columns: 1fr 1fr; gap: 20px; }
+    .pc-work > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  }
   .pc-workcard {
     position: relative; overflow: hidden; isolation: isolate;
     min-height: clamp(300px, 34vw, 440px);

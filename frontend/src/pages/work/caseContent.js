@@ -1,5 +1,6 @@
 // Case page content. Every claim traces to the agency blueprint or, for STIGA,
-// to the Growhouse results report (1 Dec 2024 – 30 Jun 2025). No invented
+// to the Growhouse results report (1 Dec 2024 – 30 Jun 2025); Adam Dawood:
+// Felix's brief (zero → signed by Sony Sweden) + his 'audience comes last' notes. No invented
 // numbers: a case without hard data stays typographic until data arrives.
 //
 // Block types rendered by CasePage:
@@ -174,6 +175,53 @@ export const CASE_CONTENT = {
         ],
       },
       { type: "statement", text: "The engine that took a founder from 0 to 10k scales to a global giant. Same rhythm. Bigger machine." },
+    ],
+  },
+
+  "adam-dawood": {
+    eyebrow: "Case 05 — Adam Dawood",
+    title: "From zero to signed.",
+    sub: "Adam Dawood started from zero — no audience waiting, no label behind him. Today DAWOOD is signed by Sony Sweden.",
+    facts: [
+      ["Artist", "Adam Dawood · DAWOOD"],
+      ["Start", "Zero"],
+      ["Outcome", "Signed by Sony Sweden"],
+      ["Principle", "The audience comes last"],
+    ],
+    heroStat: { v: "0 → Signed", l: "Sony Sweden" },
+    blocks: [
+      {
+        type: "chapter",
+        n: "01",
+        label: "The starting point",
+        title: "No audience to aim at.",
+        body: [
+          "Most advice starts with the target audience. At zero there isn't one — and aiming at an imagined one makes everything sound like everyone else.",
+          "So the work didn't start outside. It started with the only question that matters at zero: who is DAWOOD — today?",
+        ],
+      },
+      { type: "statement", text: "The audience comes last. Because you are the audience." },
+      {
+        type: "chapter",
+        n: "02",
+        label: "The method",
+        title: "Produce the core.",
+        body: [
+          "The answer to who you are isn't a statement. It's a decision taken every day — and produced, consistently, into the world.",
+          "Producing your core is what separates you, and what attracts. The audience doesn't know what it wants before it's there. Neither does a label.",
+        ],
+      },
+      {
+        type: "steps",
+        label: "The long game",
+        title: "Separate what you control from what you don't.",
+        items: [
+          { k: "Controllable", t: "Consistency", b: "Decide who you are and produce it — every day, whether anyone is watching yet or not." },
+          { k: "Uncontrollable", t: "The curve", b: "When it bends isn't yours to choose. It only bends for the ones still producing when it does." },
+          { k: "The result", t: "Signed", b: "From zero to a deal with Sony Sweden." },
+        ],
+      },
+      { type: "statement", text: "It's a long-term game. Consistency is the only part you hold." },
     ],
   },
 };

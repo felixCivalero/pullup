@@ -116,11 +116,11 @@
 
 /* ─── phones: slides reflow into readable cards instead of shrinking ─── */
 /* proof: every story in the same frame */
-.deck .stories { margin-top: 56px; border-top: 2px solid #000; }
-.deck .story { display: grid; grid-template-columns: 90px 1fr; padding: 30px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
+.deck .stories { margin-top: 36px; border-top: 2px solid #000; }
+.deck .story { display: grid; grid-template-columns: 90px 1fr; padding: 16px 0; border-bottom: 1px solid rgba(0,0,0,0.14); }
 .deck .story .n { font-size: 28px; font-weight: 500; color: #8a8a8a; font-variant-numeric: tabular-nums; padding-top: 10px; }
-.deck .story h3 { font-size: 48px; margin-bottom: 14px; }
-.deck .story p { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; font-size: 26px; line-height: 1.4; color: #444; }
+.deck .story h3 { font-size: 40px; margin-bottom: 8px; }
+.deck .story p { display: grid; grid-template-columns: 150px 1fr; align-items: baseline; font-size: 24px; line-height: 1.4; color: #444; }
 .deck .story p + p { margin-top: 6px; }
 .deck .story p .k { font-size: 18px; }
 .deck .story p.res { color: #000; font-weight: 600; }

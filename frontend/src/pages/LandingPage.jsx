@@ -11,7 +11,8 @@ import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { CaseSpine, StoryMark } from "../components/agency/CaseNav.jsx";
-import { MESSAGE, OUTPUT, SERIES, casePath } from "../components/agency/agencyData.js";
+import { MESSAGE, OUTPUT, REEL_BEATS, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
+import { ReelEdit } from "../components/agency/ReelEdit.jsx";
 import { openRequest } from "../components/agency/request.js";
 
 /* The public front door. One message (MESSAGE), told in a strict order:
@@ -20,9 +21,9 @@ import { openRequest } from "../components/agency/request.js";
 
 const PROOF = [
   { v: "28.1M", l: "views for STIGA in seven months" },
+  { v: "8 h → 30 min", l: "per piece of content for Li Karlsén" },
   { v: "10,000+", l: "BKM Health community, zero paid spend" },
   { v: "Sony Music", l: "Adam Dawood, from zero to signed" },
-  { v: "4 nights", l: "a week of live music at Kaijas" },
 ];
 
 const PRINCIPLES = [
@@ -94,7 +95,7 @@ function SectionLabel({ n, children }) {
 
 function StoryCard({ story }) {
   const navigate = useNavigate();
-  const { slug, tone, kicker, name, title, spine, stats, hero } = story;
+  const { slug, tone, kicker, name, title, spine, stats, hero, reel } = story;
   return (
     <Reveal delay={0.04}>
       <article className={`st-card${tone === "dark" ? " is-dark" : ""}`} data-pc-tone={tone === "dark" ? "dark" : undefined}>
@@ -104,7 +105,12 @@ function StoryCard({ story }) {
             <h3 className="st-name">{name}</h3>
             <p className="st-title">{title}</p>
           </div>
-          {hero ? (
+          {reel ? (
+            <div className="st-reel">
+              <ReelEdit beats={REEL_BEATS} compact />
+              <p className="st-reel-cap"><b>8 h → 30 min</b> per piece. One reel, four pieces, cut frame by frame.</p>
+            </div>
+          ) : hero ? (
             <div className="st-hero">
               <p className="st-hero-v">{hero[0]}</p>
               <p className="st-hero-l">{hero[1]}</p>
@@ -245,7 +251,7 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="02">The stories</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">Five stories. The same four steps.</h2>
+            <h2 className="pc-h2 st-h2">{storyCountWord} stories. The same four steps.</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
@@ -504,7 +510,7 @@ const STYLES = `
   .pf-in { display: grid; grid-template-columns: 1fr 1fr; }
   @media (min-width: 900px) { .pf-in { grid-template-columns: repeat(4, 1fr); } }
   .pf-cell { padding: clamp(24px, 3vw, 36px) clamp(12px, 2vw, 24px) clamp(24px, 3vw, 36px) 0; }
-  .pf-v { font-size: clamp(28px, 3.4vw, 44px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pf-v { white-space: nowrap; font-size: clamp(26px, 3.2vw, 44px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
   .pf-l { margin-top: 10px; font-size: 14px; line-height: 1.4; color: var(--pc-grey); max-width: 26ch; }
 
   /* ─── stories ─── */
@@ -522,7 +528,7 @@ const STYLES = `
   .st-card.is-dark .pc-spine { border-top-color: var(--pc-line-dark); }
   @media (min-width: 900px) { .st-card .pc-spine { padding-top: 32px; } }
   .st-card.is-dark { background: #000; color: #fff; border-color: #000; }
-  .st-kicker { display: flex; gap: 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
+  .st-kicker { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pc-grey); }
   .st-card.is-dark .st-kicker { color: rgba(255,255,255,0.5); }
   .st-name { margin-top: 14px; font-size: clamp(32px, 4.4vw, 56px); font-weight: 600; line-height: 0.98; letter-spacing: -0.045em; }
   .st-title { margin-top: 14px; font-size: clamp(19px, 1.8vw, 24px); line-height: 1.3; letter-spacing: -0.015em; color: #333; max-width: 30ch; }
@@ -542,6 +548,21 @@ const STYLES = `
   .st-stat.is-wide .st-stat-v { font-size: clamp(20px, 2vw, 24px); letter-spacing: -0.02em; }
   .st-stat-l { margin-top: 8px; font-size: 13px; line-height: 1.35; color: var(--pc-grey); }
   .st-card.is-dark .st-stat-l { color: rgba(255,255,255,0.55); }
+  .st-reel { min-width: 0; }
+  .st-reel-cap { margin-top: 14px; font-size: 13px; color: rgba(255,255,255,0.55); }
+  .st-reel-cap b { color: #fff; font-weight: 600; margin-right: 4px; }
+  .st-card.is-dark .cs-edit-phase { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.55); }
+  .st-card.is-dark .cs-edit-phase.is-on { background: #fff; border-color: #fff; color: #000; }
+  .st-card.is-dark .cs-seg-name { color: rgba(255,255,255,0.45); }
+  .st-card.is-dark .cs-seg.is-now .cs-seg-name { color: #fff; }
+  .st-card.is-dark .cs-frames { background: rgba(255,255,255,0.08); }
+  .st-card.is-dark .cs-seg.is-now .cs-frames { background: rgba(255,255,255,0.14); }
+  .st-card.is-dark .cs-frame { background: rgba(255,255,255,0.18); }
+  .st-card.is-dark .cs-frame.is-seen { background: #fff; }
+  .st-card.is-dark .cs-frame.is-cut { background: transparent; }
+  .st-card.is-dark .cs-edit-legend { color: rgba(255,255,255,0.55); }
+  .st-card.is-dark .cs-edit-legend .is-keep { background: #fff; }
+  .st-card.is-dark .cs-phone { box-shadow: 0 0 0 1px rgba(255,255,255,0.22), 0 24px 48px -28px rgba(0,0,0,0.6); }
   .st-hero-v { font-size: clamp(56px, 8vw, 112px); font-weight: 600; letter-spacing: -0.05em; line-height: 0.92; }
   .st-hero-l { margin-top: 14px; font-size: 15px; color: rgba(255,255,255,0.6); }
 

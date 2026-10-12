@@ -127,8 +127,8 @@ export const SPINE = [
 ];
 
 // The case registry — order here = order everywhere (landing, footer, the
-// rail on every case page, "next story"). `series: false` keeps a page live
-// without numbering it. Every claim: Felix's brief; STIGA traces to the
+// rail on every case page, "next story"). `series: false` would keep a page
+// live without numbering it. Every claim: Felix's brief; STIGA traces to the
 // Growhouse report (1 Dec 2024 – 30 Jun 2025); Adam Flambo to his rooms.
 export const CASES = [
   {
@@ -144,6 +144,21 @@ export const CASES = [
       result: "28.1M views and +32,000 followers in seven months.",
     },
     stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
+  },
+  {
+    slug: "li-karlsen",
+    client: "Li Karlsén",
+    name: "Li Karlsén",
+    kicker: "Founder · BKM · Elite freediver",
+    tone: "dark",
+    title: "Content doesn't need to be loud. It needs to be precise.",
+    spine: {
+      start: "A founder and elite freediver with more to say than a reel can hold.",
+      did: "30-minute extraction sprints, shaped on the spot into four beats.",
+      made: "Reels split into Hook, Credibility, Core and Outro — cut frame by frame.",
+      result: "From 8 hours to 30 minutes to make one piece of content.",
+    },
+    reel: true,
   },
   {
     slug: "bkm",
@@ -204,19 +219,20 @@ export const CASES = [
     },
     stats: [["4 nights", "of live music a week"], ["10,000+", "Instagram followers"], ["Built in-house", "booking system and operations dashboard", true]],
   },
-  {
-    slug: "li-karlsen",
-    series: false,
-    client: "Li Karlsén",
-    name: "Li Karlsén",
-    kicker: "BKM · The founder's side",
-    title: "Content doesn't need to be loud. It needs to be precise.",
-  },
 ];
 
 // The numbered stories — what the landing lists and the rail walks through.
 export const SERIES = CASES.filter((c) => c.series !== false);
 export const storyNo = (slug) => String(SERIES.findIndex((c) => c.slug === slug) + 1).padStart(2, "0");
+// Li's edit: one reel in four beats; `cut` = frames taken out (illustrative).
+export const REEL_BEATS = [
+  { t: "Hook", line: "The first line earns the second.", frames: 4, cut: [3] },
+  { t: "Credibility", line: "Proof before opinion.", frames: 6, cut: [1, 4] },
+  { t: "Core", line: "The one thing you leave with.", frames: 10, cut: [2, 5, 8] },
+  { t: "Outro", line: "Land it. Then stop.", frames: 5, cut: [2, 4] },
+];
+const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);
 export const storyCount = String(SERIES.length).padStart(2, "0");
 
 export const casePath = (slug) => `/work/${slug}`;

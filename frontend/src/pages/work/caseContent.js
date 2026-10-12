@@ -1,3 +1,5 @@
+import { REEL_BEATS } from "../../components/agency/agencyData.js";
+
 // Case page long reads. Title, number and the four-step spine live in the
 // registry (components/agency/agencyData.js CASES); this file holds the
 // sub-line, the facts (unnumbered pages only) and the blocks. Every claim traces to the agency blueprint or, for STIGA,
@@ -79,12 +81,6 @@ export const CASE_CONTENT = {
 
   "li-karlsen": {
     sub: "Picture Li Karlsén, co-founder of BKM and elite freediver, descending into absolute silence. In the deep there is no room for wasted energy, rambling thoughts, or hesitation.",
-    facts: [
-      ["Who", "Li Karlsén"],
-      ["Role", "Co-founder, BKM · elite freediver"],
-      ["Format", "30-minute extraction sprints"],
-      ["Framework", "Hook · Credibility · Core · Outro"],
-    ],
     depth: true,
     blocks: [
       {
@@ -123,12 +119,7 @@ export const CASE_CONTENT = {
         label: "The edit",
         title: "One reel. Four pieces. Frame by frame.",
         body: "Every reel was split into its four beats and taken apart frame by frame. Any frame that spent breath without moving the story was cut, until each piece did exactly one job — and the reel ran clean from the first line to the last.",
-        beats: [
-          { t: "Hook", line: "The first line earns the second.", frames: 4, cut: [3] },
-          { t: "Credibility", line: "Proof before opinion.", frames: 6, cut: [1, 4] },
-          { t: "Core", line: "The one thing you leave with.", frames: 10, cut: [2, 5, 8] },
-          { t: "Outro", line: "Land it. Then stop.", frames: 5, cut: [2, 4] },
-        ],
+        beats: REEL_BEATS,
       },
       { type: "statement", text: "It doesn't need to be loud to be powerful. It just needs to be precise." },
       {

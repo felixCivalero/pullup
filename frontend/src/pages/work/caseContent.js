@@ -12,6 +12,8 @@
 //   quote     { text, who, role }
 //   channels  { label, title, period, rows, totals }   STIGA breakdown
 //   image     { src, alt, caption }          rendered only when src is set
+//   reel      { label, title, body, beats: [{ t, line, frames, cut: [] }] }
+//             animated edit: raw take reviewed frame by frame → cuts collapse → final cut plays
 
 const STIGA_ROWS = [
   { channel: "Facebook", views: 14924282, interactions: 85239, followers: 11407 },
@@ -114,6 +116,18 @@ export const CASE_CONTENT = {
           { k: "02", t: "Credibility", b: "Why this voice, on this subject. Proof before opinion." },
           { k: "03", t: "Core", b: "The single thing the viewer leaves with — nothing that competes with it." },
           { k: "04", t: "Outro", b: "Land it, then stop. The ending is the next step, not a summary." },
+        ],
+      },
+      {
+        type: "reel",
+        label: "The edit",
+        title: "One reel. Four pieces. Frame by frame.",
+        body: "Every reel was split into its four beats and taken apart frame by frame. Any frame that spent breath without moving the story was cut, until each piece did exactly one job — and the reel ran clean from the first line to the last.",
+        beats: [
+          { t: "Hook", line: "The first line earns the second.", frames: 4, cut: [3] },
+          { t: "Credibility", line: "Proof before opinion.", frames: 6, cut: [1, 4] },
+          { t: "Core", line: "The one thing you leave with.", frames: 10, cut: [2, 5, 8] },
+          { t: "Outro", line: "Land it. Then stop.", frames: 5, cut: [2, 4] },
         ],
       },
       { type: "statement", text: "It doesn't need to be loud to be powerful. It just needs to be precise." },

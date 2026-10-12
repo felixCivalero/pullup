@@ -148,8 +148,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 openRequest({ source: "nav" });
               }}
             >
-              <span className="pc-nav-cta-long">Build yours with us</span>
-              <span className="pc-nav-cta-short">Build yours</span>
+              Build with us
             </button>
           </div>
         </header>

@@ -177,7 +177,7 @@ function AgencyPage() {
                   openRequest({ source: "hero" });
                 }}
               >
-                Build yours with us
+                Build with us
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <button type="button" className="pc-btn pc-btn-ghost" onClick={toStories}>
@@ -260,7 +260,7 @@ function AgencyPage() {
                   openRequest({ source: "services" });
                 }}
               >
-                Build yours with us
+                Build with us
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <button

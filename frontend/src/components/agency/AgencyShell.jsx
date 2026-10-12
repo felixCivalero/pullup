@@ -129,6 +129,16 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <button type="button" className="pc-nav-link" onClick={() => goSection("stories", "nav_cases")}>
               Cases
             </button>
+            <button
+              type="button"
+              className="pc-nav-login"
+              onClick={() => {
+                trackEvent("cta_click", { location: "nav_login" });
+                navigate("/login");
+              }}
+            >
+              Log in
+            </button>
           </div>
         </header>
 

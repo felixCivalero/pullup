@@ -72,7 +72,7 @@ export const AGENCY_CSS = `
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
   .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
   .pc-nav-login {
-    background: none; border: 1px solid currentColor; color: inherit;
+    background: #D9480F; border: 1px solid #D9480F; color: #fff; white-space: nowrap;
     font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
     min-height: 40px; padding: 0 18px; border-radius: 999px; cursor: pointer;
     position: relative;
@@ -80,8 +80,8 @@ export const AGENCY_CSS = `
   }
   /* 44px hit area without a bigger pill */
   .pc-nav-login::after { content: ""; position: absolute; inset: -4px -6px; }
-  .pc-nav.is-dark .pc-nav-login:hover { background: #fff; color: #000; }
-  .pc-nav.is-light .pc-nav-login:hover { background: #000; color: #fff; }
+  .pc-nav-login:hover { background: #B83C0B; border-color: #B83C0B; }
+  .pc-nav-login:focus-visible { outline: 2px solid #D9480F; outline-offset: 3px; }
 
   /* ─── shared type ─── */
   .pc-dark { background: var(--pc-black); color: var(--pc-white); }
@@ -535,6 +535,13 @@ export const AGENCY_CSS = `
     .pc-lead { font-size: 21px; }
     .pc-nav-link { font-size: 15px; }
     .pc-nav-actions { gap: 14px; }
+    .pc-nav-login { min-height: 36px; padding: 0 14px; font-size: 14px; }
+  }
+  @media (max-width: 380px) {
+    .pc-nav-actions { gap: 10px; }
+    .pc-nav-link { font-size: 14px; }
+    .pc-nav-brand img { height: 18px; }
+    .pc-nav-login { padding: 0 12px; font-size: 13px; }
     .pc-close-sub { font-size: 18px; }
       .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
     .pc-offer-price { font-size: 52px; }

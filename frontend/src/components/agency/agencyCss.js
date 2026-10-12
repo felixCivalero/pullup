@@ -71,17 +71,24 @@ export const AGENCY_CSS = `
   .pc-nav-brand img { height: 22px; width: auto; display: block; transition: filter 0.25s ease; }
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
   .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
-  .pc-nav-login {
+  /* the sales CTA is the loud one; Log in is a quiet text link */
+  .pc-nav-cta {
     background: #D9480F; border: 1px solid #D9480F; color: #fff; white-space: nowrap;
-    font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0.01em;
+    font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.005em;
     min-height: 40px; padding: 0 18px; border-radius: 999px; cursor: pointer;
     position: relative;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
   }
   /* 44px hit area without a bigger pill */
-  .pc-nav-login::after { content: ""; position: absolute; inset: -4px -6px; }
-  .pc-nav-login:hover { background: #B83C0B; border-color: #B83C0B; }
-  .pc-nav-login:focus-visible { outline: 2px solid #D9480F; outline-offset: 3px; }
+  .pc-nav-cta::after { content: ""; position: absolute; inset: -4px -6px; }
+  .pc-nav-cta:hover { background: #B83C0B; border-color: #B83C0B; }
+  .pc-nav-cta:focus-visible { outline: 2px solid #D9480F; outline-offset: 3px; }
+  .pc-nav-cta-short { display: none; }
+  .pc-nav-signin {
+    background: none; border: 0; padding: 8px 0; cursor: pointer; color: inherit;
+    font: inherit; font-size: 13px; opacity: 0.5; transition: opacity 0.2s ease;
+  }
+  .pc-nav-signin:hover { opacity: 0.9; }
 
   /* ─── shared type ─── */
   .pc-dark { background: var(--pc-black); color: var(--pc-white); }
@@ -646,19 +653,21 @@ export const AGENCY_CSS = `
     .pc-lead { font-size: 21px; }
     .pc-nav-link { font-size: 15px; }
     .pc-nav-actions { gap: 14px; }
-    .pc-nav-login { min-height: 36px; padding: 0 14px; font-size: 14px; }
-  }
-  @media (max-width: 380px) {
-    .pc-nav-actions { gap: 10px; }
-    .pc-nav-link { font-size: 14px; }
-    .pc-nav-brand img { height: 18px; }
-    .pc-nav-login { padding: 0 12px; font-size: 13px; }
+    .pc-nav-cta { min-height: 36px; padding: 0 14px; font-size: 14px; }
+    .pc-nav-cta-long, .pc-nav-signin { display: none; }
+    .pc-nav-cta-short { display: inline; }
     .pc-close-sub { font-size: 18px; }
-      .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
+    .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
     .pc-offer-price { font-size: 52px; }
     .pc-offer .pc-btn { align-self: stretch; }
     .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }
     .pc-footer nav { gap: 8px 20px; }
     .pc-footer a { padding: 6px 0; }
+  }
+  @media (max-width: 420px) {
+    .pc-nav-actions { gap: 10px; }
+    .pc-nav-link { font-size: 14px; }
+    .pc-nav-brand img { height: 18px; }
+    .pc-nav-cta { padding: 0 12px; font-size: 13px; }
   }
 `;

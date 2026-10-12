@@ -11,7 +11,7 @@ import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { CaseSpine, StoryMark } from "../components/agency/CaseNav.jsx";
-import { MESSAGE, OUTPUT, REEL_BEATS, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
+import { BASE_MONTHLY, MESSAGE, OUTPUT, REEL_BEATS, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { ReelEdit } from "../components/agency/ReelEdit.jsx";
 import { openRequest } from "../components/agency/request.js";
 
@@ -243,6 +243,38 @@ function AgencyPage() {
               </li>
             ))}
           </ol>
+          <Reveal className="hw-cta">
+            <div>
+              <p className="hw-cta-k">Start with the core</p>
+              <p className="hw-cta-v">
+                ${BASE_MONTHLY.toLocaleString("en-US")}<span> / month</span>
+              </p>
+              <p className="hw-cta-l">The first 3 months are a trust period — full work, no commitment.</p>
+            </div>
+            <div className="hw-cta-actions">
+              <button
+                type="button"
+                className="pc-btn hw-cta-btn"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "services_build" });
+                  openRequest({ source: "services" });
+                }}
+              >
+                Build yours with us
+                <ArrowRight size={18} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                className="pc-btn pc-btn-ghost"
+                onClick={() => {
+                  trackEvent("cta_click", { location: "services_superpowers" });
+                  document.getElementById("superpowers")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                Add superpowers
+              </button>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -619,6 +651,20 @@ const STYLES = `
   .og-row b { display: block; font-size: clamp(19px, 1.8vw, 22px); font-weight: 600; letter-spacing: -0.02em; }
   .og-b { display: block; margin-top: 4px; font-size: 15px; line-height: 1.5; color: #444; }
 
+  .hw-cta {
+    margin-top: clamp(28px, 4vw, 48px);
+    display: grid; grid-template-columns: 1fr; gap: 24px; align-items: center;
+    background: #000; color: #fff; border-radius: 20px; padding: clamp(24px, 3.4vw, 40px);
+  }
+  @media (min-width: 900px) { .hw-cta { grid-template-columns: 1fr auto; } }
+  .hw-cta-k { font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .hw-cta-v { margin-top: 10px; font-size: clamp(40px, 4.4vw, 60px); font-weight: 600; letter-spacing: -0.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hw-cta-v span { font-size: 18px; letter-spacing: 0; font-weight: 500; color: rgba(255,255,255,0.55); }
+  .hw-cta-l { margin-top: 12px; font-size: 15px; line-height: 1.5; color: rgba(255,255,255,0.7); max-width: 46ch; }
+  .hw-cta-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+  .hw-cta-btn { background: #D9480F; border-color: #D9480F; color: #fff; }
+  .hw-cta-btn:hover { background: #B83C0B; border-color: #B83C0B; }
+
   /* ─── close ─── */
   .cl-h2 { max-width: 14ch; }
   .cl-lede { margin-top: 24px; max-width: 48ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: rgba(255,255,255,0.7); }
@@ -645,7 +691,8 @@ const STYLES = `
     .st-stat { padding: 14px 14px 12px; border-radius: 12px; }
     .st-stat-v { font-size: 22px; }
     .wy-text { font-size: 15px; }
-    .og-in, .og-out, .hw-step { border-radius: 16px; }
+    .og-in, .og-out, .hw-step, .hw-cta { border-radius: 16px; }
+    .hw-cta-actions { flex-direction: column; }
     .cl-cta .pc-btn { width: 100%; }
   }
 

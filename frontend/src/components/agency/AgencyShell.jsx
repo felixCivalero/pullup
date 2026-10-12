@@ -7,7 +7,7 @@ import { AGENCY_CSS } from "./agencyCss.js";
 import { CONTACT, DECK_PATH, SERIES, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { ScrollLine } from "./ScrollLine.jsx";
-import { rememberArrival } from "./request.js";
+import { openRequest, rememberArrival } from "./request.js";
 
 /* The frame every agency page sits in: tone-aware nav (Services · Booklet · Cases), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
@@ -132,13 +132,24 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             </button>
             <button
               type="button"
-              className="pc-nav-login"
+              className="pc-nav-signin"
               onClick={() => {
                 trackEvent("cta_click", { location: "nav_login" });
                 navigate("/login");
               }}
             >
               Log in
+            </button>
+            <button
+              type="button"
+              className="pc-nav-cta"
+              onClick={() => {
+                trackEvent("cta_click", { location: "nav_build" });
+                openRequest({ source: "nav" });
+              }}
+            >
+              <span className="pc-nav-cta-long">Build yours with us</span>
+              <span className="pc-nav-cta-short">Build yours</span>
             </button>
           </div>
         </header>

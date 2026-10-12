@@ -508,10 +508,21 @@ const STYLES = `
   /* ─── proof strip ─── */
   .pf { border-bottom: 1px solid var(--pc-black); }
   .pf-in { display: grid; grid-template-columns: 1fr 1fr; }
-  @media (min-width: 900px) { .pf-in { grid-template-columns: repeat(4, 1fr); } }
-  .pf-cell { padding: clamp(24px, 3vw, 36px) clamp(12px, 2vw, 24px) clamp(24px, 3vw, 36px) 0; }
-  .pf-v { white-space: nowrap; font-size: clamp(26px, 3.2vw, 44px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .pf-l { margin-top: 10px; font-size: 14px; line-height: 1.4; color: var(--pc-grey); max-width: 26ch; }
+  .pf-cell { padding: clamp(28px, 3.4vw, 44px) clamp(16px, 2.2vw, 32px); }
+  .pf-cell:nth-child(odd) { padding-left: 0; }
+  .pf-cell:nth-child(even) { border-left: 1px solid var(--pc-line); }
+  .pf-cell:nth-child(n+3) { border-top: 1px solid var(--pc-line); }
+  @media (min-width: 900px) {
+    .pf-in { grid-template-columns: repeat(4, 1fr); }
+    .pf-cell, .pf-cell:nth-child(odd) { padding-left: clamp(20px, 2.4vw, 36px); }
+    .pf-cell:first-child { padding-left: 0; }
+    .pf-cell + .pf-cell { border-left: 1px solid var(--pc-line); }
+    .pf-cell:nth-child(n+3) { border-top: 0; }
+  }
+  .pf-v { white-space: nowrap; font-size: clamp(26px, 2.7vw, 40px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  /* .pc p sets text-wrap: pretty, which would let the numbers break */
+  .pc .pf-v, .pc .og-v { text-wrap: nowrap; }
+  .pf-l { margin-top: 12px; font-size: 14px; line-height: 1.45; color: var(--pc-grey); max-width: 24ch; }
 
   /* ─── stories ─── */
   .st-h2 { max-width: 18ch; }
@@ -625,9 +636,9 @@ const STYLES = `
     .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
     .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
     .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 12px; }
-    .pf-cell { padding: 22px 12px 22px 0; }
-    .pf-cell:nth-child(n+3) { border-top: 1px solid var(--pc-line); }
-    .pf-v { font-size: 26px; }
+    .pf-cell { padding-top: 24px; padding-bottom: 24px; }
+    .pf-cell:nth-child(even) { padding-left: 16px; padding-right: 0; }
+    .pf-v { font-size: 24px; }
     .pf-l { font-size: 13px; }
     .st-card { border-radius: 18px; padding: 22px 20px 24px; }
     .st-title { font-size: 18px; }

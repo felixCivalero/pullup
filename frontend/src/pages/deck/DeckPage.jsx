@@ -40,6 +40,11 @@ export default function DeckPage() {
     return () => ro.disconnect();
   }, []);
 
+  // Arriving from the nav or a link always opens the booklet at its first page.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     document.title = "The Production Core — the booklet · PullUp";
     trackEvent("deck_view", {});

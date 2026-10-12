@@ -121,7 +121,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
               aria-current={pathname === DECK_PATH ? "page" : undefined}
               onClick={() => {
                 trackEvent("cta_click", { location: "nav_booklet" });
-                navigate(DECK_PATH);
+                if (pathname === DECK_PATH) window.scrollTo({ top: 0, behavior: "smooth" });
+                else navigate(DECK_PATH);
               }}
             >
               Booklet
@@ -169,7 +170,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
               href={DECK_PATH}
               onClick={(e) => {
                 e.preventDefault();
-                navigate(DECK_PATH);
+                if (pathname === DECK_PATH) window.scrollTo({ top: 0, behavior: "smooth" });
+                else navigate(DECK_PATH);
               }}
             >
               Booklet

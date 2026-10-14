@@ -88,6 +88,20 @@ export const AGENCY_CSS = `
     font: inherit; font-size: 13px; opacity: 0.5; transition: opacity 0.2s ease;
   }
   .pc-nav-signin:hover { opacity: 0.9; }
+  /* language: a quiet pill, the native select laid over it */
+  .pc-lang {
+    position: relative; display: inline-flex; align-items: center; gap: 5px;
+    min-height: 32px; padding: 0 10px; border-radius: 999px;
+    border: 1px solid currentColor; border-color: color-mix(in srgb, currentColor 22%, transparent);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; cursor: pointer;
+    opacity: 0.8; transition: opacity 0.2s ease, border-color 0.2s ease;
+  }
+  .pc-lang:hover, .pc-lang:focus-within { opacity: 1; border-color: color-mix(in srgb, currentColor 55%, transparent); }
+  .pc-lang:focus-within { outline: 2px solid #D9480F; outline-offset: 2px; }
+  .pc-lang select {
+    position: absolute; inset: -6px -4px; width: calc(100% + 8px); height: calc(100% + 12px);
+    opacity: 0; cursor: pointer; font-size: 16px; border: 0; appearance: none; -webkit-appearance: none;
+  }
 
   /* ─── shared type ─── */
   .pc-dark { background: var(--pc-black); color: var(--pc-white); }
@@ -654,6 +668,8 @@ export const AGENCY_CSS = `
     .pc-nav-actions { gap: 14px; }
     .pc-nav-cta { min-height: 36px; padding: 0 14px; font-size: 14px; }
     .pc-nav-signin { display: none; }
+    /* phones: the language pill takes the booklet's place (it's in the footer) */
+    .pc-nav-booklet { display: none; }
     .pc-close-sub { font-size: 18px; }
     .pc-offer { padding: 28px 22px; border-radius: 18px; gap: 16px; }
     .pc-offer-price { font-size: 52px; }
@@ -662,16 +678,27 @@ export const AGENCY_CSS = `
     .pc-footer nav { gap: 8px 20px; }
     .pc-footer a { padding: 6px 0; }
   }
+  @media (max-width: 480px) {
+    .pc-nav-actions { gap: 12px; }
+  }
   @media (max-width: 420px) {
     .pc-nav-actions { gap: 10px; }
     .pc-nav-link { font-size: 14px; }
     .pc-nav-brand img { height: 18px; }
     .pc-nav-cta { padding: 0 12px; font-size: 13px; }
+    .pc-lang { padding: 0 8px; gap: 4px; min-height: 30px; }
+    .pc-lang svg { display: none; }
   }
   @media (max-width: 370px) {
     .pc-nav-actions { gap: 9px; margin-left: 12px; }
     .pc-nav-link { font-size: 13px; }
     .pc-nav-brand img { height: 16px; }
     .pc-nav-cta { padding: 0 11px; }
+  }
+  @media (max-width: 340px) {
+    .pc-nav-actions { gap: 8px; margin-left: 8px; }
+    .pc-nav-link { font-size: 12.5px; }
+    .pc-lang { padding: 0 7px; }
+    .pc-nav-cta { padding: 0 10px; font-size: 12.5px; }
   }
 `;

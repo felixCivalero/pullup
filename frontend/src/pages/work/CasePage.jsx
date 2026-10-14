@@ -10,6 +10,7 @@ import { CaseRail, CaseSpine, StoryMark } from "../../components/agency/CaseNav.
 import { caseBySlug, casePath, nextCase } from "../../components/agency/agencyData.js";
 import { initTracking, trackPageView } from "../../lib/track.js";
 import { CASE_CONTENT } from "./caseContent.js";
+import { useLocalized, useT } from "../../components/agency/i18n.js";
 
 /* /work/:slug — one template for the typographic cases. Every numbered story
    opens the same way: "Story 0N / 05", its title, then the four-step spine
@@ -94,6 +95,7 @@ const METRICS = [
 ];
 
 function Channels({ label, title, period, rows, totals }) {
+  const t = useT();
   const [metric, setMetric] = useState("views");
   const sorted = [...rows].sort((a, b) => b[metric] - a[metric]);
   const max = sorted[0][metric];
@@ -112,11 +114,11 @@ function Channels({ label, title, period, rows, totals }) {
               aria-pressed={metric === k}
             >
               <span className="cs-total-v" title={fmt(totals[k])}>{compact(totals[k])}</span>
-              <span className="cs-total-l">{l}</span>
+              <span className="cs-total-l">{t(l)}</span>
             </button>
           ))}
         </div>
-        <p className="cs-channels-hint">By channel · tap a total to switch</p>
+        <p className="cs-channels-hint">{t("By channel · tap a total to switch")}</p>
         <ul className="cs-bars">
           {sorted.map((r) => (
             <li key={r.channel}>
@@ -128,7 +130,7 @@ function Channels({ label, title, period, rows, totals }) {
             </li>
           ))}
         </ul>
-        <p className="cs-source">Source: channel analytics, {period}. Accumulated per channel.</p>
+        <p className="cs-source">{t("Source: channel analytics, {period}. Accumulated per channel.", { period })}</p>
       </div>
     </section>
   );
@@ -165,6 +167,8 @@ export default function CasePage() {
   const navigate = useNavigate();
   const meta = caseBySlug(slug);
   const content = CASE_CONTENT[slug];
+  const t = useT();
+  const local = useLocalized(content);
 
   useEffect(() => {
     if (!content) return;
@@ -181,7 +185,7 @@ export default function CasePage() {
   if (!meta || !content) return <Navigate to="/#stories" replace />;
 
   const next = nextCase(slug);
-  const c = content;
+  const c = local;
 
   return (
     <AgencyShell css={CASE_CSS}>
@@ -195,10 +199,10 @@ export default function CasePage() {
         <div className="pc-wrap cs-hero-in">
           <Reveal>
             <p className="pc-eyebrow cs-eyebrow">
-              {meta.spine ? <><StoryMark slug={slug} /> — {meta.name}</> : `${meta.name} · ${meta.kicker}`}
+              {meta.spine ? <><StoryMark slug={slug} /> — {meta.name}</> : `${meta.name} · ${t(meta.kicker)}`}
             </p>
           </Reveal>
-          <Reveal delay={0.08}><h1 className="cs-hero-h">{meta.title}</h1></Reveal>
+          <Reveal delay={0.08}><h1 className="cs-hero-h">{t(meta.title)}</h1></Reveal>
           <Reveal delay={0.16}><p className="cs-hero-sub">{c.sub}</p></Reveal>
           {c.heroStat && (
             <Reveal delay={0.24} className="cs-herostat">
@@ -212,7 +216,7 @@ export default function CasePage() {
       {meta.spine ? (
         <section className="pc-casespine" data-pc-section="spine" data-pc-order="2">
           <div className="pc-wrap">
-            <p className="pc-label">The story in four steps</p>
+            <p className="pc-label">{t("The story in four steps")}</p>
             <CaseSpine spine={meta.spine} page />
           </div>
         </section>
@@ -256,8 +260,8 @@ export default function CasePage() {
             navigate(casePath(next.slug));
           }}
         >
-          <span className="cs-next-k">Next story — <StoryMark slug={next.slug} /> · {next.client}</span>
-          <span className="cs-next-t">{next.title}</span>
+          <span className="cs-next-k">{t("Next story")} — <StoryMark slug={next.slug} /> · {next.client}</span>
+          <span className="cs-next-t">{t(next.title)}</span>
           <ArrowRight className="cs-next-arrow" size={36} strokeWidth={1.5} />
         </a>
       </section>

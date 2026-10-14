@@ -14,6 +14,7 @@ import { CaseSpine, StoryMark } from "../components/agency/CaseNav.jsx";
 import { BASE_MONTHLY, MESSAGE, OUTPUT, REEL_BEATS, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { ReelEdit } from "../components/agency/ReelEdit.jsx";
 import { openRequest } from "../components/agency/request.js";
+import { useT } from "../components/agency/i18n.js";
 
 /* The public front door. One message (MESSAGE), told in a strict order:
    what you get → the stories that prove it (every one in the same four
@@ -56,9 +57,10 @@ const LOGOS = [
 
 // An endless strip: two identical groups slide left by exactly one group.
 function LogoBand() {
+  const t = useT();
   return (
     <div className="pc-logos">
-      <p className="pc-logos-label">Trusted by</p>
+      <p className="pc-logos-label">{t("Trusted by")}</p>
       <div className="pc-logos-viewport">
         <div className="pc-logos-track">
           {[0, 1].map((copy) => (
@@ -95,32 +97,33 @@ function SectionLabel({ n, children }) {
 
 function StoryCard({ story }) {
   const navigate = useNavigate();
+  const t = useT();
   const { slug, tone, kicker, name, title, spine, stats, hero, reel } = story;
   return (
     <Reveal delay={0.04}>
       <article className={`st-card${tone === "dark" ? " is-dark" : ""}`} data-pc-tone={tone === "dark" ? "dark" : undefined}>
         <div className="st-head">
           <div className="st-copy">
-            <p className="st-kicker"><StoryMark slug={slug} />{kicker}</p>
+            <p className="st-kicker"><StoryMark slug={slug} />{t(kicker)}</p>
             <h3 className="st-name">{name}</h3>
-            <p className="st-title">{title}</p>
+            <p className="st-title">{t(title)}</p>
           </div>
           {reel ? (
             <div className="st-reel">
               <ReelEdit beats={REEL_BEATS} compact />
-              <p className="st-reel-cap"><b>8 h → 30 min</b> per piece. One reel, four pieces, cut frame by frame.</p>
+              <p className="st-reel-cap"><b>{t("8 h → 30 min")}</b> {t("per piece. One reel, four pieces, cut frame by frame.")}</p>
             </div>
           ) : hero ? (
             <div className="st-hero">
-              <p className="st-hero-v">{hero[0]}</p>
-              <p className="st-hero-l">{hero[1]}</p>
+              <p className="st-hero-v">{t(hero[0])}</p>
+              <p className="st-hero-l">{t(hero[1])}</p>
             </div>
           ) : (
             <div className="st-stats">
               {stats.map(([v, l, wide]) => (
                 <div key={l} className={`st-stat${wide ? " is-wide" : ""}`}>
-                  <p className="st-stat-v">{v}</p>
-                  <p className="st-stat-l">{l}</p>
+                  <p className="st-stat-v">{t(v)}</p>
+                  <p className="st-stat-l">{t(l)}</p>
                 </div>
               ))}
             </div>
@@ -136,7 +139,7 @@ function StoryCard({ story }) {
             navigate(casePath(slug));
           }}
         >
-          Read the story
+          {t("Read the story")}
           <ArrowRight size={16} strokeWidth={1.75} />
         </a>
       </article>
@@ -146,6 +149,7 @@ function StoryCard({ story }) {
 
 function AgencyPage() {
   const navigate = useNavigate();
+  const t = useT();
   const toStories = () => {
     trackEvent("cta_click", { location: "hero_stories" });
     document.getElementById("stories")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -157,14 +161,14 @@ function AgencyPage() {
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
-            <p className="pc-eyebrow">For brands and creators · Stockholm · Nairobi</p>
+            <p className="pc-eyebrow">{t("For brands and creators · Stockholm · Nairobi")}</p>
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="pc-hero-h">{MESSAGE.promise}</h1>
+            <h1 className="pc-hero-h">{t(MESSAGE.promise)}</h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="pc-hero-sub">
-              {MESSAGE.deal}
+              {t(MESSAGE.deal)}
             </p>
           </Reveal>
           <Reveal delay={0.24}>
@@ -177,11 +181,11 @@ function AgencyPage() {
                   openRequest({ source: "hero" });
                 }}
               >
-                Build with us
+                {t("Build with us")}
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <button type="button" className="pc-btn pc-btn-ghost" onClick={toStories}>
-                See the stories
+                {t("See the stories")}
               </button>
             </div>
           </Reveal>
@@ -196,8 +200,8 @@ function AgencyPage() {
         <div className="pc-wrap pf-in">
           {PROOF.map((p, i) => (
             <Reveal key={p.l} delay={i * 0.06} className="pf-cell">
-              <p className="pf-v">{p.v}</p>
-              <p className="pf-l">{p.l}</p>
+              <p className="pf-v">{t(p.v)}</p>
+              <p className="pf-l">{t(p.l)}</p>
             </Reveal>
           ))}
         </div>
@@ -206,50 +210,50 @@ function AgencyPage() {
       {/* ─── WHAT YOU GET ─── */}
       <section id="services" className="pc-section" data-pc-section="services" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">What you get</SectionLabel>
+          <SectionLabel n="01">{t("What you get")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 hw-h2">30 minutes of you. A week of content.</h2>
+            <h2 className="pc-h2 hw-h2">{t("30 minutes of you. A week of content.")}</h2>
           </Reveal>
           <div className="og-ledger">
             <Reveal className="og-in">
-              <p className="og-k">You give</p>
-              <p className="og-v">30 min</p>
-              <p className="og-l">a week. One sprint — we ask, you talk. That's all we need from you.</p>
+              <p className="og-k">{t("You give")}</p>
+              <p className="og-v">{t("30 min")}</p>
+              <p className="og-l">{t("a week. One sprint — we ask, you talk. That's all we need from you.")}</p>
             </Reveal>
             <div className="og-out">
-              <p className="og-k">You get</p>
+              <p className="og-k">{t("You get")}</p>
               <ul>
                 {OUTPUT.map((o, i) => (
                   <Reveal key={o.t} delay={i * 0.06} className="og-row">
-                    <span className="og-when">{o.when}</span>
+                    <span className="og-when">{t(o.when)}</span>
                     <span>
-                      <b>{o.t}</b>
-                      <span className="og-b">{o.b}</span>
+                      <b>{t(o.t)}</b>
+                      <span className="og-b">{t(o.b)}</span>
                     </span>
                   </Reveal>
                 ))}
               </ul>
             </div>
           </div>
-          <p className="og-k hw-how">How every week runs</p>
+          <p className="og-k hw-how">{t("How every week runs")}</p>
           <ol className="hw-steps">
-            {STEPS.map(([t, b], i) => (
-              <li key={t}>
+            {STEPS.map(([h, b], i) => (
+              <li key={h}>
                 <Reveal delay={i * 0.06} className="hw-step">
                   <span className="hw-n">{i + 1}</span>
-                  <h3>{t}</h3>
-                  <p>{b}</p>
+                  <h3>{t(h)}</h3>
+                  <p>{t(b)}</p>
                 </Reveal>
               </li>
             ))}
           </ol>
           <Reveal className="hw-cta">
             <div>
-              <p className="hw-cta-k">Start with the core</p>
+              <p className="hw-cta-k">{t("Start with the core")}</p>
               <p className="hw-cta-v">
-                ${BASE_MONTHLY.toLocaleString("en-US")}<span> / month</span>
+                ${BASE_MONTHLY.toLocaleString("en-US")}<span> {t("/ month")}</span>
               </p>
-              <p className="hw-cta-l">The first 3 months are a trust period — full work, no commitment.</p>
+              <p className="hw-cta-l">{t("The first 3 months are a trust period — full work, no commitment.")}</p>
             </div>
             <div className="hw-cta-actions">
               <button
@@ -260,7 +264,7 @@ function AgencyPage() {
                   openRequest({ source: "services" });
                 }}
               >
-                Build with us
+                {t("Build with us")}
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <button
@@ -271,7 +275,7 @@ function AgencyPage() {
                   document.getElementById("superpowers")?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
               >
-                Add superpowers
+                {t("Add superpowers")}
               </button>
             </div>
           </Reveal>
@@ -281,14 +285,13 @@ function AgencyPage() {
       {/* ─── THE STORIES ─── */}
       <section id="stories" className="pc-section pc-rule" data-pc-section="stories" data-pc-order="4">
         <div className="pc-wrap">
-          <SectionLabel n="02">The stories</SectionLabel>
+          <SectionLabel n="02">{t("The stories")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">{storyCountWord} stories. The same four steps.</h2>
+            <h2 className="pc-h2 st-h2">{t(`${storyCountWord} stories. The same four steps.`)}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
-              Every story starts with a person, not a post. Read each one the same way:
-              where it started, what we did, what we made — and the result.
+              {t("Every story starts with a person, not a post. Read each one the same way: where it started, what we did, what we made — and the result.")}
             </p>
           </Reveal>
           <div className="st-list">
@@ -302,41 +305,37 @@ function AgencyPage() {
       {/* ─── WHY IT WORKS ─── */}
       <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="03">Why it works</SectionLabel>
+          <SectionLabel n="03">{t("Why it works")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 pc-h2-xl wy-h2">
-              The strongest brands aren't invented. <span>They're revealed.</span>
+              {t("The strongest brands aren't invented.")} <span>{t("They're revealed.")}</span>
             </h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="wy-lede">
-              Every brand already has a self. Most just haven't been allowed to express it. We don't
-              build you a persona. We help you become what you already are, out loud and without
-              compromise, until people can feel it.
+              {t("Every brand already has a self. Most just haven't been allowed to express it. We don't build you a persona. We help you become what you already are, out loud and without compromise, until people can feel it.")}
             </p>
           </Reveal>
           <Reveal delay={0.1}>
             <p className="wy-bio">
-              PullUp is led by Felix Civalero Stolpe, who spent four years studying people, with a
-              focus on cognition and pain, and more than three years treating them. He has published
-              a book and is writing the next. What it taught him: people trust what is real.
+              {t("PullUp is led by Felix Civalero Stolpe, who spent four years studying people, with a focus on cognition and pain, and more than three years treating them. He has published a book and is writing the next. What it taught him: people trust what is real.")}
             </p>
           </Reveal>
           <div className="wy-rows">
             {PRINCIPLES.map(([word, title, text], i) => (
               <Reveal key={word} delay={i * 0.06}>
                 <div className="wy-row">
-                  <p className="wy-word">{word}</p>
+                  <p className="wy-word">{t(word)}</p>
                   <div>
-                    <h3 className="wy-title">{title}</h3>
-                    <p className="wy-text">{text}</p>
+                    <h3 className="wy-title">{t(title)}</h3>
+                    <p className="wy-text">{t(text)}</p>
                   </div>
                 </div>
               </Reveal>
             ))}
           </div>
           <Reveal>
-            <p className="wy-close">Not marketing. <span>Becoming.</span></p>
+            <p className="wy-close">{t("Not marketing.")} <span>{t("Becoming.")}</span></p>
           </Reveal>
         </div>
       </section>
@@ -349,11 +348,11 @@ function AgencyPage() {
       <section id="start" className="pc-section pc-dark cl" data-pc-tone="dark" data-pc-section="close" data-pc-order="90">
         <div className="pc-wrap">
           <Reveal>
-            <h2 className="pc-h2 pc-h2-xl cl-h2">Your brand could be the next story.</h2>
+            <h2 className="pc-h2 pc-h2-xl cl-h2">{t("Your brand could be the next story.")}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="cl-lede">
-              We take on a few brands and creators at a time. Tell us who you are and where you want to go.
+              {t("We take on a few brands and creators at a time. Tell us who you are and where you want to go.")}
             </p>
           </Reveal>
           <Reveal delay={0.12}>
@@ -366,7 +365,7 @@ function AgencyPage() {
                   openRequest({ source: "close" });
                 }}
               >
-                Start a conversation
+                {t("Start a conversation")}
                 <ArrowRight size={18} strokeWidth={1.75} />
               </button>
               <a
@@ -378,7 +377,7 @@ function AgencyPage() {
                   navigate("/start");
                 }}
               >
-                Host on PullUp
+                {t("Host on PullUp")}
               </a>
             </div>
           </Reveal>
@@ -403,12 +402,15 @@ export function LandingPage() {
   useEffect(() => {
     initTracking();
     trackPageView("landing");
+  }, []);
+  const t = useT();
+  useEffect(() => {
     const prev = document.title;
-    document.title = `PullUp — ${MESSAGE.promise.replace(/\.$/, "")}`;
+    document.title = `PullUp — ${t(MESSAGE.promise).replace(/\.$/, "")}`;
     return () => {
       document.title = prev;
     };
-  }, []);
+  }, [t]);
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {

@@ -43,6 +43,7 @@ export function requestMeta() {
     pageTitle: document.title,
     referrer: document.referrer || "",
     language: navigator.language || "",
+    siteLang: document.documentElement.lang || "en",
     screen: `${window.screen?.width || 0}×${window.screen?.height || 0}`,
     device: coarse ? (window.innerWidth < 768 ? "phone" : "tablet") : "desktop",
   };

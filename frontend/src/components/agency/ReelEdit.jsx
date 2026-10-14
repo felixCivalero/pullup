@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "./i18n.js";
 
 /* Li Karlsén's edit, as a loop: one reel in four beats. The playhead reviews
    the raw take frame by frame (cuts get marked), the cut frames collapse,
@@ -9,6 +10,7 @@ const REVIEW = 0.45; // 0 → REVIEW: raw take reviewed
 const COLLAPSE = 0.6; // REVIEW → COLLAPSE: the cuts held up, marked; then they fall out and the final cut plays
 
 export function ReelEdit({ beats, compact = false }) {
+  const tr = useT();
   const ref = useRef(null);
   const [t, setT] = useState(0.99);
   useEffect(() => {
@@ -63,8 +65,8 @@ export function ReelEdit({ beats, compact = false }) {
         ))}
       </div>
       <div className="cs-phone-screen" key={beat}>
-        <p className="cs-phone-k">{String(beat + 1).padStart(2, "0")} · {beats[beat].t}</p>
-        <p className="cs-phone-line">{beats[beat].line}</p>
+        <p className="cs-phone-k">{String(beat + 1).padStart(2, "0")} · {tr(beats[beat].t)}</p>
+        <p className="cs-phone-line">{tr(beats[beat].line)}</p>
         <span className="cs-phone-sub" />
         <span className="cs-phone-sub is-short" />
       </div>
@@ -73,9 +75,9 @@ export function ReelEdit({ beats, compact = false }) {
 
     <div className="cs-edit">
       <div className="cs-edit-top">
-        <span className={`cs-edit-phase${phase === "raw" ? " is-on" : ""}`}>1 · Raw take</span>
-        <span className={`cs-edit-phase${phase === "cut" ? " is-on" : ""}`}>2 · Frame by frame</span>
-        <span className={`cs-edit-phase${phase === "final" ? " is-on" : ""}`}>3 · Final cut</span>
+        <span className={`cs-edit-phase${phase === "raw" ? " is-on" : ""}`}>1 · {tr("Raw take")}</span>
+        <span className={`cs-edit-phase${phase === "cut" ? " is-on" : ""}`}>2 · {tr("Frame by frame")}</span>
+        <span className={`cs-edit-phase${phase === "final" ? " is-on" : ""}`}>3 · {tr("Final cut")}</span>
       </div>
       <div className="cs-track">
         <div className="cs-strip">
@@ -85,7 +87,7 @@ export function ReelEdit({ beats, compact = false }) {
               className={`cs-seg${bi === beat ? " is-now" : ""}`}
               style={{ "--n": playing ? b.frames - b.cut.length : b.frames }}
             >
-              <span className="cs-seg-name">{b.t}</span>
+              <span className="cs-seg-name">{tr(b.t)}</span>
               <div className="cs-frames">
                 {Array.from({ length: b.frames }, (_, i) => {
                   const idx = cells.findIndex((c) => c.bi === bi && c.i === i);
@@ -105,16 +107,16 @@ export function ReelEdit({ beats, compact = false }) {
         <span className="cs-head" style={{ left: `${Math.min(100, head * 100)}%` }} />
       </div>
       <div className="cs-edit-legend">
-        <span><i className="is-keep" />Kept</span>
-        <span><i className="is-cut" />{compact ? "Cut" : "Cut — spent breath, moved nothing"}</span>
+        <span><i className="is-keep" />{tr("Kept")}</span>
+        <span><i className="is-cut" />{compact ? tr("Cut") : tr("Cut — spent breath, moved nothing")}</span>
       </div>
       {!compact && (
       <ol className="cs-beats">
         {beats.map((b, i) => (
           <li key={b.t} className={i === beat ? "is-now" : undefined}>
             <span>{String(i + 1).padStart(2, "0")}</span>
-            <b>{b.t}</b>
-            <em>{b.line}</em>
+            <b>{tr(b.t)}</b>
+            <em>{tr(b.line)}</em>
           </li>
         ))}
       </ol>

@@ -1,6 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
 import { OFFER } from "./agencyData.js";
+import { useLocalized, useT } from "./i18n.js";
 import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
@@ -11,6 +12,8 @@ export function AgencyOffer({
   heading = "Your brand could be the next story.",
   sub = "We take on a few brands and creators at a time. Your daily work and your vision are already the best material you have — we turn them into content that grows.",
 }) {
+  const t = useT();
+  const offer = useLocalized(OFFER);
   return (
     <section
       id={id}
@@ -21,20 +24,20 @@ export function AgencyOffer({
     >
       <div className="pc-wrap">
         <Reveal>
-          <h2 className="pc-h2 pc-h2-xl">{heading}</h2>
+          <h2 className="pc-h2 pc-h2-xl">{t(heading)}</h2>
         </Reveal>
         <Reveal delay={0.08}>
-          <p className="pc-close-sub">{sub}</p>
+          <p className="pc-close-sub">{t(sub)}</p>
         </Reveal>
         <Reveal delay={0.12}>
           <div className="pc-offer pc-offer-one">
             <div className="pc-offer-main">
-              <p className="pc-offer-name">{OFFER.name}</p>
+              <p className="pc-offer-name">{offer.name}</p>
               <p className="pc-offer-price">
-                {OFFER.price}
-                <span>{OFFER.cadence}</span>
+                {offer.price}
+                <span>{offer.cadence}</span>
               </p>
-              <p className="pc-offer-body">{OFFER.body}</p>
+              <p className="pc-offer-body">{offer.body}</p>
               <button
                 type="button"
                 className="pc-btn pc-btn-light"
@@ -43,12 +46,12 @@ export function AgencyOffer({
                   openRequest({ source: `offer_${source}` });
                 }}
               >
-                {OFFER.cta}
+                {offer.cta}
                 <ArrowUpRight size={18} strokeWidth={1.75} />
               </button>
             </div>
             <dl className="pc-offer-terms">
-              {OFFER.terms.map(([k, v]) => (
+              {offer.terms.map(([k, v]) => (
                 <div key={k}>
                   <dt>{k}</dt>
                   <dd>{v}</dd>

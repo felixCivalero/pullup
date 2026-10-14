@@ -6,6 +6,7 @@ import { openRequest } from "../../components/agency/request.js";
 import { trackEvent } from "../../lib/analytics.js";
 import slidesHtml from "./slides.html?raw";
 import "./deck.css";
+import { useT } from "../../components/agency/i18n.js";
 
 /* The booklet, open to read — no email gate. slides.html is the single
    source: this page renders it (portrait pages as spreads, reflowed on
@@ -24,6 +25,7 @@ const CSS = `
 `;
 
 export default function DeckPage() {
+  const t = useT();
   const listRef = useRef(null);
 
   // --k scales every 1240×1754 page to its frame's width.
@@ -57,18 +59,17 @@ export default function DeckPage() {
       <main>
         <header className="dk-head" data-pc-section="deck_head" data-pc-order="1">
           <div className="pc-wrap">
-            <p className="pc-label">The booklet</p>
+            <p className="pc-label">{t("The booklet")}</p>
             <h1 className="dk-title">The Production Core</h1>
             <p className="dk-lede">
-              Where do we want to go — and who do we need to be to get there? A brand is held by many
-              people, so the answer is a decision they take together, every day. Read the booklet here, or take the PDF.
+              {t("Where do we want to go — and who do we need to be to get there? A brand is held by many people, so the answer is a decision they take together, every day. Read the booklet here, or take the PDF.")}
             </p>
             <div className="dk-actions">
               <a className="pc-btn pc-btn-dark" href={DECK_PDF} download="The Production Core - PullUp booklet.pdf" onClick={() => download("top")}>
-                Download PDF
+                {t("Download PDF")}
                 <ArrowDown size={18} strokeWidth={1.75} />
               </a>
-              <span className="dk-meta">{SLIDES.length} pages</span>
+              <span className="dk-meta">{t("{n} pages", { n: SLIDES.length })}{t.lang !== "en" && ` · ${t("in English")}`}</span>
             </div>
           </div>
         </header>
@@ -81,11 +82,11 @@ export default function DeckPage() {
           </div>
           <div className="dk-end">
             <button type="button" className="pc-btn pc-btn-dark" onClick={() => openRequest({ source: "deck_page" })}>
-              Start a conversation
+              {t("Start a conversation")}
               <ArrowRight size={18} strokeWidth={1.75} />
             </button>
             <a className="pc-btn pc-btn-line" href={DECK_PDF} download="The Production Core - PullUp booklet.pdf" onClick={() => download("end")}>
-              Download PDF
+              {t("Download PDF")}
               <ArrowDown size={18} strokeWidth={1.75} />
             </a>
             <a className="pc-btn pc-btn-line" href={`mailto:${CONTACT}`}>{CONTACT}</a>

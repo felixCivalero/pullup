@@ -52,7 +52,7 @@ const usd = (n) => `$${Number(n).toLocaleString("en-US")}`;
 const META_KEYS = [
   "page", "pageTitle", "referrer", "landingPage", "firstReferrer",
   "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-  "language", "screen", "device", "visitStartedAt",
+  "language", "siteLang", "screen", "device", "visitStartedAt",
 ];
 function cleanMeta(raw) {
   const out = {};
@@ -115,6 +115,7 @@ function requestEmail(r, received) {
         ${row("Country", m.country)}
         ${row("Device", m.device)}
         ${row("Screen", m.screen)}
+        ${row("Read the site in", { en: "English", sv: "Swedish", sw: "Swahili" }[m.siteLang] || m.siteLang)}
         ${row("Language", m.language)}
         ${row("Browser", m.userAgent)}
       </table>

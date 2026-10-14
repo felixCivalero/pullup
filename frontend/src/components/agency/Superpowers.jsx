@@ -4,6 +4,7 @@ import { trackEvent } from "../../lib/analytics.js";
 import { BASE_MONTHLY, FULL_SERVICE, SUPERPOWERS, bundleOff, monthlyPlan, powerPrice } from "./agencyData.js";
 import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
+import { useT } from "./i18n.js";
 
 /* Add-ons on top of the retained engine: tap a card to switch a superpower
    on. The more you add, the less each one costs (BUNDLE_OFF) — cards show
@@ -37,16 +38,18 @@ function useTween(target, ms = 450) {
 }
 
 function Price({ value, list, from }) {
+  const t = useT();
   const v = useTween(value);
   return (
     <span className="sp-price-v">
-      {from && <small>from </small>}+{usd(v)}
+      {from && <small>{t("from")} </small>}+{usd(v)}
       {list > value && <s className="sp-was">{usd(list)}</s>}
     </span>
   );
 }
 
 export function Superpowers() {
+  const t = useT();
   const [on, setOn] = useState(() => new Set());
   const plan = monthlyPlan([...on]);
   const total = useTween(plan.total);
@@ -71,15 +74,13 @@ export function Superpowers() {
   return (
     <section id="superpowers" className="pc-section pc-rule sp" data-pc-section="superpowers" data-pc-order="6">
       <div className="pc-wrap">
-        <p className="pc-label"><span>04</span>Superpowers</p>
+        <p className="pc-label"><span>04</span>{t("Superpowers")}</p>
         <Reveal>
-          <h2 className="pc-h2 sp-h2">Add superpowers.</h2>
+          <h2 className="pc-h2 sp-h2">{t("Add superpowers.")}</h2>
         </Reveal>
         <Reveal delay={0.06}>
           <p className="sp-lede">
-            Everything in "What you get" is the core — {usd(BASE_MONTHLY)} a month. Then switch
-            on the powers you need, and the more you add, the less each one costs. Or take
-            everything as one Full Service package.
+            {t("Everything in \"What you get\" is the core — {price} a month. Then switch on the powers you need, and the more you add, the less each one costs. Or take everything as one Full Service package.", { price: usd(BASE_MONTHLY) })}
           </p>
         </Reveal>
 
@@ -87,18 +88,18 @@ export function Superpowers() {
           <button type="button" className={`sp-full${plan.full ? " is-on" : ""}`} aria-pressed={plan.full} onClick={allOn}>
             <span className="sp-full-icon"><Sparkles size={22} strokeWidth={1.75} /></span>
             <span className="sp-full-copy">
-              <span className="sp-full-k">{plan.full ? "You're on" : "Want it all?"}</span>
+              <span className="sp-full-k">{plan.full ? t("You're on") : t("Want it all?")}</span>
               <span className="sp-full-name">{FULL_SERVICE.name}</span>
               <span className="sp-full-line">
-                The core engine and all four superpowers — we run the whole thing with you. One fixed price.
+                {t("The core engine and all four superpowers — we run the whole thing with you. One fixed price.")}
               </span>
             </span>
             <span className="sp-full-price">
               <span className="sp-full-v">{usd(FULL_SERVICE.price)}</span>
-              <span className="sp-full-c">/ month · everything</span>
+              <span className="sp-full-c">{t("/ month · everything")}</span>
               <span className="sp-add">
                 {plan.full ? <Check size={16} strokeWidth={2.25} /> : <Plus size={16} strokeWidth={2.25} />}
-                {plan.full ? "Selected" : "Get everything"}
+                {plan.full ? t("Selected") : t("Get everything")}
               </span>
             </span>
           </button>
@@ -126,40 +127,40 @@ export function Superpowers() {
                     <span className="sp-switch" aria-hidden="true"><span /></span>
                   </span>
                   <span className="sp-name">{p.name}</span>
-                  <span className="sp-line">{p.line}</span>
+                  <span className="sp-line">{t(p.line)}</span>
                   <span className="sp-items">
                     {p.items.map((item) => (
                       <span key={item} className="sp-item">
                         <Check size={15} strokeWidth={2} />
-                        {item}
+                        {t(item)}
                       </span>
                     ))}
                   </span>
                   <span className="sp-price">
                     {plan.full ? (
                       <span className="sp-price-v">
-                        Included<s className="sp-was">{usd(p.price)}</s>
+                        {t("Included")}<s className="sp-was">{usd(p.price)}</s>
                       </span>
                     ) : (
                       <>
                         <Price value={price} list={p.price} from={p.from} />
-                        <span className="sp-price-c">/ month</span>
+                        <span className="sp-price-c">{t("/ month")}</span>
                       </>
                     )}
                     <span className="sp-add">
                       {active ? <Check size={16} strokeWidth={2.25} /> : <Plus size={16} strokeWidth={2.25} />}
-                      {active ? "Added" : "Add"}
+                      {active ? t("Added") : t("Add")}
                     </span>
                   </span>
                   <span className={`sp-deal${off > 0 ? " is-shown" : ""}`} aria-hidden={off === 0}>
                     {off > 0 &&
                       (plan.full
-                        ? `Included in ${FULL_SERVICE.name}`
+                        ? t("Included in {name}", { name: FULL_SERVICE.name })
                         : active
-                          ? `Bundle price · −${pct(off)}`
+                          ? t("Bundle price · −{pct}", { pct: pct(off) })
                           : count === SUPERPOWERS.length
-                            ? `Add now · unlocks ${FULL_SERVICE.name}`
-                            : `Add now · −${pct(off)} on every power`)}
+                            ? t("Add now · unlocks {name}", { name: FULL_SERVICE.name })
+                            : t("Add now · −{pct} on every power", { pct: pct(off) }))}
                   </span>
                 </button>
               </Reveal>
@@ -169,14 +170,14 @@ export function Superpowers() {
 
         <div className={`sp-total${plan.full ? " is-full" : ""}`} aria-live="polite">
           <div className="sp-total-sum">
-            <ol className="sp-ladder" aria-label="Bundle discount">
+            <ol className="sp-ladder" aria-label={t("Bundle discount")}>
               {SUPERPOWERS.map((_, i) => {
                 const n = i + 1;
                 return (
                   <li key={n} className={`${plan.n >= n ? "is-hit" : ""}${plan.n === n ? " is-now" : ""}`}>
                     <span className="sp-ladder-n">{n}</span>
                     <span className="sp-ladder-off">
-                      {n === SUPERPOWERS.length ? FULL_SERVICE.name : bundleOff(n) > 0 ? `−${pct(bundleOff(n))}` : "list"}
+                      {n === SUPERPOWERS.length ? FULL_SERVICE.name : bundleOff(n) > 0 ? `−${pct(bundleOff(n))}` : t("list")}
                     </span>
                   </li>
                 );
@@ -184,16 +185,16 @@ export function Superpowers() {
             </ol>
             {plan.full && <p className="sp-total-badge"><Sparkles size={14} strokeWidth={2} />{FULL_SERVICE.name}</p>}
             <p className="sp-total-v">
-              {plan.from && <small>from </small>}
+              {plan.from && <small>{t("from")} </small>}
               {usd(total)}
-              <span> / month</span>
+              <span> {t("/ month")}</span>
             </p>
             <p className="sp-total-k">
-              {plan.n === 0 && `Core engine ${usd(BASE_MONTHLY)} — add a power to start the bundle.`}
-              {plan.n > 0 && plan.saved > 0 && <>You save <b>{usd(saved)}</b> / month. </>}
-              {plan.n > 0 && plan.n === SUPERPOWERS.length - 1 && `One more → ${FULL_SERVICE.name}, ${usd(FULL_SERVICE.price)} fixed.`}
-              {plan.n > 0 && plan.n < SUPERPOWERS.length - 1 && nextOff > plan.off && `One more → −${pct(nextOff)} on every power.`}
-              {plan.full && `${FULL_SERVICE.name} — everything, one fixed price.`}
+              {plan.n === 0 && t("Core engine {price} — add a power to start the bundle.", { price: usd(BASE_MONTHLY) })}
+              {plan.n > 0 && plan.saved > 0 && <>{t("You save")} <b>{usd(saved)}</b> {t("/ month")}. </>}
+              {plan.n > 0 && plan.n === SUPERPOWERS.length - 1 && t("One more → {name}, {price} fixed.", { name: FULL_SERVICE.name, price: usd(FULL_SERVICE.price) })}
+              {plan.n > 0 && plan.n < SUPERPOWERS.length - 1 && nextOff > plan.off && t("One more → −{pct} on every power.", { pct: pct(nextOff) })}
+              {plan.full && t("{name} — everything, one fixed price.", { name: FULL_SERVICE.name })}
             </p>
           </div>
           <button
@@ -205,10 +206,10 @@ export function Superpowers() {
             }}
           >
             {plan.full
-              ? `Start ${FULL_SERVICE.name}`
+              ? t("Start {name}", { name: FULL_SERVICE.name })
               : plan.n
-                ? `Start with ${plan.n === 1 ? "this power" : `these ${plan.n} powers`}`
-                : "Start with the core"}
+                ? plan.n === 1 ? t("Start with this power") : t("Start with these {n} powers", { n: plan.n })
+                : t("Start with the core")}
             <ArrowRight size={18} strokeWidth={1.75} />
           </button>
         </div>

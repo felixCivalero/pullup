@@ -11,6 +11,7 @@ import { AgencyOffer } from "../../components/agency/AgencyOffer.jsx";
 import { DeckTeaser } from "../../components/agency/DeckTeaser.jsx";
 import { CaseRail, CaseSpine, StoryMark } from "../../components/agency/CaseNav.jsx";
 import { caseBySlug, casePath, nextCase } from "../../components/agency/agencyData.js";
+import { useT } from "../../components/agency/i18n.js";
 import { CASE_STATS, CASE_TIMELINE, CASE_CONTRIBUTORS, CASE_GALLERY, CASE_WALK_PHOTOS } from "./adamFlamboData.js";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -120,6 +121,7 @@ function HeroWall() {
    Single hue by magnitude, honest 0-baseline, each value labelled; the
    contributor count rides as an annotation, never a competing axis. ─── */
 function ArcChart() {
+  const t = useT();
   const [ref, visible] = useReveal(0.3);
   const max = Math.max(...CASE_TIMELINE.map((t) => t.photos), 1);
   const label = (v) =>
@@ -127,23 +129,22 @@ function ArcChart() {
   return (
     <div className={`fl-arc${visible ? " in" : ""}`} ref={ref}>
       <div className="fl-arc-head">
-        <span className="fl-arc-y">Photos shot in the room, per walk</span>
+        <span className="fl-arc-y">{t("Photos shot in the room, per walk")}</span>
       </div>
-      <div className="fl-arc-plot" role="img" aria-label="Photos uploaded to the room per walk, rising from 28 to 152.">
-        {CASE_TIMELINE.map((t, i) => (
-          <div className="fl-arc-col" key={t.vol} style={{ "--d": `${i * 0.09}s` }}>
-            <span className="fl-arc-val">{t.photos}</span>
+      <div className="fl-arc-plot" role="img" aria-label={t("Photos uploaded to the room per walk, rising from 28 to 152.")}>
+        {CASE_TIMELINE.map((w, i) => (
+          <div className="fl-arc-col" key={w.vol} style={{ "--d": `${i * 0.09}s` }}>
+            <span className="fl-arc-val">{w.photos}</span>
             <div className="fl-arc-bar-track">
-              <div className="fl-arc-bar" style={{ height: visible ? `${(t.photos / max) * 100}%` : "0%" }} />
+              <div className="fl-arc-bar" style={{ height: visible ? `${(w.photos / max) * 100}%` : "0%" }} />
             </div>
-            <span className="fl-arc-x">{label(t.vol)}</span>
-            <span className="fl-arc-sub">{t.contributors ? `${t.contributors} shot it` : "—"}</span>
+            <span className="fl-arc-x">{label(w.vol)}</span>
+            <span className="fl-arc-sub">{w.contributors ? t("{n} shot it", { n: w.contributors }) : "—"}</span>
           </div>
         ))}
       </div>
       <p className="fl-arc-note">
-        The walks stayed intimate — 20 to 40 people each. What grew was the room:
-        photographs went from 28 to <strong>152</strong> in six weeks, contributors from 4 to <strong>17</strong>.
+        {t("The walks stayed intimate — 20 to 40 people each. What grew was the room: photographs went from 28 to 152 in six weeks, contributors from 4 to 17.")}
       </p>
     </div>
   );
@@ -194,6 +195,7 @@ const WALK_COORDS = {
 const volLabel = (v) => `Vol. ${v.replace("B", " · 2")}`;
 
 function WalkMap() {
+  const t = useT();
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -266,14 +268,14 @@ function WalkMap() {
         <div className="fl-map-card-top">
           <span className="fl-map-vol">{volLabel(w.vol)}</span>
           <span className="fl-map-date">
-            {new Date(w.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+            {new Date(w.date).toLocaleDateString({ sv: "sv-SE", sw: "sw-KE" }[t.lang] || "en-GB", { day: "numeric", month: "short", year: "numeric" })}
           </span>
         </div>
-        <p className="fl-map-place">{w.place}</p>
+        <p className="fl-map-place">{t(w.place)}</p>
         <div className="fl-map-stats">
-          <div><b>{w.pulled}</b><span>pulled up</span></div>
-          <div><b>{w.photos || "—"}</b><span>photos</span></div>
-          <div><b>{w.contributors || "—"}</b><span>shot it</span></div>
+          <div><b>{w.pulled}</b><span>{t("pulled up")}</span></div>
+          <div><b>{w.photos || "—"}</b><span>{t("photos")}</span></div>
+          <div><b>{w.contributors || "—"}</b><span>{t("shot it")}</span></div>
         </div>
         {(CASE_WALK_PHOTOS[w.vol] || []).length > 0 ? (
           <div className="fl-map-photos">
@@ -290,7 +292,7 @@ function WalkMap() {
             ))}
           </div>
         ) : (
-          <p className="fl-map-nophoto">The room wall came a walk later — this one lived in the moment.</p>
+          <p className="fl-map-nophoto">{t("The room wall came a walk later — this one lived in the moment.")}</p>
         )}
         <div className="fl-map-chips">
           {walks.map((x, i) => (
@@ -312,6 +314,7 @@ function WalkMap() {
 /* ─── a full-bleed triptych of real frames — the story, carried by photographs.
    Three portrait shots edge-to-edge, each captioned, gently zooming on hover. ─── */
 function PhotoTriptych({ shots, kicker, line }) {
+  const t = useT();
   return (
     <section className="fl-trip">
       {(kicker || line) && (
@@ -324,7 +327,7 @@ function PhotoTriptych({ shots, kicker, line }) {
         {shots.map((s, i) => (
           <Reveal key={s.src} delay={i * 0.08} y={18} className={`fl-trip-cell fl-trip-${s.o}`}>
             <img src={shotSrc(s, 900)} alt="" loading="lazy" decoding="async" />
-            {s.cap && <span className="fl-trip-cap">{s.cap}</span>}
+            {s.cap && <span className="fl-trip-cap">{t(s.cap)}</span>}
           </Reveal>
         ))}
       </div>
@@ -340,6 +343,7 @@ const META = caseBySlug("adam-flambo");
 
 export default function AdamFlamboStory() {
   const navigate = useNavigate();
+  const t = useT();
   const reduced = useMemo(() => prefersReduced(), []);
 
   useEffect(() => {
@@ -360,23 +364,21 @@ export default function AdamFlamboStory() {
         <div className="fl-grain" aria-hidden="true" />
         <div className="fl-hero-in fl-hero-split">
           <div className="fl-hero-copy">
-            <Reveal delay={0.05}><p className="fl-kicker"><StoryMark slug="adam-flambo" /> — Stockholm Photo Walks · @adam_flambo</p></Reveal>
+            <Reveal delay={0.05}><p className="fl-kicker"><StoryMark slug="adam-flambo" /> — {t("Stockholm Photo Walks")} · @adam_flambo</p></Reveal>
             <Reveal delay={0.12}>
               <h1 className="fl-hero-h">
-                A following became a community.<br /><span className="fl-ink-pink">He gave it back in print.</span>
+                {t("A following became a community.")}<br /><span className="fl-ink-pink">{t("He gave it back in print.")}</span>
               </h1>
             </Reveal>
             <Reveal delay={0.2}>
               <p className="fl-hero-sub">
-                Adam Flambo took people who followed him online out into real life — six
-                photo walks across Stockholm. Then he gave the community back to itself:
-                a printed journal of their own photographs, every name credited.
+                {t("Adam Flambo took people who followed him online out into real life — six photo walks across Stockholm. Then he gave the community back to itself: a printed journal of their own photographs, every name credited.")}
               </p>
             </Reveal>
           </div>
           <Reveal delay={0.16} y={16} className="fl-hero-portrait">
-            <img src="/stories/adam-hero.jpg" alt="Adam Flambo shooting on a Stockholm photo walk" loading="eager" decoding="async" />
-            <span className="fl-hero-portrait-cap">Adam, mid-walk · Stockholm</span>
+            <img src="/stories/adam-hero.jpg" alt={t("Adam Flambo shooting on a Stockholm photo walk")} loading="eager" decoding="async" />
+            <span className="fl-hero-portrait-cap">{t("Adam, mid-walk · Stockholm")}</span>
           </Reveal>
         </div>
         <div className="fl-hero-strip">
@@ -388,7 +390,7 @@ export default function AdamFlamboStory() {
             [1, "printed journal"],
           ].map(([n, l], i) => (
             <Reveal key={l} delay={0.28 + i * 0.05} y={10} className="fl-stat">
-              <b>{n}</b><span>{l}</span>
+              <b>{n}</b><span>{t(l)}</span>
             </Reveal>
           ))}
         </div>
@@ -397,7 +399,7 @@ export default function AdamFlamboStory() {
       {/* ─── THE STORY IN FOUR STEPS — same opening as every case ─── */}
       <section className="pc-casespine fl-spine" data-pc-section="spine" data-pc-order="2">
         <div className="pc-wrap">
-          <p className="pc-label">The story in four steps</p>
+          <p className="pc-label">{t("The story in four steps")}</p>
           <CaseSpine spine={META.spine} page />
         </div>
       </section>
@@ -406,39 +408,32 @@ export default function AdamFlamboStory() {
       <section className="fl-brief" data-pc-section="adam_brief" data-pc-order="2">
         <div className="fl-brief-in">
           <Reveal>
-            <p className="fl-eyebrow">The brief</p>
+            <p className="fl-eyebrow">{t("The brief")}</p>
           </Reveal>
           <Reveal delay={0.06}>
-            <h2 className="fl-h2">Out of the execution trap.</h2>
+            <h2 className="fl-h2">{t("Out of the execution trap.")}</h2>
           </Reveal>
           <div className="fl-brief-cols">
             <Reveal delay={0.1}>
               <div className="fl-brief-col">
-                <p className="fl-brief-k">The problem</p>
+                <p className="fl-brief-k">{t("The problem")}</p>
                 <p>
-                  Like many visionary operators, Adam had deep messages and a profound
-                  mission — but traditional structures let execution slip through the
-                  cracks. The content team operated in a vacuum, disconnected from daily
-                  operational reality.
+                  {t("Like many visionary operators, Adam had deep messages and a profound mission — but traditional structures let execution slip through the cracks. The content team operated in a vacuum, disconnected from daily operational reality.")}
                 </p>
               </div>
             </Reveal>
             <Reveal delay={0.16}>
               <div className="fl-brief-col">
-                <p className="fl-brief-k">The turnaround</p>
+                <p className="fl-brief-k">{t("The turnaround")}</p>
                 <p>
-                  We deployed the Alignment Bridge: his high-level philosophy wired
-                  directly into the team's real-time project tracking. Core concepts
-                  became line-by-line reel scripts in brief, focused syncs — and the team
-                  was held accountable to a publishing pipeline that actually ships.
+                  {t("We deployed the Alignment Bridge: his high-level philosophy wired directly into the team's real-time project tracking. Core concepts became line-by-line reel scripts in brief, focused syncs — and the team was held accountable to a publishing pipeline that actually ships.")}
                 </p>
               </div>
             </Reveal>
           </div>
           <Reveal delay={0.2}>
             <blockquote className="fl-brief-quote">
-              “Execution used to be our bottleneck. Turning our mission into a structured
-              dramaturgical script completely changed how our team produces.”
+              “{t("Execution used to be our bottleneck. Turning our mission into a structured dramaturgical script completely changed how our team produces.")}”
               <cite>Adam Flambo</cite>
             </blockquote>
           </Reveal>
@@ -448,13 +443,13 @@ export default function AdamFlamboStory() {
       {/* ─── THE MAP — six real walks, one glance ─── */}
       <section className="fl-mapsec">
         <div className="fl-mapsec-head">
-          <Reveal><p className="fl-eyebrow">Six real walks · Stockholm</p></Reveal>
+          <Reveal><p className="fl-eyebrow">{t("Six real walks · Stockholm")}</p></Reveal>
           <Reveal delay={0.06}>
-            <h2 className="fl-h2">This actually happened.<br /><span className="fl-ink-pink">On these streets.</span></h2>
+            <h2 className="fl-h2">{t("This actually happened.")}<br /><span className="fl-ink-pink">{t("On these streets.")}</span></h2>
           </Reveal>
           <Reveal delay={0.12}>
             <p className="fl-lede fl-lede-center">
-              Real places, real dates, real turnouts. Tap a pin to see how each walk went.
+              {t("Real places, real dates, real turnouts. Tap a pin to see how each walk went.")}
             </p>
           </Reveal>
         </div>
@@ -464,16 +459,16 @@ export default function AdamFlamboStory() {
 
       {/* ─── FEATURED FRAMES · the walk ─── */}
       <PhotoTriptych
-        kicker="Out on the walk"
-        line={<>Ninety minutes.<br /><span className="fl-ink-pink">One neighbourhood at a time.</span></>}
+        kicker={t("Out on the walk")}
+        line={<>{t("Ninety minutes.")}<br /><span className="fl-ink-pink">{t("One neighbourhood at a time.")}</span></>}
         shots={[shot("photogang"), shot("pathfinder"), shot("softbuildinglight")]}
       />
 
       {/* ─── THE ARC ─── */}
       <section className="fl-section">
-        <Reveal><p className="fl-eyebrow">The arc · six weeks</p></Reveal>
+        <Reveal><p className="fl-eyebrow">{t("The arc · six weeks")}</p></Reveal>
         <Reveal delay={0.06}>
-          <h2 className="fl-h2">The walk stayed small.<br /><span className="fl-ink-pink">The room caught fire.</span></h2>
+          <h2 className="fl-h2">{t("The walk stayed small.")}<br /><span className="fl-ink-pink">{t("The room caught fire.")}</span></h2>
         </Reveal>
         <Reveal delay={0.12} y={30}><ArcChart /></Reveal>
       </section>
@@ -483,22 +478,20 @@ export default function AdamFlamboStory() {
         <div className="fl-grain" aria-hidden="true" />
         <PullupEyes variant="big" className="fl-eyes-svg" />
         <Reveal delay={0.1}>
-          <p className="fl-eyes-line">Then the room made something.</p>
+          <p className="fl-eyes-line">{t("Then the room made something.")}</p>
         </Reveal>
       </section>
 
       {/* ─── THE GALLERY ─── */}
       <section className="fl-galwrap">
         <div className="fl-galhead">
-          <Reveal><p className="fl-eyebrow">The room</p></Reveal>
+          <Reveal><p className="fl-eyebrow">{t("The room")}</p></Reveal>
           <Reveal delay={0.06}>
-            <h2 className="fl-h2">{S.photos} photographs.<br /><span className="fl-ink-pink">Every one has a name.</span></h2>
+            <h2 className="fl-h2">{t("{n} photographs.", { n: S.photos })}<br /><span className="fl-ink-pink">{t("Every one has a name.")}</span></h2>
           </Reveal>
           <Reveal delay={0.12}>
             <p className="fl-lede fl-lede-center">
-              Not a shared drive that dies on Monday. A private room for the people who
-              pulled up, where they post their own work — credited, and theirs.
-              A glimpse, drifting by.
+              {t("Not a shared drive that dies on Monday. A private room for the people who pulled up, where they post their own work — credited, and theirs. A glimpse, drifting by.")}
             </p>
           </Reveal>
         </div>
@@ -509,25 +502,22 @@ export default function AdamFlamboStory() {
       <section className="fl-mag">
         <div className="fl-grain" aria-hidden="true" />
         <div className="fl-mag-in">
-          <Reveal><p className="fl-eyebrow">Giving it back</p></Reveal>
+          <Reveal><p className="fl-eyebrow">{t("Giving it back")}</p></Reveal>
           <Reveal delay={0.06}>
-            <h2 className="fl-h2">He didn’t keep the community.<br /><span className="fl-ink-pink">He gave it back — in print.</span></h2>
+            <h2 className="fl-h2">{t("He didn’t keep the community.")}<br /><span className="fl-ink-pink">{t("He gave it back — in print.")}</span></h2>
           </Reveal>
           <Reveal delay={0.12}>
             <p className="fl-lede fl-lede-center">
-              Adam turned the room into a printed journal and handed it back to the people
-              who made it — their photographs, their names, their book. Because every image
-              arrived with its photographer and their consent, there was no rights chase,
-              no “who shot this?”. The community was already on the page.
+              {t("Adam turned the room into a printed journal and handed it back to the people who made it — their photographs, their names, their book. Because every image arrived with its photographer and their consent, there was no rights chase, no “who shot this?”. The community was already on the page.")}
             </p>
           </Reveal>
           <Reveal delay={0.16} y={16}>
             <p className="fl-mag-credit-label">
-              The contributors — {S.contributors} photographers, straight from the room
-              <span className="fl-mag-credit-note">names blurred for privacy</span>
+              {t("The contributors — {n} photographers, straight from the room", { n: S.contributors })}
+              <span className="fl-mag-credit-note">{t("names blurred for privacy")}</span>
             </p>
           </Reveal>
-          <div className="fl-masthead" aria-label={`${S.contributors} contributors, names hidden for privacy`}>
+          <div className="fl-masthead" aria-label={t("{n} contributors, names hidden for privacy", { n: S.contributors })}>
             {CASE_CONTRIBUTORS.map((c, i) => (
               <Reveal key={i} delay={Math.min(i * 0.02, 0.5)} y={10} className="fl-mast-name">
                 <span className="fl-mast-blur">{c.name}</span>
@@ -541,9 +531,7 @@ export default function AdamFlamboStory() {
       <section className="fl-who">
         <Reveal>
           <blockquote className="fl-quote">
-            “PullUp is the backbone of all of this. It carries everything behind
-            the scenes — so I get to just be out there with a camera and the
-            people.”
+            “{t("PullUp is the backbone of all of this. It carries everything behind the scenes — so I get to just be out there with a camera and the people.")}”
             <cite className="fl-quote-cite">
               Adam Flambo
               <a className="fl-ig-link" href="https://instagram.com/adam_flambo" target="_blank" rel="noreferrer">@adam_flambo</a>
@@ -554,8 +542,8 @@ export default function AdamFlamboStory() {
 
       {/* ─── FEATURED FRAMES · the people ─── */}
       <PhotoTriptych
-        kicker="The people who showed up"
-        line={<>Not followers.<br /><span className="fl-ink-pink">Faces he knows.</span></>}
+        kicker={t("The people who showed up")}
+        line={<>{t("Not followers.")}<br /><span className="fl-ink-pink">{t("Faces he knows.")}</span></>}
         shots={[shot("vibedude"), shot("eveningalley"), shot("window")]}
       />
 
@@ -569,11 +557,11 @@ export default function AdamFlamboStory() {
             navigate(casePath(NEXT.slug));
           }}
         >
-          <span className="fl-next-k">Next story — <StoryMark slug={NEXT.slug} /> · {NEXT.client}</span>
-          <span className="fl-next-t">{NEXT.title}</span>
+          <span className="fl-next-k">{t("Next story")} — <StoryMark slug={NEXT.slug} /> · {NEXT.client}</span>
+          <span className="fl-next-t">{t(NEXT.title)}</span>
           <ArrowRight className="fl-next-arrow" size={36} strokeWidth={1.5} />
         </a>
-        <p className="fl-cta-fine">A snapshot of Adam Flambo’s real rooms, as of July 2026. His numbers, his photos, his people.</p>
+        <p className="fl-cta-fine">{t("A snapshot of Adam Flambo’s real rooms, as of July 2026. His numbers, his photos, his people.")}</p>
       </section>
     </div>
     <CaseRail slug="adam-flambo" />

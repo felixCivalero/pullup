@@ -8,6 +8,8 @@ import { CONTACT, DECK_PATH, SERIES, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { ScrollLine } from "./ScrollLine.jsx";
 import { openRequest, rememberArrival } from "./request.js";
+import { LangSwitch } from "./LangSwitch.jsx";
+import { useT } from "./i18n.js";
 
 /* The frame every agency page sits in: tone-aware nav (Services · Booklet · Cases), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
@@ -15,6 +17,7 @@ import { openRequest, rememberArrival } from "./request.js";
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const t = useT();
   const [scrolled, setScrolled] = useState(false);
   const [navDark, setNavDark] = useState(true);
   const navRef = useRef(null);
@@ -113,11 +116,11 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           </button>
           <div className="pc-nav-actions">
             <button type="button" className="pc-nav-link" onClick={() => goSection("services", "nav_services")}>
-              Services
+              {t("Services")}
             </button>
             <button
               type="button"
-              className="pc-nav-link"
+              className="pc-nav-link pc-nav-booklet"
               aria-current={pathname === DECK_PATH ? "page" : undefined}
               onClick={() => {
                 trackEvent("cta_click", { location: "nav_booklet" });
@@ -125,10 +128,10 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 else navigate(DECK_PATH);
               }}
             >
-              Booklet
+              {t("Booklet")}
             </button>
             <button type="button" className="pc-nav-link" onClick={() => goSection("stories", "nav_cases")}>
-              Cases
+              {t("Cases")}
             </button>
             <button
               type="button"
@@ -138,8 +141,9 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 navigate("/login");
               }}
             >
-              Log in
+              {t("Log in")}
             </button>
+            <LangSwitch />
             <button
               type="button"
               className="pc-nav-cta"
@@ -148,7 +152,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 openRequest({ source: "nav" });
               }}
             >
-              Build with us
+              {t("Build with us")}
             </button>
           </div>
         </header>
@@ -184,7 +188,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 else navigate(DECK_PATH);
               }}
             >
-              Booklet
+              {t("Booklet")}
             </a>
             <a
               className="pc-footer-work"
@@ -194,7 +198,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 navigate("/canvas");
               }}
             >
-              Canvas
+              {t("Canvas")}
             </a>
             <a
               className="pc-footer-work"
@@ -204,13 +208,13 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 navigate("/login");
               }}
             >
-              Log in
+              {t("Log in")}
             </a>
           </nav>
           <nav aria-label="Legal">
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
-            <a href="/cookies">Cookies</a>
+            <a href="/privacy">{t("Privacy")}</a>
+            <a href="/terms">{t("Terms")}</a>
+            <a href="/cookies">{t("Cookies")}</a>
             <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
           </nav>
         </footer>

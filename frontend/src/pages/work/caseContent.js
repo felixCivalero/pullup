@@ -126,7 +126,7 @@ export const CASE_CONTENT = {
   },
 
   stiga: {
-    sub: "A global sports brand with decades of history — and about 50 followers on Instagram. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.",
+    sub: "A global sports brand with decades of history. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.",
     heroStat: { v: "28.1M", l: "views across four channels" },
     blocks: [
       {

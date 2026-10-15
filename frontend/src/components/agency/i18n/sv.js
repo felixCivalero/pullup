@@ -625,4 +625,7 @@ export const SV = {
   "Illustrative — not a forecast.": "Illustrativt – inte en prognos.",
   "Weeks {#}–{#} · trust period — full scope, no commitment": "Vecka {#}–{#} · förtroendeperiod – fullt uppdrag, ingen bindning",
   "Grow the people. The brand follows.": "Låt människorna växa. Varumärket följer med.",
+  "28 million views in seven months.": "28 miljoner visningar på sju månader.",
+  "A global sports brand with decades of history.": "Ett globalt sportvarumärke med decennier av historia.",
+  "A global sports brand with decades of history. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.": "Ett globalt sportvarumärke med decennier av historia. Människorna och spelet fanns redan där. Vi satte dem i centrum, med sportens egen röst, och varje mätvärde rörde sig.",
 };

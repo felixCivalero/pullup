@@ -625,4 +625,7 @@ export const SW = {
   "Illustrative — not a forecast.": "Kielelezo — si utabiri.",
   "Weeks {#}–{#} · trust period — full scope, no commitment": "Wiki {#}–{#} · kipindi cha kuaminiana — kazi kamili, bila ahadi",
   "Grow the people. The brand follows.": "Wakuze watu. Chapa inafuata.",
+  "28 million views in seven months.": "Watazamaji milioni 28 ndani ya miezi saba.",
+  "A global sports brand with decades of history.": "Chapa ya kimataifa ya michezo yenye historia ya miongo kadhaa.",
+  "A global sports brand with decades of history. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.": "Chapa ya kimataifa ya michezo yenye historia ya miongo kadhaa. Watu na mchezo vilikuwepo tayari. Tuliviweka katikati, kwa sauti ya mchezo wenyewe, na kila kipimo kikapanda.",
 };

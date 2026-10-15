@@ -577,4 +577,13 @@ export const SV = {
   "Before we did this for anyone else, we did it for ourselves. We took an empty room in Stockholm and built a live-music venue around the people behind it — and kept building the brand until the room was booked three months in advance.": "Innan vi gjorde det här för någon annan gjorde vi det för oss själva. Vi tog ett tomt rum i Stockholm och byggde en livemusikscen kring människorna bakom – och fortsatte bygga varumärket tills rummet var fullbokat tre månader i förväg.",
   "The core of it all. The musicians, the staff and the guests who come back made it an experience you couldn't get anywhere else.": "Kärnan i allt. Musikerna, personalen och gästerna som kommer tillbaka gjorde det till en upplevelse man inte fick någon annanstans.",
   "Instagram became the front door. Guests found us there — and booked us three months ahead.": "Instagram blev entrén. Gästerna hittade oss där – och bokade oss tre månader framåt.",
+  "You": "Du",
+  "We make": "Vi gör",
+  "Read-out": "Rapport",
+  "Your brand": "Ditt varumärke",
+  "Compounds": "Växer på sig självt",
+  "Growth": "Tillväxt",
+  "Weeks {#}–{#} · the trust period — full work, no commitment": "Vecka {#}–{#} · förtroendeperioden – fullt arbete, inget åtagande",
+  "The curve is the shape, not a forecast.": "Kurvan visar formen, inte en prognos.",
+  "30 minutes a week. Growth that compounds.": "30 minuter i veckan. Tillväxt som växer på sig själv.",
 };

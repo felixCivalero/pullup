@@ -577,4 +577,13 @@ export const SW = {
   "Before we did this for anyone else, we did it for ourselves. We took an empty room in Stockholm and built a live-music venue around the people behind it — and kept building the brand until the room was booked three months in advance.": "Kabla ya kumfanyia mtu mwingine, tulijifanyia sisi wenyewe. Tulichukua chumba kitupu Stockholm na kujenga ukumbi wa muziki wa moja kwa moja kuzunguka watu walio nyuma yake — na tukaendelea kujenga chapa hadi ukumbi ukajaa miezi mitatu mapema.",
   "The core of it all. The musicians, the staff and the guests who come back made it an experience you couldn't get anywhere else.": "Kiini cha yote. Wanamuziki, wafanyakazi na wageni wanaorudi waliifanya kuwa uzoefu usiopatikana kwingineko.",
   "Instagram became the front door. Guests found us there — and booked us three months ahead.": "Instagram ikawa mlango wa mbele. Wageni walitupata huko — na wakatuhifadhi miezi mitatu mbele.",
+  "You": "Wewe",
+  "We make": "Tunatengeneza",
+  "Read-out": "Ripoti",
+  "Your brand": "Chapa yako",
+  "Compounds": "Inakua yenyewe",
+  "Growth": "Ukuaji",
+  "Weeks {#}–{#} · the trust period — full work, no commitment": "Wiki {#}–{#} · kipindi cha kuaminiana — kazi kamili, bila ahadi",
+  "The curve is the shape, not a forecast.": "Mkunjo unaonyesha umbo, si utabiri.",
+  "30 minutes a week. Growth that compounds.": "Dakika 30 kwa wiki. Ukuaji unaojiongeza.",
 };

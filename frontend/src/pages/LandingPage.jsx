@@ -13,6 +13,7 @@ import { Reveal } from "../components/agency/Reveal.jsx";
 import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { BASE_MONTHLY, FLOW, MESSAGE, OUTPUT, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
+import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
@@ -24,13 +25,6 @@ import { useT } from "../components/agency/i18n.js";
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-const STEPS = [
-  ["Sit down", "A 30-minute sprint with you or your team. We ask, you talk."],
-  ["We find the story", "What in your week will make people stop, feel something and follow."],
-  ["We produce", "Short-form video, posts and copy in your voice, ready to publish."],
-  ["We measure and repeat", "We track what actually moves people and do more of it."],
-];
 
 // Brand marks. Pure-black silhouettes (Zoda ships white) — the hero band
 // forces them all to white. `boost` evens out the optical size of the
@@ -189,32 +183,6 @@ function AgencyPage() {
         </Reveal>
       </section>
 
-      {/* ─── SCOREBOARD ─── */}
-      <section className="sb" data-pc-section="proof" data-pc-order="2">
-        <div className="pc-wrap">
-          <ul className="sb-grid">
-            {SERIES.map((c, i) => (
-              <li key={c.slug} style={{ "--sc": c.color }}>
-                <Reveal delay={i * 0.05} className="sb-cell">
-                  <button
-                    type="button"
-                    className="sb-btn"
-                    onClick={() => {
-                      trackEvent("cta_click", { location: `scoreboard_${c.slug}` });
-                      scrollToId(`story-${c.slug}`);
-                    }}
-                  >
-                    <span className="sb-who">{c.client}</span>
-                    <span className="sb-v">{t(c.score[0])}</span>
-                    <span className="sb-l">{t(c.score[1])}</span>
-                  </button>
-                </Reveal>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
       {/* ─── THE STORIES ─── */}
       <section id="stories" className="pc-section" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
@@ -240,41 +208,20 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="02">{t("What you get")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 hw-h2">{t("30 minutes of you. A week of content.")}</h2>
+            <h2 className="pc-h2 hw-h2">{t("30 minutes a week. Growth that compounds.")}</h2>
           </Reveal>
-          <div className="og-ledger">
-            <Reveal className="og-in">
-              <p className="og-k">{t("You give")}</p>
-              <p className="og-v">{t("30 min")}</p>
-              <p className="og-l">{t("a week. One sprint — we ask, you talk. That's all we need from you.")}</p>
-            </Reveal>
-            <div className="og-out">
-              <p className="og-k">{t("You get")}</p>
-              <ul>
-                {OUTPUT.map((o, i) => (
-                  <Reveal key={o.t} delay={i * 0.06} className="og-row">
-                    <span className="og-when">{t(o.when)}</span>
-                    <span>
-                      <b>{t(o.t)}</b>
-                      <span className="og-b">{t(o.b)}</span>
-                    </span>
-                  </Reveal>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <p className="og-k hw-how">{t("How every week runs")}</p>
-          <ol className="hw-steps">
-            {STEPS.map(([h, b], i) => (
-              <li key={h}>
-                <Reveal delay={i * 0.06} className="hw-step">
-                  <span className="hw-n">{i + 1}</span>
-                  <h3>{t(h)}</h3>
-                  <p>{t(b)}</p>
+          <EngineChart />
+          <ul className="og-grid">
+            {OUTPUT.map((o, i) => (
+              <li key={o.t}>
+                <Reveal delay={i * 0.06} className="og-cell">
+                  <span className="og-when">{t(o.when)}</span>
+                  <b>{t(o.t)}</b>
+                  <span className="og-b">{t(o.b)}</span>
                 </Reveal>
               </li>
             ))}
-          </ol>
+          </ul>
           <Reveal className="hw-cta">
             <div>
               <p className="hw-cta-k">{t("Start with the core")}</p>
@@ -554,25 +501,6 @@ const STYLES = `
   .hf-2 { background: #D9480F; border-color: #D9480F; }
   .hf-2 .hf-v { color: rgba(255,255,255,0.85); }
 
-  /* ─── scoreboard: one coloured number per story ─── */
-  .sb { padding: clamp(20px, 3vw, 36px) 0; border-bottom: 1px solid var(--pc-black); }
-  .sb-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  @media (min-width: 760px) { .sb-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
-  @media (min-width: 1180px) { .sb-grid { grid-template-columns: repeat(6, 1fr); } }
-  .sb-grid > li, .sb-cell { height: 100%; }
-  .sb-btn {
-    width: 100%; height: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
-    display: grid; align-content: start; gap: 6px;
-    padding: 16px 16px 18px; border: 0; border-radius: 16px;
-    background: color-mix(in srgb, var(--sc) 9%, #fff);
-    border-top: 4px solid var(--sc);
-    transition: background-color 0.2s ease, transform 0.2s ease;
-  }
-  .sb-btn:hover { background: color-mix(in srgb, var(--sc) 16%, #fff); transform: translateY(-2px); }
-  .sb-who { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc); }
-  .sb-v { margin-top: 6px; font-size: clamp(26px, 2.6vw, 34px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .sb-l { font-size: 13px; line-height: 1.35; color: #555; }
-
   /* ─── stories ─── */
   .st-h2 { max-width: 18ch; }
   .st-lede { margin: -16px 0 clamp(32px, 4vw, 48px); max-width: 56ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
@@ -618,29 +546,15 @@ ${STORY_CHART_CSS}
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
-  .hw-how { margin-top: clamp(48px, 6vw, 72px); }
-  .hw-steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 640px) { .hw-steps { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 1000px) { .hw-steps { grid-template-columns: repeat(4, 1fr); } }
-  .hw-step { height: 100%; border: 1px solid var(--pc-black); border-radius: 18px; padding: 24px 22px 26px; }
-  .hw-n { display: block; font-size: 36px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .hw-step h3 { margin-top: 18px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em; }
-  .hw-step p { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #444; }
-  .og-ledger { margin-top: clamp(8px, 1vw, 16px); display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 900px) { .og-ledger { grid-template-columns: 4fr 8fr; } }
-  .og-in { background: #000; color: #fff; border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); display: flex; flex-direction: column; }
-  .og-k { font-size: 13px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pc-grey); }
-  .og-in .og-k { color: rgba(255,255,255,0.5); }
-  .og-v { margin-top: auto; padding-top: 32px; white-space: nowrap; font-size: clamp(64px, 7vw, 100px); font-weight: 600; letter-spacing: -0.05em; line-height: 0.9; }
-  .og-l { margin-top: 14px; font-size: 16px; line-height: 1.5; color: rgba(255,255,255,0.7); max-width: 30ch; }
-  .og-out { border: 1px solid var(--pc-black); border-radius: 20px; padding: clamp(24px, 3.4vw, 40px); }
-  .og-out ul { list-style: none; margin: 18px 0 0; padding: 0; border-top: 1px solid var(--pc-black); }
-  .og-row { display: grid; grid-template-columns: 1fr; gap: 6px 24px; padding: 18px 0; border-bottom: 1px solid var(--pc-line); }
-  .og-row:last-child { border-bottom: 0; padding-bottom: 0; }
-  @media (min-width: 640px) { .og-row { grid-template-columns: 140px 1fr; align-items: baseline; } }
-  .og-when { font-size: 13px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #D9480F; }
-  .og-row b { display: block; font-size: clamp(19px, 1.8vw, 22px); font-weight: 600; letter-spacing: -0.02em; }
-  .og-b { display: block; margin-top: 4px; font-size: 15px; line-height: 1.5; color: #444; }
+  .og-grid { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 640px) { .og-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1000px) { .og-grid { grid-template-columns: repeat(4, 1fr); } }
+  .og-grid > li, .og-cell { height: 100%; }
+  .og-cell { display: grid; align-content: start; gap: 6px; border-radius: 18px; background: #f3f3f1; padding: 20px 20px 22px; }
+  .og-when { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #D9480F; }
+  .og-cell b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .og-b { font-size: 14px; line-height: 1.5; color: #444; }
+${ENGINE_CSS}
 
   .hw-cta {
     margin-top: clamp(28px, 4vw, 48px);
@@ -679,13 +593,10 @@ ${STORY_CHART_CSS}
     .hf-step + .hf-step::before { left: -16px; width: 16px; font-size: 13px; }
     .hf-k { font-size: 14px; }
     .hf-v { font-size: 11px; }
-    .sb-btn { padding: 12px 12px 14px; border-radius: 12px; }
-    .sb-v { font-size: 22px; }
-    .sb-l { font-size: 12px; }
     .st-card { border-radius: 18px; }
     .st-title { font-size: clamp(30px, 8.6vw, 40px); }
     .st-pb dd { font-size: 16px; }
-    .og-in, .og-out, .hw-step, .hw-cta { border-radius: 16px; }
+    .og-cell, .hw-cta { border-radius: 16px; }
     .hw-cta-actions { flex-direction: column; }
     .cl-cta .pc-btn { width: 100%; }
   }

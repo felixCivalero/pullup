@@ -98,17 +98,6 @@ export const CASE_CONTENT = {
         ],
       },
       {
-        type: "steps",
-        label: "The dramaturgy",
-        title: "Four beats. Every piece.",
-        items: [
-          { k: "01", t: "Hook", b: "The first line earns the second. One idea, stated with no warm-up." },
-          { k: "02", t: "Credibility", b: "Why this voice, on this subject. Proof before opinion." },
-          { k: "03", t: "Core", b: "The single thing the viewer leaves with — nothing that competes with it." },
-          { k: "04", t: "Outro", b: "Land it, then stop. The ending is the next step, not a summary." },
-        ],
-      },
-      {
         type: "reel",
         label: "The edit",
         title: "One reel. Four pieces. Frame by frame.",

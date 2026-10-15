@@ -18,95 +18,27 @@ export const MESSAGE = {
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 
-// One package. Every engagement opens with a 3-month trust period — paid, but
-// no commitment; the commitment starts after it, and longer commitments cost less.
-// Superpowers: add-ons on top of the retained engine (OFFER), monthly.
-// `from` marks a starting price that's scoped per client.
+// THE offer — the only one. No tiers, no add-ons. Every engagement opens with a
+// 3-month trust period — paid, but no commitment; after it, longer commitments
+// cost less (no tier numbers published).
 export const BASE_MONTHLY = 3000;
-export const SUPERPOWERS = [
-  {
-    id: "crm",
-    name: "Real People CRM",
-    by: "PullUp",
-    line: "Know every person who pulls up.",
-    items: [
-      "Every follower, RSVP and guest as one real person — not a row in five tools",
-      "Community marketing and sales across email, WhatsApp and Instagram",
-      "Your audience and its data stay yours",
-    ],
-    price: 750,
-  },
-  {
-    id: "room",
-    name: "The Room",
-    by: "Access",
-    line: "What happens at the event stays with the people who were there.",
-    items: [
-      "A private room only the people who pulled up can enter",
-      "Guests share their photos and moments with each other — credited",
-      "Being there becomes the reason to come back",
-    ],
-    price: 500,
-  },
-  {
-    id: "tracking",
-    name: "Deep Tracking",
-    by: "Signal",
-    line: "See what actually moves people.",
-    items: [
-      "One trail from post to RSVP to pull-up",
-      "Every channel and every piece of content, attributed",
-      "A weekly read-out: what to do more of",
-    ],
-    price: 400,
-  },
-  {
-    id: "app",
-    name: "Your Own App",
-    by: "Lab",
-    line: "Your world, on their home screen.",
-    items: [
-      "Your community in an app with your name on it",
-      "Rooms, tickets and messages — in your brand",
-      "Built on PullUp, owned by you",
-    ],
-    price: 1500,
-    from: true,
-  },
-];
-
-// Bundle ladder: the more superpowers, the less each one costs.
-// Index = number of powers switched on → share off every power's price.
-export const BUNDLE_OFF = [0, 0, 0.1, 0.15, 0.2];
-export const bundleOff = (count) => BUNDLE_OFF[Math.min(count, BUNDLE_OFF.length - 1)] || 0;
-const round5 = (n) => Math.round(n / 5) * 5;
-// A power's monthly price when `count` powers are on in total.
-export const powerPrice = (p, count) => round5(p.price * (1 - bundleOff(count)));
-// Every power switched on = the Full Service package: one fixed price,
-// the core engine and all four powers, nothing "from".
-export const FULL_SERVICE = { name: "Full Service", price: 5500 };
-export function monthlyPlan(ids) {
-  const picked = SUPERPOWERS.filter((p) => ids.includes(p.id));
-  const n = picked.length;
-  const list = picked.reduce((a, p) => a + p.price, 0);
-  if (n === SUPERPOWERS.length) {
-    return { picked, n, off: bundleOff(n), full: true, from: false, total: FULL_SERVICE.price, saved: BASE_MONTHLY + list - FULL_SERVICE.price };
-  }
-  const powers = picked.reduce((a, p) => a + powerPrice(p, n), 0);
-  return { picked, n, off: bundleOff(n), full: false, saved: list - powers, total: BASE_MONTHLY + powers, from: picked.some((p) => p.from) };
-}
-
 export const OFFER = {
-  name: "The Retained Architecture",
+  label: "One offer",
   price: "$3,000",
   cadence: "/ month",
-  body: "We run the engine with you: we moderate the dual tracks, script your assets line by line, and hold the whole team to the daily rhythm.",
-  terms: [
-    ["Start", "A 3‑month trust period at $3,000/month — with no commitment."],
-    ["In those 3 months", "The multi-channel start-and-grow process: Instagram scheduled 3 months ahead, your existing content put to work on TikTok, YouTube and Facebook — one system, measured and grown. Your marketing is sharper whether you stay or not."],
-    ["After 3 months", "It's clear where our future time together is best invested. Commit to continue — the longer the commitment, the lower the monthly rate."],
+  line: "Everything included. No tiers, no add-ons.",
+  includes: [
+    "Brand strategy and direction, set in weeks 1–2",
+    "A 30-minute sprint with you, every week",
+    "Content production — by you, your team or us",
+    "Every piece measured for growth",
+    "Scaled across Instagram, TikTok, YouTube and Facebook",
   ],
-  cta: "Start the trust period",
+  terms: [
+    ["First 3 months", "A trust period. Full scope, $3,000 a month, no commitment."],
+    ["After that", "Commit to continue. The longer the commitment, the lower the monthly rate."],
+  ],
+  cta: "Build with us",
 };
 
 // The one story frame. Every case — card, case page, booklet — answers the

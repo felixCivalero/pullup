@@ -2,21 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
-import { BASE_MONTHLY, CONTACT, FULL_SERVICE, SUPERPOWERS, monthlyPlan } from "./agencyData.js";
+import { CONTACT, OFFER } from "./agencyData.js";
 import { requestMeta } from "./request.js";
 import { useT } from "./i18n.js";
 
 /* "Start a conversation": who you are, where you want to go, when we can
-   talk, which superpowers — posted to /agency-requests, which emails it to
+   talk — posted to /agency-requests, which emails it to
    hello@pullup.se with where the visitor came from. Opened via openRequest(). */
 const WHEN = ["This week", "Next week", "Within a month", "Pick a time"];
-const usd = (n) => `$${n.toLocaleString("en-US")}`;
 
 export function RequestDialog() {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState("");
-  const [powers, setPowers] = useState(() => new Set());
   const [form, setForm] = useState({ name: "", email: "", company: "", description: "", website: "" });
   const [when, setWhen] = useState("");
   const [at, setAt] = useState("");
@@ -27,7 +25,6 @@ export function RequestDialog() {
   useEffect(() => {
     const onOpen = (e) => {
       setSource(e.detail?.source || "");
-      setPowers(new Set(e.detail?.powers || []));
       setState((s) => (s === "done" ? "idle" : s));
       setError("");
       setOpen(true);
@@ -53,17 +50,7 @@ export function RequestDialog() {
 
   if (!open) return null;
 
-  const plan = monthlyPlan([...powers]);
-  const picked = plan.picked;
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const togglePower = (id) =>
-    setPowers((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
   const submit = async (e) => {
     e.preventDefault();
     if (state === "sending") return;
@@ -79,7 +66,6 @@ export function RequestDialog() {
           ...form,
           preferredTime,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-          powers: [...powers],
           source,
           meta: requestMeta(),
         }),
@@ -97,7 +83,7 @@ export function RequestDialog() {
         setState("error");
         return;
       }
-      trackEvent("request_sent", { source, powers: [...powers].join(",") });
+      trackEvent("request_sent", { source });
       setState("done");
     } catch {
       setError(t("Couldn't reach us. Check your connection and try again."));
@@ -129,6 +115,10 @@ export function RequestDialog() {
           <form onSubmit={submit} noValidate>
             <p className="rq-k">{t("Start a conversation")}</p>
             <h2 id="rq-title" className="rq-h">{t("Tell us who you are and where you want to go.")}</h2>
+            <p className="rq-offer">
+              <b>{t(OFFER.label)} · {OFFER.price} {t(OFFER.cadence)}</b>
+              {t("First 3 months: full scope, no commitment.")}
+            </p>
 
             <div className="rq-row">
               <label className="rq-field">
@@ -173,37 +163,6 @@ export function RequestDialog() {
               {when === "Pick a time" && (
                 <input className="rq-at" type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
               )}
-            </fieldset>
-
-            <fieldset className="rq-field">
-              <legend>{t("Superpowers")} <em>{t("optional")}</em></legend>
-              <div className="rq-chips">
-                {SUPERPOWERS.map((p) => (
-                  <button
-                    type="button"
-                    key={p.id}
-                    className={`rq-chip rq-power${powers.has(p.id) ? " is-on" : ""}`}
-                    aria-pressed={powers.has(p.id)}
-                    onClick={() => togglePower(p.id)}
-                  >
-                    {powers.has(p.id) && <Check size={14} strokeWidth={2.5} />}
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-              <p className="rq-total">
-                {plan.full
-                  ? t("{name} — the core engine + all four powers", { name: FULL_SERVICE.name })
-                  : `${t("Core engine")} ${usd(BASE_MONTHLY)}${
-                      picked.length === 1 ? ` + ${t("1 power")}` : picked.length > 1 ? ` + ${t("{n} powers", { n: picked.length })}` : ""
-                    }`} ·{" "}
-                <strong>{plan.from && `${t("from")} `}{usd(plan.total)} {t("/ month")}</strong>
-                {plan.saved > 0 && (
-                  <span className="rq-save">
-                    {" "}· {plan.full ? t("fixed price") : t("bundle −{pct}", { pct: `${Math.round(plan.off * 100)}%` })}, {t("you save")} {usd(plan.saved)}
-                  </span>
-                )}
-              </p>
             </fieldset>
 
             {/* honeypot */}

@@ -8,7 +8,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
-import { Superpowers } from "../components/agency/Superpowers.jsx";
+import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
@@ -21,7 +21,7 @@ import { useT } from "../components/agency/i18n.js";
    the brand. Readable without reading: the hero's three-step flow, a coloured
    scoreboard (one number per story), then the stories — each one a headline,
    person → brand, and a chart of its real numbers (agencyData SERIES) —
-   then what you get → why → superpowers → booklet. */
+   then what you get → the one offer ($3,000/month) → why → booklet. */
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -167,6 +167,11 @@ function AgencyPage() {
               </button>
             </div>
           </Reveal>
+          <Reveal delay={0.3}>
+            <p className="pc-hero-offer">
+              <b>{t("One offer")}</b> {t("$3,000 / month · first 3 months, no commitment")}
+            </p>
+          </Reveal>
         </div>
         <Reveal delay={0.36} className="pc-hero-logos">
           <LogoBand />
@@ -204,6 +209,13 @@ function AgencyPage() {
         </div>
       </section>
 
+      <AgencyOffer
+        id="offer"
+        source="landing"
+        heading="One offer. $3,000 a month."
+        sub="Everything above, for one fixed monthly price. No tiers, no add-ons — and the first three months come with no commitment."
+      />
+
       {/* ─── WHY IT WORKS ─── */}
       <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="5">
         <div className="pc-wrap">
@@ -223,8 +235,6 @@ function AgencyPage() {
           </Reveal>
         </div>
       </section>
-
-      <Superpowers />
 
       <DeckTeaser source="landing" />
 
@@ -298,7 +308,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "superpowers", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -418,6 +428,8 @@ const STYLES = `
     font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55;
     color: rgba(255,255,255,0.7);
   }
+  .pc-hero-offer { margin-top: 20px; font-size: 15px; color: rgba(255,255,255,0.7); }
+  .pc-hero-offer b { color: #fff; font-weight: 600; margin-right: 6px; padding: 3px 10px; border-radius: 999px; background: #D9480F; font-size: 13px; letter-spacing: 0.04em; }
   .pc-hero-cta {
     margin-top: clamp(24px, 4.4vh, 56px);
     display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px;
@@ -485,7 +497,9 @@ ${ENGINE_CSS}
     .pc-eyebrow { margin-bottom: 20px; font-size: 12px; }
     .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
     .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
-    .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 12px; }
+    .pc-hero-offer { margin-top: 20px; font-size: 15px; color: rgba(255,255,255,0.7); }
+  .pc-hero-offer b { color: #fff; font-weight: 600; margin-right: 6px; padding: 3px 10px; border-radius: 999px; background: #D9480F; font-size: 13px; letter-spacing: 0.04em; }
+  .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 12px; }
     .st-card { border-radius: 18px; }
     .st-title { font-size: clamp(30px, 8.6vw, 40px); }
     .st-pb dd { font-size: 16px; }

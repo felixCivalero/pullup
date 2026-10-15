@@ -1,11 +1,12 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
 import { OFFER } from "./agencyData.js";
 import { useLocalized, useT } from "./i18n.js";
 import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
-// The closing offer — the one package, at the end of every case page.
+// The one offer — $3,000 a month, everything included. Landing (after What
+// you get) and the end of every case page.
 export function AgencyOffer({
   id,
   source = "landing",
@@ -32,17 +33,25 @@ export function AgencyOffer({
         <Reveal delay={0.12}>
           <div className="pc-offer pc-offer-one">
             <div className="pc-offer-main">
-              <p className="pc-offer-name">{offer.name}</p>
+              <p className="pc-offer-name">{offer.label}</p>
               <p className="pc-offer-price">
                 {offer.price}
                 <span>{offer.cadence}</span>
               </p>
-              <p className="pc-offer-body">{offer.body}</p>
+              <p className="pc-offer-body">{offer.line}</p>
+              <dl className="pc-offer-terms">
+                {offer.terms.map(([k, v]) => (
+                  <div key={k}>
+                    <dt>{k}</dt>
+                    <dd>{v}</dd>
+                  </div>
+                ))}
+              </dl>
               <button
                 type="button"
-                className="pc-btn pc-btn-light"
+                className="pc-btn pc-offer-cta"
                 onClick={() => {
-                  trackEvent("cta_click", { location: "offer_trust_period", source });
+                  trackEvent("cta_click", { location: "offer", source });
                   openRequest({ source: `offer_${source}` });
                 }}
               >
@@ -50,14 +59,17 @@ export function AgencyOffer({
                 <ArrowUpRight size={18} strokeWidth={1.75} />
               </button>
             </div>
-            <dl className="pc-offer-terms">
-              {offer.terms.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
+            <div className="pc-offer-inc">
+              <p className="pc-offer-inc-k">{t("What's included")}</p>
+              <ul>
+                {offer.includes.map((x) => (
+                  <li key={x}>
+                    <Check size={18} strokeWidth={2.25} />
+                    <span>{x}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </Reveal>
       </div>

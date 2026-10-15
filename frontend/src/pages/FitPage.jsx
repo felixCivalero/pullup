@@ -345,48 +345,61 @@ function Experiment() {
   );
 }
 
-/* ── 03 · The career ────────────────────────────────────────────────────
-   Work piles up dot by dot. Hits come with volume, and the biggest one can
-   land anywhere in the sequence. */
-const WORKS = 72;
-const WORK = Array.from({ length: WORKS }, (_, i) => rnd(i, 13) ** 6); // long tail: most small, few big
+/* ── 03 · The moments ───────────────────────────────────────────────────
+   A life in seasons. Each season leaves moments; the one that lands can come
+   from any of them. The point isn't posting more — it's living each season
+   and learning to capture it while you're in it. */
+const SEASONS = ["Starting out", "Building", "Doubt", "Breakthrough", "Starting over", "Next chapter"];
+const PER_SEASON = 10;
+const MOMENTS = SEASONS.length * PER_SEASON;
+const MOMENT = Array.from({ length: MOMENTS }, (_, i) => rnd(i, 13) ** 6); // most quiet, a few land
 
-function Career() {
+function Moments() {
   const t = useT();
   const [ref, p] = useScene();
-  const shown = Math.max(6, Math.round(6 + seg(p, 0.08, 0.82) * (WORKS - 6)));
+  const shown = Math.max(4, Math.round(4 + seg(p, 0.08, 0.82) * (MOMENTS - 4)));
   let best = 0;
-  for (let i = 1; i < shown; i++) if (WORK[i] > WORK[best]) best = i;
-  const hits = WORK.slice(0, shown).filter((v) => v > 0.35).length;
+  for (let i = 1; i < shown; i++) if (MOMENT[i] > MOMENT[best]) best = i;
+  const season = Math.min(SEASONS.length - 1, Math.floor((shown - 1) / PER_SEASON));
   return (
-    <section ref={ref} className="fx-scene fx-career" style={{ height: "300vh" }} data-pc-section="fit_career" data-pc-order="30">
+    <section ref={ref} className="fx-scene fx-moments" style={{ height: "300vh" }} data-pc-section="fit_moments" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">03 · {t("The career")}</p>
+        <p className="fx-mono">03 · {t("The moments")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
           lines={[
-            [0, 0.36, t("Look at any career as a line of work, piece after piece.")],
-            [0.36, 0.7, t("The biggest hit lands at random in that line. First piece, hundredth piece, last piece.")],
-            [0.7, 1, t("What you control is the line itself: the more you make, the more hits you get.")],
+            [0, 0.36, t("A life isn't one moment. It's seasons — starting out, doubting, breaking through, starting over.")],
+            [0.36, 0.7, t("The moment that lands can come from any of them. Nobody knows which one in advance.")],
+            [0.7, 1, t("So the skill isn't posting more. It's living each season fully — and learning to capture it while you're in it.")],
           ]}
         />
-        <div className="fx-line" aria-hidden="true">
-          {WORK.map((v, i) => (
-            <span
-              key={i}
-              className={`fx-dot${i < shown ? " is-on" : ""}${v > 0.35 ? " is-hit" : ""}${i === best ? " is-best" : ""}`}
-              style={{ "--v": v.toFixed(3) }}
-            />
+        <div className="fx-seasons" aria-hidden="true">
+          {SEASONS.map((name, si) => (
+            <div key={name} className={`fx-season${si <= season ? " is-on" : ""}${si === season ? " is-now" : ""}`}>
+              <span className="fx-season-k">{t(name)}</span>
+              <div className="fx-season-dots">
+                {MOMENT.slice(si * PER_SEASON, (si + 1) * PER_SEASON).map((v, j) => {
+                  const i = si * PER_SEASON + j;
+                  return (
+                    <span
+                      key={i}
+                      className={`fx-dot${i < shown ? " is-on" : ""}${v > 0.35 ? " is-hit" : ""}${i === best ? " is-best" : ""}`}
+                      style={{ "--v": v.toFixed(3) }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </div>
         <div className="fx-tally fx-mono" aria-hidden="true">
-          <span>{t("Pieces")} <b>{shown}</b></span>
-          <span>{t("Hits")} <b>{hits}</b></span>
-          <span>{t("Biggest hit")} <b>#{best + 1}</b></span>
+          <span>{t("Season")} <b>{t(SEASONS[season])}</b></span>
+          <span>{t("Moments captured")} <b>{shown}</b></span>
+          <span>{t("The one that landed")} <b>{t(SEASONS[Math.floor(best / PER_SEASON)])}</b></span>
         </div>
         <p className="fx-cite fx-center">
-          {t("The random impact rule — Sinatra et al., Science (2016). Hits scale with output — Simonton's equal-odds rule. The line is an illustration.")}
+          {t("Across careers, the biggest hit can come at any point — the random impact rule, Sinatra et al., Science (2016). The seasons are an illustration.")}
         </p>
       </div>
     </section>
@@ -624,7 +637,7 @@ export default function FitPage() {
         <Hero />
         <Copy />
         <Experiment />
-        <Career />
+        <Moments />
         <Turn />
         <Person />
         <People />
@@ -715,7 +728,15 @@ const FIT_CSS = `
   .fx-bars i.is-win { background: var(--hot); box-shadow: 0 0 18px rgba(255,106,43,0.6); }
 
   /* 03 career */
-  .fx-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 8px; max-width: 900px; min-height: 120px; }
+  .fx-moments .fx-phases { width: 100%; max-width: 980px; }
+  .fx-seasons { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 8px; max-width: 1280px; }
+  .fx-season { display: grid; gap: 10px; justify-items: center; padding: 12px 10px 14px; border-radius: 16px; border: 1px solid transparent; transition: border-color 0.5s ease, background-color 0.5s ease, opacity 0.5s ease; opacity: 0.35; }
+  .fx-season.is-on { opacity: 1; }
+  .fx-season.is-now { border-color: var(--faint); background: rgba(255,255,255,0.025); }
+  .fx-season-k { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .fx-season.is-now .fx-season-k { color: var(--ink); }
+  .fx-season-dots { display: flex; align-items: center; gap: 5px; min-height: 40px; }
+  @media (max-width: 700px) { .fx-seasons { gap: 8px; } .fx-season { padding: 8px 8px 10px; } .fx-season-dots { gap: 4px; min-height: 30px; } .fx-dot { --s: calc(5px + var(--v) * 22px) !important; } }
   .fx-dot { --s: calc(6px + var(--v) * 34px); width: var(--s); height: var(--s); border-radius: 50%; background: rgba(244,241,234,0.5); opacity: 0; transform: scale(0); transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease, background-color 0.4s ease, box-shadow 0.4s ease; }
   .fx-dot.is-on { opacity: 1; transform: none; }
   .fx-dot.is-hit.is-on { background: rgba(255,106,43,0.7); }

@@ -11,7 +11,7 @@ import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { StoryMark } from "../components/agency/CaseNav.jsx";
-import { FLOW, MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
+import { MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
 import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
 import { openRequest } from "../components/agency/request.js";
@@ -148,16 +148,6 @@ function AgencyPage() {
             <p className="pc-hero-sub">
               {t(MESSAGE.deal)}
             </p>
-          </Reveal>
-          <Reveal delay={0.2}>
-            <ol className="hf">
-              {FLOW.map(([k, v], i) => (
-                <li key={k} className={`hf-step hf-${i}`}>
-                  <span className="hf-k">{t(k)}</span>
-                  <span className="hf-v">{t(v)}</span>
-                </li>
-              ))}
-            </ol>
           </Reveal>
           <Reveal delay={0.24}>
             <div className="pc-hero-cta">
@@ -433,26 +423,6 @@ const STYLES = `
     display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px;
   }
 
-  /* ─── hero flow: person → content → brand, at a glance ─── */
-  .hf {
-    list-style: none; padding: 0; margin: clamp(24px, 4vh, 44px) 0 0;
-    display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px;
-  }
-  .hf-step {
-    position: relative; display: grid; gap: 2px;
-    padding: 12px 18px 13px; border-radius: 14px;
-    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14);
-  }
-  .hf-step + .hf-step { margin-left: 22px; }
-  .hf-step + .hf-step::before {
-    content: "→"; position: absolute; left: -22px; top: 50%; transform: translateY(-50%);
-    width: 22px; text-align: center; color: rgba(255,255,255,0.45); font-size: 16px;
-  }
-  .hf-k { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-  .hf-v { font-size: 13px; color: rgba(255,255,255,0.6); }
-  .hf-2 { background: #D9480F; border-color: #D9480F; }
-  .hf-2 .hf-v { color: rgba(255,255,255,0.85); }
-
   /* ─── stories ─── */
   .st-h2 { max-width: 18ch; }
   .st-lede { margin: -16px 0 clamp(32px, 4vw, 48px); max-width: 56ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: #333; }
@@ -516,12 +486,6 @@ ${ENGINE_CSS}
     .pc-hero-h { font-size: clamp(40px, 11.6vw, 56px); line-height: 0.98; letter-spacing: -0.04em; }
     .pc-hero-sub { margin-top: clamp(16px, 2.8vh, 24px); font-size: 17px; }
     .pc-hero-cta { margin-top: clamp(22px, 3.8vh, 32px); flex-direction: column; align-items: stretch; gap: 12px; }
-    .hf { gap: 6px; }
-    .hf-step { padding: 9px 12px 10px; border-radius: 12px; }
-    .hf-step + .hf-step { margin-left: 16px; }
-    .hf-step + .hf-step::before { left: -16px; width: 16px; font-size: 13px; }
-    .hf-k { font-size: 14px; }
-    .hf-v { font-size: 11px; }
     .st-card { border-radius: 18px; }
     .st-title { font-size: clamp(30px, 8.6vw, 40px); }
     .st-pb dd { font-size: 16px; }

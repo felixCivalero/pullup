@@ -15,13 +15,6 @@ export const MESSAGE = {
   deal: "Founders, artists and the faces behind a brand are the brand. We turn 30 minutes of them a week into content, community and reach — and show you the numbers.",
 };
 
-// The model in three steps — the hero's at-a-glance line.
-export const FLOW = [
-  ["The person", "30 min a week"],
-  ["The content", "Every channel"],
-  ["The brand", "Grows, measured"],
-];
-
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 

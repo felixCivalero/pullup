@@ -81,13 +81,6 @@ export function EngineChart() {
         </ol>
       </div>
 
-      <ul className="en-legend">
-        <li><i className="is-you" />{t("You")}</li>
-        <li><i className="is-team" />{t("Your team")}</li>
-        <li><i className="is-us" />{t("Us")}</li>
-        <li><i className="is-m" />{t("Measured")}</li>
-      </ul>
-
       <div className="en-row en-row-grow">
         <p className="en-k"><b>{t("Brand growth")}</b>{t("Scaled on what performs")}</p>
         <div className="en-curve">
@@ -148,10 +141,10 @@ export const ENGINE_CSS = `
     display: grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
   }
   .en-content { display: flex; gap: 3px; }
-  .en-content i, .en-legend i { width: 9px; height: 16px; border-radius: 3px; background: #D9480F; }
-  .en-content i.is-you, .en-legend i.is-you { background: #000; }
-  .en-content i.is-team, .en-legend i.is-team { background: #9a9a96; }
-  .en-measure i, .en-legend i.is-m { width: 9px; height: 9px; border-radius: 50%; background: none; border: 2px solid #0E9384; }
+  .en-content i { width: 9px; height: 16px; border-radius: 3px; background: #D9480F; }
+  .en-content i.is-you { background: #000; }
+  .en-content i.is-team { background: #9a9a96; }
+  .en-measure i { width: 9px; height: 9px; border-radius: 50%; background: none; border: 2px solid #0E9384; }
   .en-dir { flex: 1; margin-left: var(--en-k); display: grid; grid-template-columns: 3fr 9fr; gap: 6px; align-items: center; }
   .en-dir-set {
     height: 32px; border-radius: 8px; background: #D9480F; color: #fff;
@@ -166,8 +159,6 @@ export const ENGINE_CSS = `
   .en-dir-flow::after { content: "→"; position: absolute; right: 10px; font-size: 16px; }
   .en-dir-set, .en-dir-flow { transform-origin: left; transform: scaleX(0); transition: transform 0.9s cubic-bezier(0.16,1,0.3,1) 0.2s; }
   .en-dir-flow { transition-delay: 0.5s; }
-  .en-legend { list-style: none; margin: 4px 0 4px var(--en-k); padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
-  .en-legend li { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--pc-grey); }
   .en-row-grow { align-items: stretch; min-height: clamp(150px, 18vw, 230px); margin-top: 6px; }
   .en-row-grow .en-k { top: auto; bottom: 0; }
   .en-curve {
@@ -210,8 +201,7 @@ export const ENGINE_CSS = `
     .en-dir-set { justify-self: start; padding: 0 12px; }
     .en-curve-tag { top: 6px; left: 8px; right: auto; transform: none; font-size: 12px; }
     .en-dir-flow::after { display: none; }
-    .en-legend { margin-left: 0; margin-top: 8px; }
-    .en-row-grow { min-height: 0; }
+      .en-row-grow { min-height: 0; }
     .en-row-grow .en-curve { height: 140px; }
     .en-curve { margin-left: 0; }
     .en-foot { margin-left: 0; flex-direction: column; }

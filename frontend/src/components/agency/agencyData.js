@@ -11,8 +11,9 @@ export const DECK_PDF = "/the-production-core.pdf";
 
 // The one message. Hero, services, booklet and meta all say it this way.
 export const MESSAGE = {
-  promise: "We grow the people who grow your brand.",
-  deal: "Founders, artists and the faces behind a brand are the brand. We turn 30 minutes of them a week into content, community and reach — and show you the numbers.",
+  promise: "Great people make great brands.",
+  kicker: "We make them greater.",
+  deal: "Founders, artists, the faces behind it. Thirty minutes a week becomes content, community and reach — with the numbers to show it.",
 };
 
 export const mailto = (subject) =>

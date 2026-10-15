@@ -700,4 +700,7 @@ export const SW = {
   "We don't promise growth. We show it.": "Hatuahidi ukuaji. Tunauonyesha.",
   "Six people. Six brands. And the numbers to prove it.": "Watu sita. Chapa sita. Na takwimu za kuthibitisha.",
   "How we got there": "Jinsi tulivyofika",
+  "Great people make great brands.": "Watu bora hujenga chapa bora.",
+  "We make them greater.": "Tunawafanya kuwa bora zaidi.",
+  "Founders, artists, the faces behind it. Thirty minutes a week becomes content, community and reach — with the numbers to show it.": "Waanzilishi, wasanii, nyuso nyuma yake. Dakika thelathini kwa wiki zinakuwa maudhui, jamii na ufikiaji — pamoja na takwimu za kuonyesha.",
 };

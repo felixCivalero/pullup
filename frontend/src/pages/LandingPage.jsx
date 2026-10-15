@@ -18,8 +18,8 @@ import { Toolkit, TOOLKIT_CSS } from "../components/agency/Toolkit.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
-/* The public front door. One message (MESSAGE): we grow the people who grow
-   the brand. Readable without reading: the hero's three-step flow, a coloured
+/* The public front door. One message (MESSAGE): great people make great
+   brands — we make them greater. Readable without reading: the hero's three-step flow, a coloured
    scoreboard (one number per story), then the stories — each one a headline,
    person → brand, and a chart of its real numbers (agencyData SERIES) —
    then what you get → the toolkit, pulled in as needed → the one offer
@@ -146,7 +146,7 @@ function AgencyPage() {
             <p className="pc-eyebrow">{t("For brands and creators · Stockholm · Nairobi")}</p>
           </Reveal>
           <Reveal delay={0.08}>
-            <h1 className="pc-hero-h">{t(MESSAGE.promise)}</h1>
+            <h1 className="pc-hero-h">{t(MESSAGE.promise)} <span>{t(MESSAGE.kicker)}</span></h1>
           </Reveal>
           <Reveal delay={0.16}>
             <p className="pc-hero-sub">
@@ -435,8 +435,9 @@ const STYLES = `
   .pc-hero-h {
     font-size: clamp(40px, min(8.6vw, 10vh), 128px);
     font-weight: 600; line-height: 0.96; letter-spacing: -0.045em;
-    max-width: 14ch;
+    max-width: 16ch;
   }
+  .pc-hero-h span { display: block; color: #D9480F; }
   .pc-hero-sub {
     margin-top: clamp(20px, 3.4vh, 44px);
     max-width: 64ch;

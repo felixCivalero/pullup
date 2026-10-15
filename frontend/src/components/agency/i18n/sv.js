@@ -700,4 +700,7 @@ export const SV = {
   "We don't promise growth. We show it.": "Vi lovar inte tillväxt. Vi visar den.",
   "Six people. Six brands. And the numbers to prove it.": "Sex människor. Sex varumärken. Och siffrorna som bevisar det.",
   "How we got there": "Så kom vi dit",
+  "Great people make great brands.": "Bra människor bygger bra varumärken.",
+  "We make them greater.": "Vi gör dem ännu större.",
+  "Founders, artists, the faces behind it. Thirty minutes a week becomes content, community and reach — with the numbers to show it.": "Grundare, artister, ansiktena bakom. Trettio minuter i veckan blir innehåll, community och räckvidd – med siffrorna som visar det.",
 };

@@ -1,0 +1,803 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+import { initTracking, trackPageView } from "../lib/track.js";
+import { trackEvent } from "../lib/analytics.js";
+import { AgencyShell } from "../components/agency/AgencyShell.jsx";
+import { OFFER, SERIES, casePath } from "../components/agency/agencyData.js";
+import { openRequest } from "../components/agency/request.js";
+import { useT } from "../components/agency/i18n.js";
+
+/* /fit — the optional, animated landing. One argument told while you scroll:
+   virality can't be copied from a clip; it comes from the fit between a
+   person and what they make. Every scene is a tall section with a sticky
+   stage; scroll progress (0–1) drives it. Research is cited; anything drawn
+   to explain an idea is marked as an illustration. Numbers are the real
+   case numbers from agencyData. */
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+// Progress of p inside [a, b], 0–1.
+const seg = (p, a, b) => clamp((p - a) / (b - a));
+// Deterministic "random" so every visitor sees the same picture.
+const rnd = (i, salt = 1) => {
+  const x = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+const reduced = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// Scroll progress of a tall scene: 0 when its top meets the viewport top,
+// 1 when its bottom meets the viewport bottom. Also mirrored to --p.
+function useScene() {
+  const ref = useRef(null);
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    let raf = null;
+    const run = () => {
+      raf = null;
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      if (r.bottom < -vh || r.top > vh * 2) return;
+      const span = r.height - vh;
+      const v = span > 0 ? clamp(-r.top / span) : r.top < 0 ? 1 : 0;
+      el.style.setProperty("--p", v.toFixed(4));
+      setP((prev) => (Math.abs(prev - v) > 0.003 || (v === 1 && prev !== 1) || (v === 0 && prev !== 0) ? v : prev));
+    };
+    const on = () => {
+      if (raf == null) raf = requestAnimationFrame(run);
+    };
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    run();
+    return () => {
+      window.removeEventListener("scroll", on);
+      window.removeEventListener("resize", on);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, []);
+  return [ref, p];
+}
+
+// Lines that take turns on one spot: [from, to, text]. Each fades and rises in.
+function Phases({ p, lines, className = "" }) {
+  return (
+    <div className={`fx-phases ${className}`}>
+      {lines.map(([a, b, text], i) => {
+        // Out over the last stretch before b, in just after a — never two at once.
+        const fadeIn = a <= 0 ? 1 : seg(p, a, a + 0.05);
+        const fadeOut = b >= 1 ? 1 : 1 - seg(p, b - 0.05, b);
+        const o = Math.min(fadeIn, fadeOut);
+        return (
+          <p
+            key={i}
+            className="fx-phase"
+            aria-hidden={o < 0.5 ? "true" : undefined}
+            style={{ opacity: o, transform: `translateY(${(1 - fadeIn) * 24 - (1 - fadeOut) * 24}px)`, filter: `blur(${(1 - o) * 6}px)` }}
+          >
+            {text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// Words rise in one after another the first time they come into view.
+function Words({ text, as = "p", className = "" }) {
+  const Tag = as;
+  const ref = useRef(null);
+  const [inView, setInView] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        setInView(true);
+        obs.disconnect();
+      }
+    }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <Tag ref={ref} className={`fx-words${inView ? " is-in" : ""} ${className}`} aria-label={text}>
+      {text.split(" ").map((w, i) => (
+        <span key={i}>
+          <span aria-hidden="true" style={{ transitionDelay: `${i * 0.045}s` }}>{w}</span>{" "}
+        </span>
+      ))}
+    </Tag>
+  );
+}
+
+/* ── 00 · Field ─────────────────────────────────────────────────────────
+   A slow constellation. Points drift, link when close, and lean toward the
+   pointer. Paused off screen; static under reduced motion. */
+function Field() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return undefined;
+    const ctx = canvas.getContext("2d");
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    let w = 0, h = 0, raf = null, running = false;
+    const mouse = { x: -9999, y: -9999 };
+    let pts = [];
+    const size = () => {
+      w = canvas.clientWidth;
+      h = canvas.clientHeight;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = Math.round(clamp((w * h) / 9000, 50, 160));
+      pts = Array.from({ length: n }, (_, i) => ({
+        x: rnd(i, 1) * w,
+        y: rnd(i, 2) * h,
+        vx: (rnd(i, 3) - 0.5) * 0.25,
+        vy: (rnd(i, 4) - 0.5) * 0.25,
+        r: 0.6 + rnd(i, 5) * 1.4,
+        hot: rnd(i, 6) > 0.93,
+      }));
+    };
+    const draw = () => {
+      ctx.clearRect(0, 0, w, h);
+      for (const a of pts) {
+        const dx = mouse.x - a.x, dy = mouse.y - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 180) {
+          a.vx += (dx / d) * 0.012;
+          a.vy += (dy / d) * 0.012;
+        }
+        a.vx *= 0.985;
+        a.vy *= 0.985;
+        a.x += a.vx + 0.04;
+        a.y += a.vy;
+        if (a.x < -10) a.x = w + 10; if (a.x > w + 10) a.x = -10;
+        if (a.y < -10) a.y = h + 10; if (a.y > h + 10) a.y = -10;
+      }
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const a = pts[i], b = pts[j];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 110) {
+            ctx.strokeStyle = `rgba(244,241,234,${(1 - d / 110) * 0.14})`;
+            ctx.lineWidth = 0.6;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+      for (const a of pts) {
+        ctx.fillStyle = a.hot ? "rgba(255,106,43,0.95)" : "rgba(244,241,234,0.6)";
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.hot ? a.r + 0.8 : a.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    const loop = () => {
+      draw();
+      raf = running ? requestAnimationFrame(loop) : null;
+    };
+    const onMove = (e) => {
+      const r = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - r.left;
+      mouse.y = e.clientY - r.top;
+    };
+    size();
+    draw();
+    const still = reduced();
+    const obs = new IntersectionObserver(([e]) => {
+      running = e.isIntersecting && !still;
+      if (running && raf == null) raf = requestAnimationFrame(loop);
+    });
+    obs.observe(canvas);
+    window.addEventListener("resize", size);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      running = false;
+      obs.disconnect();
+      if (raf != null) cancelAnimationFrame(raf);
+      window.removeEventListener("resize", size);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, []);
+  return <canvas ref={ref} className="fx-field" aria-hidden="true" />;
+}
+
+function Hero() {
+  const t = useT();
+  return (
+    <section className="fx-hero" data-pc-section="fit_hero" data-pc-order="0">
+      <Field />
+      <div className="fx-hero-in">
+        <p className="fx-mono fx-rise" style={{ "--d": "0.1s" }}>{t("PullUp · A study in fit")}</p>
+        <h1 className="fx-h1">
+          <span className="fx-rise" style={{ "--d": "0.3s" }}>{t("Everyone studies what went viral.")}</span>
+          <span className="fx-rise fx-glow" style={{ "--d": "0.9s" }}>{t("Nobody can copy who made it.")}</span>
+        </h1>
+        <p className="fx-hero-sub fx-rise" style={{ "--d": "1.4s" }}>
+          {t("Five minutes of scrolling. One argument about where virality actually comes from.")}
+        </p>
+      </div>
+      <div className="fx-cue fx-rise" style={{ "--d": "1.8s" }} aria-hidden="true">
+        <span className="fx-mono">{t("Scroll")}</span>
+        <i />
+      </div>
+    </section>
+  );
+}
+
+/* ── 01 · The copy ──────────────────────────────────────────────────────
+   A wall of clips, each from someone's life. As you scroll, one by one they
+   turn into the same template. */
+const PHOTOS = [
+  "/stories/stiga/arena.jpg", "/stories/bkm/big-blue.jpg", "/stories/kaijas/crowd.jpg", "/stories/dawood/studio.jpg",
+  "/stories/li/sunburst.jpg", "/stories/adam-hero.jpg", "/stories/stiga/paddle-blue.jpg", "/stories/bkm/moon-jelly.jpg",
+  "/stories/kaijas/piano-red.jpg", "/stories/dawood/mic.jpg", "/stories/li/pool-glide.jpg", "/stories/photogang.jpg",
+  "/stories/stiga/net.jpg", "/stories/bkm/into-the-light.jpg", "/stories/kaijas/stortorget.jpg", "/stories/dawood/vinyl.jpg",
+  "/stories/li/platform.jpg", "/stories/eveningalley.jpeg", "/stories/stiga/top-down.jpg", "/stories/bkm/monofin.jpg",
+  "/stories/kaijas/keys.jpg", "/stories/dawood/faders.jpg", "/stories/birdinsky.jpg", "/stories/sthlmneveninglight.jpg",
+];
+const TILES = 36;
+
+// The trend everyone copies: no person in it, just the format.
+function Template({ hook = true }) {
+  const t = useT();
+  return (
+    <span className="fx-tmpl" aria-hidden="true">
+      <i className="fx-tmpl-blob" />
+      {hook && <em>{t("wait for it…")}</em>}
+    </span>
+  );
+}
+
+function Copy() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const turn = seg(p, 0.22, 0.78);
+  return (
+    <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_copy" data-pc-order="10">
+      <div className="fx-stage">
+        <div className="fx-wall" style={{ transform: `perspective(1400px) rotateX(${22 - p * 10}deg) translateY(${-p * 6}%) scale(${1 + p * 0.08})` }}>
+          {Array.from({ length: TILES }, (_, i) => {
+            const copied = turn > 0.04 + rnd(i, 9) * 0.92;
+            return (
+              <div key={i} className={`fx-tile${copied ? " is-copy" : ""}`} style={{ "--i": i }}>
+                {copied ? <Template /> : <img src={PHOTOS[i % PHOTOS.length]} alt="" loading="lazy" decoding="async" />}
+                <span className="fx-tile-cap">{copied ? t("POV: the same trend") : t("Someone's life")}</span>
+                <span className="fx-tile-bar" />
+              </div>
+            );
+          })}
+        </div>
+        <div className="fx-copy-veil" />
+        <div className="fx-copy-text">
+          <p className="fx-mono">01 · {t("The copy")}</p>
+          <Phases
+            p={p}
+            className="fx-big"
+            lines={[
+              [0, 0.3, t("Every clip starts as someone's life.")],
+              [0.3, 0.62, t("Then one goes viral — and everyone studies it.")],
+              [0.62, 1, t("Same sound. Same cut. Same hook. Different results.")],
+            ]}
+          />
+          <p className="fx-count fx-mono" aria-hidden="true">
+            {Math.round(turn * 100)}% {t("copies")}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 02 · The experiment ────────────────────────────────────────────────
+   MusicLab: the same songs released into separate worlds produced different
+   hits. Drawn as an illustration of the design, not the study's data. */
+const WORLDS = 8;
+const SONGS = 12;
+const WINNERS = [3, 9, 0, 6, 11, 2, 7, 5];
+
+function Experiment() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const grow = seg(p, 0.12, 0.55);
+  const win = seg(p, 0.45, 0.8);
+  return (
+    <section ref={ref} className="fx-scene fx-exp" style={{ height: "300vh" }} data-pc-section="fit_experiment" data-pc-order="20">
+      <div className="fx-stage fx-stage-split">
+        <div className="fx-copyblock">
+          <p className="fx-mono">02 · {t("The experiment")}</p>
+          <Phases
+            p={p}
+            className="fx-mid"
+            lines={[
+              [0, 0.4, t("Researchers released the same 48 songs into eight separate worlds.")],
+              [0.4, 0.72, t("Same songs. Same quality. Each world crowned a different hit.")],
+              [0.72, 1, t("A hit is partly an accident of who saw it first. You can't reverse-engineer an accident.")],
+            ]}
+          />
+          <p className="fx-cite">
+            {t("Salganik, Dodds & Watts, Science (2006). The bars illustrate the design — they are not the study's data.")}
+          </p>
+        </div>
+        <div className="fx-worlds" aria-hidden="true">
+          {Array.from({ length: WORLDS }, (_, w) => (
+            <div key={w} className="fx-world" style={{ "--w": w }}>
+              <span className="fx-mono fx-world-k">{t("World")} {w + 1}</span>
+              <div className="fx-bars">
+                {Array.from({ length: SONGS }, (_, s) => {
+                  const isWin = s === WINNERS[w];
+                  const base = 0.12 + rnd(s * 31 + w, 2) * 0.32;
+                  const h = isWin ? base * grow + (1 - base) * win : base * grow;
+                  return <i key={s} className={isWin && win > 0.15 ? "is-win" : ""} style={{ height: `${Math.max(3, h * 100)}%` }} />;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 03 · The career ────────────────────────────────────────────────────
+   Work piles up dot by dot. Hits come with volume, and the biggest one can
+   land anywhere in the sequence. */
+const WORKS = 72;
+const WORK = Array.from({ length: WORKS }, (_, i) => rnd(i, 13) ** 6); // long tail: most small, few big
+
+function Career() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const shown = Math.max(6, Math.round(6 + seg(p, 0.08, 0.82) * (WORKS - 6)));
+  let best = 0;
+  for (let i = 1; i < shown; i++) if (WORK[i] > WORK[best]) best = i;
+  const hits = WORK.slice(0, shown).filter((v) => v > 0.35).length;
+  return (
+    <section ref={ref} className="fx-scene fx-career" style={{ height: "300vh" }} data-pc-section="fit_career" data-pc-order="30">
+      <div className="fx-stage fx-stage-col">
+        <p className="fx-mono">03 · {t("The career")}</p>
+        <Phases
+          p={p}
+          className="fx-mid fx-center"
+          lines={[
+            [0, 0.36, t("Look at any career as a line of work, piece after piece.")],
+            [0.36, 0.7, t("The biggest hit lands at random in that line. First piece, hundredth piece, last piece.")],
+            [0.7, 1, t("What you control is the line itself: the more you make, the more hits you get.")],
+          ]}
+        />
+        <div className="fx-line" aria-hidden="true">
+          {WORK.map((v, i) => (
+            <span
+              key={i}
+              className={`fx-dot${i < shown ? " is-on" : ""}${v > 0.35 ? " is-hit" : ""}${i === best ? " is-best" : ""}`}
+              style={{ "--v": v.toFixed(3) }}
+            />
+          ))}
+        </div>
+        <div className="fx-tally fx-mono" aria-hidden="true">
+          <span>{t("Pieces")} <b>{shown}</b></span>
+          <span>{t("Hits")} <b>{hits}</b></span>
+          <span>{t("Biggest hit")} <b>#{best + 1}</b></span>
+        </div>
+        <p className="fx-cite fx-center">
+          {t("The random impact rule — Sinatra et al., Science (2016). Hits scale with output — Simonton's equal-odds rule. The line is an illustration.")}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/* ── 04 · The turn ──────────────────────────────────────────────────────
+   FORMAT collapses into FIT. Then the same trend twice: forced, and fitting. */
+function Turn() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const m = seg(p, 0.12, 0.4);
+  const phones = seg(p, 0.48, 0.72);
+  const mid = ["O", "R", "M", "A"];
+  return (
+    <section ref={ref} className="fx-scene fx-turn" style={{ height: "300vh" }} data-pc-section="fit_turn" data-pc-order="40">
+      <div className="fx-stage fx-stage-col">
+        <p className="fx-mono" style={{ opacity: 1 - phones }}>04 · {t("The turn")}</p>
+        <div className="fx-word" aria-label={m > 0.5 ? "FIT" : "FORMAT"} style={{ transform: `translateY(${-phones * 18}vh) scale(${1 - phones * 0.45})` }}>
+          <span>F</span>
+          {mid.map((c) => (
+            <span key={c} className="fx-squeeze" style={{ opacity: 1 - m, maxWidth: `${(1 - m) * 0.9}em`, filter: `blur(${m * 8}px)` }}>{c}</span>
+          ))}
+          <span className="fx-i" style={{ opacity: m, maxWidth: `${m * 0.4}em` }}>I</span>
+          <span>T</span>
+        </div>
+        <p className="fx-turn-line" style={{ opacity: seg(p, 0.3, 0.42) * (1 - phones), transform: `translateY(${(1 - seg(p, 0.3, 0.42)) * 20}px)` }}>
+          {t("Trends aren't the problem. Picking one that isn't you is.")}
+        </p>
+        <div className="fx-pair" style={{ opacity: phones, transform: `translateY(${(1 - phones) * 80}px)` }}>
+          <figure className="fx-phone is-forced">
+            <Template />
+            <figcaption>
+              <b>{t("Forced")}</b>
+              <span>{t("Picked because it was big.")}</span>
+            </figcaption>
+          </figure>
+          <span className="fx-vs fx-mono">{t("Same format")}</span>
+          <figure className="fx-phone is-fit">
+            <img src="/stories/li/sunburst.jpg" alt="" loading="lazy" decoding="async" />
+            <em className="fx-phone-hook" aria-hidden="true">{t("wait for it…")}</em>
+            <figcaption>
+              <b>{t("Fits")}</b>
+              <span>{t("Picked because it's you.")}</span>
+            </figcaption>
+          </figure>
+        </div>
+        <p className="fx-cite fx-center" style={{ opacity: phones }}>{t("Illustration.")}</p>
+      </div>
+    </section>
+  );
+}
+
+/* ── 05 · The person ────────────────────────────────────────────────────
+   A person at the center, their life in orbit. Content leaves the orbit as
+   you scroll: it's where who they are shows. */
+const ORBIT = ["Life", "Work", "Energy", "Voice", "Taste", "People"];
+const CLIPS = 18;
+
+function Person() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const out = seg(p, 0.3, 0.9);
+  return (
+    <section ref={ref} className="fx-scene fx-person" style={{ height: "320vh" }} data-pc-section="fit_person" data-pc-order="50">
+      <div className="fx-stage fx-stage-split fx-stage-rev">
+        <div className="fx-orbit" aria-hidden="true" style={{ "--out": out }}>
+          <svg viewBox="-100 -100 200 200" className="fx-orbit-svg">
+            <circle r="44" />
+            <circle r="72" className="is-faint" />
+            {ORBIT.map((_, i) => {
+              const a = (i / ORBIT.length) * Math.PI * 2;
+              return <line key={i} x1="0" y1="0" x2={Math.cos(a) * 44} y2={Math.sin(a) * 44} />;
+            })}
+          </svg>
+          <div className="fx-ring">
+            {ORBIT.map((name, i) => (
+              <span key={name} className="fx-node" style={{ "--a": `${(i / ORBIT.length) * 360}deg` }}>
+                <em>{t(name)}</em>
+              </span>
+            ))}
+          </div>
+          {Array.from({ length: CLIPS }, (_, i) => {
+            const a = (i / CLIPS) * 360 + rnd(i, 4) * 14;
+            const start = rnd(i, 7) * 0.5;
+            const go = clamp((out - start) / 0.5);
+            return (
+              <span
+                key={i}
+                className="fx-clip"
+                style={{
+                  transform: `rotate(${a}deg) translateX(${22 + go * 26}vmin) rotate(${-a}deg)`,
+                  opacity: go > 0 ? Math.min(1, go * 3) * (1 - Math.max(0, go - 0.85) * 4) : 0,
+                }}
+              />
+            );
+          })}
+          <div className="fx-core">
+            <b>{t("You")}</b>
+          </div>
+        </div>
+        <div className="fx-copyblock">
+          <p className="fx-mono">05 · {t("The person")}</p>
+          <Phases
+            p={p}
+            className="fx-mid"
+            lines={[
+              [0, 0.32, t("Everything you do already says who you are.")],
+              [0.32, 0.64, t("Content is just where it shows.")],
+              [0.64, 1, t("When the content fits the person, it compounds. That's the part nobody can copy.")],
+            ]}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 06 · The people ────────────────────────────────────────────────────
+   Real stories, real numbers, sliding past sideways. */
+const COVERS = {
+  "li-karlsen": "/stories/li/sunburst.jpg",
+  bkm: "/stories/bkm/big-blue.jpg",
+  kaijas: "/stories/kaijas/crowd.jpg",
+  stiga: "/stories/stiga/arena.jpg",
+  "adam-dawood": "/stories/dawood/studio.jpg",
+  "adam-flambo": "/stories/adam-hero.jpg",
+};
+
+function People() {
+  const t = useT();
+  const navigate = useNavigate();
+  const [ref, p] = useScene();
+  const track = useRef(null);
+  const [span, setSpan] = useState(0);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = track.current;
+      if (el) setSpan(Math.max(0, el.scrollWidth - window.innerWidth));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  const x = seg(p, 0.08, 0.95) * span;
+  return (
+    <section ref={ref} className="fx-scene fx-people" style={{ height: `${SERIES.length * 70 + 60}vh` }} data-pc-section="fit_people" data-pc-order="60">
+      <div className="fx-stage fx-stage-track">
+        <div className="fx-people-head">
+          <p className="fx-mono">06 · {t("The people")}</p>
+          <h2 className="fx-h2">{t("Not formats. People.")}</h2>
+        </div>
+        <div className="fx-track" ref={track} style={{ transform: `translate3d(${-x}px,0,0)` }}>
+          {SERIES.map((c, i) => (
+            <a
+              key={c.slug}
+              href={casePath(c.slug)}
+              className="fx-card"
+              style={{ "--c": c.color }}
+              onClick={(e) => {
+                e.preventDefault();
+                trackEvent("cta_click", { location: `fit_card_${c.slug}` });
+                navigate(casePath(c.slug));
+              }}
+            >
+              <div className="fx-card-img">
+                <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" style={{ transform: `translateX(${(x / Math.max(1, span)) * 40 - i * 6}px) scale(1.15)` }} />
+              </div>
+              <div className="fx-card-body">
+                <p className="fx-mono">{String(i + 1).padStart(2, "0")} · {t(c.kicker)}</p>
+                <p className="fx-card-score">{t(c.score[0])}</p>
+                <p className="fx-card-score-l">{t(c.score[1])}</p>
+                <p className="fx-card-who"><b>{c.name}.</b> {t(c.gained)}</p>
+                <span className="fx-card-go">{t("Read the story")} <ArrowRight size={16} strokeWidth={1.75} /></span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 07 · The offer ─────────────────────────────────────────────────── */
+function Close() {
+  const t = useT();
+  const navigate = useNavigate();
+  return (
+    <section className="fx-close" data-pc-section="fit_close" data-pc-order="70">
+      <div className="fx-close-glow" aria-hidden="true" />
+      <div className="fx-close-in">
+        <p className="fx-mono">07 · {t("What we do")}</p>
+        <Words as="h2" className="fx-h1 fx-close-h" text={t("We don't make you go viral. We make you more you — then we scale it.")} />
+        <Words className="fx-close-sub" text={t("A clear direction, content that fits the person, and growth you can measure.")} />
+        <p className="fx-close-offer fx-mono">
+          {t(OFFER.label)} · {OFFER.price} / {t("month")} · {t("first 3 months, no commitment")}
+        </p>
+        <div className="fx-close-ctas">
+          <button
+            type="button"
+            className="fx-btn fx-btn-hot"
+            onClick={() => {
+              trackEvent("cta_click", { location: "fit_close_build" });
+              openRequest({ source: "fit" });
+            }}
+          >
+            {t("Build with us")} <ArrowRight size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className="fx-btn"
+            onClick={() => {
+              trackEvent("cta_click", { location: "fit_close_home" });
+              navigate("/");
+            }}
+          >
+            {t("See the whole picture")}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function FitPage() {
+  useEffect(() => {
+    initTracking();
+    trackPageView("fit");
+    window.scrollTo(0, 0);
+  }, []);
+  return (
+    <AgencyShell css={FIT_CSS} cursor={false}>
+      <main className="fx" data-pc-tone="dark">
+        <div className="fx-grain" aria-hidden="true" />
+        <Hero />
+        <Copy />
+        <Experiment />
+        <Career />
+        <Turn />
+        <Person />
+        <People />
+        <Close />
+      </main>
+    </AgencyShell>
+  );
+}
+
+const FIT_CSS = `
+  .agency-root:has(.fx) { background: #060608; }
+  .fx {
+    --ink: #F4F1EA; --dim: rgba(244,241,234,0.56); --faint: rgba(244,241,234,0.1);
+    --hot: #FF6A2B; --bg: #060608;
+    position: relative; background: var(--bg); color: var(--ink); overflow-x: clip;
+  }
+  .fx-grain {
+    position: fixed; inset: -50%; z-index: 60; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: fx-grain 1.2s steps(4) infinite;
+  }
+  @keyframes fx-grain { 0%{transform:translate(0,0)} 25%{transform:translate(-3%,2%)} 50%{transform:translate(2%,-3%)} 75%{transform:translate(-1%,3%)} 100%{transform:translate(0,0)} }
+
+  .fx-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  .fx-h1 { font-size: clamp(40px, 7.4vw, 108px); line-height: 0.98; letter-spacing: -0.045em; font-weight: 600; }
+  .fx-h2 { font-size: clamp(34px, 5vw, 72px); line-height: 1; letter-spacing: -0.04em; font-weight: 600; }
+  .fx-glow { color: #fff; text-shadow: 0 0 40px rgba(255,106,43,0.45), 0 0 120px rgba(255,106,43,0.25); }
+  .fx-cite { font-size: 12px; line-height: 1.5; color: rgba(244,241,234,0.4); max-width: 52ch; }
+  .fx-center { text-align: center; margin-left: auto; margin-right: auto; }
+
+  .fx-rise { display: block; opacity: 0; transform: translateY(28px); filter: blur(10px); animation: fx-rise 1.1s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: var(--d, 0s); }
+  @keyframes fx-rise { to { opacity: 1; transform: none; filter: blur(0); } }
+
+  /* hero */
+  .fx-hero { position: relative; min-height: 100svh; display: grid; place-items: center; overflow: hidden; }
+  .fx-hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 30%; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
+  .fx-field { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .fx-hero-in { position: relative; z-index: 1; padding: 0 clamp(16px, 5vw, 56px); max-width: 1200px; text-align: center; }
+  .fx-hero-in .fx-h1 { margin-top: 22px; }
+  .fx-hero-sub { margin: 28px auto 0; max-width: 46ch; font-size: clamp(16px, 1.5vw, 19px); line-height: 1.5; color: var(--dim); }
+  .fx-cue { position: absolute; bottom: 28px; left: 50%; translate: -50% 0; z-index: 1; display: grid; justify-items: center; gap: 10px; }
+  .fx-cue i { width: 1px; height: 44px; background: linear-gradient(var(--ink), transparent); animation: fx-cue 2s ease-in-out infinite; transform-origin: top; }
+  @keyframes fx-cue { 0%{transform:scaleY(0)} 50%{transform:scaleY(1)} 100%{transform:scaleY(1); opacity:0} }
+
+  /* scenes */
+  .fx-scene { position: relative; }
+  .fx-stage { position: sticky; top: 0; height: 100svh; overflow: hidden; display: flex; align-items: center; }
+  .fx-stage-col { flex-direction: column; justify-content: center; gap: 28px; padding: 80px clamp(16px, 5vw, 56px) 40px; text-align: center; }
+  .fx-stage-split { display: grid; grid-template-columns: 1fr; gap: 32px; align-content: center; padding: 80px clamp(16px, 5vw, 56px) 32px; }
+  @media (min-width: 900px) { .fx-stage-split { grid-template-columns: 0.9fr 1.1fr; gap: 64px; align-items: center; } .fx-stage-rev { grid-template-columns: 1.1fr 0.9fr; } }
+  .fx-copyblock { display: grid; gap: 20px; align-content: center; }
+  .fx-phases { display: grid; }
+  .fx-phase { grid-area: 1 / 1; will-change: opacity, transform; }
+  .fx-big .fx-phase { font-size: clamp(32px, 5.4vw, 76px); line-height: 1.02; letter-spacing: -0.04em; font-weight: 600; }
+  .fx-mid .fx-phase { font-size: clamp(26px, 3.4vw, 48px); line-height: 1.08; letter-spacing: -0.035em; font-weight: 600; }
+
+  /* 01 copy */
+  .fx-wall {
+    position: absolute; left: 50%; top: 50%; width: max(120vw, 1100px); translate: -50% -50%;
+    display: grid; grid-template-columns: repeat(9, 1fr); gap: 14px; transform-origin: 50% 40%;
+  }
+  @media (max-width: 700px) { .fx-wall { grid-template-columns: repeat(6, 1fr); width: 180vw; gap: 8px; } .fx-tile { border-radius: 9px; } .fx-tile-cap { font-size: 8px; left: 6px; bottom: 10px; } }
+  .fx-tile { position: relative; aspect-ratio: 9/16; border-radius: 14px; overflow: hidden; background: #111; border: 1px solid var(--faint); animation: fx-float 7s ease-in-out infinite; animation-delay: calc(var(--i) * -0.37s); }
+  @keyframes fx-float { 50% { transform: translateY(-10px); } }
+  .fx-tile img { width: 100%; height: 100%; object-fit: cover; transition: filter 0.8s ease, opacity 0.8s ease; }
+  .fx-tmpl { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; background: linear-gradient(160deg, #26262b, #121215); animation: fx-in 0.6s ease; }
+  @keyframes fx-in { from { opacity: 0; } }
+  .fx-tmpl-blob { position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #5a5a62, #2a2a30 70%); filter: blur(2px); }
+  .fx-tmpl em, .fx-phone-hook { position: relative; font-style: normal; font-weight: 700; font-size: clamp(9px, 0.9vw, 13px); color: #fff; background: rgba(0,0,0,0.55); padding: 4px 8px; border-radius: 6px; }
+  .fx-phone-hook { position: absolute; top: 50%; left: 50%; translate: -50% -50%; font-size: 13px; }
+  .fx-phone .fx-tmpl em { font-size: 13px; }
+  .fx-tile-cap { position: absolute; left: 10px; right: 10px; bottom: 16px; font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,0.7); }
+  .fx-tile-bar { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 2px; background: rgba(255,255,255,0.25); border-radius: 2px; overflow: hidden; }
+  .fx-tile-bar::after { content: ""; position: absolute; inset: 0; background: #fff; transform-origin: left; animation: fx-play 4s linear infinite; animation-delay: calc(var(--i) * -0.53s); }
+  .fx-tile.is-copy .fx-tile-bar::after { background: rgba(255,255,255,0.5); animation-delay: 0s; }
+  @keyframes fx-play { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
+  .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
+  .fx-count { color: var(--hot); }
+
+  /* 02 experiment */
+  .fx-worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .fx-worlds { grid-template-columns: repeat(4, 1fr); gap: 8px; } .fx-world { padding: 8px !important; } .fx-bars { height: 70px !important; } }
+  .fx-world { padding: 14px; border: 1px solid var(--faint); border-radius: 14px; background: linear-gradient(rgba(255,255,255,0.03), transparent); }
+  .fx-world-k { font-size: 10px; }
+  .fx-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; margin-top: 12px; }
+  .fx-bars i { flex: 1; background: rgba(244,241,234,0.22); border-radius: 2px 2px 0 0; transition: height 0.25s ease-out, background-color 0.4s ease; }
+  .fx-bars i.is-win { background: var(--hot); box-shadow: 0 0 18px rgba(255,106,43,0.6); }
+
+  /* 03 career */
+  .fx-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 8px; max-width: 900px; min-height: 120px; }
+  .fx-dot { --s: calc(6px + var(--v) * 34px); width: var(--s); height: var(--s); border-radius: 50%; background: rgba(244,241,234,0.5); opacity: 0; transform: scale(0); transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.4s ease, background-color 0.4s ease, box-shadow 0.4s ease; }
+  .fx-dot.is-on { opacity: 1; transform: none; }
+  .fx-dot.is-hit.is-on { background: rgba(255,106,43,0.7); }
+  .fx-dot.is-best.is-on { background: var(--hot); box-shadow: 0 0 0 6px rgba(255,106,43,0.15), 0 0 40px rgba(255,106,43,0.7); }
+  .fx-tally { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+  .fx-tally b { color: var(--ink); font-weight: 600; margin-left: 6px; }
+
+  /* 04 turn */
+  .fx-word { display: flex; justify-content: center; font-size: clamp(80px, 20vw, 300px); font-weight: 700; letter-spacing: -0.06em; line-height: 0.9; transform-origin: 50% 50%; }
+  .fx-word > span { display: inline-block; overflow: hidden; white-space: nowrap; }
+  .fx-i { color: var(--hot); }
+  .fx-turn-line { font-size: clamp(20px, 2.4vw, 32px); letter-spacing: -0.02em; color: var(--dim); max-width: 32ch; margin: 0 auto; }
+  .fx-pair { position: absolute; left: 0; right: 0; bottom: max(8vh, 40px); display: flex; justify-content: center; align-items: center; gap: clamp(14px, 4vw, 48px); }
+  .fx-phone { position: relative; width: clamp(130px, 18vw, 230px); aspect-ratio: 9/16; border-radius: 22px; overflow: hidden; border: 1px solid var(--faint); }
+  .fx-phone img { width: 100%; height: 100%; object-fit: cover; }
+  .fx-phone figcaption { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 2px; text-align: left; font-size: 12px; color: rgba(255,255,255,0.8); }
+  .fx-phone figcaption b { font-size: 16px; color: #fff; }
+  .fx-phone.is-forced img { filter: grayscale(1) brightness(0.5); }
+  .fx-phone.is-fit { border-color: rgba(255,106,43,0.6); box-shadow: 0 0 80px -10px rgba(255,106,43,0.55); animation: fx-breathe 4s ease-in-out infinite; }
+  @keyframes fx-breathe { 50% { box-shadow: 0 0 110px -6px rgba(255,106,43,0.7); } }
+  .fx-vs { writing-mode: vertical-rl; transform: rotate(180deg); }
+
+  /* 05 person */
+  .fx-orbit { --size: min(84vw, 62vmin); position: relative; width: var(--size); aspect-ratio: 1; margin: 0 auto; }
+  .fx-orbit-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; animation: fx-spin 80s linear infinite; }
+  .fx-orbit-svg circle { fill: none; stroke: rgba(244,241,234,0.18); stroke-width: 0.3; }
+  .fx-orbit-svg circle.is-faint { stroke-dasharray: 1 3; stroke: rgba(244,241,234,0.12); }
+  .fx-orbit-svg line { stroke: rgba(255,106,43,0.35); stroke-width: 0.3; }
+  @keyframes fx-spin { to { transform: rotate(360deg); } }
+  .fx-ring { position: absolute; inset: 0; animation: fx-spin 80s linear infinite; }
+  .fx-node { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: rotate(var(--a)) translateX(calc(var(--size) * 0.22)) rotate(calc(-1 * var(--a))); }
+  .fx-node em { position: absolute; translate: -50% -50%; font-style: normal; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; background: #0d0d10; border: 1px solid rgba(244,241,234,0.2); white-space: nowrap; animation: fx-spin 80s linear infinite reverse; display: block; }
+  .fx-clip { position: absolute; left: 50%; top: 50%; width: 14px; height: 24px; margin: -12px 0 0 -7px; border-radius: 3px; background: linear-gradient(160deg, var(--hot), #ffb38a); box-shadow: 0 0 16px rgba(255,106,43,0.6); }
+  .fx-core { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 26%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #ff9a66, var(--hot) 45%, #8a2a06); box-shadow: 0 0 calc(40px + var(--out) * 80px) rgba(255,106,43,calc(0.35 + var(--out) * 0.4)); }
+  .fx-core::before { content: ""; position: absolute; inset: -14%; border-radius: 50%; border: 1px solid rgba(255,106,43,0.4); animation: fx-pulse 3s ease-out infinite; }
+  @keyframes fx-pulse { from { transform: scale(0.85); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+  .fx-core b { font-size: clamp(16px, 2.2vw, 26px); color: #fff; letter-spacing: -0.02em; }
+
+  @media (max-width: 700px) {
+    .fx-orbit { --size: min(80vw, 46svh); }
+    .fx-orbit-svg circle:first-child { r: 60; }
+    .fx-node { transform: rotate(var(--a)) translateX(calc(var(--size) * 0.3)) rotate(calc(-1 * var(--a))); }
+    .fx-node em { font-size: 11px; padding: 5px 9px; }
+    .fx-core { width: 24%; }
+    .fx-copy-veil { background: radial-gradient(ellipse 95% 50% at 50% 50%, rgba(6,6,8,0.92), rgba(6,6,8,0.55) 75%, rgba(6,6,8,0.3)), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
+  }
+
+  /* 06 people */
+  .fx-stage-track { flex-direction: column; align-items: stretch; justify-content: center; gap: 28px; }
+  .fx-people-head { padding: 0 clamp(16px, 5vw, 56px); display: grid; gap: 12px; }
+  .fx-track { display: flex; gap: 20px; padding: 0 clamp(16px, 5vw, 56px); width: max-content; will-change: transform; }
+  .fx-card { --c: var(--hot); position: relative; display: grid; grid-template-rows: auto 1fr; width: min(78vw, 400px); border-radius: 22px; overflow: hidden; background: #0e0e12; border: 1px solid var(--faint); color: var(--ink); text-decoration: none; transition: border-color 0.3s ease, transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .fx-card:hover { border-color: var(--c); transform: translateY(-6px); }
+  .fx-card-img { height: min(34vh, 260px); overflow: hidden; position: relative; }
+  .fx-card-img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 40%, #0e0e12); }
+  .fx-card-img img { width: 100%; height: 100%; object-fit: cover; }
+  .fx-card-body { padding: 18px 22px 22px; display: grid; gap: 6px; align-content: start; }
+  .fx-card-score { font-size: clamp(40px, 4.6vw, 60px); font-weight: 700; letter-spacing: -0.045em; line-height: 1; color: var(--c); filter: brightness(1.35) saturate(1.1); margin-top: 6px; }
+  .fx-card-score-l { font-size: 14px; color: var(--dim); }
+  .fx-card-who { font-size: 15px; line-height: 1.45; margin-top: 10px; }
+  .fx-card-go { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; margin-top: 8px; }
+
+  /* 07 close */
+  .fx-close { position: relative; min-height: 100svh; display: grid; place-items: center; overflow: hidden; padding: 120px clamp(16px, 5vw, 56px); text-align: center; }
+  .fx-close-glow { position: absolute; left: 50%; top: 60%; width: 120vmax; height: 120vmax; translate: -50% -50%; background: radial-gradient(circle, rgba(255,106,43,0.22), transparent 55%); animation: fx-breathe-bg 8s ease-in-out infinite; }
+  @keyframes fx-breathe-bg { 50% { transform: scale(1.12); opacity: 0.8; } }
+  .fx-close-in { position: relative; max-width: 1100px; display: grid; gap: 26px; justify-items: center; }
+  .fx-close-h { font-size: clamp(36px, 6vw, 88px); }
+  .fx-close-sub { font-size: clamp(17px, 1.7vw, 22px); color: var(--dim); max-width: 44ch; }
+  .fx-close-offer { color: var(--ink); }
+  .fx-close-ctas { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .fx-btn { font: inherit; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 10px; padding: 15px 24px; border-radius: 999px; cursor: pointer; color: var(--ink); background: transparent; border: 1px solid rgba(244,241,234,0.3); transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.3s ease; }
+  .fx-btn:hover { transform: translateY(-2px); border-color: var(--ink); }
+  .fx-btn-hot { background: var(--hot); border-color: var(--hot); color: #fff; box-shadow: 0 10px 40px -10px rgba(255,106,43,0.8); }
+  .fx-btn-hot:hover { border-color: var(--hot); box-shadow: 0 14px 50px -8px rgba(255,106,43,0.95); }
+
+  .fx-words > span > span { display: inline-block; opacity: 0; transform: translateY(0.4em); filter: blur(8px); transition: opacity 0.7s ease, transform 0.9s cubic-bezier(0.16,1,0.3,1), filter 0.7s ease; }
+  .fx-words.is-in > span > span { opacity: 1; transform: none; filter: blur(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fx-grain, .fx-tile, .fx-tile-bar::after, .fx-orbit-svg, .fx-ring, .fx-node em, .fx-core::before, .fx-close-glow, .fx-phone.is-fit, .fx-cue i { animation: none !important; }
+    .fx-rise { animation: none; opacity: 1; transform: none; filter: none; }
+    .fx-phase { filter: none !important; }
+  }
+`;

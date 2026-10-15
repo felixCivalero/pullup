@@ -13,7 +13,9 @@ export const DECK_PATH = "/#deck";
 export const MESSAGE = {
   promise: "Great people make great brands.",
   kicker: "We make them greater.",
-  deal: "You are the brand. We give you a clear direction, content that sounds like you and growth you can measure — for one price.",
+  // A goal isn't reached once, it's lived — and the journey is what people
+  // follow. "Post more" is really structure, alignment and consistency.
+  deal: "A goal isn't something you reach once. It's something you live. We help you live yours in public, every week — a clear direction, content that sounds like you and growth you can measure. One price.",
 };
 
 export const mailto = (subject) =>

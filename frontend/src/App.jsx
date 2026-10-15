@@ -60,8 +60,7 @@ import { LoadingScreen } from "./components/LoadingScreen.jsx";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
 const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
-const AdamFlamboStory = lazyPage(() => import("./pages/stories/AdamFlamboStory"));
-const CasePage = lazyPage(() => import("./pages/work/CasePage"));
+const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
 const CanvasBoardsPage = lazyPage(() => import("./pages/canvas/CanvasBoardsPage"));
 const CanvasBoardPage = lazyPage(() => import("./pages/canvas/CanvasBoardPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
@@ -162,8 +161,7 @@ function App() {
         {/* /start = the creator onboarding line: account → subscribe → build. */}
         <Route path="/start" element={<StartHostingPage />} />
         {/* Creator case study — Adam Flambo, real production data (see stories/). */}
-        <Route path="/work/adam-flambo" element={<AdamFlamboStory />} />
-        <Route path="/work/:slug" element={<CasePage />} />
+        <Route path="/work/:slug" element={<StoryRoute />} />
         <Route path="/booklet" element={<Navigate to="/#deck" replace />} />
         <Route path="/deck" element={<Navigate to="/#deck" replace />} />
         {/* Manifesto is internal now (docs/manifesto.md) — old links land home. */}

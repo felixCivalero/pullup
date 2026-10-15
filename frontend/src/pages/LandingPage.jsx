@@ -188,11 +188,11 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="01">{t("Where we've taken people")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">{t("We don't promise growth. We show it.")}</h2>
+            <h2 className="pc-h2 st-h2">{t("They didn't reach a goal. They lived it.")}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
-              {t("Every story starts with a person. They gain a clear voice and direction — and the business gets the numbers.")}
+              {t("Every story starts with a person living their goal as fully as they could at the time. People followed the journey — and the business got the numbers.")}
             </p>
           </Reveal>
           <div className="st-list">
@@ -208,7 +208,12 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="02">{t("How we take you there")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 hw-h2">{t("A clear direction. Then we scale.")}</h2>
+            <h2 className="pc-h2 hw-h2">{t("Live the goal. Sell the journey.")}</h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <p className="st-lede hw-lede">
+              {t("“Post more” is the wrong advice. What grows a brand is structure, alignment and consistency — expressing the goal you're living, a little every week, true to where you are right now. We set the direction, then scale what works.")}
+            </p>
           </Reveal>
           <EngineChart />
         </div>
@@ -452,6 +457,7 @@ ${STORY_CHART_CSS}
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
+  .hw-lede { max-width: 60ch; }
 ${ENGINE_CSS}
 ${TOOLKIT_CSS}
 

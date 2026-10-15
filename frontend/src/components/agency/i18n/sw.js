@@ -23,7 +23,6 @@ export const SW = {
   "views for STIGA in seven months": "watazamaji wa STIGA ndani ya miezi saba",
   "8 h → 30 min": "saa 8 → dakika 30",
   "per piece of content for Li Karlsén": "kwa kila kipande cha maudhui cha Li Karlsén",
-  "BKM Health community, zero paid spend": "jamii ya BKM Health, bila kulipia matangazo",
   "Sony Music": "Sony Music",
   "Adam Dawood, from zero to signed": "Adam Dawood, kutoka sifuri hadi mkataba",
 
@@ -82,7 +81,6 @@ export const SW = {
   // ─── cases (registry) ───
   "Brand · Sport": "Chapa · Michezo",
   "A heritage brand, growing on every channel.": "Chapa yenye historia ndefu, ikikua kwenye kila jukwaa.",
-  "A heritage brand with about 50 followers on Instagram.": "Chapa yenye historia ndefu na wafuasi takriban 50 kwenye Instagram.",
   "Put the people and the play at the centre, with Sebastian on their side.": "Tuliweka watu na mchezo katikati, Sebastian akiwa upande wao.",
   "Short-form video and posts in the sport's own voice, on four channels.": "Video fupi na machapisho kwa sauti ya mchezo wenyewe, kwenye majukwaa manne.",
   "28.1M views and +32,000 followers in seven months.": "Watazamaji milioni 28.1 na wafuasi +32,000 ndani ya miezi saba.",
@@ -104,9 +102,7 @@ export const SW = {
   "Two founders, Li and Tolga, with a vision and no audience.": "Waanzilishi wawili, Li na Tolga, wenye maono na bila hadhira.",
   "30-minute sprints with the founders instead of a marketing department.": "Vikao vya dakika 30 na waanzilishi badala ya idara ya masoko.",
   "Founder-led content in their own voice — and a community around it.": "Maudhui yanayoongozwa na waanzilishi kwa sauti yao wenyewe — na jamii inayoyazunguka.",
-  "10,000+ followers, built without a single paid ad.": "Wafuasi 10,000+, bila tangazo hata moja la kulipia.",
   "0 kr": "0 kr",
-  "paid spend": "kwa matangazo",
   "per sprint": "kwa kikao",
 
   "Creator · Music": "Mbunifu · Muziki",
@@ -367,8 +363,6 @@ export const SW = {
   "It doesn't need to be loud to be powerful. It just needs to be precise.": "Haihitaji kelele ili iwe na nguvu. Inahitaji tu usahihi.",
 
   // STIGA
-  "A global sports brand with decades of history — and about 50 followers on Instagram. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.":
-    "Chapa ya kimataifa ya michezo yenye historia ya miongo mingi — na wafuasi takriban 50 kwenye Instagram. Watu na mchezo walikuwepo tayari. Tuliwaweka katikati, kwa sauti ya mchezo wenyewe, na kila kipimo kikapanda.",
   "views across four channels": "watazamaji kwenye majukwaa manne",
   "The drag": "Kizuizi",
   "Great work, stuck behind the corporate wall.": "Kazi bora, iliyokwama nyuma ya ukuta wa kampuni.",
@@ -524,8 +518,6 @@ export const SW = {
   "Six people, six brands. Every story reads the same way: who we grew — and what the brand got.": "Watu sita, chapa sita. Kila hadithi inasomwa kwa njia moja: tulimkuza nani — na chapa ilipata nini.",
   "What the brand got": "Chapa ilipata nini",
   "8 hours became 30 minutes.": "Saa 8 zikawa dakika 30.",
-  "0 to 10k. No ads, no marketing team.": "Kutoka 0 hadi 10k. Bila matangazo, bila timu ya masoko.",
-  "From 50 followers to 28 million views.": "Kutoka wafuasi 50 hadi watazamaji milioni 28.",
   "A founder and elite freediver who learned to say it precisely, on camera.": "Mwanzilishi na mpiga mbizi bingwa aliyejifunza kusema kwa usahihi, mbele ya kamera.",
   "One piece of content now takes 30 minutes to make, not 8 hours.": "Kipande kimoja cha maudhui sasa kinachukua dakika 30, si saa 8.",
   "Two founders, Li and Tolga, became the faces of their own brand.": "Waanzilishi wawili, Li na Tolga, wakawa nyuso za chapa yao wenyewe.",
@@ -534,7 +526,6 @@ export const SW = {
   "A creator who started meeting his following in real life, one photo walk at a time.": "Mbunifu aliyeanza kukutana na wafuasi wake ana kwa ana, matembezi ya picha moja baada ya jingine.",
   "Our own team and artists, grown from an empty room in Stockholm.": "Timu yetu na wasanii wetu, waliokua kutoka chumba kitupu Stockholm.",
   "per piece of content": "kwa kila kipande cha maudhui",
-  "followers, 0 kr in ads": "wafuasi, kr 0 kwa matangazo",
   "views in seven months": "watazamaji ndani ya miezi saba",
   "from zero to signed": "kutoka sifuri hadi kusainiwa",
   "people pulled up, in real life": "watu walifika, ana kwa ana",
@@ -545,7 +536,6 @@ export const SW = {
   "Followers, start to now": "Wafuasi, mwanzo hadi sasa",
   "followers at the start": "wafuasi mwanzoni",
   "followers now": "wafuasi sasa",
-  "{#} kr paid spend": "kr {#} kwa matangazo",
   "Views per channel · Dec 2024 – Jun 2025": "Watazamaji kwa kila jukwaa · Des 2024 – Jun 2025",
   "The road, step by step": "Safari, hatua kwa hatua",
   "Zero": "Sifuri",

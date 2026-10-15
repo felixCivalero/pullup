@@ -23,7 +23,6 @@ export const SV = {
   "views for STIGA in seven months": "visningar för STIGA på sju månader",
   "8 h → 30 min": "8 h → 30 min",
   "per piece of content for Li Karlsén": "per innehåll för Li Karlsén",
-  "BKM Health community, zero paid spend": "BKM Healths community, noll i annonsbudget",
   "Sony Music": "Sony Music",
   "Adam Dawood, from zero to signed": "Adam Dawood, från noll till skivkontrakt",
 
@@ -82,7 +81,6 @@ export const SV = {
   // ─── cases (registry) ───
   "Brand · Sport": "Varumärke · Sport",
   "A heritage brand, growing on every channel.": "Ett anrikt varumärke som växer i alla kanaler.",
-  "A heritage brand with about 50 followers on Instagram.": "Ett anrikt varumärke med runt 50 följare på Instagram.",
   "Put the people and the play at the centre, with Sebastian on their side.": "Satte människorna och spelet i centrum, med Sebastian på deras sida.",
   "Short-form video and posts in the sport's own voice, on four channels.": "Kortvideo och inlägg med sportens egen röst, i fyra kanaler.",
   "28.1M views and +32,000 followers in seven months.": "28,1 miljoner visningar och +32 000 följare på sju månader.",
@@ -104,9 +102,7 @@ export const SV = {
   "Two founders, Li and Tolga, with a vision and no audience.": "Två grundare, Li och Tolga, med en vision och ingen publik.",
   "30-minute sprints with the founders instead of a marketing department.": "30-minuterssprintar med grundarna i stället för en marknadsavdelning.",
   "Founder-led content in their own voice — and a community around it.": "Grundarlett innehåll med deras egen röst – och en community runt det.",
-  "10,000+ followers, built without a single paid ad.": "10 000+ följare, byggt utan en enda betald annons.",
   "0 kr": "0 kr",
-  "paid spend": "i annonsbudget",
   "per sprint": "per sprint",
 
   "Creator · Music": "Kreatör · Musik",
@@ -367,8 +363,6 @@ export const SV = {
   "It doesn't need to be loud to be powerful. It just needs to be precise.": "Det behöver inte vara högljutt för att vara kraftfullt. Det behöver bara vara precist.",
 
   // STIGA
-  "A global sports brand with decades of history — and about 50 followers on Instagram. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.":
-    "Ett globalt sportvarumärke med årtionden av historia – och runt 50 följare på Instagram. Människorna och spelet fanns redan där. Vi satte dem i centrum, med sportens egen röst, och varje siffra rörde sig.",
   "views across four channels": "visningar i fyra kanaler",
   "The drag": "Bromsen",
   "Great work, stuck behind the corporate wall.": "Fantastiskt arbete, fast bakom koncernmuren.",
@@ -524,8 +518,6 @@ export const SV = {
   "Six people, six brands. Every story reads the same way: who we grew — and what the brand got.": "Sex människor, sex varumärken. Varje berättelse läses på samma sätt: vem vi fick att växa – och vad varumärket fick.",
   "What the brand got": "Vad varumärket fick",
   "8 hours became 30 minutes.": "8 timmar blev 30 minuter.",
-  "0 to 10k. No ads, no marketing team.": "0 till 10k. Inga annonser, ingen marknadsavdelning.",
-  "From 50 followers to 28 million views.": "Från 50 följare till 28 miljoner visningar.",
   "A founder and elite freediver who learned to say it precisely, on camera.": "En grundare och elitfridykare som lärde sig säga det precist, framför kameran.",
   "One piece of content now takes 30 minutes to make, not 8 hours.": "Ett innehåll tar nu 30 minuter att göra, inte 8 timmar.",
   "Two founders, Li and Tolga, became the faces of their own brand.": "Två grundare, Li och Tolga, blev ansiktena för sitt eget varumärke.",
@@ -534,7 +526,6 @@ export const SV = {
   "A creator who started meeting his following in real life, one photo walk at a time.": "En kreatör som började träffa sina följare på riktigt, en fotopromenad i taget.",
   "Our own team and artists, grown from an empty room in Stockholm.": "Vårt eget team och våra artister, framvuxna ur ett tomt rum i Stockholm.",
   "per piece of content": "per innehåll",
-  "followers, 0 kr in ads": "följare, 0 kr i annonser",
   "views in seven months": "visningar på sju månader",
   "from zero to signed": "från noll till signad",
   "people pulled up, in real life": "personer som dök upp, på riktigt",
@@ -545,7 +536,6 @@ export const SV = {
   "Followers, start to now": "Följare, från start till nu",
   "followers at the start": "följare i början",
   "followers now": "följare nu",
-  "{#} kr paid spend": "{#} kr i annonsbudget",
   "Views per channel · Dec 2024 – Jun 2025": "Visningar per kanal · dec 2024 – jun 2025",
   "The road, step by step": "Vägen, steg för steg",
   "Zero": "Noll",

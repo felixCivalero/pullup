@@ -5,9 +5,9 @@ import { CASE_TODAY as FLAMBO } from "../../pages/stories/adamFlamboData.js";
 // case page's "next case"). Order here = order everywhere.
 
 export const CONTACT = "hello@pullup.se";
-// The booklet: open page + the PDF printed from the same pages (docs/deck/build.mjs).
-export const DECK_PATH = "/booklet";
-export const DECK_PDF = "/the-production-core.pdf";
+// The booklet: by email only (DeckTeaser → /deck-downloads). The PDF lives in
+// backend/assets, printed by docs/deck/build.mjs; never served publicly.
+export const DECK_PATH = "/#deck";
 
 // The one message. Hero, services, booklet and meta all say it this way.
 export const MESSAGE = {

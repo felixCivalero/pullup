@@ -14,6 +14,16 @@ import { useT } from "./i18n.js";
 /* The frame every agency page sits in: tone-aware nav (Services · Booklet · Cases), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
    footer with every case linked. Pages pass their own CSS via `css`. */
+// The nav follows the landing page, in order — each link lands on its section
+// (from other pages via /#id). Narrow screens keep Results + Offer.
+const NAV = [
+  ["stories", "Results"],
+  ["services", "How we work", "pc-nav-wide"],
+  ["toolkit", "Toolkit", "pc-nav-wide"],
+  ["offer", "Offer"],
+  ["deck", "Booklet", "pc-nav-booklet"],
+];
+
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -115,24 +125,16 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <img src="/pullup-textlogo.svg" alt="PullUp" />
           </button>
           <div className="pc-nav-actions">
-            <button type="button" className="pc-nav-link" onClick={() => goSection("services", "nav_services")}>
-              {t("Services")}
-            </button>
-            <button
-              type="button"
-              className="pc-nav-link pc-nav-booklet"
-              aria-current={pathname === DECK_PATH ? "page" : undefined}
-              onClick={() => {
-                trackEvent("cta_click", { location: "nav_booklet" });
-                if (pathname === DECK_PATH) window.scrollTo({ top: 0, behavior: "smooth" });
-                else navigate(DECK_PATH);
-              }}
-            >
-              {t("Booklet")}
-            </button>
-            <button type="button" className="pc-nav-link" onClick={() => goSection("stories", "nav_cases")}>
-              {t("Cases")}
-            </button>
+            {NAV.map(([id, label, cls]) => (
+              <button
+                key={id}
+                type="button"
+                className={`pc-nav-link${cls ? ` ${cls}` : ""}`}
+                onClick={() => goSection(id, `nav_${id}`)}
+              >
+                {t(label)}
+              </button>
+            ))}
             <button
               type="button"
               className="pc-nav-signin"
@@ -184,8 +186,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
               href={DECK_PATH}
               onClick={(e) => {
                 e.preventDefault();
-                if (pathname === DECK_PATH) window.scrollTo({ top: 0, behavior: "smooth" });
-                else navigate(DECK_PATH);
+                goSection("deck", "footer_booklet");
               }}
             >
               {t("Booklet")}

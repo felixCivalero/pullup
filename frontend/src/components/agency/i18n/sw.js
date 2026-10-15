@@ -703,4 +703,13 @@ export const SW = {
   "Great people make great brands.": "Watu bora hujenga chapa bora.",
   "We make them greater.": "Tunawafanya kuwa bora zaidi.",
   "Founders, artists, the faces behind it. Thirty minutes a week becomes content, community and reach — with the numbers to show it.": "Waanzilishi, wasanii, nyuso nyuma yake. Dakika thelathini kwa wiki zinakuwa maudhui, jamii na ufikiaji — pamoja na takwimu za kuonyesha.",
+  "Results": "Matokeo",
+  "How we work": "Tunavyofanya kazi",
+  "Toolkit": "Zana",
+  "Offer": "Ofa",
+  "The booklet · by email": "Kijitabu · kwa barua pepe",
+  "Your email": "Barua pepe yako",
+  "Email me the booklet": "Nitumie kijitabu",
+  "On its way — check {email} for your copy.": "Kiko njiani — angalia {email} upate nakala yako.",
+  "One email with your copy. No lists, no spam.": "Barua pepe moja yenye nakala yako. Hakuna orodha, hakuna barua taka.",
 };

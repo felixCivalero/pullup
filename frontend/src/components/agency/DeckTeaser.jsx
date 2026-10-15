@@ -1,25 +1,56 @@
-import { useNavigate } from "react-router-dom";
-import { ArrowDown, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Check } from "lucide-react";
+import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
-import { DECK_PATH, DECK_PDF } from "./agencyData.js";
+import { CONTACT } from "./agencyData.js";
+import { requestMeta } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 import { useT } from "./i18n.js";
 
-/* The booklet, open: read it on /booklet or take the PDF. No email gate. */
+/* The booklet, by email only: leave an address → POST /deck-downloads mints a
+   personal link and emails it. It is not readable on the site and the PDF is
+   never public (backend/assets, streamed via /deck/:token). */
 export function DeckTeaser({ source = "landing" }) {
-  const navigate = useNavigate();
   const t = useT();
-  const open = (e) => {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState("idle"); // idle | sending | done | error
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
     e.preventDefault();
-    trackEvent("cta_click", { location: `deck_teaser_${source}` });
-    navigate(DECK_PATH);
+    if (state === "sending") return;
+    setState("sending");
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/deck-downloads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, deck: "production-core", source: `booklet_${source}`, meta: requestMeta() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setError(
+          {
+            invalid_email: t("That email doesn't look right."),
+            rate_limited: t("Too many tries — give it a minute."),
+          }[data.error] || t("Something went wrong. Try again, or email {email}.", { email: CONTACT }),
+        );
+        setState("error");
+        return;
+      }
+      trackEvent("deck_requested", { source });
+      setState("done");
+    } catch {
+      setError(t("Couldn't reach us. Check your connection and try again."));
+      setState("error");
+    }
   };
 
   return (
     <section id="deck" className="pc-section pc-rule pc-deck" data-pc-section="deck" data-pc-order="85">
       <div className="pc-wrap pc-deck-in">
         <div className="pc-deck-copy">
-          <p className="pc-label">{t("The booklet · open")}</p>
+          <p className="pc-label">{t("The booklet · by email")}</p>
           <Reveal>
             <h2 className="pc-h2">{t("Where do we want to go — and who do we need to be to get there?")}</h2>
           </Reveal>
@@ -28,28 +59,40 @@ export function DeckTeaser({ source = "landing" }) {
               {t("Getting there isn't a plan you finish — it's a decision you take every day: who we are. A brand is held by many people, so that decision has to be taken together. The booklet shows how one system aligns them, from a founder to a global brand.")}
             </p>
           </Reveal>
-          <div className="pc-deck-actions">
-            <a className="pc-btn pc-btn-dark" href={DECK_PATH} onClick={open}>
-              {t("Read the booklet")}
-              <ArrowRight size={18} strokeWidth={1.75} />
-            </a>
-            <a
-              className="pc-btn pc-btn-line"
-              href={DECK_PDF}
-              download="The Production Core - PullUp booklet.pdf"
-              onClick={() => trackEvent("deck_download", { source })}
-            >
-              PDF
-              <ArrowDown size={18} strokeWidth={1.75} />
-            </a>
-          </div>
+          {state === "done" ? (
+            <p className="pc-deck-done" role="status">
+              <Check size={18} strokeWidth={2.25} />
+              {t("On its way — check {email} for your copy.", { email })}
+            </p>
+          ) : (
+            <form className="pc-deck-form" onSubmit={submit} noValidate>
+              <label className="pc-deck-field">
+                <span className="pc-sr">{t("Email")}</span>
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  required
+                  placeholder={t("Your email")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <button type="submit" className="pc-btn pc-btn-dark" disabled={state === "sending"}>
+                {state === "sending" ? t("Sending…") : t("Email me the booklet")}
+                <ArrowRight size={18} strokeWidth={1.75} />
+              </button>
+              {state === "error" && <p className="pc-deck-err" role="alert">{error}</p>}
+            </form>
+          )}
+          <p className="pc-deck-fine">{t("One email with your copy. No lists, no spam.")}</p>
         </div>
 
-        <a href={DECK_PATH} onClick={open} className="pc-deck-stack" aria-label={t("Read the booklet")}>
+        <div className="pc-deck-stack" aria-hidden="true">
           <img src="/deck-preview/system.webp" alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
           <img src="/deck-preview/who.webp" alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
           <img src="/deck-preview/cover.webp" alt="" className="pc-deck-slide s1" loading="lazy" decoding="async" />
-        </a>
+        </div>
       </div>
     </section>
   );

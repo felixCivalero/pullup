@@ -703,4 +703,13 @@ export const SV = {
   "Great people make great brands.": "Bra människor bygger bra varumärken.",
   "We make them greater.": "Vi gör dem ännu större.",
   "Founders, artists, the faces behind it. Thirty minutes a week becomes content, community and reach — with the numbers to show it.": "Grundare, artister, ansiktena bakom. Trettio minuter i veckan blir innehåll, community och räckvidd – med siffrorna som visar det.",
+  "Results": "Resultat",
+  "How we work": "Så jobbar vi",
+  "Toolkit": "Verktyg",
+  "Offer": "Erbjudande",
+  "The booklet · by email": "Häftet · via e-post",
+  "Your email": "Din e-post",
+  "Email me the booklet": "Mejla mig häftet",
+  "On its way — check {email} for your copy.": "På väg – kolla {email} efter ditt exemplar.",
+  "One email with your copy. No lists, no spam.": "Ett mejl med ditt exemplar. Inga listor, ingen spam.",
 };

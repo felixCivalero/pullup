@@ -18,7 +18,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const DECKS = {
   "production-core": {
     file: path.join(here, "../../assets/the-production-core.pdf"),
-    filename: "The Production Core - PullUp.pdf",
+    filename: "The Production Core - PullUp booklet.pdf",
     title: "The Production Core",
   },
 };
@@ -64,7 +64,7 @@ function deckEmail({ name, url, title }) {
         Here is your copy. It starts where personal development starts — where do we want to go, and how do we get there — and lands on the answer: by deciding who we are, every day. A brand is held by many people, so that decision is taken together. That is the alignment.
       </p>
       <p style="margin:0 0 28px;">
-        <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 24px;border-radius:999px;">Download the deck (PDF)</a>
+        <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 24px;border-radius:999px;">Download the booklet (PDF)</a>
       </p>
       <p style="font-size:14px;line-height:1.6;color:rgba(0,0,0,0.55);margin:0 0 6px;">Want the engine built, or run for you? Just reply to this email.</p>
       <p style="font-size:13px;line-height:1.6;color:rgba(0,0,0,0.45);margin:22px 0 0;">— PullUp · pullup.se</p>
@@ -101,15 +101,16 @@ export function registerDeckDownloadRoutes(app) {
       }
 
       const url = `${publicApiBase()}/deck/${data.token}`;
-      // Best-effort — the on-page download never waits on email.
+      // The booklet is email-only: the emailed link is the one way in.
       sendEmail({
         to: email,
-        subject: `${DECKS[deck].title} — your copy`,
+        subject: `${DECKS[deck].title} — your booklet`,
         html: deckEmail({ name: row.name, url, title: DECKS[deck].title }),
         idempotencyKey: `deck:${deck}:${email}:${new Date().toISOString().slice(0, 10)}`,
       }).catch((err) => logger?.warn?.("[deck] email failed", { error: err?.message }));
 
-      return res.json({ ok: true, token: data.token });
+      // The link only travels by email — the page never gets the token.
+      return res.json({ ok: true });
     } catch (err) {
       logger?.error?.("[deck] error", { error: err?.message });
       return res.status(500).json({ ok: false, error: "failed" });

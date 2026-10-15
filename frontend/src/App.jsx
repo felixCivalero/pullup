@@ -62,7 +62,6 @@ const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage")
 const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
 const AdamFlamboStory = lazyPage(() => import("./pages/stories/AdamFlamboStory"));
 const CasePage = lazyPage(() => import("./pages/work/CasePage"));
-const DeckPage = lazyPage(() => import("./pages/deck/DeckPage"));
 const CanvasBoardsPage = lazyPage(() => import("./pages/canvas/CanvasBoardsPage"));
 const CanvasBoardPage = lazyPage(() => import("./pages/canvas/CanvasBoardPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
@@ -165,8 +164,8 @@ function App() {
         {/* Creator case study — Adam Flambo, real production data (see stories/). */}
         <Route path="/work/adam-flambo" element={<AdamFlamboStory />} />
         <Route path="/work/:slug" element={<CasePage />} />
-        <Route path="/booklet" element={<DeckPage />} />
-        <Route path="/deck" element={<Navigate to="/booklet" replace />} />
+        <Route path="/booklet" element={<Navigate to="/#deck" replace />} />
+        <Route path="/deck" element={<Navigate to="/#deck" replace />} />
         {/* Manifesto is internal now (docs/manifesto.md) — old links land home. */}
         <Route path="/manifesto" element={<Navigate to="/" replace />} />
         {/* Planning canvas — boards for content meetings (login; share links open one board). */}

@@ -23,7 +23,7 @@ import { useT } from "../components/agency/i18n.js";
    scoreboard (one number per story), then the stories — each one a headline,
    person → brand, and a chart of its real numbers (agencyData SERIES) —
    then what you get → the toolkit, pulled in as needed → the one offer
-   ($3,000/month) → why → booklet. */
+   ($3,000/month) → why → booklet (by email). */
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -130,7 +130,6 @@ function StoryCard({ story }) {
 }
 
 function AgencyPage() {
-  const navigate = useNavigate();
   const t = useT();
   const toStories = () => {
     trackEvent("cta_click", { location: "hero_stories" });
@@ -253,45 +252,6 @@ function AgencyPage() {
 
       <DeckTeaser source="landing" />
 
-      {/* ─── CLOSE ─── */}
-      <section id="start" className="pc-section pc-dark cl" data-pc-tone="dark" data-pc-section="close" data-pc-order="90">
-        <div className="pc-wrap">
-          <Reveal>
-            <h2 className="pc-h2 pc-h2-xl cl-h2">{t("Your brand could be the next story.")}</h2>
-          </Reveal>
-          <Reveal delay={0.06}>
-            <p className="cl-lede">
-              {t("We take on a few brands and creators at a time. Tell us who you are and where you want to go.")}
-            </p>
-          </Reveal>
-          <Reveal delay={0.12}>
-            <div className="cl-cta">
-              <button
-                type="button"
-                className="pc-btn pc-btn-light"
-                onClick={() => {
-                  trackEvent("cta_click", { location: "close_conversation" });
-                  openRequest({ source: "close" });
-                }}
-              >
-                {t("Start a conversation")}
-                <ArrowRight size={18} strokeWidth={1.75} />
-              </button>
-              <a
-                className="pc-btn pc-btn-ghost"
-                href="/start"
-                onClick={(e) => {
-                  e.preventDefault();
-                  trackEvent("cta_click", { location: "close_host" });
-                  navigate("/start");
-                }}
-              >
-                {t("Host on PullUp")}
-              </a>
-            </div>
-          </Reveal>
-        </div>
-      </section>
     </>
   );
 }
@@ -516,11 +476,6 @@ ${STORY_CHART_CSS}
 ${ENGINE_CSS}
 ${TOOLKIT_CSS}
 
-  /* ─── close ─── */
-  .cl-h2 { max-width: 14ch; }
-  .cl-lede { margin-top: 24px; max-width: 48ch; font-size: clamp(17px, 1.6vw, 20px); line-height: 1.55; color: rgba(255,255,255,0.7); }
-  .cl-cta { margin-top: clamp(28px, 4vw, 44px); display: flex; flex-wrap: wrap; gap: 12px; }
-
   /* ─── phone ─── */
   @media (max-width: 640px) {
     .pc-hero { padding: clamp(88px, 13vh, 112px) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
@@ -538,7 +493,6 @@ ${TOOLKIT_CSS}
     .st-card { border-radius: 18px; }
     .st-title { font-size: clamp(30px, 8.6vw, 40px); }
     .st-pb dd { font-size: 16px; }
-    .cl-cta .pc-btn { width: 100%; }
   }
 
   /* ─── short screens (small laptops, iPhone SE): keep the brand band above the fold ─── */

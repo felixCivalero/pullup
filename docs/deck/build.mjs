@@ -1,7 +1,7 @@
-// Prints the booklet to PDF from the same source the open /booklet page renders:
+// Prints the booklet to PDF from its single source:
 // frontend/src/pages/deck/slides.html + deck.css → A-series portrait pages.
-// Writes frontend/public/the-production-core.pdf (the open download) and
-// backend/assets/the-production-core.pdf (older emailed /deck/:token links).
+// Writes ONLY the private copy (the booklet is email-gated; never public) —
+// backend/assets/the-production-core.pdf, streamed via emailed /deck/:token links.
 // Needs Playwright: `npx playwright install chromium`.
 // Usage: node docs/deck/build.mjs [--png <dir>]   (--png also writes page previews)
 import { chromium } from "playwright";
@@ -15,7 +15,7 @@ const deckDir = path.join(fe, "src/pages/deck");
 const publicUrl = pathToFileURL(path.join(fe, "public")).href;
 const slides = fs.readFileSync(path.join(deckDir, "slides.html"), "utf8").replaceAll('src="/', `src="${publicUrl}/`);
 const css = fs.readFileSync(path.join(deckDir, "deck.css"), "utf8");
-const outs = [path.join(fe, "public/the-production-core.pdf"), path.join(here, "../../backend/assets/the-production-core.pdf")];
+const outs = [path.join(here, "../../backend/assets/the-production-core.pdf")];
 const pngIdx = process.argv.indexOf("--png");
 const pngDir = pngIdx > -1 ? process.argv[pngIdx + 1] : null;
 

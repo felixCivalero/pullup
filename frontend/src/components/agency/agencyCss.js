@@ -152,6 +152,7 @@ export const AGENCY_CSS = `
     text-decoration: none; opacity: 0.8; transition: opacity 0.2s ease;
   }
   .pc-nav-link:hover, .pc-nav-link[aria-current="page"] { opacity: 1; }
+  @media (max-width: 1180px) { .pc-nav-wide { display: none; } }
 
   .pc-eyebrow {
     font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
@@ -324,7 +325,18 @@ export const AGENCY_CSS = `
   @media (min-width: 960px) { .pc-deck-in { grid-template-columns: 6fr 5fr; } }
   .pc-deck .pc-h2 { max-width: 16ch; margin-bottom: 24px; }
   .pc-deck-lede { font-size: clamp(18px, 1.6vw, 20px); line-height: 1.55; color: #333; max-width: 52ch; }
-  .pc-deck-actions { margin-top: clamp(32px, 4vw, 44px); display: flex; flex-wrap: wrap; gap: 12px; }
+  .pc-deck-form { margin-top: clamp(28px, 4vw, 40px); display: flex; flex-wrap: wrap; gap: 10px; max-width: 560px; }
+  .pc-deck-field { flex: 1 1 240px; display: flex; }
+  .pc-deck-field input {
+    width: 100%; min-height: 54px; padding: 0 20px; border-radius: 999px;
+    border: 1px solid #000; background: #fff; color: #000; font: inherit; font-size: 16px;
+  }
+  .pc-deck-field input:focus { outline: 2px solid #D9480F; outline-offset: 2px; }
+  .pc-deck-err { flex-basis: 100%; font-size: 14px; color: #B83C0B; }
+  .pc-deck-done { margin-top: clamp(28px, 4vw, 40px); display: inline-flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 999px; background: #000; color: #fff; font-size: 16px; font-weight: 500; }
+  .pc-deck-done svg { color: #D9480F; }
+  .pc-deck-fine { margin-top: 14px; font-size: 13px; color: var(--pc-grey); }
+  .pc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* the booklet, fanned: three portrait pages */
   .pc-deck-stack { position: relative; aspect-ratio: 5 / 4.4; display: block; }
   .pc-deck-slide {
@@ -336,8 +348,6 @@ export const AGENCY_CSS = `
   .pc-deck-slide.s1 { left: 8%; z-index: 3; transform: rotate(-6deg); }
   .pc-deck-slide.s2 { left: 27%; z-index: 2; transform: rotate(1deg); }
   .pc-deck-slide.s3 { left: 46%; z-index: 1; transform: rotate(8deg); }
-  .pc-deck-stack:hover .s1 { transform: rotate(-10deg) translateX(-6px); }
-  .pc-deck-stack:hover .s3 { transform: rotate(13deg) translateX(10px); }
 
   /* ─── story frame: spine (Start → Result) + the all-stories rail ─── */
   .pc-spine {

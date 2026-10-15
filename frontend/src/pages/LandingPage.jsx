@@ -11,7 +11,7 @@ import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { StoryMark } from "../components/agency/CaseNav.jsx";
-import { MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
+import { MESSAGE, SERIES, casePath } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
 import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
 import { Toolkit, TOOLKIT_CSS } from "../components/agency/Toolkit.jsx";
@@ -88,7 +88,7 @@ function SectionLabel({ n, children }) {
 function StoryCard({ story }) {
   const navigate = useNavigate();
   const t = useT();
-  const { slug, color, kicker, name, title, person, brand, chart } = story;
+  const { slug, color, kicker, name, title, who, gained, brand, chart } = story;
   return (
     <Reveal delay={0.04}>
       <article id={`story-${slug}`} className="st-card" style={{ "--sc": color }}>
@@ -100,11 +100,15 @@ function StoryCard({ story }) {
         <div className="st-body">
           <dl className="st-pb">
             <div className="st-pb-row">
-              <dt>{t("The person")}</dt>
-              <dd>{t(person)}</dd>
+              <dt>{t("Who")}</dt>
+              <dd>{t(who)}</dd>
+            </div>
+            <div className="st-pb-row is-gain">
+              <dt>{t("What they gained")}</dt>
+              <dd>{t(gained)}</dd>
             </div>
             <div className="st-pb-row is-brand">
-              <dt>{t("What the brand got")}</dt>
+              <dt>{t("The payoff")}</dt>
               <dd>{t(brand)}</dd>
             </div>
           </dl>
@@ -142,7 +146,7 @@ function AgencyPage() {
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
-            <p className="pc-eyebrow">{t("For brands and creators · Stockholm · Nairobi")}</p>
+            <p className="pc-eyebrow">{t("For founders who are the brand · Stockholm · Nairobi")}</p>
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="pc-hero-h">{t(MESSAGE.promise)} <span>{t(MESSAGE.kicker)}</span></h1>
@@ -190,7 +194,7 @@ function AgencyPage() {
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
-              {t(`${storyCountWord} people. ${storyCountWord} brands. And the numbers to prove it.`)}
+              {t("Every story starts with a person. They gain a clear voice and direction — and the business gets the numbers.")}
             </p>
           </Reveal>
           <div className="st-list">
@@ -430,7 +434,9 @@ const STYLES = `
   .st-pb { margin: 0; display: grid; gap: 0; }
   .st-pb-row { position: relative; padding: 0 0 22px 28px; }
   .st-pb-row::before { content: ""; position: absolute; left: 5px; top: 6px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #000; background: #fff; }
-  .st-pb-row:first-child::after { content: ""; position: absolute; left: 10px; top: 20px; bottom: 2px; width: 2px; background: linear-gradient(#000, var(--sc)); }
+  .st-pb-row:not(:last-child)::after { content: ""; position: absolute; left: 10px; top: 20px; bottom: 2px; width: 2px; background: linear-gradient(#000, var(--sc)); }
+  .st-pb-row.is-gain::before { border-color: var(--sc); }
+  .st-pb-row.is-gain dd { color: #000; font-weight: 500; }
   .st-pb-row.is-brand { padding-bottom: 0; }
   .st-pb-row.is-brand::before { border-color: var(--sc); background: var(--sc); }
   .st-pb dt { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pc-grey); }

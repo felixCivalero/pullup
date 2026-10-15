@@ -47,7 +47,7 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Weekly sprint")}</b>{t("30 minutes with you")}</p>
+        <p className="en-k"><b>{t("The 30-minute sprint")}</b>{t("Every week, with you")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}><span className="en-meet">30</span></li>

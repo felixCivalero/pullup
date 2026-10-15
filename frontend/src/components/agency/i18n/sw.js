@@ -753,4 +753,13 @@ export const SW = {
   "How we take you there": "Jinsi tunavyokufikisha huko",
   "What we build along the way": "Tunachojenga njiani",
   "${#} a month. Everything included.": "${#} kwa mwezi. Kila kitu kimejumuishwa.",
+  "Every tool is included. Content is scoped together — quality over volume.": "Kila zana imejumuishwa. Maudhui tunayapanga pamoja — ubora kuliko wingi.",
+  "The 30-minute sprint, every week — direction and scripts for your content": "Kikao cha dakika 30 kila wiki — mwelekeo na miswada ya maudhui yako",
+  "Editing and production, scoped together — made by you, your team or us": "Uhariri na uzalishaji, tunaopanga pamoja — unafanywa na wewe, timu yako au sisi",
+  "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month.": "Tunapanga pamoja, kamwe si bila kikomo. Kwa BKM ilimaanisha hadi vipande viwili vilivyohaririwa kwa wiki na siku ya uzalishaji takriban mara moja kwa mwezi.",
+  "You are the brand. We give you a clear direction, content that sounds like you and growth you can measure — for one price.": "Wewe ndiye chapa. Tunakupa mwelekeo ulio wazi, maudhui yanayosikika kama wewe na ukuaji unaoweza kupimwa — kwa bei moja.",
+  "${#} a month. No tiers, no add-ons.": "${#} kwa mwezi. Hakuna ngazi, hakuna nyongeza.",
+  "Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels.": "Mkakati, kikao cha kila wiki na kila zana nyuma yake — programu, dashibodi, ufuatiliaji. Maudhui yanapangwa kulingana na kile kinachosogeza chapa yako kweli, si idadi fulani ya reels.",
+  "Scoped together — you, your team or us": "Tunapanga pamoja — wewe, timu yako au sisi",
+  "Scoped together": "Tunapanga pamoja",
 };

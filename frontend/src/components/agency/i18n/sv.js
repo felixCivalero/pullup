@@ -715,4 +715,13 @@ export const SV = {
   "How we take you there": "Så tar vi dig dit",
   "What we build along the way": "Det vi bygger på vägen",
   "${#} a month. Everything included.": "${#} i månaden. Allt ingår.",
+  "Every tool is included. Content is scoped together — quality over volume.": "Alla verktyg ingår. Innehållet planerar vi tillsammans – kvalitet före volym.",
+  "The 30-minute sprint, every week — direction and scripts for your content": "30-minuterssprinten, varje vecka – riktning och manus för ditt innehåll",
+  "Editing and production, scoped together — made by you, your team or us": "Redigering och produktion, planerat tillsammans – gjort av dig, ditt team eller oss",
+  "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month.": "Planeras tillsammans, aldrig obegränsat. För BKM betydde det upp till två redigerade inlägg i veckan och en produktionsdag ungefär en gång i månaden.",
+  "You are the brand. We give you a clear direction, content that sounds like you and growth you can measure — for one price.": "Du är varumärket. Vi ger dig en tydlig riktning, innehåll som låter som du och tillväxt du kan mäta – för ett pris.",
+  "${#} a month. No tiers, no add-ons.": "${#} i månaden. Inga nivåer, inga tillägg.",
+  "Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels.": "Strategi, veckosprinten och alla verktyg bakom – appar, dashboards, spårning. Innehållet anpassas efter det som faktiskt flyttar ditt varumärke, inte efter en kvot reels.",
+  "Scoped together — you, your team or us": "Planeras tillsammans – du, ditt team eller vi",
+  "Scoped together": "Planeras tillsammans",
 };

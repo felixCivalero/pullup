@@ -10,8 +10,9 @@ import { Reveal } from "./Reveal.jsx";
    Counts and the curve are a shape, not a forecast — no numbers, and it says so. */
 
 const WEEKS = 12;
-// Pieces per week (more as it gets easier) and who made each one.
-const PIECES = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5];
+// Pieces per week — realistic, never a quota (BKM ran up to two a week) — and
+// who made each one.
+const PIECES = [1, 1, 1, 2, 1, 2, 2, 1, 2, 2, 2, 2];
 const MAKERS = ["us", "you", "team", "us", "team", "you"];
 const maker = (w, j) => MAKERS[(w * 2 + j) % MAKERS.length];
 const K = 3.2; // curve steepness
@@ -56,7 +57,7 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Production")}</b>{t("You, your team or us")}</p>
+        <p className="en-k"><b>{t("Production")}</b>{t("Scoped together")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}>
@@ -108,7 +109,7 @@ export function EngineChart() {
 
 export const ENGINE_CSS = `
   .en {
-    --en-k: 150px;
+    --en-k: 186px;
     margin-top: clamp(8px, 1vw, 16px);
     border: 1px solid var(--pc-black); border-radius: 20px;
     padding: clamp(20px, 3vw, 36px);

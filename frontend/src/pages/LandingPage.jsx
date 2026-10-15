@@ -229,8 +229,8 @@ function AgencyPage() {
         id="offer"
         source="landing"
         chapter={["04", "One offer"]}
-        heading="$3,000 a month. Everything included."
-        sub="Strategy, content and growth — and every tool behind it: apps, dashboards, tracking. One price, no add-ons. What we build depends on your need and direction."
+        heading="$3,000 a month. No tiers, no add-ons."
+        sub="Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels."
       />
 
       <DeckTeaser source="landing" />

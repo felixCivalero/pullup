@@ -13,7 +13,7 @@ export const DECK_PATH = "/#deck";
 export const MESSAGE = {
   promise: "Great people make great brands.",
   kicker: "We make them greater.",
-  deal: "You are the brand. We give you a clear direction, content on every channel and growth you can measure — for one price.",
+  deal: "You are the brand. We give you a clear direction, content that sounds like you and growth you can measure — for one price.",
 };
 
 export const mailto = (subject) =>
@@ -29,10 +29,11 @@ export const OFFER = {
   label: "One offer",
   price: "$3,000",
   cadence: "/ month",
-  line: "Everything is included. What we build follows your need and direction.",
+  line: "Every tool is included. Content is scoped together — quality over volume.",
   includes: [
     "Brand strategy and direction",
-    "The 30-minute sprint, every week — production by you, your team or us",
+    "The 30-minute sprint, every week — direction and scripts for your content",
+    "Editing and production, scoped together — made by you, your team or us",
     "Growth on every channel — Instagram, TikTok, YouTube, Facebook",
     "Community, events and CRM on PullUp",
     "Tracking and dashboards — every piece measured",
@@ -40,6 +41,7 @@ export const OFFER = {
   ],
   terms: [
     ["First 3 months", "A trust period. Full scope, $3,000 a month, no commitment."],
+    ["Content", "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month."],
     ["After that", "Commit to continue. The longer the commitment, the lower the monthly rate."],
   ],
   cta: "Build with us",

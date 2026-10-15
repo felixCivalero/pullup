@@ -1,4 +1,4 @@
-import { CASE_STATS as FLAMBO, CASE_TIMELINE as FLAMBO_WALKS } from "../../pages/stories/adamFlamboData.js";
+import { CASE_TODAY as FLAMBO } from "../../pages/stories/adamFlamboData.js";
 
 // The agency's single sources of truth: contact, the offer, and the case
 // registry every surface links from (landing work index, nav, footer, each
@@ -171,18 +171,18 @@ export const CASES = [
     name: "BKM Health",
     kicker: "Brand · Health",
     color: "#B7791F",
-    title: "0 to 10k. No ads, no marketing team.",
+    title: "0 to 10k without a marketing team.",
     person: "Two founders, Li and Tolga, became the faces of their own brand.",
-    brand: "10,000+ followers, built without a single paid ad.",
-    score: ["10,000+", "followers, 0 kr in ads"],
-    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "0 kr paid spend" },
+    brand: "10,000+ followers, built by the founders themselves.",
+    score: ["10,000+", "followers, from zero"],
+    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"] },
     spine: {
       start: "Two founders, Li and Tolga, with a vision and no audience.",
       did: "30-minute sprints with the founders instead of a marketing department.",
       made: "Founder-led content in their own voice — and a community around it.",
-      result: "10,000+ followers, built without a single paid ad.",
+      result: "10,000+ followers, built by the founders themselves.",
     },
-    stats: [["10,000+", "followers"], ["0 kr", "paid spend"], ["30 min", "per sprint", true]],
+    stats: [["10,000+", "followers"], ["30 min", "per sprint"]],
   },
   {
     slug: "stiga",
@@ -231,15 +231,15 @@ export const CASES = [
     title: "A following became a community.",
     person: "A creator who started meeting his following in real life, one photo walk at a time.",
     brand: `${FLAMBO.pulledUnique} people pulled up. ${FLAMBO.community} in his community.`,
-    score: [String(FLAMBO.pulledUnique), "people pulled up, in real life"],
-    chart: { type: "walks", rows: FLAMBO_WALKS.map((w) => [w.vol, w.pulled]) },
+    score: [String(FLAMBO.community), "people in his community"],
+    chart: { type: "walks", rows: FLAMBO.events },
     spine: {
       start: "A creator with a following online and no way to meet it.",
       did: "Moved his events and his community onto PullUp — owned by him.",
-      made: `${FLAMBO.walks} photo walks, a private room of ${FLAMBO.photos} credited photos, a printed journal.`,
+      made: `${FLAMBO.events.length} events, a private room of the community's own photos, a printed journal.`,
       result: `${FLAMBO.pulledUnique} people pulled up. ${FLAMBO.community} in his community.`,
     },
-    stats: [[String(FLAMBO.walks), "events hosted"], [String(FLAMBO.pulledUnique), "people pulled up"], [String(FLAMBO.community), "in his community", true]],
+    stats: [[String(FLAMBO.events.length), "events hosted"], [String(FLAMBO.pulledUnique), "people pulled up"], [String(FLAMBO.community), "in his community", true]],
     image: "/stories/adam-hero.jpg",
   },
   {
@@ -248,18 +248,18 @@ export const CASES = [
     name: "Kaijas Musiksalong",
     kicker: "Our own · Live music, Stockholm",
     color: "#DB2777",
-    title: "We did it for ourselves first.",
-    person: "Our own team and artists, grown from an empty room in Stockholm.",
-    brand: "Live music four nights a week. 10,000+ followers.",
-    score: ["4 nights", "of live music, every week"],
-    chart: { type: "week", on: 4, note: "10,000+ Instagram followers" },
+    title: "Booked three months ahead.",
+    person: "The people behind it were the core — our team and our artists made Kaijas an experience you couldn't get anywhere else.",
+    brand: "A brand built until the room was booked three months in advance.",
+    score: ["3 months", "booked in advance"],
+    chart: { type: "ahead", months: 3, note: "Live music four nights a week" },
     spine: {
       start: "An empty room in Stockholm.",
-      did: "Built the brand, the programme, the people and the systems to run it.",
-      made: "Instagram as the front door, plus our own booking system and dashboard.",
-      result: "Live music four nights a week. 10,000+ followers.",
+      did: "Built the brand around the people behind it — the team and the artists.",
+      made: "A unique live-music experience, with Instagram as the front door and our own booking system behind it.",
+      result: "Booked three months in advance.",
     },
-    stats: [["4 nights", "of live music a week"], ["10,000+", "Instagram followers"], ["Built in-house", "booking system and operations dashboard", true]],
+    stats: [["3 months", "booked in advance"], ["4 nights", "of live music a week"], ["10,000+", "Instagram followers", true]],
   },
 ];
 

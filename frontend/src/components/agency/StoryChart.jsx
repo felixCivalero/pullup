@@ -91,13 +91,13 @@ function Walks({ rows }) {
   const max = Math.max(...rows.map((r) => r[1]));
   return (
     <figure className="sc">
-      <figcaption className="sc-cap">{t("People who pulled up, per photo walk")}</figcaption>
+      <figcaption className="sc-cap">{t("People who pulled up, per event")}</figcaption>
       <div className="sc-cols">
         {rows.map(([vol, n], i) => (
           <div key={vol} className="sc-col is-hot">
             <span className="sc-col-v">{n}</span>
             <span className="sc-col-bar" style={{ "--h": n / max, "--i": i }} />
-            <span className="sc-col-l">{t("Vol.")} {vol}</span>
+            <span className="sc-col-l">{t(vol)}</span>
           </div>
         ))}
       </div>
@@ -105,23 +105,26 @@ function Walks({ rows }) {
   );
 }
 
-function Week({ on, note }) {
+function Ahead({ months, note }) {
   const t = useT();
   return (
     <figure className="sc">
-      <figcaption className="sc-cap">{t("Nights of live music, every week")}</figcaption>
-      <div className="sc-week">
-        {Array.from({ length: 7 }, (_, i) => (
-          <span key={i} className={`sc-night${i < on ? " is-hot" : ""}`} style={{ "--i": i }} />
+      <figcaption className="sc-cap">{t("The calendar, from today")}</figcaption>
+      <div className="sc-ahead">
+        <span className="sc-today">{t("Today")}</span>
+        {Array.from({ length: months }, (_, i) => (
+          <span key={i} className="sc-month" style={{ "--i": i }}>
+            <span className="sc-month-k">{t("Month {n}", { n: i + 1 })}</span>
+            <span className="sc-month-v">{t("Booked")}</span>
+          </span>
         ))}
-        <span className="sc-week-v">{on} / 7</span>
       </div>
       {note && <p className="sc-note">{t(note)}</p>}
     </figure>
   );
 }
 
-const CHARTS = { time: Time, grow: Grow, channels: Channels, path: Path, walks: Walks, week: Week };
+const CHARTS = { time: Time, grow: Grow, channels: Channels, path: Path, walks: Walks, ahead: Ahead };
 
 export function StoryChart({ chart }) {
   const C = chart && CHARTS[chart.type];
@@ -178,27 +181,31 @@ export const STORY_CHART_CSS = `
   .sc-path-l { font-size: 13px; color: #444; }
   .sc-path li.is-hot .sc-path-l { font-size: 15px; font-weight: 700; color: var(--sc); }
 
-  .sc-week { display: flex; align-items: center; gap: 8px; }
-  .sc-night {
-    flex: 1; height: 56px; border-radius: 10px; background: #f0f0ee;
-    transform: scaleY(0.2); transform-origin: bottom; opacity: 0;
-    transition: transform 0.7s cubic-bezier(0.16,1,0.3,1) calc(0.25s + var(--i) * 0.08s), opacity 0.4s ease calc(0.25s + var(--i) * 0.08s);
+  .sc-ahead { display: flex; align-items: stretch; gap: 6px; }
+  .sc-today { align-self: center; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--pc-grey); border-left: 2px solid #000; padding-left: 6px; }
+  .sc-month {
+    flex: 1; display: grid; align-content: space-between; gap: 18px; min-height: 92px;
+    padding: 12px 12px 14px; border-radius: 12px; background: var(--sc); color: #fff;
+    transform: scaleX(0); transform-origin: left; opacity: 0;
+    transition: transform 0.8s cubic-bezier(0.16,1,0.3,1) calc(0.25s + var(--i) * 0.2s), opacity 0.4s ease calc(0.25s + var(--i) * 0.2s);
   }
-  .sc-night.is-hot { background: var(--sc); }
-  .sc-week-v { margin-left: 8px; font-size: 22px; font-weight: 600; letter-spacing: -0.03em; color: var(--sc); white-space: nowrap; }
+  .sc-month-k { font-size: 12px; font-weight: 500; opacity: 0.8; }
+  .sc-month-v { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
 
   .pc-reveal.is-in .sc-bar { transform: scaleX(1); }
   .pc-reveal.is-in .sc-col-bar { transform: scaleY(1); }
   .pc-reveal.is-in .sc-dot { transform: scale(1); }
-  .pc-reveal.is-in .sc-night { transform: none; opacity: 1; }
+  .pc-reveal.is-in .sc-month { transform: none; opacity: 1; }
   @media (prefers-reduced-motion: reduce) {
-    .sc-bar, .sc-col-bar, .sc-dot, .sc-night { transition: none; transform: none; opacity: 1; }
+    .sc-bar, .sc-col-bar, .sc-dot, .sc-month { transition: none; transform: none; opacity: 1; }
   }
   @media (max-width: 640px) {
     .sc-hrow { grid-template-columns: 72px 1fr auto; gap: 10px; }
     .sc-cols { gap: 6px; }
     .sc-path-l { font-size: 11px; }
     .sc-path li.is-hot .sc-path-l { font-size: 13px; }
-    .sc-night { height: 44px; border-radius: 8px; }
+    .sc-month { min-height: 76px; padding: 10px; }
+    .sc-month-v { font-size: 15px; }
+    .sc-col-l { font-size: 10px; }
   }
 `;

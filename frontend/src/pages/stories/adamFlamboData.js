@@ -13,6 +13,21 @@ export const CASE_STATS = {
   "joined": "2026-05-21"
 };
 
+// Where Adam is today — prod snapshot 2026-10-15 (the case page above keeps the
+// first six walks as its story). community = his Room's people count
+// (pullup_host_world_people_count: everyone who RSVP'd or joined); pulledUnique =
+// unique people with a pull-up across his published events; events = published
+// events with pull-ups, in order, with how many pulled up at each.
+export const CASE_TODAY = {
+  asOf: "2026-10-15",
+  community: 364,
+  pulledUnique: 180,
+  events: [
+    ["02", 41], ["03", 43], ["04", 19], ["05", 29], ["05B", 22], ["06", 38],
+    ["Park", 21], ["07", 42], ["Paper", 34], ["08", 50],
+  ],
+};
+
 export const CASE_TIMELINE = [
   {
     "vol": "02",

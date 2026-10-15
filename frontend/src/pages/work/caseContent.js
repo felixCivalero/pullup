@@ -201,8 +201,8 @@ export const CASE_CONTENT = {
   },
 
   kaijas: {
-    sub: "Before we did this for anyone else, we did it for ourselves. We took an empty room in Stockholm and built a live-music venue — the brand, the programme, the people, and the systems to run it.",
-    heroStat: { v: "4 nights", l: "of live music, every week" },
+    sub: "Before we did this for anyone else, we did it for ourselves. We took an empty room in Stockholm and built a live-music venue around the people behind it — and kept building the brand until the room was booked three months in advance.",
+    heroStat: { v: "3 months", l: "booked in advance" },
     blocks: [
       {
         type: "chapter",
@@ -221,11 +221,11 @@ export const CASE_CONTENT = {
         items: [
           { k: "01", t: "The brand", b: "A name, a look and a voice for a live-music salon in Stockholm." },
           { k: "02", t: "The programme", b: "Live music four nights a week." },
-          { k: "03", t: "The people", b: "The room is the musicians, the staff and the guests who come back." },
+          { k: "03", t: "The people", b: "The core of it all. The musicians, the staff and the guests who come back made it an experience you couldn't get anywhere else." },
           { k: "04", t: "The systems", b: "Our own booking system and operations dashboard, built in-house." },
         ],
       },
-      { type: "statement", text: "Instagram became the front door. Guests found us there — and booked." },
+      { type: "statement", text: "Instagram became the front door. Guests found us there — and booked us three months ahead." },
       {
         type: "chapter",
         n: "02",

@@ -9,6 +9,7 @@ import { Reveal } from "./Reveal.jsx";
 // you get) and the end of every case page.
 export function AgencyOffer({
   id,
+  chapter, // [n, label] — renders the landing chapter opener
   source = "landing",
   heading = "Your brand could be the next story.",
   sub = "We take on a few brands and creators at a time. Your daily work and your vision are already the best material you have — we turn them into content that grows.",
@@ -24,6 +25,12 @@ export function AgencyOffer({
       data-pc-order="90"
     >
       <div className="pc-wrap">
+        {chapter && (
+          <p className="ch-label">
+            <span className="ch-n">{chapter[0]}</span>
+            <span className="ch-l">{t(chapter[1])}</span>
+          </p>
+        )}
         <Reveal>
           <h2 className="pc-h2 pc-h2-xl">{t(heading)}</h2>
         </Reveal>

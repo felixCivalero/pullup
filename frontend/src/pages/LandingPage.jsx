@@ -18,12 +18,10 @@ import { Toolkit, TOOLKIT_CSS } from "../components/agency/Toolkit.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
-/* The public front door. One message (MESSAGE): great people make great
-   brands — we make them greater. Readable without reading: the hero's three-step flow, a coloured
-   scoreboard (one number per story), then the stories — each one a headline,
-   person → brand, and a chart of its real numbers (agencyData SERIES) —
-   then what you get → the toolkit, pulled in as needed → the one offer
-   ($3,000/month) → why → booklet (by email). */
+/* The public front door. One offer, one path. Each chapter answers the
+   visitor's next question: is this for me (hero) → have they done it (01
+   where we've taken people) → how would it work for me (02) → what can you
+   build (03) → what does it cost (04 one offer) → booklet by email. */
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -146,7 +144,7 @@ function AgencyPage() {
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
-            <p className="pc-eyebrow">{t("For founders who are the brand · Stockholm · Nairobi")}</p>
+            <p className="pc-eyebrow">{t("For solo founders, artists and small brands · Stockholm · Nairobi")}</p>
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="pc-hero-h">{t(MESSAGE.promise)} <span>{t(MESSAGE.kicker)}</span></h1>
@@ -188,7 +186,7 @@ function AgencyPage() {
       {/* ─── THE STORIES ─── */}
       <section id="stories" className="pc-section ch-1" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">{t("The results")}</SectionLabel>
+          <SectionLabel n="01">{t("Where we've taken people")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 st-h2">{t("We don't promise growth. We show it.")}</h2>
           </Reveal>
@@ -208,7 +206,7 @@ function AgencyPage() {
       {/* ─── WHAT YOU GET ─── */}
       <section id="services" className="pc-section ch-2" data-pc-section="services" data-pc-order="4">
         <div className="pc-wrap">
-          <SectionLabel n="02">{t("How we got there")}</SectionLabel>
+          <SectionLabel n="02">{t("How we take you there")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 hw-h2">{t("A clear direction. Then we scale.")}</h2>
           </Reveal>
@@ -219,7 +217,7 @@ function AgencyPage() {
       {/* ─── THE TOOLKIT ─── */}
       <section id="toolkit" className="pc-section ch-3" data-pc-tone="dark" data-pc-section="toolkit" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="03">{t("The toolkit")}</SectionLabel>
+          <SectionLabel n="03">{t("What we build along the way")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 tk-h2">{t("Everything we can build. Pulled in when you need it.")}</h2>
           </Reveal>
@@ -230,29 +228,10 @@ function AgencyPage() {
       <AgencyOffer
         id="offer"
         source="landing"
-        heading="One offer. $3,000 a month."
+        chapter={["04", "One offer"]}
+        heading="$3,000 a month. Everything included."
         sub="Strategy, content and growth — and every tool behind it: apps, dashboards, tracking. One price, no add-ons. What we build depends on your need and direction."
       />
-
-      {/* ─── WHY IT WORKS ─── */}
-      <section id="why" className="pc-section ch-4" data-pc-section="why" data-pc-order="5">
-        <div className="pc-wrap">
-          <SectionLabel n="04">{t("Why it works")}</SectionLabel>
-          <Reveal>
-            <h2 className="pc-h2 pc-h2-xl wy-h2">
-              {t("The strongest brands aren't invented.")} <span>{t("They're revealed.")}</span>
-            </h2>
-          </Reveal>
-          <Reveal delay={0.06}>
-            <p className="wy-lede">
-              {t("Every brand already has a self. Most just haven't been allowed to express it. We don't build you a persona. We help you become what you already are, out loud and without compromise, until people can feel it.")}
-            </p>
-          </Reveal>
-          <Reveal>
-            <p className="wy-close">{t("Not marketing.")} <span>{t("Becoming.")}</span></p>
-          </Reveal>
-        </div>
-      </section>
 
       <DeckTeaser source="landing" />
 
@@ -287,7 +266,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "toolkit", "#toolkit": "toolkit", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "offer", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "toolkit", "#toolkit": "toolkit", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -467,15 +446,9 @@ ${STORY_CHART_CSS}
   .ch-2 .ch-n { color: #D9480F; }
   .ch-3 { background: #D9480F; color: #fff; }
   .ch-3 .pc-h2 { color: #fff; }
-  .ch-4 { background: #E9ECEF; }
-  .ch-4 .ch-n { color: #D9480F; }
+  .pc-close .ch-n { color: #D9480F; }
   .tk-h2 { max-width: 20ch; }
 
-  /* ─── why it works ─── */
-  .wy-h2 { max-width: 16ch; }
-  .wy-h2 span, .wy-close span { color: #D9480F; }
-  .wy-lede { margin-top: clamp(28px, 4vw, 44px); max-width: 52ch; font-size: clamp(19px, 1.9vw, 24px); line-height: 1.45; letter-spacing: -0.01em; }
-  .wy-close { margin-top: clamp(40px, 6vw, 72px); font-size: clamp(28px, 4vw, 52px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }

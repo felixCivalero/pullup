@@ -709,4 +709,10 @@ export const SV = {
   "An artist with a sound, a world and nobody listening yet.": "En artist med ett sound, en egen värld – och ingen som lyssnade än.",
   "An identity built around who he actually is, rolled out step by step.": "En identitet byggd kring den han faktiskt är, lanserad steg för steg.",
   "Faces he knows instead of followers — and a community that's his.": "Ansikten han känner i stället för följare – och en community som är hans egen.",
+  "For solo founders, artists and small brands · Stockholm · Nairobi": "För soloföretagare, artister och mindre varumärken · Stockholm · Nairobi",
+  "You are the brand. We give you a clear direction, content on every channel and growth you can measure — for one price.": "Du är varumärket. Vi ger dig en tydlig riktning, innehåll i alla kanaler och tillväxt du kan mäta – för ett pris.",
+  "Where we've taken people": "Dit vi har tagit människor",
+  "How we take you there": "Så tar vi dig dit",
+  "What we build along the way": "Det vi bygger på vägen",
+  "${#} a month. Everything included.": "${#} i månaden. Allt ingår.",
 };

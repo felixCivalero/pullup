@@ -747,4 +747,10 @@ export const SW = {
   "An artist with a sound, a world and nobody listening yet.": "Msanii mwenye mtindo wake na ulimwengu wake — lakini bado hakuna aliyekuwa akisikiliza.",
   "An identity built around who he actually is, rolled out step by step.": "Utambulisho uliojengwa kuzunguka yeye ni nani hasa, ukizinduliwa hatua kwa hatua.",
   "Faces he knows instead of followers — and a community that's his.": "Nyuso anazozijua badala ya wafuasi tu — na jamii iliyo yake mwenyewe.",
+  "For solo founders, artists and small brands · Stockholm · Nairobi": "Kwa wajasiriamali binafsi, wasanii na chapa ndogo · Stockholm · Nairobi",
+  "You are the brand. We give you a clear direction, content on every channel and growth you can measure — for one price.": "Wewe ndiye chapa. Tunakupa mwelekeo ulio wazi, maudhui kwenye kila jukwaa na ukuaji unaoweza kupimwa — kwa bei moja.",
+  "Where we've taken people": "Tulikowafikisha watu",
+  "How we take you there": "Jinsi tunavyokufikisha huko",
+  "What we build along the way": "Tunachojenga njiani",
+  "${#} a month. Everything included.": "${#} kwa mwezi. Kila kitu kimejumuishwa.",
 };

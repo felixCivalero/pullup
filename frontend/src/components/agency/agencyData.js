@@ -13,7 +13,7 @@ export const DECK_PATH = "/#deck";
 export const MESSAGE = {
   promise: "Great people make great brands.",
   kicker: "We make them greater.",
-  deal: "Founders and owner-operators carry the brand. Thirty minutes a week becomes content, community and sales — with the numbers to show it.",
+  deal: "You are the brand. We give you a clear direction, content on every channel and growth you can measure — for one price.",
 };
 
 export const mailto = (subject) =>

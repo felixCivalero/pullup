@@ -39,15 +39,15 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Direction")}</b>{t("Set first, in everything")}</p>
+        <p className="en-k"><b>{t("Brand strategy")}</b>{t("Defined in weeks 1–2")}</p>
         <div className="en-dir">
-          <span className="en-dir-set">{t("Strategy")}</span>
-          <span className="en-dir-flow">{t("flows into everything the brand does")}</span>
+          <span className="en-dir-set">{t("Positioning & direction")}</span>
+          <span className="en-dir-flow">{t("Governs every channel, decision and piece of content")}</span>
         </div>
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Sprint")}</b>{t("30 min a week")}</p>
+        <p className="en-k"><b>{t("Weekly sprint")}</b>{t("30 minutes with you")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}><span className="en-meet">30</span></li>
@@ -56,7 +56,7 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Content")}</b>{t("Made by anyone")}</p>
+        <p className="en-k"><b>{t("Production")}</b>{t("You, your team or us")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}>
@@ -69,7 +69,7 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Measured")}</b>{t("Every piece")}</p>
+        <p className="en-k"><b>{t("Performance")}</b>{t("Every piece measured")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}>
@@ -85,11 +85,11 @@ export function EngineChart() {
         <li><i className="is-you" />{t("You")}</li>
         <li><i className="is-team" />{t("Your team")}</li>
         <li><i className="is-us" />{t("Us")}</li>
-        <li><i className="is-m" />{t("Read for growth")}</li>
+        <li><i className="is-m" />{t("Measured")}</li>
       </ul>
 
       <div className="en-row en-row-grow">
-        <p className="en-k"><b>{t("Your brand")}</b>{t("Scales")}</p>
+        <p className="en-k"><b>{t("Brand growth")}</b>{t("Scaled on what performs")}</p>
         <div className="en-curve">
           <svg viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true">
             <defs>
@@ -106,8 +106,8 @@ export function EngineChart() {
       </div>
 
       <div className="en-foot">
-        <span className="en-trust">{t("Weeks 1–12 · the trust period — full work, no commitment")}</span>
-        <span className="en-note">{t("The curve is the shape, not a forecast.")}</span>
+        <span className="en-trust">{t("Weeks 1–12 · trust period — full scope, no commitment")}</span>
+        <span className="en-note">{t("Illustrative — not a forecast.")}</span>
       </div>
     </Reveal>
   );
@@ -152,7 +152,7 @@ export const ENGINE_CSS = `
   .en-content i.is-you, .en-legend i.is-you { background: #000; }
   .en-content i.is-team, .en-legend i.is-team { background: #9a9a96; }
   .en-measure i, .en-legend i.is-m { width: 9px; height: 9px; border-radius: 50%; background: none; border: 2px solid #0E9384; }
-  .en-dir { flex: 1; margin-left: var(--en-k); display: grid; grid-template-columns: 2fr 10fr; gap: 6px; align-items: center; }
+  .en-dir { flex: 1; margin-left: var(--en-k); display: grid; grid-template-columns: 3fr 9fr; gap: 6px; align-items: center; }
   .en-dir-set {
     height: 32px; border-radius: 8px; background: #D9480F; color: #fff;
     display: grid; place-items: center; font-size: 13px; font-weight: 600;
@@ -204,9 +204,11 @@ export const ENGINE_CSS = `
     .en-meet { height: 22px; border-radius: 5px; font-size: 10px; }
     .en-content { gap: 1px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
     .en-content i { width: 4px; height: 12px; border-radius: 1px; }
-    .en-measure i { width: 5px; height: 5px; border-width: 1.5px; }
-    .en-dir { margin-left: 0; grid-template-columns: 3fr 7fr; }
-    .en-dir-set, .en-dir-flow { height: 28px; font-size: 11px; }
+    .en-measure i { width: 4px; height: 4px; border: 0; background: #0E9384; }
+    .en-dir { margin-left: 0; grid-template-columns: 1fr; gap: 4px; }
+    .en-dir-set, .en-dir-flow { height: 28px; font-size: 12px; }
+    .en-dir-set { justify-self: start; padding: 0 12px; }
+    .en-curve-tag { top: 6px; left: 8px; right: auto; transform: none; font-size: 12px; }
     .en-dir-flow::after { display: none; }
     .en-legend { margin-left: 0; margin-top: 8px; }
     .en-row-grow { min-height: 0; }

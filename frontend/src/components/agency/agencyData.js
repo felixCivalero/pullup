@@ -22,14 +22,6 @@ export const FLOW = [
   ["The brand", "Grows, measured"],
 ];
 
-// What a client gets from the core, in the words a CMO plans with.
-export const OUTPUT = [
-  { when: "First", t: "A clear direction", b: "Strategy and identity, set together — then carried into everything the brand does." },
-  { when: "Every week", t: "Content anyone can make", b: "With the direction clear, you, your team or we can create — in one voice." },
-  { when: "Every piece", t: "Measured for growth", b: "Every piece is read for what moved people, and that steers the next one." },
-  { when: "Then", t: "We scale", b: "What works goes out on every channel — Instagram, TikTok, YouTube and Facebook." },
-]
-
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 

@@ -11,7 +11,7 @@ import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Superpowers } from "../components/agency/Superpowers.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { StoryMark } from "../components/agency/CaseNav.jsx";
-import { BASE_MONTHLY, FLOW, MESSAGE, OUTPUT, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
+import { BASE_MONTHLY, FLOW, MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
 import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
 import { openRequest } from "../components/agency/request.js";
@@ -211,17 +211,6 @@ function AgencyPage() {
             <h2 className="pc-h2 hw-h2">{t("A clear direction. Then we scale.")}</h2>
           </Reveal>
           <EngineChart />
-          <ul className="og-grid">
-            {OUTPUT.map((o, i) => (
-              <li key={o.t}>
-                <Reveal delay={i * 0.06} className="og-cell">
-                  <span className="og-when">{t(o.when)}</span>
-                  <b>{t(o.t)}</b>
-                  <span className="og-b">{t(o.b)}</span>
-                </Reveal>
-              </li>
-            ))}
-          </ul>
           <Reveal className="hw-cta">
             <div>
               <p className="hw-cta-k">{t("Start with the core")}</p>
@@ -546,14 +535,6 @@ ${STORY_CHART_CSS}
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
-  .og-grid { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 640px) { .og-grid { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 1000px) { .og-grid { grid-template-columns: repeat(4, 1fr); } }
-  .og-grid > li, .og-cell { height: 100%; }
-  .og-cell { display: grid; align-content: start; gap: 6px; border-radius: 18px; background: #f3f3f1; padding: 20px 20px 22px; }
-  .og-when { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #D9480F; }
-  .og-cell b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
-  .og-b { font-size: 14px; line-height: 1.5; color: #444; }
 ${ENGINE_CSS}
 
   .hw-cta {
@@ -596,7 +577,7 @@ ${ENGINE_CSS}
     .st-card { border-radius: 18px; }
     .st-title { font-size: clamp(30px, 8.6vw, 40px); }
     .st-pb dd { font-size: 16px; }
-    .og-cell, .hw-cta { border-radius: 16px; }
+    .hw-cta { border-radius: 16px; }
     .hw-cta-actions { flex-direction: column; }
     .cl-cta .pc-btn { width: 100%; }
   }

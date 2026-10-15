@@ -14,7 +14,7 @@ import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
 import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
-import { TalentPath, TALENT_CSS } from "../components/agency/TalentPath.jsx";
+import { Toolkit, TOOLKIT_CSS } from "../components/agency/Toolkit.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
@@ -22,7 +22,7 @@ import { useT } from "../components/agency/i18n.js";
    the brand. Readable without reading: the hero's three-step flow, a coloured
    scoreboard (one number per story), then the stories — each one a headline,
    person → brand, and a chart of its real numbers (agencyData SERIES) —
-   then what you get → the talent pulled in as needed → the one offer
+   then what you get → the toolkit, pulled in as needed → the one offer
    ($3,000/month) → why → booklet. */
 
 const scrollToId = (id) =>
@@ -73,11 +73,13 @@ function LogoBand() {
   );
 }
 
+// Chapter opener: a big number + name on a heavy rule, so every numbered
+// section reads as its own chapter (each also has its own ground, .ch-N).
 function SectionLabel({ n, children }) {
   return (
-    <p className="pc-label">
-      <span>{n}</span>
-      {children}
+    <p className="ch-label">
+      <span className="ch-n">{n}</span>
+      <span className="ch-l">{children}</span>
     </p>
   );
 }
@@ -181,7 +183,7 @@ function AgencyPage() {
       </section>
 
       {/* ─── THE STORIES ─── */}
-      <section id="stories" className="pc-section" data-pc-section="stories" data-pc-order="3">
+      <section id="stories" className="pc-section ch-1" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
           <SectionLabel n="01">{t("The stories")}</SectionLabel>
           <Reveal>
@@ -201,7 +203,7 @@ function AgencyPage() {
       </section>
 
       {/* ─── WHAT YOU GET ─── */}
-      <section id="services" className="pc-section pc-rule" data-pc-section="services" data-pc-order="4">
+      <section id="services" className="pc-section ch-2" data-pc-section="services" data-pc-order="4">
         <div className="pc-wrap">
           <SectionLabel n="02">{t("What you get")}</SectionLabel>
           <Reveal>
@@ -211,19 +213,14 @@ function AgencyPage() {
         </div>
       </section>
 
-      {/* ─── THE TALENT ─── */}
-      <section id="talent" className="pc-section pc-rule" data-pc-section="talent" data-pc-order="5">
+      {/* ─── THE TOOLKIT ─── */}
+      <section id="toolkit" className="pc-section ch-3" data-pc-tone="dark" data-pc-section="toolkit" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="03">{t("The talent")}</SectionLabel>
+          <SectionLabel n="03">{t("The toolkit")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 tp-h2">{t("The right people, the moment your brand needs them.")}</h2>
+            <h2 className="pc-h2 tk-h2">{t("Everything we can build. Pulled in when you need it.")}</h2>
           </Reveal>
-          <Reveal delay={0.06}>
-            <p className="tp-lede">
-              {t("Behind PullUp is a deep bench of specialists — strategists, filmmakers, designers, developers, data people. We don't staff you up in advance. When your direction calls for something, we pull in exactly who's needed and build it. So the infrastructure keeps growing with the brand.")}
-            </p>
-          </Reveal>
-          <TalentPath />
+          <Toolkit />
         </div>
       </section>
 
@@ -235,7 +232,7 @@ function AgencyPage() {
       />
 
       {/* ─── WHY IT WORKS ─── */}
-      <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="5">
+      <section id="why" className="pc-section ch-4" data-pc-section="why" data-pc-order="5">
         <div className="pc-wrap">
           <SectionLabel n="04">{t("Why it works")}</SectionLabel>
           <Reveal>
@@ -326,7 +323,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "talent", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "toolkit", "#toolkit": "toolkit", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -489,16 +486,34 @@ const STYLES = `
   .st-link:hover svg { transform: translateX(4px); }
 ${STORY_CHART_CSS}
 
+  /* ─── chapters: each numbered section has its own ground ─── */
+  .ch-label {
+    display: flex; align-items: flex-end; gap: 18px;
+    border-top: 3px solid currentColor; padding-top: 18px;
+    margin-bottom: clamp(36px, 5vw, 64px);
+  }
+  .ch-n { font-size: clamp(64px, 9vw, 128px); font-weight: 600; line-height: 0.78; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+  .ch-l { padding-bottom: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+  .ch-1 { background: #fff; }
+  .ch-1 .ch-n { color: #D9480F; }
+  .ch-2 { background: #F3EFE7; }
+  .ch-2 .ch-n { color: #D9480F; }
+  .ch-3 { background: #D9480F; color: #fff; }
+  .ch-3 .pc-h2 { color: #fff; }
+  .ch-4 { background: #E9ECEF; }
+  .ch-4 .ch-n { color: #D9480F; }
+  .tk-h2 { max-width: 20ch; }
+
   /* ─── why it works ─── */
   .wy-h2 { max-width: 16ch; }
-  .wy-h2 span, .wy-close span { color: rgba(255,255,255,0.45); }
+  .wy-h2 span, .wy-close span { color: #D9480F; }
   .wy-lede { margin-top: clamp(28px, 4vw, 44px); max-width: 52ch; font-size: clamp(19px, 1.9vw, 24px); line-height: 1.45; letter-spacing: -0.01em; }
   .wy-close { margin-top: clamp(40px, 6vw, 72px); font-size: clamp(28px, 4vw, 52px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
 ${ENGINE_CSS}
-${TALENT_CSS}
+${TOOLKIT_CSS}
 
   /* ─── close ─── */
   .cl-h2 { max-width: 14ch; }

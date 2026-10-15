@@ -9,8 +9,8 @@ import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* /fit — the optional, animated landing. One argument told while you scroll:
-   virality can't be copied from a clip; it comes from the fit between a
-   person and what they make. Every scene is a tall section with a sticky
+   people look at the clip; what lands is the fit between a person and what
+   they make — trends included. Every scene is a tall section with a sticky
    stage; scroll progress (0–1) drives it. Research is cited; anything drawn
    to explain an idea is marked as an illustration. Numbers are the real
    case numbers from agencyData. */
@@ -216,11 +216,11 @@ function Hero() {
       <div className="fx-hero-in">
         <p className="fx-mono fx-rise" style={{ "--d": "0.1s" }}>{t("PullUp · A study in fit")}</p>
         <h1 className="fx-h1">
-          <span className="fx-rise" style={{ "--d": "0.3s" }}>{t("Everyone studies what went viral.")}</span>
-          <span className="fx-rise fx-glow" style={{ "--d": "0.9s" }}>{t("Nobody can copy who made it.")}</span>
+          <span className="fx-rise" style={{ "--d": "0.3s" }}>{t("Everyone looks at the clip.")}</span>
+          <span className="fx-rise fx-glow" style={{ "--d": "0.9s" }}>{t("We look at the person behind it.")}</span>
         </h1>
         <p className="fx-hero-sub fx-rise" style={{ "--d": "1.4s" }}>
-          {t("Five minutes of scrolling. One argument about where virality actually comes from.")}
+          {t("Trends, formats, hooks — they all work when they fit who you are. Five minutes of scrolling on why.")}
         </p>
       </div>
       <div className="fx-cue fx-rise" style={{ "--d": "1.8s" }} aria-hidden="true">
@@ -231,9 +231,9 @@ function Hero() {
   );
 }
 
-/* ── 01 · The copy ──────────────────────────────────────────────────────
-   A wall of clips, each from someone's life. As you scroll, one by one they
-   turn into the same template. */
+/* ── 01 · The clip ──────────────────────────────────────────────────────
+   A wall of clips seen as formats — the sound, the hook, the cut. As you
+   scroll, one by one they open up to the life behind them. */
 const PHOTOS = [
   "/stories/stiga/arena.jpg", "/stories/bkm/big-blue.jpg", "/stories/kaijas/crowd.jpg", "/stories/dawood/studio.jpg",
   "/stories/li/sunburst.jpg", "/stories/adam-hero.jpg", "/stories/stiga/paddle-blue.jpg", "/stories/bkm/moon-jelly.jpg",
@@ -244,31 +244,33 @@ const PHOTOS = [
 ];
 const TILES = 36;
 
-// The trend everyone copies: no person in it, just the format.
-function Template({ hook = true }) {
+// A clip seen only as its format: no person in it, just the hook.
+const HOOKS = ["wait for it…", "POV:", "day in my life", "3 things nobody tells you"];
+const FORMATS = ["Trending sound", "Hook in 2 seconds", "Jump cut", "POV"];
+function Template({ hook = HOOKS[0] }) {
   const t = useT();
   return (
     <span className="fx-tmpl" aria-hidden="true">
       <i className="fx-tmpl-blob" />
-      {hook && <em>{t("wait for it…")}</em>}
+      {hook && <em>{t(hook)}</em>}
     </span>
   );
 }
 
-function Copy() {
+function Clip() {
   const t = useT();
   const [ref, p] = useScene();
-  const turn = seg(p, 0.22, 0.78);
+  const open = seg(p, 0.3, 0.85);
   return (
-    <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_copy" data-pc-order="10">
+    <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_clip" data-pc-order="10">
       <div className="fx-stage">
         <div className="fx-wall" style={{ transform: `perspective(1400px) rotateX(${22 - p * 10}deg) translateY(${-p * 6}%) scale(${1 + p * 0.08})` }}>
           {Array.from({ length: TILES }, (_, i) => {
-            const copied = turn > 0.04 + rnd(i, 9) * 0.92;
+            const format = open < 0.04 + rnd(i, 9) * 0.92;
             return (
-              <div key={i} className={`fx-tile${copied ? " is-copy" : ""}`} style={{ "--i": i }}>
-                {copied ? <Template /> : <img src={PHOTOS[i % PHOTOS.length]} alt="" loading="lazy" decoding="async" />}
-                <span className="fx-tile-cap">{copied ? t("POV: the same trend") : t("Someone's life")}</span>
+              <div key={i} className={`fx-tile${format ? " is-format" : " is-life"}`} style={{ "--i": i }}>
+                {format ? <Template hook={HOOKS[i % HOOKS.length]} /> : <img src={PHOTOS[i % PHOTOS.length]} alt="" loading="lazy" decoding="async" />}
+                {format && <span className="fx-tile-cap">{t(FORMATS[i % FORMATS.length])}</span>}
                 <span className="fx-tile-bar" />
               </div>
             );
@@ -276,76 +278,23 @@ function Copy() {
         </div>
         <div className="fx-copy-veil" />
         <div className="fx-copy-text">
-          <p className="fx-mono">01 · {t("The copy")}</p>
+          <p className="fx-mono">01 · {t("The clip")}</p>
           <Phases
             p={p}
             className="fx-big"
             lines={[
-              [0, 0.3, t("Every clip starts as someone's life.")],
-              [0.3, 0.62, t("Then one goes viral — and everyone studies it.")],
-              [0.62, 1, t("Same sound. Same cut. Same hook. Different results.")],
+              [0, 0.32, t("What everyone sees: the sound, the hook, the cut.")],
+              [0.32, 0.64, t("But a clip is only the last fifteen seconds of something much longer.")],
+              [0.64, 1, t("Behind every one that lands, there's a person living something real.")],
             ]}
           />
-          <p className="fx-count fx-mono" aria-hidden="true">
-            {Math.round(turn * 100)}% {t("copies")}
-          </p>
         </div>
       </div>
     </section>
   );
 }
 
-/* ── 02 · The experiment ────────────────────────────────────────────────
-   MusicLab: the same songs released into separate worlds produced different
-   hits. Drawn as an illustration of the design, not the study's data. */
-const WORLDS = 8;
-const SONGS = 12;
-const WINNERS = [3, 9, 0, 6, 11, 2, 7, 5];
-
-function Experiment() {
-  const t = useT();
-  const [ref, p] = useScene();
-  const grow = seg(p, 0.12, 0.55);
-  const win = seg(p, 0.45, 0.8);
-  return (
-    <section ref={ref} className="fx-scene fx-exp" style={{ height: "300vh" }} data-pc-section="fit_experiment" data-pc-order="20">
-      <div className="fx-stage fx-stage-split">
-        <div className="fx-copyblock">
-          <p className="fx-mono">02 · {t("The experiment")}</p>
-          <Phases
-            p={p}
-            className="fx-mid"
-            lines={[
-              [0, 0.4, t("Researchers released the same 48 songs into eight separate worlds.")],
-              [0.4, 0.72, t("Same songs. Same quality. Each world crowned a different hit.")],
-              [0.72, 1, t("A hit is partly an accident of who saw it first. You can't reverse-engineer an accident.")],
-            ]}
-          />
-          <p className="fx-cite">
-            {t("Salganik, Dodds & Watts, Science (2006). The bars illustrate the design — they are not the study's data.")}
-          </p>
-        </div>
-        <div className="fx-worlds" aria-hidden="true">
-          {Array.from({ length: WORLDS }, (_, w) => (
-            <div key={w} className="fx-world" style={{ "--w": w }}>
-              <span className="fx-mono fx-world-k">{t("World")} {w + 1}</span>
-              <div className="fx-bars">
-                {Array.from({ length: SONGS }, (_, s) => {
-                  const isWin = s === WINNERS[w];
-                  const base = 0.12 + rnd(s * 31 + w, 2) * 0.32;
-                  const h = isWin ? base * grow + (1 - base) * win : base * grow;
-                  return <i key={s} className={isWin && win > 0.15 ? "is-win" : ""} style={{ height: `${Math.max(3, h * 100)}%` }} />;
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── 03 · The moments ───────────────────────────────────────────────────
+/* ── 02 · The moments ───────────────────────────────────────────────────
    A life in seasons. Each season leaves moments; the one that lands can come
    from any of them. The point isn't posting more — it's living each season
    and learning to capture it while you're in it. */
@@ -364,7 +313,7 @@ function Moments() {
   return (
     <section ref={ref} className="fx-scene fx-moments" style={{ height: "300vh" }} data-pc-section="fit_moments" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">03 · {t("The moments")}</p>
+        <p className="fx-mono">02 · {t("The moments")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
@@ -406,7 +355,7 @@ function Moments() {
   );
 }
 
-/* ── 04 · The turn ──────────────────────────────────────────────────────
+/* ── 03 · The turn ──────────────────────────────────────────────────────
    FORMAT collapses into FIT. Then the same trend twice: forced, and fitting. */
 function Turn() {
   const t = useT();
@@ -417,7 +366,7 @@ function Turn() {
   return (
     <section ref={ref} className="fx-scene fx-turn" style={{ height: "300vh" }} data-pc-section="fit_turn" data-pc-order="40">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono" style={{ opacity: 1 - phones }}>04 · {t("The turn")}</p>
+        <p className="fx-mono" style={{ opacity: 1 - phones }}>03 · {t("The turn")}</p>
         <div className="fx-word" aria-label={m > 0.5 ? "FIT" : "FORMAT"} style={{ transform: `translateY(${-phones * 18}vh) scale(${1 - phones * 0.45})` }}>
           <span>F</span>
           {mid.map((c) => (
@@ -453,7 +402,7 @@ function Turn() {
   );
 }
 
-/* ── 05 · The person ────────────────────────────────────────────────────
+/* ── 04 · The person ────────────────────────────────────────────────────
    A person at the center, their life in orbit. Content leaves the orbit as
    you scroll: it's where who they are shows. */
 const ORBIT = ["Life", "Work", "Energy", "Voice", "Taste", "People"];
@@ -502,7 +451,7 @@ function Person() {
           </div>
         </div>
         <div className="fx-copyblock">
-          <p className="fx-mono">05 · {t("The person")}</p>
+          <p className="fx-mono">04 · {t("The person")}</p>
           <Phases
             p={p}
             className="fx-mid"
@@ -518,7 +467,7 @@ function Person() {
   );
 }
 
-/* ── 06 · The people ────────────────────────────────────────────────────
+/* ── 05 · The people ────────────────────────────────────────────────────
    Real stories, real numbers, sliding past sideways. */
 const COVERS = {
   "li-karlsen": "/stories/li/sunburst.jpg",
@@ -549,7 +498,7 @@ function People() {
     <section ref={ref} className="fx-scene fx-people" style={{ height: `${SERIES.length * 70 + 60}vh` }} data-pc-section="fit_people" data-pc-order="60">
       <div className="fx-stage fx-stage-track">
         <div className="fx-people-head">
-          <p className="fx-mono">06 · {t("The people")}</p>
+          <p className="fx-mono">05 · {t("The people")}</p>
           <h2 className="fx-h2">{t("Not formats. People.")}</h2>
         </div>
         <div className="fx-track" ref={track} style={{ transform: `translate3d(${-x}px,0,0)` }}>
@@ -583,7 +532,7 @@ function People() {
   );
 }
 
-/* ── 07 · The offer ─────────────────────────────────────────────────── */
+/* ── 06 · The offer ─────────────────────────────────────────────────── */
 function Close() {
   const t = useT();
   const navigate = useNavigate();
@@ -591,7 +540,7 @@ function Close() {
     <section className="fx-close" data-pc-section="fit_close" data-pc-order="70">
       <div className="fx-close-glow" aria-hidden="true" />
       <div className="fx-close-in">
-        <p className="fx-mono">07 · {t("What we do")}</p>
+        <p className="fx-mono">06 · {t("What we do")}</p>
         <Words as="h2" className="fx-h1 fx-close-h" text={t("We don't make you go viral. We make you more you — then we scale it.")} />
         <Words className="fx-close-sub" text={t("A clear direction, content that fits the person, and growth you can measure.")} />
         <p className="fx-close-offer fx-mono">
@@ -635,8 +584,7 @@ export default function FitPage() {
       <main className="fx" data-pc-tone="dark">
         <div className="fx-grain" aria-hidden="true" />
         <Hero />
-        <Copy />
-        <Experiment />
+        <Clip />
         <Moments />
         <Turn />
         <Person />
@@ -712,22 +660,12 @@ const FIT_CSS = `
   .fx-tile-cap { position: absolute; left: 10px; right: 10px; bottom: 16px; font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,0.7); }
   .fx-tile-bar { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 2px; background: rgba(255,255,255,0.25); border-radius: 2px; overflow: hidden; }
   .fx-tile-bar::after { content: ""; position: absolute; inset: 0; background: #fff; transform-origin: left; animation: fx-play 4s linear infinite; animation-delay: calc(var(--i) * -0.53s); }
-  .fx-tile.is-copy .fx-tile-bar::after { background: rgba(255,255,255,0.5); animation-delay: 0s; }
+  .fx-tile.is-life img { animation: fx-in 0.8s ease; }
   @keyframes fx-play { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
   .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
-  .fx-count { color: var(--hot); }
 
-  /* 02 experiment */
-  .fx-worlds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  @media (max-width: 700px) { .fx-worlds { grid-template-columns: repeat(4, 1fr); gap: 8px; } .fx-world { padding: 8px !important; } .fx-bars { height: 70px !important; } }
-  .fx-world { padding: 14px; border: 1px solid var(--faint); border-radius: 14px; background: linear-gradient(rgba(255,255,255,0.03), transparent); }
-  .fx-world-k { font-size: 10px; }
-  .fx-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; margin-top: 12px; }
-  .fx-bars i { flex: 1; background: rgba(244,241,234,0.22); border-radius: 2px 2px 0 0; transition: height 0.25s ease-out, background-color 0.4s ease; }
-  .fx-bars i.is-win { background: var(--hot); box-shadow: 0 0 18px rgba(255,106,43,0.6); }
-
-  /* 03 career */
+  /* 02 moments */
   .fx-moments .fx-phases { width: 100%; max-width: 980px; }
   .fx-seasons { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 8px; max-width: 1280px; }
   .fx-season { display: grid; gap: 10px; justify-items: center; padding: 12px 10px 14px; border-radius: 16px; border: 1px solid transparent; transition: border-color 0.5s ease, background-color 0.5s ease, opacity 0.5s ease; opacity: 0.35; }

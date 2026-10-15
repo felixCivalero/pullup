@@ -1,14 +1,19 @@
 import { useT } from "./i18n.js";
 import { Reveal } from "./Reveal.jsx";
 
-/* What a client gets, as one picture over the 12-week trust period:
-   row 1 — your 30-minute meeting, every week;
-   row 2 — the week of content that comes out of it, on every channel;
-   row 3 — the monthly read-out;
-   under it, on the same weeks, the brand's growth compounding.
-   The curve is a shape, not a forecast — it carries no numbers and says so. */
+/* How we work, as one picture over the 12-week trust period:
+   direction — a clear strategy set first, then carried into everything;
+   sprint — 30 minutes with you every week;
+   content — made by anyone (you, your team or us), easier every week;
+   measured — every piece read for growth;
+   under it, on the same weeks, the brand scaling.
+   Counts and the curve are a shape, not a forecast — no numbers, and it says so. */
 
 const WEEKS = 12;
+// Pieces per week (more as it gets easier) and who made each one.
+const PIECES = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5];
+const MAKERS = ["us", "you", "team", "us", "team", "you"];
+const maker = (w, j) => MAKERS[(w * 2 + j) % MAKERS.length];
 const K = 3.2; // curve steepness
 const curveY = (x) => (Math.exp(K * x) - 1) / (Math.exp(K) - 1);
 
@@ -34,7 +39,15 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("You")}</b>{t("30 min a week")}</p>
+        <p className="en-k"><b>{t("Direction")}</b>{t("Set first, in everything")}</p>
+        <div className="en-dir">
+          <span className="en-dir-set">{t("Strategy")}</span>
+          <span className="en-dir-flow">{t("flows into everything the brand does")}</span>
+        </div>
+      </div>
+
+      <div className="en-row">
+        <p className="en-k"><b>{t("Sprint")}</b>{t("30 min a week")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}><span className="en-meet">30</span></li>
@@ -43,27 +56,40 @@ export function EngineChart() {
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("We make")}</b>{t("A week of content")}</p>
+        <p className="en-k"><b>{t("Content")}</b>{t("Made by anyone")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
             <li key={i} style={{ "--i": i }}>
-              <span className="en-content"><i /><i /><i /></span>
+              <span className="en-content">
+                {Array.from({ length: PIECES[i] }, (_, j) => <i key={j} className={`is-${maker(i, j)}`} />)}
+              </span>
             </li>
           ))}
         </ol>
       </div>
 
       <div className="en-row">
-        <p className="en-k"><b>{t("Read-out")}</b>{t("Every month")}</p>
+        <p className="en-k"><b>{t("Measured")}</b>{t("Every piece")}</p>
         <ol className="en-cells">
           {weeks.map((i) => (
-            <li key={i} style={{ "--i": i }}>{i % 4 === 3 && <span className="en-read" />}</li>
+            <li key={i} style={{ "--i": i }}>
+              <span className="en-content en-measure">
+                {Array.from({ length: PIECES[i] }, (_, j) => <i key={j} />)}
+              </span>
+            </li>
           ))}
         </ol>
       </div>
 
+      <ul className="en-legend">
+        <li><i className="is-you" />{t("You")}</li>
+        <li><i className="is-team" />{t("Your team")}</li>
+        <li><i className="is-us" />{t("Us")}</li>
+        <li><i className="is-m" />{t("Read for growth")}</li>
+      </ul>
+
       <div className="en-row en-row-grow">
-        <p className="en-k"><b>{t("Your brand")}</b>{t("Compounds")}</p>
+        <p className="en-k"><b>{t("Your brand")}</b>{t("Scales")}</p>
         <div className="en-curve">
           <svg viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true">
             <defs>
@@ -113,7 +139,7 @@ export const ENGINE_CSS = `
   }
   .en-cells li { display: flex; justify-content: center; align-items: center; min-height: 36px; }
   .en-cells li:nth-child(4n + 1) { box-shadow: -1px 0 0 var(--pc-line); }
-  .en-meet, .en-content, .en-read {
+  .en-meet, .en-content {
     opacity: 0; transform: scale(0.6);
     transition: opacity 0.4s ease calc(0.2s + var(--i) * 0.07s), transform 0.5s cubic-bezier(0.16,1,0.3,1) calc(0.2s + var(--i) * 0.07s);
   }
@@ -122,10 +148,26 @@ export const ENGINE_CSS = `
     display: grid; place-items: center; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
   }
   .en-content { display: flex; gap: 3px; }
-  .en-content i { width: 9px; height: 16px; border-radius: 3px; background: #D9480F; }
-  .en-content i:nth-child(2) { opacity: 0.7; }
-  .en-content i:nth-child(3) { opacity: 0.45; }
-  .en-read { width: 14px; height: 14px; transform: rotate(45deg) scale(0.6); border-radius: 3px; background: #000; }
+  .en-content i, .en-legend i { width: 9px; height: 16px; border-radius: 3px; background: #D9480F; }
+  .en-content i.is-you, .en-legend i.is-you { background: #000; }
+  .en-content i.is-team, .en-legend i.is-team { background: #9a9a96; }
+  .en-measure i, .en-legend i.is-m { width: 9px; height: 9px; border-radius: 50%; background: none; border: 2px solid #0E9384; }
+  .en-dir { flex: 1; margin-left: var(--en-k); display: grid; grid-template-columns: 2fr 10fr; gap: 6px; align-items: center; }
+  .en-dir-set {
+    height: 32px; border-radius: 8px; background: #D9480F; color: #fff;
+    display: grid; place-items: center; font-size: 13px; font-weight: 600;
+  }
+  .en-dir-flow {
+    position: relative; height: 32px; display: flex; align-items: center; padding-left: 12px;
+    font-size: 13px; color: #D9480F; font-weight: 500;
+    background: linear-gradient(90deg, color-mix(in srgb, #D9480F 16%, #fff), color-mix(in srgb, #D9480F 4%, #fff));
+    border-radius: 8px;
+  }
+  .en-dir-flow::after { content: "→"; position: absolute; right: 10px; font-size: 16px; }
+  .en-dir-set, .en-dir-flow { transform-origin: left; transform: scaleX(0); transition: transform 0.9s cubic-bezier(0.16,1,0.3,1) 0.2s; }
+  .en-dir-flow { transition-delay: 0.5s; }
+  .en-legend { list-style: none; margin: 4px 0 4px var(--en-k); padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .en-legend li { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--pc-grey); }
   .en-row-grow { align-items: stretch; min-height: clamp(150px, 18vw, 230px); margin-top: 6px; }
   .en-row-grow .en-k { top: auto; bottom: 0; }
   .en-curve {
@@ -145,11 +187,11 @@ export const ENGINE_CSS = `
   .en-note { font-size: 12px; color: var(--pc-grey); }
 
   .pc-reveal.is-in .en-meet, .pc-reveal.is-in .en-content { opacity: 1; transform: none; }
-  .pc-reveal.is-in .en-read { opacity: 1; transform: rotate(45deg); }
+  .pc-reveal.is-in .en-dir-set, .pc-reveal.is-in .en-dir-flow { transform: none; }
   .pc-reveal.is-in .en-line { stroke-dashoffset: 0; }
   .pc-reveal.is-in .en-area, .pc-reveal.is-in .en-curve-tag { opacity: 1; }
   @media (prefers-reduced-motion: reduce) {
-    .en-meet, .en-content, .en-read, .en-line, .en-area, .en-curve-tag { transition: none; }
+    .en-meet, .en-content, .en-dir-set, .en-dir-flow, .en-line, .en-area, .en-curve-tag { transition: none; }
   }
 
   @media (max-width: 760px) {
@@ -160,9 +202,13 @@ export const ENGINE_CSS = `
     .en-cells { gap: 3px; }
     .en-cells li { min-height: 24px; }
     .en-meet { height: 22px; border-radius: 5px; font-size: 10px; }
-    .en-content { gap: 1px; }
-    .en-content i { width: 6px; height: 12px; border-radius: 2px; }
-    .en-read { width: 10px; height: 10px; }
+    .en-content { gap: 1px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+    .en-content i { width: 4px; height: 12px; border-radius: 1px; }
+    .en-measure i { width: 5px; height: 5px; border-width: 1.5px; }
+    .en-dir { margin-left: 0; grid-template-columns: 3fr 7fr; }
+    .en-dir-set, .en-dir-flow { height: 28px; font-size: 11px; }
+    .en-dir-flow::after { display: none; }
+    .en-legend { margin-left: 0; margin-top: 8px; }
     .en-row-grow { min-height: 0; }
     .en-row-grow .en-curve { height: 140px; }
     .en-curve { margin-left: 0; }

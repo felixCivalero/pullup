@@ -208,7 +208,7 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="02">{t("What you get")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 hw-h2">{t("30 minutes a week. Growth that compounds.")}</h2>
+            <h2 className="pc-h2 hw-h2">{t("A clear direction. Then we scale.")}</h2>
           </Reveal>
           <EngineChart />
           <ul className="og-grid">

@@ -188,7 +188,7 @@ function AgencyPage() {
         <div className="pc-wrap">
           <SectionLabel n="01">{t("The stories")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">{t("Grow the person. The brand follows.")}</h2>
+            <h2 className="pc-h2 st-h2">{t("Grow the people. The brand follows.")}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
@@ -226,11 +226,6 @@ function AgencyPage() {
           <Reveal delay={0.06}>
             <p className="wy-lede">
               {t("Every brand already has a self. Most just haven't been allowed to express it. We don't build you a persona. We help you become what you already are, out loud and without compromise, until people can feel it.")}
-            </p>
-          </Reveal>
-          <Reveal delay={0.1}>
-            <p className="wy-bio">
-              {t("PullUp is led by Felix Civalero Stolpe, who spent four years studying people, with a focus on cognition and pain, and more than three years treating them. He has published a book and is writing the next. What it taught him: people trust what is real.")}
             </p>
           </Reveal>
           <Reveal>
@@ -498,7 +493,6 @@ ${STORY_CHART_CSS}
   .wy-h2 { max-width: 16ch; }
   .wy-h2 span, .wy-close span { color: rgba(255,255,255,0.45); }
   .wy-lede { margin-top: clamp(28px, 4vw, 44px); max-width: 52ch; font-size: clamp(19px, 1.9vw, 24px); line-height: 1.45; letter-spacing: -0.01em; }
-  .wy-bio { margin-top: 20px; max-width: 64ch; font-size: 15px; line-height: 1.6; color: rgba(255,255,255,0.55); }
   .wy-close { margin-top: clamp(40px, 6vw, 72px); font-size: clamp(28px, 4vw, 52px); font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
 
   /* ─── how we work ─── */

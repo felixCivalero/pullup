@@ -624,4 +624,5 @@ export const SW = {
   "Scaled on what performs": "Hukuzwa kwa kinachofanya vizuri",
   "Illustrative — not a forecast.": "Kielelezo — si utabiri.",
   "Weeks {#}–{#} · trust period — full scope, no commitment": "Wiki {#}–{#} · kipindi cha kuaminiana — kazi kamili, bila ahadi",
+  "Grow the people. The brand follows.": "Wakuze watu. Chapa inafuata.",
 };

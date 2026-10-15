@@ -624,4 +624,5 @@ export const SV = {
   "Scaled on what performs": "Skalas på det som presterar",
   "Illustrative — not a forecast.": "Illustrativt – inte en prognos.",
   "Weeks {#}–{#} · trust period — full scope, no commitment": "Vecka {#}–{#} · förtroendeperiod – fullt uppdrag, ingen bindning",
+  "Grow the people. The brand follows.": "Låt människorna växa. Varumärket följer med.",
 };

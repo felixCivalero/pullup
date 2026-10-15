@@ -697,4 +697,7 @@ export const SV = {
   "Print & journals": "Tryck & tidningar",
   "Automation": "Automation",
   "Every tool is on the shelf. We pull in the ones your direction needs — and keep building as you grow.": "Varje verktyg står redo. Vi tar fram dem din riktning behöver – och fortsätter bygga medan du växer.",
+  "We don't promise growth. We show it.": "Vi lovar inte tillväxt. Vi visar den.",
+  "Six people. Six brands. And the numbers to prove it.": "Sex människor. Sex varumärken. Och siffrorna som bevisar det.",
+  "How we got there": "Så kom vi dit",
 };

@@ -697,4 +697,7 @@ export const SW = {
   "Print & journals": "Machapisho na majarida",
   "Automation": "Uendeshaji otomatiki",
   "Every tool is on the shelf. We pull in the ones your direction needs — and keep building as you grow.": "Kila zana iko tayari. Tunaleta zile mwelekeo wako unazohitaji — na tunaendelea kujenga unapokua.",
+  "We don't promise growth. We show it.": "Hatuahidi ukuaji. Tunauonyesha.",
+  "Six people. Six brands. And the numbers to prove it.": "Watu sita. Chapa sita. Na takwimu za kuthibitisha.",
+  "How we got there": "Jinsi tulivyofika",
 };

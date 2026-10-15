@@ -185,13 +185,13 @@ function AgencyPage() {
       {/* ─── THE STORIES ─── */}
       <section id="stories" className="pc-section ch-1" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">{t("The stories")}</SectionLabel>
+          <SectionLabel n="01">{t("The results")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 st-h2">{t("Grow the people. The brand follows.")}</h2>
+            <h2 className="pc-h2 st-h2">{t("We don't promise growth. We show it.")}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede">
-              {t(`${storyCountWord} people, ${storyCountWord.toLowerCase()} brands. Every story reads the same way: who we grew — and what the brand got.`)}
+              {t(`${storyCountWord} people. ${storyCountWord} brands. And the numbers to prove it.`)}
             </p>
           </Reveal>
           <div className="st-list">
@@ -205,7 +205,7 @@ function AgencyPage() {
       {/* ─── WHAT YOU GET ─── */}
       <section id="services" className="pc-section ch-2" data-pc-section="services" data-pc-order="4">
         <div className="pc-wrap">
-          <SectionLabel n="02">{t("What you get")}</SectionLabel>
+          <SectionLabel n="02">{t("How we got there")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 hw-h2">{t("A clear direction. Then we scale.")}</h2>
           </Reveal>

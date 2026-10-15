@@ -18,7 +18,9 @@ export const MESSAGE = {
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 
-// THE offer — the only one. No tiers, no add-ons. Every engagement opens with a
+// THE offer — the only one, and it includes everything (strategy, content,
+// growth, CRM, tracking, dashboards, apps); scope follows the client's need and
+// direction, not a price list. No tiers, no add-ons. Every engagement opens with a
 // 3-month trust period — paid, but no commitment; after it, longer commitments
 // cost less (no tier numbers published).
 export const BASE_MONTHLY = 3000;
@@ -26,13 +28,14 @@ export const OFFER = {
   label: "One offer",
   price: "$3,000",
   cadence: "/ month",
-  line: "Everything included. No tiers, no add-ons.",
+  line: "Everything is included. What we build follows your need and direction.",
   includes: [
-    "Brand strategy and direction, set in weeks 1–2",
-    "A 30-minute sprint with you, every week",
-    "Content production — by you, your team or us",
-    "Every piece measured for growth",
-    "Scaled across Instagram, TikTok, YouTube and Facebook",
+    "Brand strategy and direction",
+    "Content — a weekly 30-minute sprint, production by you, your team or us",
+    "Growth on every channel — Instagram, TikTok, YouTube, Facebook",
+    "Community, events and CRM on PullUp",
+    "Tracking and dashboards — every piece measured",
+    "Your own apps and tools, built when you need them",
   ],
   terms: [
     ["First 3 months", "A trust period. Full scope, $3,000 a month, no commitment."],

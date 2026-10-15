@@ -634,4 +634,12 @@ export const SW = {
   "Commit to continue. The longer the commitment, the lower the monthly rate.": "Jitolee kuendelea. Kadiri ahadi inavyokuwa ndefu, ndivyo bei ya mwezi inavyopungua.",
   "What's included": "Kilichojumuishwa",
   "First {#} months: full scope, no commitment.": "Miezi {#} ya kwanza: kazi kamili, bila ahadi.",
+  "Everything is included. What we build follows your need and direction.": "Kila kitu kimejumuishwa. Tunachojenga hufuata hitaji na mwelekeo wako.",
+  "Brand strategy and direction": "Mkakati na mwelekeo wa chapa",
+  "Content — a weekly {#}-minute sprint, production by you, your team or us": "Maudhui — kikao cha dakika {#} kila wiki, uzalishaji na wewe, timu yako au sisi",
+  "Growth on every channel — Instagram, TikTok, YouTube, Facebook": "Ukuaji kila jukwaa — Instagram, TikTok, YouTube, Facebook",
+  "Community, events and CRM on PullUp": "Jamii, matukio na CRM kwenye PullUp",
+  "Tracking and dashboards — every piece measured": "Ufuatiliaji na dashibodi — kila kipande hupimwa",
+  "Your own apps and tools, built when you need them": "Programu na zana zako mwenyewe, zinajengwa unapozihitaji",
+  "Strategy, content and growth — and every tool behind it: apps, dashboards, tracking. One price, no add-ons. What we build depends on your need and direction.": "Mkakati, maudhui na ukuaji — na kila zana nyuma yake: programu, dashibodi, ufuatiliaji. Bei moja, bila nyongeza. Tunachojenga hutegemea hitaji na mwelekeo wako.",
 };

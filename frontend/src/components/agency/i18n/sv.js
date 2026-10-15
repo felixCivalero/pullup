@@ -634,4 +634,12 @@ export const SV = {
   "Commit to continue. The longer the commitment, the lower the monthly rate.": "Bind dig för att fortsätta. Ju längre bindning, desto lägre månadspris.",
   "What's included": "Det här ingår",
   "First {#} months: full scope, no commitment.": "Första {#} månaderna: fullt uppdrag, ingen bindning.",
+  "Everything is included. What we build follows your need and direction.": "Allt ingår. Det vi bygger följer ditt behov och din riktning.",
+  "Brand strategy and direction": "Varumärkesstrategi och riktning",
+  "Content — a weekly {#}-minute sprint, production by you, your team or us": "Innehåll – en veckosprint på {#} minuter, produktion av dig, ditt team eller oss",
+  "Growth on every channel — Instagram, TikTok, YouTube, Facebook": "Tillväxt i alla kanaler – Instagram, TikTok, YouTube, Facebook",
+  "Community, events and CRM on PullUp": "Community, evenemang och CRM på PullUp",
+  "Tracking and dashboards — every piece measured": "Spårning och dashboards – varje del mäts",
+  "Your own apps and tools, built when you need them": "Egna appar och verktyg, byggda när du behöver dem",
+  "Strategy, content and growth — and every tool behind it: apps, dashboards, tracking. One price, no add-ons. What we build depends on your need and direction.": "Strategi, innehåll och tillväxt – och varje verktyg bakom: appar, dashboards, spårning. Ett pris, inga tillägg. Det vi bygger beror på ditt behov och din riktning.",
 };

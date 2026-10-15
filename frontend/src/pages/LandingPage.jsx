@@ -213,7 +213,7 @@ function AgencyPage() {
         id="offer"
         source="landing"
         heading="One offer. $3,000 a month."
-        sub="Everything above, for one fixed monthly price. No tiers, no add-ons — and the first three months come with no commitment."
+        sub="Strategy, content and growth — and every tool behind it: apps, dashboards, tracking. One price, no add-ons. What we build depends on your need and direction."
       />
 
       {/* ─── WHY IT WORKS ─── */}

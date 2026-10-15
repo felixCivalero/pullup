@@ -32,6 +32,17 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
   const [navDark, setNavDark] = useState(true);
   const navRef = useRef(null);
 
+  // The agency pages allow pinch-to-zoom (accessibility). The app shell's
+  // viewport blocks it, so swap it while mounted and restore on the way out.
+  // Form fields here are 16px, so iOS won't auto-zoom on focus.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return undefined;
+    const prev = meta.getAttribute("content");
+    meta.setAttribute("content", "width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover");
+    return () => meta.setAttribute("content", prev);
+  }, []);
+
   // The bar takes the tone of whatever section sits under it — black over
   // [data-pc-tone="dark"] beats, white over the rest — so it never sits on text.
   useEffect(() => {

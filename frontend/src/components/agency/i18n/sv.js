@@ -682,4 +682,11 @@ export const SV = {
   "A global sports brand with decades of history. The talent was already in the building. We brought in-house talents to the front, built personas and stories around them — and every metric moved.": "Ett globalt sportvarumärke med decennier av historia. Talangerna fanns redan i huset. Vi lyfte fram dem, byggde personas och berättelser kring dem – och alla siffror gick uppåt.",
   "Sales ↗": "Försäljning ↗",
   "Sales and subscriptions growing exponentially, in one year": "Försäljning och prenumerationer som växer exponentiellt, på ett år",
+  "0 to 10k organic. No marketing team.": "0 till 10k organiskt. Ingen marknadsavdelning.",
+  "10,000+ organic followers in one year — and sales and subscriptions growing exponentially.": "10 000+ organiska följare på ett år – och försäljning och prenumerationer som växer exponentiellt.",
+  "organic followers, from zero": "organiska följare, från noll",
+  "organic followers now": "organiska följare i dag",
+  "organic followers": "organiska följare",
+  "Organic followers — the growth stage we built for": "Organiska följare – tillväxtfasen vi byggde det för",
+  "Organic followers, start to now": "Organiska följare, från start till i dag",
 };

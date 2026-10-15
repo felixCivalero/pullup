@@ -28,7 +28,7 @@ export const CASE_CONTENT = {
   bkm: {
     sub: "When BKM was moving from 0 to 10k, the founders faced the ultimate dilemma: how to scale market authority without spending 20 hours a week trapped in creative loops.",
     stats: [
-      { v: "0 → 10k", l: "The growth stage we built for" },
+      { v: "0 → 10k", l: "Organic followers — the growth stage we built for" },
       { v: "30 min", l: "Per sprint. No exceptions." },
       { v: "Sales ↗", l: "Sales and subscriptions growing exponentially, in one year" },
     ],

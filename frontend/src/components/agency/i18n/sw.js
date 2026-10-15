@@ -720,4 +720,11 @@ export const SW = {
   "A global sports brand with decades of history. The talent was already in the building. We brought in-house talents to the front, built personas and stories around them — and every metric moved.": "Chapa ya kimataifa ya michezo yenye historia ya miongo mingi. Vipaji vilikuwepo tayari ndani ya kampuni. Tuliviweka mbele, tukawajengea utambulisho na hadithi — na kila takwimu ikapanda.",
   "Sales ↗": "Mauzo ↗",
   "Sales and subscriptions growing exponentially, in one year": "Mauzo na usajili vinakua kwa kasi kubwa, ndani ya mwaka mmoja",
+  "0 to 10k organic. No marketing team.": "Kutoka 0 hadi 10k kwa njia asilia. Bila timu ya masoko.",
+  "10,000+ organic followers in one year — and sales and subscriptions growing exponentially.": "Wafuasi 10,000+ wa asili ndani ya mwaka mmoja — na mauzo pamoja na usajili vinakua kwa kasi kubwa.",
+  "organic followers, from zero": "wafuasi wa asili, kutoka sifuri",
+  "organic followers now": "wafuasi wa asili sasa",
+  "organic followers": "wafuasi wa asili",
+  "Organic followers — the growth stage we built for": "Wafuasi wa asili — hatua ya ukuaji tuliyoijengea",
+  "Organic followers, start to now": "Wafuasi wa asili, tangu mwanzo hadi leo",
 };

@@ -14,6 +14,7 @@ import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { MESSAGE, SERIES, casePath, storyCountWord } from "../components/agency/agencyData.js";
 import { StoryChart, STORY_CHART_CSS } from "../components/agency/StoryChart.jsx";
 import { EngineChart, ENGINE_CSS } from "../components/agency/EngineChart.jsx";
+import { TalentPath, TALENT_CSS } from "../components/agency/TalentPath.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
@@ -21,7 +22,8 @@ import { useT } from "../components/agency/i18n.js";
    the brand. Readable without reading: the hero's three-step flow, a coloured
    scoreboard (one number per story), then the stories — each one a headline,
    person → brand, and a chart of its real numbers (agencyData SERIES) —
-   then what you get → the one offer ($3,000/month) → why → booklet. */
+   then what you get → the talent pulled in as needed → the one offer
+   ($3,000/month) → why → booklet. */
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -209,6 +211,22 @@ function AgencyPage() {
         </div>
       </section>
 
+      {/* ─── THE TALENT ─── */}
+      <section id="talent" className="pc-section pc-rule" data-pc-section="talent" data-pc-order="5">
+        <div className="pc-wrap">
+          <SectionLabel n="03">{t("The talent")}</SectionLabel>
+          <Reveal>
+            <h2 className="pc-h2 tp-h2">{t("The right people, the moment your brand needs them.")}</h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <p className="tp-lede">
+              {t("Behind PullUp is a deep bench of specialists — strategists, filmmakers, designers, developers, data people. We don't staff you up in advance. When your direction calls for something, we pull in exactly who's needed and build it. So the infrastructure keeps growing with the brand.")}
+            </p>
+          </Reveal>
+          <TalentPath />
+        </div>
+      </section>
+
       <AgencyOffer
         id="offer"
         source="landing"
@@ -219,7 +237,7 @@ function AgencyPage() {
       {/* ─── WHY IT WORKS ─── */}
       <section id="why" className="pc-section pc-dark" data-pc-tone="dark" data-pc-section="why" data-pc-order="5">
         <div className="pc-wrap">
-          <SectionLabel n="03">{t("Why it works")}</SectionLabel>
+          <SectionLabel n="04">{t("Why it works")}</SectionLabel>
           <Reveal>
             <h2 className="pc-h2 pc-h2-xl wy-h2">
               {t("The strongest brands aren't invented.")} <span>{t("They're revealed.")}</span>
@@ -308,7 +326,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "why", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "talent", "#deck": "deck", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -480,6 +498,7 @@ ${STORY_CHART_CSS}
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
 ${ENGINE_CSS}
+${TALENT_CSS}
 
   /* ─── close ─── */
   .cl-h2 { max-width: 14ch; }

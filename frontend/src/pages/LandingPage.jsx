@@ -144,7 +144,7 @@ function AgencyPage() {
       <section className="pc-hero pc-dark" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
         <div className="pc-wrap">
           <Reveal>
-            <p className="pc-eyebrow">{t("For solo founders, artists and small brands · Stockholm · Nairobi")}</p>
+            <p className="pc-eyebrow">{t("For founders, artists and small brands · Stockholm · Nairobi")}</p>
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="pc-hero-h">{t(MESSAGE.promise)} <span>{t(MESSAGE.kicker)}</span></h1>

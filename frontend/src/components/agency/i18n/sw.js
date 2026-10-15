@@ -762,4 +762,5 @@ export const SW = {
   "Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels.": "Mkakati, kikao cha kila wiki na kila zana nyuma yake — programu, dashibodi, ufuatiliaji. Maudhui yanapangwa kulingana na kile kinachosogeza chapa yako kweli, si idadi fulani ya reels.",
   "Scoped together — you, your team or us": "Tunapanga pamoja — wewe, timu yako au sisi",
   "Scoped together": "Tunapanga pamoja",
+  "For founders, artists and small brands · Stockholm · Nairobi": "Kwa waanzilishi, wasanii na chapa ndogo · Stockholm · Nairobi",
 };

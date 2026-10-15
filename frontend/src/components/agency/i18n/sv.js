@@ -724,4 +724,5 @@ export const SV = {
   "Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels.": "Strategi, veckosprinten och alla verktyg bakom – appar, dashboards, spårning. Innehållet anpassas efter det som faktiskt flyttar ditt varumärke, inte efter en kvot reels.",
   "Scoped together — you, your team or us": "Planeras tillsammans – du, ditt team eller vi",
   "Scoped together": "Planeras tillsammans",
+  "For founders, artists and small brands · Stockholm · Nairobi": "För grundare, artister och mindre varumärken · Stockholm · Nairobi",
 };

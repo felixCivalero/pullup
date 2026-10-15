@@ -1,4 +1,4 @@
-import { CASE_STATS as FLAMBO } from "../../pages/stories/adamFlamboData.js";
+import { CASE_STATS as FLAMBO, CASE_TIMELINE as FLAMBO_WALKS } from "../../pages/stories/adamFlamboData.js";
 
 // The agency's single sources of truth: contact, the offer, and the case
 // registry every surface links from (landing work index, nav, footer, each
@@ -11,9 +11,16 @@ export const DECK_PDF = "/the-production-core.pdf";
 
 // The one message. Hero, services, booklet and meta all say it this way.
 export const MESSAGE = {
-  promise: "We build brands people actually feel.",
-  deal: "Thirty minutes of you a week. A week of content that sounds like you — published on every channel, measured and grown.",
+  promise: "We grow the people who grow your brand.",
+  deal: "Founders, artists and the faces behind a brand are the brand. We turn 30 minutes of them a week into content, community and reach — and show you the numbers.",
 };
+
+// The model in three steps — the hero's at-a-glance line.
+export const FLOW = [
+  ["The person", "30 min a week"],
+  ["The content", "Every channel"],
+  ["The brand", "Grows, measured"],
+];
 
 // What a client gets from the core, in the words a CMO plans with.
 export const OUTPUT = [
@@ -126,32 +133,30 @@ export const SPINE = [
   ["result", "Result"],
 ];
 
+// STIGA per channel — Growhouse results report, 1 Dec 2024 – 30 Jun 2025.
+export const STIGA_ROWS = [
+  { channel: "Facebook", views: 14924282, interactions: 85239, followers: 11407 },
+  { channel: "Instagram", views: 10276752, interactions: 204138, followers: 15018 },
+  { channel: "TikTok", views: 1800000, interactions: 32000, followers: 4805 },
+  { channel: "YouTube", views: 1100000, interactions: 13200, followers: 1200 },
+];
+
 // The case registry — order here = order everywhere (landing, footer, the
 // rail on every case page, "next story"). `series: false` would keep a page
 // live without numbering it. Every claim: Felix's brief; STIGA traces to the
 // Growhouse report (1 Dec 2024 – 30 Jun 2025); Adam Flambo to his rooms.
 export const CASES = [
   {
-    slug: "stiga",
-    client: "STIGA",
-    name: "STIGA Table Tennis",
-    kicker: "Brand · Sport",
-    title: "A heritage brand, growing on every channel.",
-    spine: {
-      start: "A heritage brand with about 50 followers on Instagram.",
-      did: "Put the people and the play at the centre, with Sebastian on their side.",
-      made: "Short-form video and posts in the sport's own voice, on four channels.",
-      result: "28.1M views and +32,000 followers in seven months.",
-    },
-    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
-  },
-  {
     slug: "li-karlsen",
     client: "Li Karlsén",
     name: "Li Karlsén",
     kicker: "Founder · BKM · Elite freediver",
-    tone: "dark",
-    title: "Content doesn't need to be loud. It needs to be precise.",
+    color: "#0E9384",
+    title: "8 hours became 30 minutes.",
+    person: "A founder and elite freediver who learned to say it precisely, on camera.",
+    brand: "One piece of content now takes 30 minutes to make, not 8 hours.",
+    score: ["8 h → 30 min", "per piece of content"],
+    chart: { type: "time", rows: [["Before", 480, "8 h"], ["Now", 30, "30 min"]] },
     spine: {
       start: "A founder and elite freediver with more to say than a reel can hold.",
       did: "30-minute extraction sprints, shaped on the spot into four beats.",
@@ -165,7 +170,12 @@ export const CASES = [
     client: "BKM",
     name: "BKM Health",
     kicker: "Brand · Health",
-    title: "0 to 10k without a marketing department.",
+    color: "#B7791F",
+    title: "0 to 10k. No ads, no marketing team.",
+    person: "Two founders, Li and Tolga, became the faces of their own brand.",
+    brand: "10,000+ followers, built without a single paid ad.",
+    score: ["10,000+", "followers, 0 kr in ads"],
+    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "0 kr paid spend" },
     spine: {
       start: "Two founders, Li and Tolga, with a vision and no audience.",
       did: "30-minute sprints with the founders instead of a marketing department.",
@@ -175,12 +185,35 @@ export const CASES = [
     stats: [["10,000+", "followers"], ["0 kr", "paid spend"], ["30 min", "per sprint", true]],
   },
   {
+    slug: "stiga",
+    client: "STIGA",
+    name: "STIGA Table Tennis",
+    kicker: "Brand · Sport",
+    color: "#2563EB",
+    title: "From 50 followers to 28 million views.",
+    person: "The players and the play put at the centre — the sport in its own voice.",
+    brand: "28.1M views and +32,000 followers in seven months.",
+    score: ["28.1M", "views in seven months"],
+    chart: { type: "channels" },
+    spine: {
+      start: "A heritage brand with about 50 followers on Instagram.",
+      did: "Put the people and the play at the centre, with Sebastian on their side.",
+      made: "Short-form video and posts in the sport's own voice, on four channels.",
+      result: "28.1M views and +32,000 followers in seven months.",
+    },
+    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
+  },
+  {
     slug: "adam-dawood",
     client: "Adam Dawood",
     name: "Adam Dawood",
     kicker: "Creator · Music",
-    tone: "dark",
+    color: "#7C3AED",
     title: "From zero to signed.",
+    person: "An artist with a sound and a world, built into an identity before anyone watched.",
+    brand: "Signed by Sony Music.",
+    score: ["0 → Sony", "from zero to signed"],
+    chart: { type: "path", steps: ["Zero", "Identity", "Story", "Rollout", "Sony Music"] },
     spine: {
       start: "An artist with a sound, a world and nobody watching yet.",
       did: "Built the identity around who he actually is, before any audience.",
@@ -194,7 +227,12 @@ export const CASES = [
     client: "Adam Flambo",
     name: "Adam Flambo",
     kicker: "Creator · Community",
+    color: "#D9480F",
     title: "A following became a community.",
+    person: "A creator who started meeting his following in real life, one photo walk at a time.",
+    brand: `${FLAMBO.pulledUnique} people pulled up. ${FLAMBO.community} in his community.`,
+    score: [String(FLAMBO.pulledUnique), "people pulled up, in real life"],
+    chart: { type: "walks", rows: FLAMBO_WALKS.map((w) => [w.vol, w.pulled]) },
     spine: {
       start: "A creator with a following online and no way to meet it.",
       did: "Moved his events and his community onto PullUp — owned by him.",
@@ -209,8 +247,12 @@ export const CASES = [
     client: "Kaijas",
     name: "Kaijas Musiksalong",
     kicker: "Our own · Live music, Stockholm",
-    tone: "dark",
+    color: "#DB2777",
     title: "We did it for ourselves first.",
+    person: "Our own team and artists, grown from an empty room in Stockholm.",
+    brand: "Live music four nights a week. 10,000+ followers.",
+    score: ["4 nights", "of live music, every week"],
+    chart: { type: "week", on: 4, note: "10,000+ Instagram followers" },
     spine: {
       start: "An empty room in Stockholm.",
       did: "Built the brand, the programme, the people and the systems to run it.",

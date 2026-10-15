@@ -1,4 +1,4 @@
-import { REEL_BEATS } from "../../components/agency/agencyData.js";
+import { REEL_BEATS, STIGA_ROWS } from "../../components/agency/agencyData.js";
 
 // Case page long reads. Title, number and the four-step spine live in the
 // registry (components/agency/agencyData.js CASES); this file holds the
@@ -17,12 +17,6 @@ import { REEL_BEATS } from "../../components/agency/agencyData.js";
 //   reel      { label, title, body, beats: [{ t, line, frames, cut: [] }] }
 //             animated edit: raw take reviewed frame by frame → cuts collapse → final cut plays
 
-const STIGA_ROWS = [
-  { channel: "Facebook", views: 14924282, interactions: 85239, followers: 11407 },
-  { channel: "Instagram", views: 10276752, interactions: 204138, followers: 15018 },
-  { channel: "TikTok", views: 1800000, interactions: 32000, followers: 4805 },
-  { channel: "YouTube", views: 1100000, interactions: 13200, followers: 1200 },
-];
 const sum = (k) => STIGA_ROWS.reduce((a, r) => a + r[k], 0);
 export const STIGA_TOTALS = {
   views: sum("views"),

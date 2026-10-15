@@ -30,7 +30,7 @@ export const CASE_CONTENT = {
     stats: [
       { v: "0 → 10k", l: "The growth stage we built for" },
       { v: "30 min", l: "Per sprint. No exceptions." },
-      { v: "2", l: "Tracks — operations and content" },
+      { v: "Sales ↗", l: "Sales and subscriptions growing exponentially, in one year" },
     ],
     blocks: [
       {
@@ -115,7 +115,7 @@ export const CASE_CONTENT = {
   },
 
   stiga: {
-    sub: "A global sports brand with decades of history. The people and the play were already there. We put them at the centre, in the sport's own voice, and every metric moved.",
+    sub: "A global sports brand with decades of history. The talent was already in the building. We brought in-house talents to the front, built personas and stories around them — and every metric moved.",
     heroStat: { v: "28.1M", l: "views across four channels" },
     blocks: [
       {

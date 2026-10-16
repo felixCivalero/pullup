@@ -344,8 +344,8 @@ export function Clip({ label = "01", highlight = false }) {
               p={seg(p, 0.06, 0.86)}
               text={[
                 t("What everyone sees: the sound, the hook, the cut."),
-                t("But a clip is only the last fifteen seconds of something much longer."),
-                t("Behind every one that lands is someone with a direction."),
+                t("But a clip is only the last seconds of something much bigger."),
+                t("Behind every viral clip is someone with a direction."),
               ].join(" ")}
             />
           ) : (

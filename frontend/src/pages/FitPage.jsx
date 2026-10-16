@@ -343,85 +343,87 @@ function Clip() {
   );
 }
 
-/* ── 02 · The paradox ───────────────────────────────────────────────────
-   You can't catch a moment by chasing it. A viewfinder hunts a glowing
-   moment that dims the harder it's chased; when the frame stops chasing, a
-   real moment resolves inside it — and then the frame dissolves and you're
-   simply in it. All scrubbed by scroll. */
-const PARADOX_PHOTO = "/stories/photogang.jpg";
-const orbAt = (c) => {
-  const a = c * 7.5;
-  return [Math.sin(a * 1.3) * 26, Math.sin(a * 0.9 + 1) * 14]; // vw, vh
-};
-const tc = (frames) => {
-  const f = frames % 25, sec = Math.floor(frames / 25) % 60, min = Math.floor(frames / 1500);
-  return [min, sec, f].map((n) => String(n).padStart(2, "0")).join(":");
-};
+/* ── 02 · Coherence ────────────────────────────────────────────────────
+   Felix's point: virality is decoherent from what a creator puts out — it
+   comes and goes on its own. What's coherent is the everyday: work, life,
+   energy. As you scroll, those waves fall into phase; the virality line
+   stays its own random thing and fades out. */
+const WAVES = ["Work", "Life", "Energy", "Voice"];
+const WAVE_SEED = WAVES.map((_, i) => ({ ph: rnd(i, 31) * Math.PI * 2, fq: 0.6 + rnd(i, 32) * 1.6, amp: 0.5 + rnd(i, 33) * 0.6 }));
+const CW = 1000, CH = 420, CPTS = 90;
 
-function Paradox() {
+function useClock(active) {
+  const [time, setTime] = useState(0);
+  useEffect(() => {
+    if (!active || reduced()) return undefined;
+    let raf = null;
+    const t0 = performance.now();
+    const loop = (now) => {
+      setTime((now - t0) / 1000);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [active]);
+  return time;
+}
+
+function Coherence() {
   const t = useT();
   const [ref, p] = useScene();
-  const chase = seg(p, 0.04, 0.46);
-  const stop = seg(p, 0.46, 0.66);
-  const live = seg(p, 0.72, 0.96);
-  const [ox, oy] = orbAt(chase);
-  const [lx, ly] = orbAt(Math.max(0, chase - 0.035));
-  const fx = lx * (1 - stop);
-  const fy = ly * (1 - stop);
-  const tilt = Math.sin(chase * 22) * 3 * (1 - stop);
-  const w = 24 + stop * 28 + live * live * 230; // vmin (×1.6 on phones)
-  const searching = stop < 0.5;
+  const time = useClock(p > 0 && p < 1);
+  const c = 1 - (1 - seg(p, 0.18, 0.7)) ** 2; // 0 = decoherent, 1 = coherent
+  const viral = 1 - seg(p, 0.62, 0.8);
+  const mid = CH / 2;
+  const wave = (i) => {
+    const { ph, fq, amp } = WAVE_SEED[i];
+    const f = fq + (1 - fq) * c;
+    const phase = ph * (1 - c);
+    const a = (amp + (0.85 - amp) * c) * 70;
+    const off = (i - 1.5) * 52 * (1 - c);
+    let d = "";
+    for (let k = 0; k <= CPTS; k++) {
+      const x = (k / CPTS) * CW;
+      const y = mid + off + Math.sin((k / CPTS) * Math.PI * 4 * f + phase - time * 1.4) * a;
+      d += `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    return d;
+  };
+  let vd = "";
+  for (let k = 0; k <= CPTS; k++) {
+    const x = (k / CPTS) * CW;
+    const n = rnd(k + Math.floor(time * 6), 41);
+    const y = mid + 150 - (n > 0.94 ? n * 260 : n * 30);
+    vd += `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }
   return (
-    <section ref={ref} className="fx-scene fx-paradox" style={{ height: "360vh" }} data-pc-section="fit_paradox" data-pc-order="30">
-      <div className="fx-stage">
-        <div
-          className="fx-orb"
-          aria-hidden="true"
-          style={{
-            transform: `translate(calc(-50% + ${ox}vw), calc(-50% + ${oy}vh)) scale(${1 - chase * 0.6})`,
-            opacity: (1 - chase * 0.8) * (1 - stop),
-            filter: `blur(${chase * 7}px)`,
-          }}
+    <section ref={ref} className="fx-scene fx-coh" style={{ height: "320vh" }} data-pc-section="fit_coherence" data-pc-order="30">
+      <div className="fx-stage fx-stage-col">
+        <p className="fx-mono">02 · {t("Coherence")}</p>
+        <Phases
+          p={p}
+          className="fx-mid fx-center"
+          lines={[
+            [0, 0.36, t("Virality isn't coherent with what you put out. It comes and goes on its own.")],
+            [0.36, 0.7, t("What is coherent is everything else: your work, your life, your energy — every day.")],
+            [0.7, 1, t("When those line up, the content follows. Not the other way around.")],
+          ]}
         />
-        <div
-          className="fx-vf"
-          aria-hidden="true"
-          style={{
-            "--w": w,
-            transform: `translate(calc(-50% + ${fx}vw), calc(-50% + ${fy}vh)) rotate(${tilt}deg)`,
-            borderRadius: `${12 * (1 - live)}px`,
-          }}
-        >
-          <div className="fx-vf-photo" style={{ opacity: stop }}>
-            <img
-              src={PARADOX_PHOTO}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              style={{ filter: stop >= 1 ? "none" : `blur(${(1 - stop) * 16}px) saturate(${stop})`, transform: `scale(${1.15 - stop * 0.15 + live * 0.08})` }}
-            />
-          </div>
-          <div className={`fx-vf-hud${searching ? " is-searching" : ""}`} style={{ opacity: 1 - live * 1.6 }}>
-            <i className="c tl" /><i className="c tr" /><i className="c bl" /><i className="c br" />
-            <span className={`fx-vf-rec${searching ? "" : " is-rec"}`}>{searching ? t("Searching") : "REC"}</span>
-            <span className="fx-vf-tc">{tc(searching ? Math.floor(rnd(Math.floor(p * 400), 3) * 90000) : Math.floor(p * 900))}</span>
-            <span className="fx-vf-focus" style={{ opacity: searching ? 0.9 : 0.35 }} />
-          </div>
+        <svg className="fx-coh-svg" viewBox={`0 0 ${CW} ${CH}`} aria-hidden="true">
+          <path d={vd} className="fx-coh-viral" style={{ opacity: 0.55 * viral }} />
+          {WAVES.map((name, i) => (
+            <path key={name} d={wave(i)} className="fx-coh-wave" style={{ "--c": c, opacity: 0.35 + c * 0.45 }} />
+          ))}
+        </svg>
+        <div className="fx-legend fx-mono" aria-hidden="true">
+          {WAVES.map((name) => (
+            <span key={name}><i className="is-line" style={{ opacity: 0.4 + c * 0.6 }} />{t(name)}</span>
+          ))}
+          <span style={{ opacity: viral }}><i />{t("Virality")}</span>
         </div>
-        <div className="fx-para-veil" style={{ opacity: live }} />
-        <div className="fx-para-text">
-          <p className="fx-mono">02 · {t("The paradox")}</p>
-          <Phases
-            p={p}
-            className="fx-mid fx-center"
-            lines={[
-              [0, 0.24, t("Here's the paradox.")],
-              [0.24, 0.46, t("The harder you chase the moment, the less of it there is.")],
-              [0.46, 0.72, t("The clip that lands was never planned. It was lived — and someone happened to be recording.")],
-              [0.72, 1, t("So the work isn't making content. It's learning to notice your life while you're still in it.")],
-            ]}
-          />
-        </div>
+        <p className="fx-coh-meter fx-mono" aria-hidden="true">
+          {t("Coherence")} <b>{Math.round(c * 100)}%</b>
+        </p>
       </div>
     </section>
   );
@@ -692,7 +694,7 @@ export default function FitPage() {
         <div className="fx-grain" aria-hidden="true" />
         <Hero />
         <Clip />
-        <Paradox />
+        <Coherence />
         <Person />
         <Spike />
         <People />
@@ -789,33 +791,12 @@ const FIT_CSS = `
   .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
   .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
 
-  /* 02 paradox */
-  .fx-paradox .fx-stage { display: block; }
-  .fx-orb { position: absolute; left: 50%; top: 42%; width: 11vmin; aspect-ratio: 1; border-radius: 50%;
-    background: radial-gradient(circle, #fff 0%, #ffd2b8 18%, rgba(255,106,43,0.9) 38%, rgba(255,106,43,0) 70%);
-    box-shadow: 0 0 80px 20px rgba(255,106,43,0.35); will-change: transform, opacity, filter; }
-  .fx-vf { position: absolute; left: 50%; top: 42%; aspect-ratio: 4 / 5; width: calc(var(--w) * 1vmin); will-change: transform, width; }
-  .fx-vf-photo { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
-  .fx-vf-photo img { width: 100%; height: 100%; object-fit: cover; }
-  .fx-vf-hud { position: absolute; inset: 0; pointer-events: none; }
-  .fx-vf-hud .c { position: absolute; width: 18%; height: 14%; border: 0 solid rgba(244,241,234,0.85); }
-  .fx-vf-hud .tl { left: 0; top: 0; border-left-width: 2px; border-top-width: 2px; border-top-left-radius: 10px; }
-  .fx-vf-hud .tr { right: 0; top: 0; border-right-width: 2px; border-top-width: 2px; border-top-right-radius: 10px; }
-  .fx-vf-hud .bl { left: 0; bottom: 0; border-left-width: 2px; border-bottom-width: 2px; border-bottom-left-radius: 10px; }
-  .fx-vf-hud .br { right: 0; bottom: 0; border-right-width: 2px; border-bottom-width: 2px; border-bottom-right-radius: 10px; }
-  .fx-vf-rec, .fx-vf-tc { position: absolute; top: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244,241,234,0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
-  .fx-vf-rec { left: 14px; display: inline-flex; align-items: center; gap: 7px; }
-  .fx-vf-rec::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: rgba(244,241,234,0.4); }
-  .fx-vf-rec.is-rec::before { background: #ff3b30; box-shadow: 0 0 10px #ff3b30; animation: fx-blink 1.2s steps(2) infinite; }
-  @keyframes fx-blink { 50% { opacity: 0.2; } }
-  .fx-vf-tc { right: 14px; font-variant-numeric: tabular-nums; }
-  .fx-vf-focus { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; translate: -50% -50%; transition: opacity 0.4s ease;
-    background: linear-gradient(rgba(244,241,234,0.8), rgba(244,241,234,0.8)) center / 100% 1px no-repeat, linear-gradient(rgba(244,241,234,0.8), rgba(244,241,234,0.8)) center / 1px 100% no-repeat; }
-  .fx-para-veil { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(6,6,8,0.25), rgba(6,6,8,0.75)), linear-gradient(transparent 40%, rgba(6,6,8,0.92)); }
-  .fx-para-text { position: absolute; left: 0; right: 0; bottom: max(6vh, 28px); z-index: 3; display: grid; gap: 16px; justify-items: center; padding: 0 clamp(16px, 5vw, 56px); text-align: center; }
-  .fx-para-text .fx-phases { width: 100%; max-width: 940px; }
-  .fx-para-text .fx-phase { text-shadow: 0 2px 30px rgba(6,6,8,0.9); }
-  @media (max-width: 700px) { .fx-orb, .fx-vf { top: 38%; } .fx-vf { width: calc(var(--w) * 1.6vmin); } .fx-orb { width: 18vmin; } .fx-vf-hud.is-searching .fx-vf-tc { display: none; } .fx-vf-rec, .fx-vf-tc { font-size: 9px; top: 9px; } .fx-vf-rec { left: 10px; } .fx-vf-tc { right: 10px; } }
+  /* 02 coherence */
+  .fx-coh .fx-phases { width: 100%; max-width: 980px; }
+  .fx-coh-svg { width: min(1100px, 100%); height: auto; overflow: visible; }
+  .fx-coh-wave { fill: none; stroke: #FF6A2B; stroke-width: calc(1.5px + var(--c) * 1.5px); mix-blend-mode: screen; filter: drop-shadow(0 0 calc(var(--c) * 12px) rgba(255,106,43,0.8)); }
+  .fx-coh-viral { fill: none; stroke: rgba(244,241,234,0.8); stroke-width: 1.2; stroke-dasharray: 2 4; }
+  .fx-coh-meter b { color: var(--hot); margin-left: 8px; font-weight: 600; }
 
   /* 04 spike */
   .fx-spike .fx-phases { width: 100%; max-width: 980px; }

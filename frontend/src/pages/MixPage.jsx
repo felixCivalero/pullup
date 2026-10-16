@@ -15,7 +15,7 @@ import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 import { LANDING_CSS, LogoBand, SectionLabel } from "./LandingPage.jsx";
-import { CORE_CSS, Clip, Field, Spike } from "./CorePage.jsx";
+import { CORE_CSS, Clip, Spike } from "./CorePage.jsx";
 
 /* /mix — the third option: the sales path of / (who it's for, proof, how,
    toolkit, one offer, booklet) with the /core story told between its
@@ -100,57 +100,65 @@ function StoryStack() {
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+// Scroll progress through the hero: 0 at the top, 1 once it has scrolled
+// one screen. The content settles back and fades, the way a keynote cuts.
+function useHeroOut() {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf = null;
+    const run = () => { raf = null; setV(Math.min(1, Math.max(0, window.scrollY / window.innerHeight))); };
+    const on = () => { if (raf == null) raf = requestAnimationFrame(run); };
+    window.addEventListener("scroll", on, { passive: true });
+    run();
+    return () => { window.removeEventListener("scroll", on); if (raf != null) cancelAnimationFrame(raf); };
+  }, []);
+  return v;
+}
+
 function Hero() {
   const t = useT();
+  const out = useHeroOut();
   return (
-    <section className="pc-hero pc-dark mx-hero" data-pc-tone="dark" data-pc-section="mix_hero" data-pc-order="1">
-      <Field />
-      <div className="pc-wrap mx-hero-in">
-        <Reveal>
-          <p className="pc-eyebrow">{t("For founders, artists and small brands · Stockholm · Nairobi")}</p>
-        </Reveal>
-        <Reveal delay={0.08}>
-          <h1 className="pc-hero-h mx-hero-h">
-            {t("Everyone looks at the clip.")} <span>{t("We look at the people behind it.")}</span>
+    <section className="mx-hero" data-pc-tone="dark" data-pc-section="mix_hero" data-pc-order="1">
+      <div className="mx-hero-stick">
+        <div className="mx-hero-glow" aria-hidden="true" style={{ opacity: 1 - out * 0.6 }} />
+        <div className="mx-hero-in" style={{ transform: `scale(${1 - out * 0.08}) translateY(${-out * 4}vh)`, opacity: 1 - out * 1.15 }}>
+          <p className="mx-eyebrow mx-rise" style={{ "--d": "0.1s" }}>{t("For founders, artists and small brands")}</p>
+          <h1 className="mx-h1">
+            <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("Everyone looks at the clip.")}</span>
+            <span className="mx-rise mx-grad" style={{ "--d": "0.55s" }}>{t("We look at the people behind it.")}</span>
           </h1>
-        </Reveal>
-        <Reveal delay={0.16}>
-          <p className="pc-hero-sub">{t(MESSAGE.deal)}</p>
-        </Reveal>
-        <Reveal delay={0.24}>
-          <div className="pc-hero-cta">
+          <p className="mx-sub mx-rise" style={{ "--d": "0.85s" }}>{t(MESSAGE.deal)}</p>
+          <div className="mx-ctas mx-rise" style={{ "--d": "1.05s" }}>
             <button
               type="button"
-              className="pc-btn pc-btn-light"
+              className="mx-pill"
               onClick={() => {
                 trackEvent("cta_click", { location: "mix_hero_build" });
                 openRequest({ source: "mix_hero" });
               }}
             >
               {t("Build with us")}
-              <ArrowRight size={18} strokeWidth={1.75} />
             </button>
             <button
               type="button"
-              className="pc-btn pc-btn-ghost"
+              className="mx-link"
               onClick={() => {
                 trackEvent("cta_click", { location: "mix_hero_stories" });
                 scrollToId("stories");
               }}
             >
-              {t("See the stories")}
+              {t("See the stories")} <span aria-hidden="true">›</span>
             </button>
           </div>
-        </Reveal>
-        <Reveal delay={0.3}>
-          <p className="pc-hero-offer">
-            <b>{t("One offer")}</b> {t("$3,000 / month · first 3 months, no commitment")}
+          <p className="mx-price mx-rise" style={{ "--d": "1.2s" }}>
+            {t("One offer. $3,000 a month. First three months, no commitment.")}
           </p>
-        </Reveal>
+        </div>
+        <div className="mx-hero-logos mx-rise" style={{ "--d": "1.4s", opacity: 1 - out * 1.5 }}>
+          <LogoBand />
+        </div>
       </div>
-      <Reveal delay={0.36} className="pc-hero-logos mx-hero-in">
-        <LogoBand />
-      </Reveal>
     </section>
   );
 }
@@ -168,7 +176,7 @@ export default function MixPage() {
 
       {/* the story, part one: what everyone sees → what's behind it */}
       <div className="fx" data-pc-tone="dark">
-        <Clip label="" />
+        <Clip label="" highlight />
       </div>
 
       {/* proof */}
@@ -231,10 +239,28 @@ export default function MixPage() {
 }
 
 const MIX_CSS = `
-  .mx-hero { position: relative; overflow: hidden; }
-  .mx-hero .fx-field { opacity: 0.7; }
-  .mx-hero-in { position: relative; z-index: 1; }
-  .mx-hero-h { max-width: 15ch; }
+  /* hero — centred, quiet, one idea; settles back as you scroll on */
+  .mx-hero { position: relative; height: 150svh; background: #000; color: #f5f5f7; }
+  .mx-hero-stick { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: 1fr auto; grid-template-columns: minmax(0, 1fr); }
+  .mx-hero-glow { position: absolute; left: 50%; top: 58%; width: 120vmax; height: 70vmax; translate: -50% -50%; background: radial-gradient(ellipse at center, rgba(255,106,43,0.22), rgba(255,106,43,0.06) 35%, transparent 62%); pointer-events: none; }
+  .mx-hero-in { position: relative; align-self: center; display: grid; justify-items: center; text-align: center; padding: 96px clamp(16px, 5vw, 56px) 0; transform-origin: 50% 40%; will-change: transform, opacity; }
+  .mx-eyebrow { font-size: clamp(15px, 1.3vw, 19px); font-weight: 600; color: #86868b; letter-spacing: -0.01em; }
+  .mx-h1 { margin-top: 14px; display: grid; gap: 0.04em; font-size: clamp(44px, 7.6vw, 112px); line-height: 1.02; letter-spacing: -0.05em; font-weight: 700; }
+  .mx-grad { background: linear-gradient(90deg, #FF6A2B 0%, #FF9D6B 50%, #FFC9A8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: 0.06em; }
+  .mx-sub { margin-top: clamp(20px, 3vh, 32px); max-width: 38ch; font-size: clamp(17px, 1.7vw, 23px); line-height: 1.42; color: #a1a1a6; font-weight: 500; letter-spacing: -0.012em; }
+  .mx-ctas { margin-top: clamp(26px, 4vh, 40px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 30px; }
+  .mx-pill { font: inherit; font-size: 17px; font-weight: 500; padding: 13px 26px; border-radius: 999px; border: 0; cursor: pointer; background: #FF6A2B; color: #fff; transition: background-color 0.2s ease, transform 0.2s ease; }
+  .mx-pill:hover { background: #ff7d45; transform: scale(1.02); }
+  .mx-link { font: inherit; font-size: 17px; font-weight: 500; background: none; border: 0; cursor: pointer; color: #FF8A57; padding: 6px 0; }
+  .mx-link:hover { text-decoration: underline; }
+  .mx-link span { font-size: 1.15em; margin-left: 2px; }
+  .mx-price { margin-top: 18px; font-size: 14px; color: #86868b; }
+  .mx-hero-logos { position: relative; padding-bottom: clamp(16px, 3vh, 32px); }
+  .mx-rise { opacity: 0; transform: translateY(20px); animation: mx-rise 1.1s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: var(--d, 0s); }
+  .mx-h1 .mx-rise { display: block; }
+  @keyframes mx-rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .mx-rise { animation: none; opacity: 1; transform: none; } }
+  @media (max-height: 760px) { .mx-hero-in { padding-top: 72px; } .mx-price { margin-top: 12px; } }
   /* the story interludes sit flush between the sales chapters */
   .fx + .pc-section, .pc-section + .fx { margin-top: 0; }
   /* stories: one per screen, stacking on wide screens */

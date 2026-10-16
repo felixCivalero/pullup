@@ -84,6 +84,22 @@ function Phases({ p, lines, className = "" }) {
   );
 }
 
+// One statement, read by scrolling: words brighten from grey to white in
+// order as p goes 0 → 1.
+function Highlight({ p, text }) {
+  const words = text.split(" ");
+  const at = p * words.length;
+  return (
+    <p className="fx-hl" aria-label={text}>
+      {words.map((w, i) => (
+        <span key={i}>
+          <span aria-hidden="true" style={{ opacity: 0.2 + 0.8 * clamp(at - i) }}>{w}</span>{" "}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 // Words rise in one after another the first time they come into view.
 function Words({ text, as = "p", className = "" }) {
   const Tag = as;
@@ -257,7 +273,7 @@ function Template({ hook = HOOKS[0] }) {
   );
 }
 
-export function Clip({ label = "01" }) {
+export function Clip({ label = "01", highlight = false }) {
   const t = useT();
   const [ref, p] = useScene();
   // The wall starts lying almost flat and rises up into the screen as you
@@ -323,17 +339,30 @@ export function Clip({ label = "01" }) {
         </div>
         <div className="fx-copy-veil" />
         <div className="fx-copy-text">
-          <p className="fx-mono">{label ? `${label} · ` : ""}{t("The clip")}</p>
-          <Phases
-            p={p}
-            className="fx-big"
-            lines={[
-              [0, 0.32, t("What everyone sees: the sound, the hook, the cut.")],
-              [0.32, 0.64, t("But a clip is only the last fifteen seconds of something much longer.")],
-              [0.64, 1, t("Behind every one that lands is someone with a direction.")],
-            ]}
-          />
-          <div className="fx-load fx-mono" aria-hidden="true" style={{ opacity: buffering > 0 ? 1 : 0 }}>
+          {highlight ? (
+            <Highlight
+              p={seg(p, 0.06, 0.86)}
+              text={[
+                t("What everyone sees: the sound, the hook, the cut."),
+                t("But a clip is only the last fifteen seconds of something much longer."),
+                t("Behind every one that lands is someone with a direction."),
+              ].join(" ")}
+            />
+          ) : (
+            <>
+              <p className="fx-mono">{label ? `${label} · ` : ""}{t("The clip")}</p>
+              <Phases
+                p={p}
+                className="fx-big"
+                lines={[
+                  [0, 0.32, t("What everyone sees: the sound, the hook, the cut.")],
+                  [0.32, 0.64, t("But a clip is only the last fifteen seconds of something much longer.")],
+                  [0.64, 1, t("Behind every one that lands is someone with a direction.")],
+                ]}
+              />
+            </>
+          )}
+          <div className="fx-load fx-mono" aria-hidden="true" style={{ opacity: !highlight && buffering > 0 ? 1 : 0 }}>
             <span className="fx-load-track"><i style={{ transform: `scaleX(${story})` }} /><i className="is-buf" style={{ transform: `scaleX(${buffering})` }} /></span>
             <span>{story < 1 ? t("Loading the story behind the clip") : t("The whole story")} · {Math.round(story * 100)}%</span>
           </div>
@@ -742,6 +771,8 @@ export const CORE_CSS = `
   .fx-tile-time { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 2px; background: rgba(255,255,255,0.18); border-radius: 2px; }
   .fx-tile-time i { position: absolute; right: 0; top: -1px; height: 4px; width: 9%; border-radius: 2px; background: var(--hot); box-shadow: 0 0 10px rgba(255,106,43,0.9); }
   .fx-tile-time em { position: absolute; right: 0; bottom: 8px; font-style: normal; font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  .fx-hl { font-size: clamp(30px, 4.2vw, 64px); line-height: 1.08; letter-spacing: -0.04em; font-weight: 600; max-width: 24ch; margin: 0 auto; text-wrap: balance; }
+  .fx-hl > span > span { transition: opacity 0.15s linear; }
   .fx-load { display: grid; justify-items: center; gap: 10px; transition: opacity 0.4s ease; }
   .fx-load-track { position: relative; width: min(320px, 70vw); height: 2px; background: rgba(244,241,234,0.12); border-radius: 2px; overflow: hidden; }
   .fx-load-track i { position: absolute; inset: 0; transform-origin: left; background: var(--hot); box-shadow: 0 0 12px rgba(255,106,43,0.8); }

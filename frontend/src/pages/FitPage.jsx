@@ -330,7 +330,7 @@ function Clip() {
             lines={[
               [0, 0.32, t("What everyone sees: the sound, the hook, the cut.")],
               [0.32, 0.64, t("But a clip is only the last fifteen seconds of something much longer.")],
-              [0.64, 1, t("Behind every one that lands, there's a person living something real.")],
+              [0.64, 1, t("Behind every one that lands is someone with a direction.")],
             ]}
           />
           <div className="fx-load fx-mono" aria-hidden="true" style={{ opacity: buffering > 0 ? 1 : 0 }}>
@@ -343,54 +343,66 @@ function Clip() {
   );
 }
 
-/* ── 02 · The line ─────────────────────────────────────────────────────
-   One hairline: a life. Moments mark it as you scroll — most of them quiet,
-   one that lands out of nowhere. It still sits on the line. */
-const LN = 46;
-const LANDED = 31;
-const MOMENTS = Array.from({ length: LN }, (_, i) => {
-  const x = 40 + ((i + 0.5 + (rnd(i, 51) - 0.5) * 0.7) / LN) * 920;
-  const h = i === LANDED ? 150 : rnd(i, 52) > 0.9 ? 26 + rnd(i, 53) * 26 : 4 + rnd(i, 54) * 10;
-  return { x, h };
+/* ── 02 · Direction ────────────────────────────────────────────────────
+   Everyone has a life and moments. What's rare is a direction — work, life
+   and energy pointing the same way. Faint lines wander; one goes somewhere,
+   and the moment that lands sits on it. */
+const WALKS = 16, WSTEPS = 64, WY = 170;
+const WANDER = Array.from({ length: WALKS }, (_, w) => {
+  const drift = (rnd(w, 61) - 0.5) * 5;
+  let y = WY;
+  return Array.from({ length: WSTEPS }, (_, k) => {
+    if (k) y = Math.max(20, Math.min(320, y + (rnd(w * 97 + k, 62) - 0.5) * 22 + drift));
+    return [40 + (k / (WSTEPS - 1)) * 920, y];
+  });
 });
-const LY = 210;
+const toPath = (pts) => pts.map(([x, y], k) => `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+const WANDER_D = WANDER.map(toPath);
+const dirY = (x) => WY + 40 - ((x - 40) / 920) * 110; // one steady, rising line
+const DIR_D = `M40,${dirY(40)}L960,${dirY(960)}`;
+const MARKS = Array.from({ length: 22 }, (_, i) => 80 + (i / 21) * 860 + (rnd(i, 63) - 0.5) * 20);
+const LANDED_AT = 15;
 
-function Line() {
+function Direction() {
   const t = useT();
   const [ref, p] = useScene();
-  const draw = seg(p, 0.06, 0.8);
-  const warm = seg(p, 0.78, 0.95);
-  const at = 40 + draw * 920;
-  const landed = MOMENTS[LANDED];
-  const lit = at >= landed.x;
+  const wander = seg(p, 0.04, 0.34);
+  const dim = seg(p, 0.36, 0.5);
+  const dir = seg(p, 0.4, 0.82);
+  const head = 40 + dir * 920;
+  const lx = MARKS[LANDED_AT];
+  const lit = head >= lx;
   return (
-    <section ref={ref} className="fx-scene fx-line" style={{ height: "300vh" }} data-pc-section="fit_line" data-pc-order="30">
+    <section ref={ref} className="fx-scene fx-dir" style={{ height: "300vh" }} data-pc-section="fit_direction" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">02 · {t("The line")}</p>
+        <p className="fx-mono">02 · {t("Direction")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
           lines={[
-            [0, 0.34, t("A clip is fifteen seconds. A life is the whole line.")],
-            [0.34, 0.7, t("Most moments are quiet. Now and then one lands — and you never know which.")],
-            [0.7, 1, t("But it always comes from the line. So that's what we work on.")],
+            [0, 0.36, t("Everyone has a life. Everyone has moments.")],
+            [0.36, 0.7, t("What's rare is a direction — when your work, your life and your energy point the same way.")],
+            [0.7, 1, t("That's where the moments that land come from. That's what we build.")],
           ]}
         />
-        <svg className="fx-line-svg" viewBox="0 0 1000 260" aria-hidden="true">
-          <line x1="40" x2="960" y1={LY} y2={LY} className="fx-line-track" />
-          <line x1="40" x2={at} y1={LY} y2={LY} className="fx-line-now" style={{ opacity: 0.7 + warm * 0.3, stroke: warm > 0 ? `rgba(255,${Math.round(244 - warm * 138)},${Math.round(234 - warm * 191)},1)` : undefined }} />
-          {MOMENTS.map(({ x, h }, i) => {
-            const on = at >= x;
-            const isLanded = i === LANDED;
+        <svg className="fx-dir-svg" viewBox="0 0 1000 340" aria-hidden="true">
+          {WANDER_D.map((d, i) => (
+            <path key={i} d={d} pathLength="1" className="fx-dir-wander" style={{ strokeDashoffset: 1 - wander, opacity: 0.5 - dim * 0.36 }} />
+          ))}
+          <path d={DIR_D} pathLength="1" className="fx-dir-main" style={{ strokeDashoffset: 1 - dir }} />
+          {MARKS.map((x, i) => {
+            const on = head >= x;
+            const y = dirY(x);
+            const h = i === LANDED_AT ? 120 : 6 + rnd(i, 64) * 12;
             return (
-              <g key={i} className={`fx-mom${on ? " is-on" : ""}${isLanded ? " is-landed" : ""}`}>
-                <line x1={x} x2={x} y1={LY} y2={on ? LY - h : LY} />
-                <circle cx={x} cy={on ? LY - h : LY} r={isLanded ? 5 : 2.5} />
+              <g key={i} className={`fx-dir-mark${on ? " is-on" : ""}${i === LANDED_AT ? " is-landed" : ""}`}>
+                <line x1={x} x2={x} y1={y} y2={on ? y - h : y} />
+                <circle cx={x} cy={on ? y - h : y} r={i === LANDED_AT ? 5 : 2.2} />
               </g>
             );
           })}
-          <circle cx={at} cy={LY} r="4" className="fx-line-head" />
-          <text x={landed.x} y={LY - landed.h - 18} className="fx-line-label" style={{ opacity: lit ? 1 : 0 }}>{t("The one that landed")}</text>
+          {dir > 0 && <circle cx={head} cy={dirY(head)} r="4.5" className="fx-dir-head" />}
+          <text x={lx} y={dirY(lx) - 140} className="fx-dir-label" style={{ opacity: lit ? 1 : 0 }}>{t("The one that landed")}</text>
         </svg>
       </div>
     </section>
@@ -662,7 +674,7 @@ export default function FitPage() {
         <div className="fx-grain" aria-hidden="true" />
         <Hero />
         <Clip />
-        <Line />
+        <Direction />
         <Person />
         <Spike />
         <People />
@@ -759,19 +771,19 @@ const FIT_CSS = `
   .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
   .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
 
-  /* 02 line */
-  .fx-line .fx-phases { width: 100%; max-width: 900px; }
-  .fx-line-svg { width: min(1100px, 100%); height: auto; overflow: visible; margin-top: 8px; }
-  .fx-line-track { stroke: rgba(244,241,234,0.1); stroke-width: 1; }
-  .fx-line-now { stroke: rgba(244,241,234,0.85); stroke-width: 1.2; }
-  .fx-line-head { fill: #fff; filter: drop-shadow(0 0 8px rgba(255,255,255,0.8)); }
-  .fx-mom line { stroke: rgba(244,241,234,0.45); stroke-width: 1; transition: y2 0.7s cubic-bezier(0.16,1,0.3,1); }
-  .fx-mom circle { fill: rgba(244,241,234,0.75); opacity: 0; transition: cy 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease; }
-  .fx-mom.is-on circle { opacity: 1; }
-  .fx-mom.is-landed line { stroke: #FF6A2B; stroke-width: 1.5; }
-  .fx-mom.is-landed circle { fill: #FF6A2B; filter: drop-shadow(0 0 10px rgba(255,106,43,0.9)); }
-  .fx-line-label { font-family: ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; fill: #FF8A57; text-anchor: middle; transition: opacity 0.6s ease; }
-  @media (max-width: 700px) { .fx-line-label { font-size: 22px; } .fx-mom circle { r: 4; } }
+  /* 02 direction */
+  .fx-dir .fx-phases { width: 100%; max-width: 900px; }
+  .fx-dir-svg { width: min(1100px, 100%); height: auto; overflow: visible; margin-top: 36px; }
+  .fx-dir-wander { fill: none; stroke: rgba(244,241,234,0.7); stroke-width: 1; stroke-dasharray: 1; stroke-linejoin: round; }
+  .fx-dir-main { fill: none; stroke: #FF6A2B; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 1; filter: drop-shadow(0 0 10px rgba(255,106,43,0.7)); }
+  .fx-dir-head { fill: #fff; filter: drop-shadow(0 0 10px rgba(255,255,255,0.9)); }
+  .fx-dir-mark line { stroke: rgba(255,138,87,0.7); stroke-width: 1; transition: y2 0.7s cubic-bezier(0.16,1,0.3,1); }
+  .fx-dir-mark circle { fill: #FFB38A; opacity: 0; transition: cy 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease; }
+  .fx-dir-mark.is-on circle { opacity: 1; }
+  .fx-dir-mark.is-landed line { stroke: #FF6A2B; stroke-width: 1.6; }
+  .fx-dir-mark.is-landed circle { fill: #fff; filter: drop-shadow(0 0 12px rgba(255,106,43,1)); }
+  .fx-dir-label { font-family: ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; fill: #FF8A57; text-anchor: middle; transition: opacity 0.6s ease; }
+  @media (max-width: 700px) { .fx-dir-label { font-size: 22px; } .fx-dir-main { stroke-width: 4; } }
 
   /* 04 spike */
   .fx-spike .fx-phases { width: 100%; max-width: 980px; }

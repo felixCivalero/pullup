@@ -61,7 +61,7 @@ import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
 const StartHostingPage = lazyPage(() => import("./pages/StartHostingPage"), "StartHostingPage");
 const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
-const FitPage = lazyPage(() => import("./pages/FitPage"));
+const CorePage = lazyPage(() => import("./pages/CorePage"));
 const CanvasBoardsPage = lazyPage(() => import("./pages/canvas/CanvasBoardsPage"));
 const CanvasBoardPage = lazyPage(() => import("./pages/canvas/CanvasBoardPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"), "ForgotPasswordPage");
@@ -163,7 +163,7 @@ function App() {
         <Route path="/start" element={<StartHostingPage />} />
         {/* Creator case study — Adam Flambo, real production data (see stories/). */}
         <Route path="/work/:slug" element={<StoryRoute />} />
-        <Route path="/fit" element={<FitPage />} />
+        <Route path="/core" element={<CorePage />} />
         <Route path="/booklet" element={<Navigate to="/#deck" replace />} />
         <Route path="/deck" element={<Navigate to="/#deck" replace />} />
         {/* Manifesto is internal now (docs/manifesto.md) — old links land home. */}

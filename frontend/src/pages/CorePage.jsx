@@ -8,7 +8,7 @@ import { OFFER, SERIES, casePath } from "../components/agency/agencyData.js";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
-/* /fit — the optional, animated landing. One argument told while you scroll:
+/* /core — the optional, animated landing. One argument told while you scroll:
    people look at the clip, but virality is random — an occasional ego
    boost. What lasts is the coherent line of the people behind it. Every scene is a tall section with a sticky
    stage; scroll progress (0–1) drives it. Research is cited; anything drawn
@@ -211,7 +211,7 @@ function Field() {
 function Hero() {
   const t = useT();
   return (
-    <section className="fx-hero" data-pc-section="fit_hero" data-pc-order="0">
+    <section className="fx-hero" data-pc-section="core_hero" data-pc-order="0">
       <Field />
       <div className="fx-hero-in">
         <p className="fx-mono fx-rise" style={{ "--d": "0.1s" }}>{t("PullUp · A study in coherence")}</p>
@@ -274,7 +274,7 @@ function Clip() {
   const story = tiles.reduce((a, x) => a + x.res, 0) / TILES;
   const buffering = tiles.reduce((a, x) => a + x.load, 0) / TILES;
   return (
-    <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_clip" data-pc-order="10">
+    <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="core_clip" data-pc-order="10">
       <div className="fx-stage">
         <div
           className="fx-wall"
@@ -364,7 +364,7 @@ function Line() {
   const landed = MOMENTS[LANDED];
   const lit = at >= landed.x;
   return (
-    <section ref={ref} className="fx-scene fx-line" style={{ height: "300vh" }} data-pc-section="fit_line" data-pc-order="30">
+    <section ref={ref} className="fx-scene fx-line" style={{ height: "300vh" }} data-pc-section="core_line" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
         <p className="fx-mono">02 · {t("The line")}</p>
         <Phases
@@ -408,7 +408,7 @@ function Person() {
   const [ref, p] = useScene();
   const out = seg(p, 0.3, 0.9);
   return (
-    <section ref={ref} className="fx-scene fx-person" style={{ height: "320vh" }} data-pc-section="fit_person" data-pc-order="40">
+    <section ref={ref} className="fx-scene fx-person" style={{ height: "320vh" }} data-pc-section="core_person" data-pc-order="40">
       <div className="fx-stage fx-stage-split fx-stage-rev">
         <div className="fx-orbit" aria-hidden="true" style={{ "--out": out }}>
           <svg viewBox="-100 -100 200 200" className="fx-orbit-svg">
@@ -492,7 +492,7 @@ function Spike() {
   const line = seg(p, 0.46, 0.74);
   const learn = seg(p, 0.74, 0.9);
   return (
-    <section ref={ref} className="fx-scene fx-spike" style={{ height: "320vh" }} data-pc-section="fit_spike" data-pc-order="50">
+    <section ref={ref} className="fx-scene fx-spike" style={{ height: "320vh" }} data-pc-section="core_spike" data-pc-order="50">
       <div className="fx-stage fx-stage-col">
         <p className="fx-mono">04 · {t("The spike")}</p>
         <Phases
@@ -572,7 +572,7 @@ function People() {
   }, []);
   const x = seg(p, 0.08, 0.95) * span;
   return (
-    <section ref={ref} className="fx-scene fx-people" style={{ height: `${SERIES.length * 70 + 60}vh` }} data-pc-section="fit_people" data-pc-order="60">
+    <section ref={ref} className="fx-scene fx-people" style={{ height: `${SERIES.length * 70 + 60}vh` }} data-pc-section="core_people" data-pc-order="60">
       <div className="fx-stage fx-stage-track">
         <div className="fx-people-head">
           <p className="fx-mono">05 · {t("The people")}</p>
@@ -587,7 +587,7 @@ function People() {
               style={{ "--c": c.color }}
               onClick={(e) => {
                 e.preventDefault();
-                trackEvent("cta_click", { location: `fit_card_${c.slug}` });
+                trackEvent("cta_click", { location: `core_card_${c.slug}` });
                 navigate(casePath(c.slug));
               }}
             >
@@ -614,7 +614,7 @@ function Close() {
   const t = useT();
   const navigate = useNavigate();
   return (
-    <section className="fx-close" data-pc-section="fit_close" data-pc-order="70">
+    <section className="fx-close" data-pc-section="core_close" data-pc-order="70">
       <div className="fx-close-glow" aria-hidden="true" />
       <div className="fx-close-in">
         <p className="fx-mono">06 · {t("What we do")}</p>
@@ -628,8 +628,8 @@ function Close() {
             type="button"
             className="fx-btn fx-btn-hot"
             onClick={() => {
-              trackEvent("cta_click", { location: "fit_close_build" });
-              openRequest({ source: "fit" });
+              trackEvent("cta_click", { location: "core_close_build" });
+              openRequest({ source: "core" });
             }}
           >
             {t("Build with us")} <ArrowRight size={18} strokeWidth={1.75} />
@@ -638,7 +638,7 @@ function Close() {
             type="button"
             className="fx-btn"
             onClick={() => {
-              trackEvent("cta_click", { location: "fit_close_home" });
+              trackEvent("cta_click", { location: "core_close_home" });
               navigate("/");
             }}
           >
@@ -650,14 +650,14 @@ function Close() {
   );
 }
 
-export default function FitPage() {
+export default function CorePage() {
   useEffect(() => {
     initTracking();
-    trackPageView("fit");
+    trackPageView("core");
     window.scrollTo(0, 0);
   }, []);
   return (
-    <AgencyShell css={FIT_CSS} cursor={false}>
+    <AgencyShell css={CORE_CSS} cursor={false}>
       <main className="fx" data-pc-tone="dark">
         <div className="fx-grain" aria-hidden="true" />
         <Hero />
@@ -672,7 +672,7 @@ export default function FitPage() {
   );
 }
 
-const FIT_CSS = `
+const CORE_CSS = `
   .agency-root:has(.fx) { background: #060608; }
   .fx {
     --ink: #F4F1EA; --dim: rgba(244,241,234,0.56); --faint: rgba(244,241,234,0.1);

@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { trackEvent } from "../lib/analytics.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
-import { OFFER, SERIES, casePath } from "../components/agency/agencyData.js";
+import { COVERS, OFFER, SERIES, casePath } from "../components/agency/agencyData.js";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
@@ -546,14 +546,6 @@ export function Spike({ label = "04" }) {
 
 /* ── 05 · The people ────────────────────────────────────────────────────
    Real stories, real numbers, sliding past sideways. */
-const COVERS = {
-  "li-karlsen": "/stories/li/sunburst.jpg",
-  bkm: "/stories/bkm/big-blue.jpg",
-  kaijas: "/stories/kaijas/crowd.jpg",
-  stiga: "/stories/stiga/arena.jpg",
-  "adam-dawood": "/stories/dawood/studio.jpg",
-  "adam-flambo": "/stories/adam-hero.jpg",
-};
 
 function People() {
   const t = useT();

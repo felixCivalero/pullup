@@ -208,6 +208,16 @@ const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "E
 export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);
 export const storyCount = String(SERIES.length).padStart(2, "0");
 
+// A photo per story, for pages that show the stories as images.
+export const COVERS = {
+  "li-karlsen": "/stories/li/sunburst.jpg",
+  bkm: "/stories/bkm/big-blue.jpg",
+  kaijas: "/stories/kaijas/crowd.jpg",
+  stiga: "/stories/stiga/arena.jpg",
+  "adam-dawood": "/stories/dawood/studio.jpg",
+  "adam-flambo": "/stories/adam-hero.jpg",
+};
+
 export const casePath = (slug) => `/work/${slug}`;
 export const caseBySlug = (slug) => CASES.find((c) => c.slug === slug);
 export const nextCase = (slug) => {

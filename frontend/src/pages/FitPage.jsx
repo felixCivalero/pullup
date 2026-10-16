@@ -260,6 +260,10 @@ function Template({ hook = HOOKS[0] }) {
 function Clip() {
   const t = useT();
   const [ref, p] = useScene();
+  // The wall starts lying almost flat and rises up into the screen as you
+  // scroll in, then keeps drifting gently toward you.
+  const rise = 1 - (1 - seg(p, 0, 0.3)) ** 3;
+  const drift = seg(p, 0.3, 1);
   const open = seg(p, 0.26, 0.9);
   // Each tile has its own moment: it buffers (ring fills), then the life
   // behind the surface resolves out of the blur — all scrubbed by scroll.
@@ -272,7 +276,13 @@ function Clip() {
   return (
     <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_clip" data-pc-order="10">
       <div className="fx-stage">
-        <div className="fx-wall" style={{ transform: `perspective(1400px) rotateX(${22 - p * 10}deg) translateY(${-p * 6}%) scale(${1 + p * 0.08})` }}>
+        <div
+          className="fx-wall"
+          style={{
+            transform: `perspective(1100px) rotateX(${76 - rise * 57 - drift * 7}deg) translateY(${(1 - rise) * 22 - drift * 6}%) scale(${0.82 + rise * 0.18 + drift * 0.08})`,
+            opacity: 0.35 + rise * 0.65,
+          }}
+        >
           {tiles.map(({ load, res }, i) => {
             const life = res > 0.6;
             return (

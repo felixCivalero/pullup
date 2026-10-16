@@ -9,8 +9,8 @@ import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* /fit — the optional, animated landing. One argument told while you scroll:
-   people look at the clip; what lands is the fit between a person and what
-   they make — trends included. Every scene is a tall section with a sticky
+   people look at the clip, but virality is random — an occasional ego
+   boost. What lasts is the coherent line of the people behind it. Every scene is a tall section with a sticky
    stage; scroll progress (0–1) drives it. Research is cited; anything drawn
    to explain an idea is marked as an illustration. Numbers are the real
    case numbers from agencyData. */
@@ -214,13 +214,13 @@ function Hero() {
     <section className="fx-hero" data-pc-section="fit_hero" data-pc-order="0">
       <Field />
       <div className="fx-hero-in">
-        <p className="fx-mono fx-rise" style={{ "--d": "0.1s" }}>{t("PullUp · A study in fit")}</p>
+        <p className="fx-mono fx-rise" style={{ "--d": "0.1s" }}>{t("PullUp · A study in coherence")}</p>
         <h1 className="fx-h1">
           <span className="fx-rise" style={{ "--d": "0.3s" }}>{t("Everyone looks at the clip.")}</span>
-          <span className="fx-rise fx-glow" style={{ "--d": "0.9s" }}>{t("We look at the person behind it.")}</span>
+          <span className="fx-rise fx-glow" style={{ "--d": "0.9s" }}>{t("We look at the people behind it.")}</span>
         </h1>
         <p className="fx-hero-sub fx-rise" style={{ "--d": "1.4s" }}>
-          {t("Trends, formats, hooks — they all work when they fit who you are. Five minutes of scrolling on why.")}
+          {t("A viral moment is a spark. What lasts is the people it comes from. Five minutes of scrolling on why.")}
         </p>
       </div>
       <div className="fx-cue fx-rise" style={{ "--d": "1.8s" }} aria-hidden="true">
@@ -232,7 +232,7 @@ function Hero() {
 }
 
 /* ── 01 · The clip ──────────────────────────────────────────────────────
-   A wall of clips seen as formats — the sound, the hook, the cut. As you
+   A wall of clips seen from the outside — the sound, the hook, the cut. As you
    scroll, one by one they open up to the life behind them. */
 const PHOTOS = [
   "/stories/stiga/arena.jpg", "/stories/bkm/big-blue.jpg", "/stories/kaijas/crowd.jpg", "/stories/dawood/studio.jpg",
@@ -244,9 +244,9 @@ const PHOTOS = [
 ];
 const TILES = 36;
 
-// A clip seen only as its format: no person in it, just the hook.
+// A clip seen from the outside: no person in it, just the hook.
 const HOOKS = ["wait for it…", "POV:", "day in my life", "3 things nobody tells you"];
-const FORMATS = ["Trending sound", "Hook in 2 seconds", "Jump cut", "POV"];
+const SURFACE = ["Trending sound", "Hook in 2 seconds", "Jump cut", "POV"];
 function Template({ hook = HOOKS[0] }) {
   const t = useT();
   return (
@@ -262,7 +262,7 @@ function Clip() {
   const [ref, p] = useScene();
   const open = seg(p, 0.26, 0.9);
   // Each tile has its own moment: it buffers (ring fills), then the life
-  // behind the format resolves out of the blur — all scrubbed by scroll.
+  // behind the surface resolves out of the blur — all scrubbed by scroll.
   const tiles = Array.from({ length: TILES }, (_, i) => {
     const th = 0.14 + rnd(i, 9) * 0.76;
     return { load: seg(open, th - 0.16, th), res: seg(open, th, th + 0.1) };
@@ -276,7 +276,7 @@ function Clip() {
           {tiles.map(({ load, res }, i) => {
             const life = res > 0.6;
             return (
-              <div key={i} className={`fx-tile${life ? " is-life" : " is-format"}${load > 0 && res < 1 ? " is-loading" : ""}`} style={{ "--i": i }}>
+              <div key={i} className={`fx-tile${life ? " is-life" : " is-surface"}${load > 0 && res < 1 ? " is-loading" : ""}`} style={{ "--i": i }}>
                 <span style={{ opacity: 1 - res }} className="fx-tile-layer">
                   <Template hook={HOOKS[i % HOOKS.length]} />
                 </span>
@@ -298,7 +298,7 @@ function Clip() {
                     <b>{Math.round(load * 100)}</b>
                   </span>
                 )}
-                {!life && <span className="fx-tile-cap">{t(FORMATS[i % FORMATS.length])}</span>}
+                {!life && <span className="fx-tile-cap">{t(SURFACE[i % SURFACE.length])}</span>}
                 {life ? (
                   <span className="fx-tile-time" aria-hidden="true">
                     <i />
@@ -450,7 +450,7 @@ function Person() {
             lines={[
               [0, 0.32, t("Everything you do already says who you are.")],
               [0.32, 0.64, t("Content is just where it shows.")],
-              [0.64, 1, t("When the content fits the person, it compounds. That's the part nobody can copy.")],
+              [0.64, 1, t("When what you make is coherent with who you are, it compounds.")],
             ]}
           />
         </div>
@@ -459,48 +459,83 @@ function Person() {
   );
 }
 
-/* ── 04 · The turn ──────────────────────────────────────────────────────
-   FORMAT collapses into FIT. Then the same trend twice: forced, and fitting. */
-function Turn() {
+/* ── 04 · The spike ────────────────────────────────────────────────────
+   Virality isn't coherent with what a creator makes: spikes come out of
+   nowhere and fade. They're ego boosts. What stays is the line underneath —
+   the person, showing up — and that's what you learn into and scale. */
+const SN = 120;
+const SPIKES = [[18, 190], [46, 140], [73, 235], [99, 165]];
+const BASE = Array.from({ length: SN }, (_, i) => 26 + 150 * (i / (SN - 1)) ** 1.6);
+const VIEWS = BASE.map((b, i) => {
+  let v = b * 0.82 + rnd(i, 21) * 14;
+  for (const [at, h] of SPIKES) {
+    if (i === at - 1) v += h * 0.35;
+    else if (i >= at) v += h * Math.exp(-(i - at) / 2.4);
+  }
+  return v;
+});
+const SW = 1000, SH = 380, SMAX = 310;
+const sx = (i) => 20 + (i / (SN - 1)) * (SW - 40);
+const sy = (v) => SH - 24 - (v / SMAX) * (SH - 60);
+const spath = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join("");
+const VIEWS_D = spath(VIEWS);
+const BASE_D = spath(BASE);
+
+function Spike() {
   const t = useT();
   const [ref, p] = useScene();
-  const m = seg(p, 0.12, 0.4);
-  const phones = seg(p, 0.48, 0.72);
-  const mid = ["O", "R", "M", "A"];
+  const draw = seg(p, 0.04, 0.36);
+  const fade = seg(p, 0.4, 0.56);
+  const line = seg(p, 0.46, 0.74);
+  const learn = seg(p, 0.74, 0.9);
   return (
-    <section ref={ref} className="fx-scene fx-turn" style={{ height: "300vh" }} data-pc-section="fit_turn" data-pc-order="50">
+    <section ref={ref} className="fx-scene fx-spike" style={{ height: "320vh" }} data-pc-section="fit_spike" data-pc-order="50">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono" style={{ opacity: 1 - phones }}>04 · {t("The turn")}</p>
-        <div className="fx-word" aria-label={m > 0.5 ? "FIT" : "FORMAT"} style={{ transform: `translateY(${-phones * 18}vh) scale(${1 - phones * 0.45})` }}>
-          <span>F</span>
-          {mid.map((c) => (
-            <span key={c} className="fx-squeeze" style={{ opacity: 1 - m, maxWidth: `${(1 - m) * 0.9}em`, filter: `blur(${m * 8}px)` }}>{c}</span>
+        <p className="fx-mono">04 · {t("The spike")}</p>
+        <Phases
+          p={p}
+          className="fx-mid fx-center"
+          lines={[
+            [0, 0.38, t("Sometimes something random goes viral. Out of nowhere.")],
+            [0.38, 0.72, t("It feels great. But a spike is an ego boost — it fades as fast as it came.")],
+            [0.72, 1, t("What stays is the line underneath: you, showing up. Learn from the spikes. Build the line.")],
+          ]}
+        />
+        <svg className="fx-chart" viewBox={`0 0 ${SW} ${SH}`} aria-hidden="true">
+          <defs>
+            <linearGradient id="fx-line-g" x1="0" x2="1">
+              <stop offset="0" stopColor="#FF6A2B" stopOpacity="0.5" />
+              <stop offset="1" stopColor="#FF6A2B" />
+            </linearGradient>
+          </defs>
+          {[0.25, 0.5, 0.75].map((g) => (
+            <line key={g} x1="20" x2={SW - 20} y1={sy(SMAX * g)} y2={sy(SMAX * g)} className="fx-chart-grid" />
           ))}
-          <span className="fx-i" style={{ opacity: m, maxWidth: `${m * 0.4}em` }}>I</span>
-          <span>T</span>
+          <path d={VIEWS_D} pathLength="1" className="fx-chart-views" style={{ strokeDashoffset: 1 - draw, opacity: 1 - fade * 0.72 }} />
+          <path d={BASE_D} pathLength="1" className="fx-chart-line" style={{ strokeDashoffset: 1 - line }} />
+          {SPIKES.map(([at], k) => {
+            const peak = sy(VIEWS[at]);
+            const seen = draw >= at / (SN - 1);
+            return (
+              <g key={at}>
+                <g className="fx-chart-tag" style={{ opacity: seen ? 1 - fade * 0.8 : 0, transform: `translateY(${seen ? 0 : 10}px)` }}>
+                  <circle cx={sx(at)} cy={peak} r="4" />
+                  <text x={sx(at)} y={peak - 14}>{k === 2 ? t("viral") : t("ego boost")}</text>
+                </g>
+                <g style={{ opacity: learn > (k + 1) / (SPIKES.length + 1) ? 1 : 0 }} className="fx-chart-learn">
+                  <line x1={sx(at)} x2={sx(at)} y1={peak + 6} y2={sy(BASE[at]) - 6} />
+                  <circle cx={sx(at)} cy={sy(BASE[at])} r="5" />
+                  <text x={sx(at) + 10} y={sy(BASE[at]) + 22}>{t("learned")}</text>
+                </g>
+              </g>
+            );
+          })}
+        </svg>
+        <div className="fx-legend fx-mono" aria-hidden="true">
+          <span><i className="is-views" />{t("Spikes — out of nowhere")}</span>
+          <span><i className="is-line" />{t("The line — who you are, showing up")}</span>
         </div>
-        <p className="fx-turn-line" style={{ opacity: seg(p, 0.3, 0.42) * (1 - phones), transform: `translateY(${(1 - seg(p, 0.3, 0.42)) * 20}px)` }}>
-          {t("Trends aren't the problem. Picking one that isn't you is.")}
-        </p>
-        <div className="fx-pair" style={{ opacity: phones, transform: `translateY(${(1 - phones) * 80}px)` }}>
-          <figure className="fx-phone is-forced">
-            <Template />
-            <figcaption>
-              <b>{t("Forced")}</b>
-              <span>{t("Picked because it was big.")}</span>
-            </figcaption>
-          </figure>
-          <span className="fx-vs fx-mono">{t("Same format")}</span>
-          <figure className="fx-phone is-fit">
-            <img src="/stories/li/sunburst.jpg" alt="" loading="lazy" decoding="async" />
-            <em className="fx-phone-hook" aria-hidden="true">{t("wait for it…")}</em>
-            <figcaption>
-              <b>{t("Fits")}</b>
-              <span>{t("Picked because it's you.")}</span>
-            </figcaption>
-          </figure>
-        </div>
-        <p className="fx-cite fx-center" style={{ opacity: phones }}>{t("Illustration.")}</p>
+        <p className="fx-cite fx-center">{t("Illustration.")}</p>
       </div>
     </section>
   );
@@ -538,7 +573,7 @@ function People() {
       <div className="fx-stage fx-stage-track">
         <div className="fx-people-head">
           <p className="fx-mono">05 · {t("The people")}</p>
-          <h2 className="fx-h2">{t("Not formats. People.")}</h2>
+          <h2 className="fx-h2">{t("Not spikes. People.")}</h2>
         </div>
         <div className="fx-track" ref={track} style={{ transform: `translate3d(${-x}px,0,0)` }}>
           {SERIES.map((c, i) => (
@@ -581,7 +616,7 @@ function Close() {
       <div className="fx-close-in">
         <p className="fx-mono">06 · {t("What we do")}</p>
         <Words as="h2" className="fx-h1 fx-close-h" text={t("We don't make you go viral. We make you more you — then we scale it.")} />
-        <Words className="fx-close-sub" text={t("A clear direction, content that fits the person, and growth you can measure.")} />
+        <Words className="fx-close-sub" text={t("A clear direction, content that sounds like you, and growth you can measure.")} />
         <p className="fx-close-offer fx-mono">
           {t(OFFER.label)} · {OFFER.price} / {t("month")} · {t("first 3 months, no commitment")}
         </p>
@@ -626,7 +661,7 @@ export default function FitPage() {
         <Clip />
         <Moments />
         <Person />
-        <Turn />
+        <Spike />
         <People />
         <Close />
       </main>
@@ -738,20 +773,24 @@ const FIT_CSS = `
   .fx-tally { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
   .fx-tally b { color: var(--ink); font-weight: 600; margin-left: 6px; }
 
-  /* 04 turn */
-  .fx-word { display: flex; justify-content: center; font-size: clamp(80px, 20vw, 300px); font-weight: 700; letter-spacing: -0.06em; line-height: 0.9; transform-origin: 50% 50%; }
-  .fx-word > span { display: inline-block; overflow: hidden; white-space: nowrap; }
-  .fx-i { color: var(--hot); }
-  .fx-turn-line { font-size: clamp(20px, 2.4vw, 32px); letter-spacing: -0.02em; color: var(--dim); max-width: 32ch; margin: 0 auto; }
-  .fx-pair { position: absolute; left: 0; right: 0; bottom: max(8vh, 40px); display: flex; justify-content: center; align-items: center; gap: clamp(14px, 4vw, 48px); }
-  .fx-phone { position: relative; width: clamp(130px, 18vw, 230px); aspect-ratio: 9/16; border-radius: 22px; overflow: hidden; border: 1px solid var(--faint); }
-  .fx-phone img { width: 100%; height: 100%; object-fit: cover; }
-  .fx-phone figcaption { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 2px; text-align: left; font-size: 12px; color: rgba(255,255,255,0.8); }
-  .fx-phone figcaption b { font-size: 16px; color: #fff; }
-  .fx-phone.is-forced img { filter: grayscale(1) brightness(0.5); }
-  .fx-phone.is-fit { border-color: rgba(255,106,43,0.6); box-shadow: 0 0 80px -10px rgba(255,106,43,0.55); animation: fx-breathe 4s ease-in-out infinite; }
-  @keyframes fx-breathe { 50% { box-shadow: 0 0 110px -6px rgba(255,106,43,0.7); } }
-  .fx-vs { writing-mode: vertical-rl; transform: rotate(180deg); }
+  /* 04 spike */
+  .fx-spike .fx-phases { width: 100%; max-width: 980px; }
+  .fx-chart { width: min(1100px, 100%); height: auto; overflow: visible; margin-top: 12px; }
+  .fx-chart-grid { stroke: rgba(244,241,234,0.06); stroke-width: 1; }
+  .fx-chart-views { fill: none; stroke: rgba(244,241,234,0.75); stroke-width: 1.6; stroke-linejoin: round; stroke-dasharray: 1; transition: opacity 0.3s ease; }
+  .fx-chart-line { fill: none; stroke: url(#fx-line-g); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 1; filter: drop-shadow(0 0 10px rgba(255,106,43,0.7)); }
+  .fx-chart-tag { transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.16,1,0.3,1); }
+  .fx-chart-tag circle { fill: #fff; }
+  .fx-chart-tag text, .fx-chart-learn text { font-family: ui-monospace, Menlo, monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; fill: rgba(244,241,234,0.85); text-anchor: middle; }
+  .fx-chart-learn { transition: opacity 0.5s ease; }
+  .fx-chart-learn line { stroke: rgba(255,106,43,0.6); stroke-width: 1.2; stroke-dasharray: 3 4; }
+  .fx-chart-learn circle { fill: #060608; stroke: #FF6A2B; stroke-width: 2.5; }
+  .fx-chart-learn text { fill: #FF8A57; text-anchor: start; font-size: 12px; }
+  .fx-legend { display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: center; }
+  .fx-legend span { display: inline-flex; align-items: center; gap: 10px; }
+  .fx-legend i { width: 22px; height: 2px; border-radius: 2px; background: rgba(244,241,234,0.75); }
+  .fx-legend i.is-line { height: 4px; background: #FF6A2B; box-shadow: 0 0 8px rgba(255,106,43,0.8); }
+  @media (max-width: 700px) { .fx-chart-tag text, .fx-chart-learn text { font-size: 22px; } }
 
   /* 05 person */
   .fx-orbit { --size: min(84vw, 62vmin); position: relative; width: var(--size); aspect-ratio: 1; margin: 0 auto; }
@@ -811,7 +850,7 @@ const FIT_CSS = `
   .fx-words.is-in > span > span { opacity: 1; transform: none; filter: blur(0); }
 
   @media (prefers-reduced-motion: reduce) {
-    .fx-grain, .fx-tile, .fx-tile-bar::after, .fx-tmpl::after, .fx-orbit-svg, .fx-ring, .fx-node em, .fx-core::before, .fx-close-glow, .fx-phone.is-fit, .fx-cue i { animation: none !important; }
+    .fx-grain, .fx-tile, .fx-tile-bar::after, .fx-tmpl::after, .fx-orbit-svg, .fx-ring, .fx-node em, .fx-core::before, .fx-close-glow, .fx-cue i { animation: none !important; }
     .fx-rise { animation: none; opacity: 1; transform: none; filter: none; }
     .fx-phase { filter: none !important; }
   }

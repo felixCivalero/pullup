@@ -983,4 +983,12 @@ export const SW = {
   "from zero to signed by Sony Music": "kutoka sifuri hadi kusainiwa na Sony Music",
   "people following Kaijas on Instagram": "watu wanaoifuata Kaijas kwenye Instagram",
   "the core, produced": "kiini, kimezalishwa",
+  // 2026-10-16 offer: money-back first month
+  "First month": "Mwezi wa kwanza",
+  "Full scope, ${#}. Not happy? You get your money back.": "Huduma kamili, ${#}. Hujaridhika? Unarudishiwa pesa zako.",
+  "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate.": "Umeipenda? Jifunge nasi tuendelee kujenga. Kadiri mkataba unavyokuwa mrefu, ndivyo bei ya kila mwezi inavyoshuka.",
+  "One offer. ${#} a month. Not happy after the first month? Money back.": "Ofa moja. ${#} kwa mwezi. Hujaridhika baada ya mwezi wa kwanza? Unarudishiwa pesa.",
+  "First month: full scope. Not happy? Money back.": "Mwezi wa kwanza: huduma kamili. Hujaridhika? Unarudishiwa pesa.",
+  "first month money back if you're not happy": "mwezi wa kwanza, pesa zinarudishwa usiporidhika",
+  "Month {#} · money back if you're not happy — then commit to continue": "Mwezi {#} · pesa zinarudishwa usiporidhika — kisha ujifunge ili kuendelea",
 };

@@ -117,7 +117,7 @@ export function RequestDialog() {
             <h2 id="rq-title" className="rq-h">{t("Tell us who you are and where you want to go.")}</h2>
             <p className="rq-offer">
               <b>{t(OFFER.label)} · {OFFER.price} {t(OFFER.cadence)}</b>
-              {t("First 3 months: full scope, no commitment.")}
+              {t("First month: full scope. Not happy? Money back.")}
             </p>
 
             <div className="rq-row">

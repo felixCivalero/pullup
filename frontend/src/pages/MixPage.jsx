@@ -192,7 +192,7 @@ function Hero() {
             </button>
           </div>
           <p className="mx-price mx-rise" style={{ "--d": "1.2s" }}>
-            {t("One offer. $3,000 a month. First three months, no commitment.")}
+            {t("One offer. $3,000 a month. Not happy after the first month? Money back.")}
           </p>
         </div>
         <div className="mx-hero-logos mx-rise" style={{ "--d": "1.4s", opacity: 1 - out * 1.5 }}>

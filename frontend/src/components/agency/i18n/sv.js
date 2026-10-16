@@ -945,4 +945,12 @@ export const SV = {
   "from zero to signed by Sony Music": "från noll till kontrakt med Sony Music",
   "people following Kaijas on Instagram": "personer följer Kaijas på Instagram",
   "the core, produced": "kärnan, producerad",
+  // 2026-10-16 offer: money-back first month
+  "First month": "Första månaden",
+  "Full scope, ${#}. Not happy? You get your money back.": "Fullt uppdrag, ${#}. Inte nöjd? Du får pengarna tillbaka.",
+  "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate.": "Gillar du det? Bind upp dig så bygger vi vidare. Ju längre avtal, desto lägre månadspris.",
+  "One offer. ${#} a month. Not happy after the first month? Money back.": "Ett erbjudande. ${#} i månaden. Inte nöjd efter första månaden? Pengarna tillbaka.",
+  "First month: full scope. Not happy? Money back.": "Första månaden: fullt uppdrag. Inte nöjd? Pengarna tillbaka.",
+  "first month money back if you're not happy": "pengarna tillbaka första månaden om du inte är nöjd",
+  "Month {#} · money back if you're not happy — then commit to continue": "Månad {#} · pengarna tillbaka om du inte är nöjd – sedan binder du upp dig för att fortsätta",
 };

@@ -1,7 +1,7 @@
 import { useT } from "./i18n.js";
 import { Reveal } from "./Reveal.jsx";
 
-/* How we work, as one picture over the 12-week trust period:
+/* How we work, as one picture over the first 12 weeks (month one money-back):
    direction — a clear strategy set first, then carried into everything;
    sprint — 30 minutes with you every week;
    content — made by anyone (you, your team or us), easier every week;
@@ -100,7 +100,7 @@ export function EngineChart() {
       </div>
 
       <div className="en-foot">
-        <span className="en-trust">{t("Weeks 1–12 · trust period — full scope, no commitment")}</span>
+        <span className="en-trust">{t("Month 1 · money back if you're not happy — then commit to continue")}</span>
         <span className="en-note">{t("Illustrative — not a forecast.")}</span>
       </div>
     </Reveal>

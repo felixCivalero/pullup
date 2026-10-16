@@ -23,9 +23,10 @@ export const mailto = (subject) =>
 
 // THE offer — the only one, and it includes everything (strategy, content,
 // growth, CRM, tracking, dashboards, apps); scope follows the client's need and
-// direction, not a price list. No tiers, no add-ons. Every engagement opens with a
-// 3-month trust period — paid, but no commitment; after it, longer commitments
-// cost less (no tier numbers published).
+// direction, not a price list. No tiers, no add-ons. The first month is
+// money-back: paid, and refunded in full if the client isn't happy. After it,
+// the client commits to continue (longer commitments cost less — no tier
+// numbers published) or leaves with their money back.
 export const BASE_MONTHLY = 3000;
 export const OFFER = {
   label: "One offer",
@@ -42,9 +43,9 @@ export const OFFER = {
     "Your own apps and tools, built when you need them",
   ],
   terms: [
-    ["First 3 months", "A trust period. Full scope, $3,000 a month, no commitment."],
+    ["First month", "Full scope, $3,000. Not happy? You get your money back."],
     ["Content", "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month."],
-    ["After that", "Commit to continue. The longer the commitment, the lower the monthly rate."],
+    ["After that", "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate."],
   ],
   cta: "Build with us",
 };

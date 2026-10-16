@@ -260,18 +260,53 @@ function Template({ hook = HOOKS[0] }) {
 function Clip() {
   const t = useT();
   const [ref, p] = useScene();
-  const open = seg(p, 0.3, 0.85);
+  const open = seg(p, 0.26, 0.9);
+  // Each tile has its own moment: it buffers (ring fills), then the life
+  // behind the format resolves out of the blur — all scrubbed by scroll.
+  const tiles = Array.from({ length: TILES }, (_, i) => {
+    const th = 0.14 + rnd(i, 9) * 0.76;
+    return { load: seg(open, th - 0.16, th), res: seg(open, th, th + 0.1) };
+  });
+  const story = tiles.reduce((a, x) => a + x.res, 0) / TILES;
+  const buffering = tiles.reduce((a, x) => a + x.load, 0) / TILES;
   return (
     <section ref={ref} className="fx-scene fx-copy" style={{ height: "340vh" }} data-pc-section="fit_clip" data-pc-order="10">
       <div className="fx-stage">
         <div className="fx-wall" style={{ transform: `perspective(1400px) rotateX(${22 - p * 10}deg) translateY(${-p * 6}%) scale(${1 + p * 0.08})` }}>
-          {Array.from({ length: TILES }, (_, i) => {
-            const format = open < 0.04 + rnd(i, 9) * 0.92;
+          {tiles.map(({ load, res }, i) => {
+            const life = res > 0.6;
             return (
-              <div key={i} className={`fx-tile${format ? " is-format" : " is-life"}`} style={{ "--i": i }}>
-                {format ? <Template hook={HOOKS[i % HOOKS.length]} /> : <img src={PHOTOS[i % PHOTOS.length]} alt="" loading="lazy" decoding="async" />}
-                {format && <span className="fx-tile-cap">{t(FORMATS[i % FORMATS.length])}</span>}
-                <span className="fx-tile-bar" />
+              <div key={i} className={`fx-tile${life ? " is-life" : " is-format"}${load > 0 && res < 1 ? " is-loading" : ""}`} style={{ "--i": i }}>
+                <span style={{ opacity: 1 - res }} className="fx-tile-layer">
+                  <Template hook={HOOKS[i % HOOKS.length]} />
+                </span>
+                {load > 0 && (
+                  <img
+                    className="fx-tile-life"
+                    src={PHOTOS[i % PHOTOS.length]}
+                    alt=""
+                    decoding="async"
+                    style={{
+                      opacity: res,
+                      filter: res >= 1 ? "none" : `blur(${(1 - res) * 18}px) saturate(${res}) brightness(${0.7 + res * 0.5})`,
+                      transform: `scale(${1.18 - res * 0.18})`,
+                    }}
+                  />
+                )}
+                {load > 0 && res < 1 && (
+                  <span className="fx-buf" style={{ "--l": load, opacity: 1 - res }} aria-hidden="true">
+                    <b>{Math.round(load * 100)}</b>
+                  </span>
+                )}
+                {!life && <span className="fx-tile-cap">{t(FORMATS[i % FORMATS.length])}</span>}
+                {life ? (
+                  <span className="fx-tile-time" aria-hidden="true">
+                    <i />
+                    <em>15s</em>
+                  </span>
+                ) : (
+                  <span className="fx-tile-bar" />
+                )}
               </div>
             );
           })}
@@ -288,6 +323,10 @@ function Clip() {
               [0.64, 1, t("Behind every one that lands, there's a person living something real.")],
             ]}
           />
+          <div className="fx-load fx-mono" aria-hidden="true" style={{ opacity: buffering > 0 ? 1 : 0 }}>
+            <span className="fx-load-track"><i style={{ transform: `scaleX(${story})` }} /><i className="is-buf" style={{ transform: `scaleX(${buffering})` }} /></span>
+            <span>{story < 1 ? t("Loading the story behind the clip") : t("The whole story")} · {Math.round(story * 100)}%</span>
+          </div>
         </div>
       </div>
     </section>
@@ -660,7 +699,24 @@ const FIT_CSS = `
   .fx-tile-cap { position: absolute; left: 10px; right: 10px; bottom: 16px; font-size: 11px; font-weight: 600; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,0.7); }
   .fx-tile-bar { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 2px; background: rgba(255,255,255,0.25); border-radius: 2px; overflow: hidden; }
   .fx-tile-bar::after { content: ""; position: absolute; inset: 0; background: #fff; transform-origin: left; animation: fx-play 4s linear infinite; animation-delay: calc(var(--i) * -0.53s); }
-  .fx-tile.is-life img { animation: fx-in 0.8s ease; }
+  .fx-tile-layer { position: absolute; inset: 0; }
+  .fx-tile-life { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; will-change: filter, transform, opacity; }
+  .fx-tile.is-loading { border-color: rgba(255,106,43,0.35); }
+  .fx-tmpl::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.07) 50%, transparent 65%); background-size: 250% 100%; animation: fx-shimmer 2.4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.21s); }
+  @keyframes fx-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+  .fx-buf { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 40%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; z-index: 2;
+    background: conic-gradient(var(--hot) calc(var(--l) * 1turn), rgba(255,255,255,0.14) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    filter: drop-shadow(0 0 8px rgba(255,106,43,0.6)); }
+  .fx-buf b { display: none; }
+  .fx-tile-time { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 2px; background: rgba(255,255,255,0.18); border-radius: 2px; }
+  .fx-tile-time i { position: absolute; right: 0; top: -1px; height: 4px; width: 9%; border-radius: 2px; background: var(--hot); box-shadow: 0 0 10px rgba(255,106,43,0.9); }
+  .fx-tile-time em { position: absolute; right: 0; bottom: 8px; font-style: normal; font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  .fx-load { display: grid; justify-items: center; gap: 10px; transition: opacity 0.4s ease; }
+  .fx-load-track { position: relative; width: min(320px, 70vw); height: 2px; background: rgba(244,241,234,0.12); border-radius: 2px; overflow: hidden; }
+  .fx-load-track i { position: absolute; inset: 0; transform-origin: left; background: var(--hot); box-shadow: 0 0 12px rgba(255,106,43,0.8); }
+  .fx-load-track i.is-buf { background: rgba(244,241,234,0.3); box-shadow: none; z-index: -0; }
+  .fx-load-track i:first-child { z-index: 1; }
   @keyframes fx-play { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
   .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
@@ -755,7 +811,7 @@ const FIT_CSS = `
   .fx-words.is-in > span > span { opacity: 1; transform: none; filter: blur(0); }
 
   @media (prefers-reduced-motion: reduce) {
-    .fx-grain, .fx-tile, .fx-tile-bar::after, .fx-orbit-svg, .fx-ring, .fx-node em, .fx-core::before, .fx-close-glow, .fx-phone.is-fit, .fx-cue i { animation: none !important; }
+    .fx-grain, .fx-tile, .fx-tile-bar::after, .fx-tmpl::after, .fx-orbit-svg, .fx-ring, .fx-node em, .fx-core::before, .fx-close-glow, .fx-phone.is-fit, .fx-cue i { animation: none !important; }
     .fx-rise { animation: none; opacity: 1; transform: none; filter: none; }
     .fx-phase { filter: none !important; }
   }

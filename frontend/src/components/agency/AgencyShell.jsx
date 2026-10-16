@@ -24,7 +24,7 @@ const NAV = [
   ["deck", "Booklet", "pc-nav-booklet"],
 ];
 
-export function AgencyShell({ children, css = "", hideCursor = false, cursor = true }) {
+export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const t = useT();
@@ -112,7 +112,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     };
   }, []);
 
-  const onHome = pathname === "/" || pathname === "/login";
+  // `home` = this page carries the landing sections itself (e.g. /mix).
+  const onHome = home || pathname === "/" || pathname === "/login";
   const goHome = () => {
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
     else navigate("/");

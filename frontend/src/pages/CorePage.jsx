@@ -115,7 +115,7 @@ function Words({ text, as = "p", className = "" }) {
 /* ── 00 · Field ─────────────────────────────────────────────────────────
    A slow constellation. Points drift, link when close, and lean toward the
    pointer. Paused off screen; static under reduced motion. */
-function Field() {
+export function Field() {
   const ref = useRef(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -257,7 +257,7 @@ function Template({ hook = HOOKS[0] }) {
   );
 }
 
-function Clip() {
+export function Clip({ label = "01" }) {
   const t = useT();
   const [ref, p] = useScene();
   // The wall starts lying almost flat and rises up into the screen as you
@@ -323,7 +323,7 @@ function Clip() {
         </div>
         <div className="fx-copy-veil" />
         <div className="fx-copy-text">
-          <p className="fx-mono">01 · {t("The clip")}</p>
+          <p className="fx-mono">{label ? `${label} · ` : ""}{t("The clip")}</p>
           <Phases
             p={p}
             className="fx-big"
@@ -355,7 +355,7 @@ const MOMENTS = Array.from({ length: LN }, (_, i) => {
 });
 const LY = 210;
 
-function Line() {
+export function Line({ label = "02" }) {
   const t = useT();
   const [ref, p] = useScene();
   const draw = seg(p, 0.06, 0.8);
@@ -366,7 +366,7 @@ function Line() {
   return (
     <section ref={ref} className="fx-scene fx-line" style={{ height: "300vh" }} data-pc-section="core_line" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">02 · {t("The line")}</p>
+        <p className="fx-mono">{label ? `${label} · ` : ""}{t("The line")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
@@ -484,7 +484,7 @@ const spath = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)},${
 const VIEWS_D = spath(VIEWS);
 const BASE_D = spath(BASE);
 
-function Spike() {
+export function Spike({ label = "04" }) {
   const t = useT();
   const [ref, p] = useScene();
   const draw = seg(p, 0.04, 0.36);
@@ -494,7 +494,7 @@ function Spike() {
   return (
     <section ref={ref} className="fx-scene fx-spike" style={{ height: "320vh" }} data-pc-section="core_spike" data-pc-order="50">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">04 · {t("The spike")}</p>
+        <p className="fx-mono">{label ? `${label} · ` : ""}{t("The spike")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
@@ -672,7 +672,7 @@ export default function CorePage() {
   );
 }
 
-const CORE_CSS = `
+export const CORE_CSS = `
   .agency-root:has(.fx) { background: #060608; }
   .fx {
     --ink: #F4F1EA; --dim: rgba(244,241,234,0.56); --faint: rgba(244,241,234,0.1);

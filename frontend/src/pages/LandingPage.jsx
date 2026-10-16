@@ -42,7 +42,7 @@ const LOGOS = [
 ];
 
 // An endless strip: two identical groups slide left by exactly one group.
-function LogoBand() {
+export function LogoBand() {
   const t = useT();
   return (
     <div className="pc-logos">
@@ -73,7 +73,7 @@ function LogoBand() {
 
 // Chapter opener: a big number + name on a heavy rule, so every numbered
 // section reads as its own chapter (each also has its own ground, .ch-N).
-function SectionLabel({ n, children }) {
+export function SectionLabel({ n, children }) {
   return (
     <p className="ch-label">
       <span className="ch-n">{n}</span>
@@ -83,7 +83,7 @@ function SectionLabel({ n, children }) {
 }
 
 
-function StoryCard({ story }) {
+export function StoryCard({ story, source = "landing" }) {
   const navigate = useNavigate();
   const t = useT();
   const { slug, color, kicker, name, title, who, gained, brand, chart } = story;
@@ -119,7 +119,7 @@ function StoryCard({ story }) {
           href={casePath(slug)}
           onClick={(e) => {
             e.preventDefault();
-            trackEvent("cta_click", { location: `landing_story_${slug}` });
+            trackEvent("cta_click", { location: `${source}_story_${slug}` });
             navigate(casePath(slug));
           }}
         >
@@ -315,7 +315,7 @@ export function LandingPage() {
 
   return (
     <>
-      <AgencyShell css={STYLES} hideCursor={view === "login"}>
+      <AgencyShell css={LANDING_CSS} hideCursor={view === "login"}>
         <AgencyPage />
       </AgencyShell>
       {view === "login" && (
@@ -331,7 +331,7 @@ export function LandingPage() {
 }
 
 /* ─── styles ─── */
-const STYLES = `
+export const LANDING_CSS = `
   /* ─── hero ─── */
   .pc-hero {
     min-height: 100svh;

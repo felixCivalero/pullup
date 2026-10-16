@@ -355,54 +355,7 @@ function Moments() {
   );
 }
 
-/* ── 03 · The turn ──────────────────────────────────────────────────────
-   FORMAT collapses into FIT. Then the same trend twice: forced, and fitting. */
-function Turn() {
-  const t = useT();
-  const [ref, p] = useScene();
-  const m = seg(p, 0.12, 0.4);
-  const phones = seg(p, 0.48, 0.72);
-  const mid = ["O", "R", "M", "A"];
-  return (
-    <section ref={ref} className="fx-scene fx-turn" style={{ height: "300vh" }} data-pc-section="fit_turn" data-pc-order="40">
-      <div className="fx-stage fx-stage-col">
-        <p className="fx-mono" style={{ opacity: 1 - phones }}>03 · {t("The turn")}</p>
-        <div className="fx-word" aria-label={m > 0.5 ? "FIT" : "FORMAT"} style={{ transform: `translateY(${-phones * 18}vh) scale(${1 - phones * 0.45})` }}>
-          <span>F</span>
-          {mid.map((c) => (
-            <span key={c} className="fx-squeeze" style={{ opacity: 1 - m, maxWidth: `${(1 - m) * 0.9}em`, filter: `blur(${m * 8}px)` }}>{c}</span>
-          ))}
-          <span className="fx-i" style={{ opacity: m, maxWidth: `${m * 0.4}em` }}>I</span>
-          <span>T</span>
-        </div>
-        <p className="fx-turn-line" style={{ opacity: seg(p, 0.3, 0.42) * (1 - phones), transform: `translateY(${(1 - seg(p, 0.3, 0.42)) * 20}px)` }}>
-          {t("Trends aren't the problem. Picking one that isn't you is.")}
-        </p>
-        <div className="fx-pair" style={{ opacity: phones, transform: `translateY(${(1 - phones) * 80}px)` }}>
-          <figure className="fx-phone is-forced">
-            <Template />
-            <figcaption>
-              <b>{t("Forced")}</b>
-              <span>{t("Picked because it was big.")}</span>
-            </figcaption>
-          </figure>
-          <span className="fx-vs fx-mono">{t("Same format")}</span>
-          <figure className="fx-phone is-fit">
-            <img src="/stories/li/sunburst.jpg" alt="" loading="lazy" decoding="async" />
-            <em className="fx-phone-hook" aria-hidden="true">{t("wait for it…")}</em>
-            <figcaption>
-              <b>{t("Fits")}</b>
-              <span>{t("Picked because it's you.")}</span>
-            </figcaption>
-          </figure>
-        </div>
-        <p className="fx-cite fx-center" style={{ opacity: phones }}>{t("Illustration.")}</p>
-      </div>
-    </section>
-  );
-}
-
-/* ── 04 · The person ────────────────────────────────────────────────────
+/* ── 03 · The person ────────────────────────────────────────────────────
    A person at the center, their life in orbit. Content leaves the orbit as
    you scroll: it's where who they are shows. */
 const ORBIT = ["Life", "Work", "Energy", "Voice", "Taste", "People"];
@@ -413,7 +366,7 @@ function Person() {
   const [ref, p] = useScene();
   const out = seg(p, 0.3, 0.9);
   return (
-    <section ref={ref} className="fx-scene fx-person" style={{ height: "320vh" }} data-pc-section="fit_person" data-pc-order="50">
+    <section ref={ref} className="fx-scene fx-person" style={{ height: "320vh" }} data-pc-section="fit_person" data-pc-order="40">
       <div className="fx-stage fx-stage-split fx-stage-rev">
         <div className="fx-orbit" aria-hidden="true" style={{ "--out": out }}>
           <svg viewBox="-100 -100 200 200" className="fx-orbit-svg">
@@ -451,7 +404,7 @@ function Person() {
           </div>
         </div>
         <div className="fx-copyblock">
-          <p className="fx-mono">04 · {t("The person")}</p>
+          <p className="fx-mono">03 · {t("The person")}</p>
           <Phases
             p={p}
             className="fx-mid"
@@ -462,6 +415,53 @@ function Person() {
             ]}
           />
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── 04 · The turn ──────────────────────────────────────────────────────
+   FORMAT collapses into FIT. Then the same trend twice: forced, and fitting. */
+function Turn() {
+  const t = useT();
+  const [ref, p] = useScene();
+  const m = seg(p, 0.12, 0.4);
+  const phones = seg(p, 0.48, 0.72);
+  const mid = ["O", "R", "M", "A"];
+  return (
+    <section ref={ref} className="fx-scene fx-turn" style={{ height: "300vh" }} data-pc-section="fit_turn" data-pc-order="50">
+      <div className="fx-stage fx-stage-col">
+        <p className="fx-mono" style={{ opacity: 1 - phones }}>04 · {t("The turn")}</p>
+        <div className="fx-word" aria-label={m > 0.5 ? "FIT" : "FORMAT"} style={{ transform: `translateY(${-phones * 18}vh) scale(${1 - phones * 0.45})` }}>
+          <span>F</span>
+          {mid.map((c) => (
+            <span key={c} className="fx-squeeze" style={{ opacity: 1 - m, maxWidth: `${(1 - m) * 0.9}em`, filter: `blur(${m * 8}px)` }}>{c}</span>
+          ))}
+          <span className="fx-i" style={{ opacity: m, maxWidth: `${m * 0.4}em` }}>I</span>
+          <span>T</span>
+        </div>
+        <p className="fx-turn-line" style={{ opacity: seg(p, 0.3, 0.42) * (1 - phones), transform: `translateY(${(1 - seg(p, 0.3, 0.42)) * 20}px)` }}>
+          {t("Trends aren't the problem. Picking one that isn't you is.")}
+        </p>
+        <div className="fx-pair" style={{ opacity: phones, transform: `translateY(${(1 - phones) * 80}px)` }}>
+          <figure className="fx-phone is-forced">
+            <Template />
+            <figcaption>
+              <b>{t("Forced")}</b>
+              <span>{t("Picked because it was big.")}</span>
+            </figcaption>
+          </figure>
+          <span className="fx-vs fx-mono">{t("Same format")}</span>
+          <figure className="fx-phone is-fit">
+            <img src="/stories/li/sunburst.jpg" alt="" loading="lazy" decoding="async" />
+            <em className="fx-phone-hook" aria-hidden="true">{t("wait for it…")}</em>
+            <figcaption>
+              <b>{t("Fits")}</b>
+              <span>{t("Picked because it's you.")}</span>
+            </figcaption>
+          </figure>
+        </div>
+        <p className="fx-cite fx-center" style={{ opacity: phones }}>{t("Illustration.")}</p>
       </div>
     </section>
   );
@@ -586,8 +586,8 @@ export default function FitPage() {
         <Hero />
         <Clip />
         <Moments />
-        <Turn />
         <Person />
+        <Turn />
         <People />
         <Close />
       </main>

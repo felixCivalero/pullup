@@ -11,7 +11,6 @@ import { EngineChart } from "../components/agency/EngineChart.jsx";
 import { Toolkit } from "../components/agency/Toolkit.jsx";
 import { COVERS, SERIES, casePath } from "../components/agency/agencyData.js";
 import { StoryChart } from "../components/agency/StoryChart.jsx";
-import { StoryMark } from "../components/agency/CaseNav.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 import { LANDING_CSS, LogoBand, SectionLabel } from "./LandingPage.jsx";
@@ -61,7 +60,7 @@ function People() {
   const t = useT();
   return (
     <ul className="mx-people">
-      {SERIES.map((c, i) => (
+      {STORIES.map((c, i) => (
         <li key={c.slug} style={{ "--sc": c.color, "--i": i }}>
           <button
             type="button"
@@ -89,13 +88,16 @@ function StoryStack() {
   const navigate = useNavigate();
   return (
     <div className="mx-stack">
-      {SERIES.map((c, i) => (
+      {STORIES.map((c, i) => (
         <article key={c.slug} id={`story-${c.slug}`} className="mx-story" style={{ "--sc": c.color, "--i": i }}>
           <div className="mx-story-photo">
             <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" />
           </div>
           <div className="mx-story-body">
-            <p className="st-kicker"><StoryMark slug={c.slug} />{t(c.kicker)}</p>
+            <p className="st-kicker">
+              <span className="pc-storymark">{t("Story")} {String(i + 1).padStart(2, "0")} <span>/ {String(STORIES.length).padStart(2, "0")}</span></span>
+              {t(c.kicker)}
+            </p>
             <h3 className="mx-story-name">{c.name}</h3>
             <p className="mx-story-tog">{t("Together")}</p>
             <p className={`mx-story-big${t(c.score[0]).length > 8 ? " is-long" : ""}`}><CountUp text={t(c.score[0])} /></p>
@@ -123,6 +125,20 @@ function StoryStack() {
     </div>
   );
 }
+
+// The order and emphasis for this page: STIGA right after BKM, and Kaijas
+// led by its people — artists, team and guests — not the room.
+const ORDER = ["li-karlsen", "bkm", "stiga", "kaijas", "adam-dawood", "adam-flambo"];
+const MIX_EDIT = {
+  kaijas: {
+    score: ["Artists. Team. Guests.", "the brand was the people — never the room"],
+    gained: "The artists, the team and the guests became the brand — and the reason people kept coming back.",
+  },
+};
+const STORIES = ORDER.map((slug) => SERIES.find((c) => c.slug === slug))
+  .filter(Boolean)
+  .concat(SERIES.filter((c) => !ORDER.includes(c.slug)))
+  .map((c) => ({ ...c, ...MIX_EDIT[c.slug] }));
 
 const scrollToId = (id) =>
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -155,9 +155,6 @@ function Hero() {
             <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("Everyone looks at the clip.")}</span>
             <span className="mx-rise mx-grad" style={{ "--d": "0.55s" }}>{t("We look at the people behind it.")}</span>
           </h1>
-          <p className="mx-sub mx-rise" style={{ "--d": "0.85s" }}>
-            <span>{t("A clear direction.")}</span> <span>{t("Content that sounds like you.")}</span> <span>{t("Growth you can measure.")}</span>
-          </p>
           <div className="mx-ctas mx-rise" style={{ "--d": "1.05s" }}>
             <button
               type="button"
@@ -277,10 +274,6 @@ const MIX_CSS = `
   .mx-eyebrow { font-size: clamp(15px, 1.3vw, 19px); font-weight: 600; color: #86868b; letter-spacing: -0.01em; }
   .mx-h1 { margin-top: 14px; display: grid; gap: 0.04em; font-size: clamp(44px, 7.6vw, 112px); line-height: 1.02; letter-spacing: -0.05em; font-weight: 700; }
   .mx-grad { background: linear-gradient(90deg, #FF6A2B 0%, #FF9D6B 50%, #FFC9A8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: 0.06em; }
-  .mx-sub { margin-top: clamp(22px, 3.4vh, 36px); max-width: 30ch; font-size: clamp(19px, 2vw, 28px); line-height: 1.3; color: #f5f5f7; font-weight: 400; letter-spacing: -0.02em; }
-  .mx-sub span { white-space: nowrap; }
-  .mx-sub span:nth-child(2) { color: #d2d2d7; }
-  .mx-sub span:nth-child(3) { color: #a1a1a6; }
   .mx-ctas { margin-top: clamp(26px, 4vh, 40px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 30px; }
   .mx-pill { font: inherit; font-size: 17px; font-weight: 500; padding: 13px 26px; border-radius: 999px; border: 0; cursor: pointer; background: #FF6A2B; color: #fff; transition: background-color 0.2s ease, transform 0.2s ease; }
   .mx-pill:hover { background: #ff7d45; transform: scale(1.02); }

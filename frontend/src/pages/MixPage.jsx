@@ -56,6 +56,32 @@ function CountUp({ text }) {
   return <span ref={ref} aria-label={text}>{out}</span>;
 }
 
+// The people first: a row of faces, each one a door to their story below.
+function People() {
+  const t = useT();
+  return (
+    <ul className="mx-people">
+      {SERIES.map((c, i) => (
+        <li key={c.slug} style={{ "--sc": c.color, "--i": i }}>
+          <button
+            type="button"
+            onClick={() => {
+              trackEvent("cta_click", { location: `mix_person_${c.slug}` });
+              scrollToId(`story-${c.slug}`);
+            }}
+          >
+            <Reveal delay={0.05 * i}>
+              <span className="mx-face"><img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" /></span>
+              <span className="mx-face-n">{c.name}</span>
+              <span className="mx-face-k">{t(c.kicker.split(" · ")[0])}</span>
+            </Reveal>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /* One story per screen. On wide screens the cards stack as you scroll —
    each one slides up over the last — and each leads with its best number. */
 function StoryStack() {
@@ -70,11 +96,12 @@ function StoryStack() {
           </div>
           <div className="mx-story-body">
             <p className="st-kicker"><StoryMark slug={c.slug} />{t(c.kicker)}</p>
-            <p className="mx-story-name">{c.name}</p>
+            <h3 className="mx-story-name">{c.name}</h3>
+            <p className="mx-story-tog">{t("Together")}</p>
             <p className={`mx-story-big${t(c.score[0]).length > 8 ? " is-long" : ""}`}><CountUp text={t(c.score[0])} /></p>
             <p className="mx-story-big-l">{t(c.score[1])}</p>
             <dl className="mx-story-pb">
-              <div><dt>{t("Who")}</dt><dd>{t(c.who)}</dd></div>
+              <div><dt>{t("Where they started")}</dt><dd>{t(c.who)}</dd></div>
               <div><dt>{t("What they gained")}</dt><dd>{t(c.gained)}</dd></div>
             </dl>
             <Reveal className="mx-story-chart"><StoryChart chart={c.chart} /></Reveal>
@@ -182,15 +209,16 @@ export default function MixPage() {
       {/* proof */}
       <section id="stories" className="pc-section ch-1" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
-          <SectionLabel n="01">{t("Where we've taken people")}</SectionLabel>
-          <Reveal>
-            <h2 className="pc-h2 st-h2">{t("They didn't reach a goal. They lived it.")}</h2>
-          </Reveal>
-          <Reveal delay={0.06}>
-            <p className="st-lede">
-              {t("Every story starts with a person living their goal as fully as they could at the time. People followed the journey — and the business got the numbers.")}
-            </p>
-          </Reveal>
+          <header className="mx-res-head">
+            <Reveal><p className="mx-res-k">01 · {t("What we've achieved together")}</p></Reveal>
+            <Reveal delay={0.06}>
+              <h2 className="mx-res-h">{t("We found the direction with them.")} <span>{t("Here's where it took them.")}</span></h2>
+            </Reveal>
+            <Reveal delay={0.12}>
+              <p className="mx-res-sub">{t("Founders, artists, a venue and a global brand. Different people, different starting points — the same way of working.")}</p>
+            </Reveal>
+          </header>
+          <People />
           <StoryStack />
         </div>
       </section>
@@ -263,6 +291,22 @@ const MIX_CSS = `
   @media (max-height: 760px) { .mx-hero-in { padding-top: 72px; } .mx-price { margin-top: 12px; } }
   /* the story interludes sit flush between the sales chapters */
   .fx + .pc-section, .pc-section + .fx { margin-top: 0; }
+  /* results intro — centred, people first */
+  .mx-res-head { text-align: center; display: grid; justify-items: center; gap: 16px; margin-bottom: clamp(36px, 5vw, 56px); }
+  .mx-res-k { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #D9480F; }
+  .mx-res-h { font-size: clamp(36px, 5.6vw, 80px); font-weight: 700; line-height: 1.02; letter-spacing: -0.05em; max-width: 18ch; }
+  .mx-res-h span { color: #86868b; }
+  .mx-res-sub { max-width: 46ch; font-size: clamp(17px, 1.6vw, 21px); line-height: 1.45; color: #555; }
+  .mx-people { list-style: none; margin: 0 0 clamp(40px, 6vw, 72px); padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px 12px; }
+  @media (min-width: 900px) { .mx-people { grid-template-columns: repeat(6, 1fr); } }
+  .mx-people button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; width: 100%; text-align: center; }
+  .mx-people .pc-reveal { display: grid; justify-items: center; gap: 4px; }
+  .mx-face { width: clamp(76px, 9vw, 120px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--sc); transition: transform 0.35s cubic-bezier(0.16,1,0.3,1); margin-bottom: 10px; }
+  .mx-face img { width: 100%; height: 100%; object-fit: cover; }
+  .mx-people button:hover .mx-face { transform: scale(1.06); }
+  .mx-face-n { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .mx-face-k { font-size: 12px; color: var(--pc-grey); }
+
   /* stories: one per screen, stacking on wide screens */
   .mx-stack { display: grid; gap: 20px; }
   .mx-story {
@@ -275,7 +319,8 @@ const MIX_CSS = `
   .mx-story-photo img { width: 100%; height: 100%; object-fit: cover; }
   .mx-story-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 50%, rgba(0,0,0,0.45)); }
   .mx-story-body { padding: clamp(22px, 3vw, 40px); display: grid; align-content: start; gap: 0; }
-  .mx-story-name { margin-top: 14px; font-size: 18px; font-weight: 700; color: var(--sc); }
+  .mx-story-name { margin-top: 14px; font-size: clamp(26px, 2.6vw, 38px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .mx-story-tog { margin-top: 18px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sc); }
   .mx-story-big { margin-top: 4px; font-size: clamp(56px, 7.4vw, 112px); font-weight: 700; line-height: 0.95; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--sc); }
   .mx-story-big.is-long { font-size: clamp(44px, 5.4vw, 80px); }
   .mx-story-big-l { margin-top: 8px; font-size: clamp(17px, 1.6vw, 20px); font-weight: 600; letter-spacing: -0.01em; }

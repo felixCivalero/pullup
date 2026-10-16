@@ -343,87 +343,55 @@ function Clip() {
   );
 }
 
-/* ── 02 · Coherence ────────────────────────────────────────────────────
-   Felix's point: virality is decoherent from what a creator puts out — it
-   comes and goes on its own. What's coherent is the everyday: work, life,
-   energy. As you scroll, those waves fall into phase; the virality line
-   stays its own random thing and fades out. */
-const WAVES = ["Work", "Life", "Energy", "Voice"];
-const WAVE_SEED = WAVES.map((_, i) => ({ ph: rnd(i, 31) * Math.PI * 2, fq: 0.6 + rnd(i, 32) * 1.6, amp: 0.5 + rnd(i, 33) * 0.6 }));
-const CW = 1000, CH = 420, CPTS = 90;
+/* ── 02 · The line ─────────────────────────────────────────────────────
+   One hairline: a life. Moments mark it as you scroll — most of them quiet,
+   one that lands out of nowhere. It still sits on the line. */
+const LN = 46;
+const LANDED = 31;
+const MOMENTS = Array.from({ length: LN }, (_, i) => {
+  const x = 40 + ((i + 0.5 + (rnd(i, 51) - 0.5) * 0.7) / LN) * 920;
+  const h = i === LANDED ? 150 : rnd(i, 52) > 0.9 ? 26 + rnd(i, 53) * 26 : 4 + rnd(i, 54) * 10;
+  return { x, h };
+});
+const LY = 210;
 
-function useClock(active) {
-  const [time, setTime] = useState(0);
-  useEffect(() => {
-    if (!active || reduced()) return undefined;
-    let raf = null;
-    const t0 = performance.now();
-    const loop = (now) => {
-      setTime((now - t0) / 1000);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [active]);
-  return time;
-}
-
-function Coherence() {
+function Line() {
   const t = useT();
   const [ref, p] = useScene();
-  const time = useClock(p > 0 && p < 1);
-  const c = 1 - (1 - seg(p, 0.18, 0.7)) ** 2; // 0 = decoherent, 1 = coherent
-  const viral = 1 - seg(p, 0.62, 0.8);
-  const mid = CH / 2;
-  const wave = (i) => {
-    const { ph, fq, amp } = WAVE_SEED[i];
-    const f = fq + (1 - fq) * c;
-    const phase = ph * (1 - c);
-    const a = (amp + (0.85 - amp) * c) * 70;
-    const off = (i - 1.5) * 52 * (1 - c);
-    let d = "";
-    for (let k = 0; k <= CPTS; k++) {
-      const x = (k / CPTS) * CW;
-      const y = mid + off + Math.sin((k / CPTS) * Math.PI * 4 * f + phase - time * 1.4) * a;
-      d += `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    return d;
-  };
-  let vd = "";
-  for (let k = 0; k <= CPTS; k++) {
-    const x = (k / CPTS) * CW;
-    const n = rnd(k + Math.floor(time * 6), 41);
-    const y = mid + 150 - (n > 0.94 ? n * 260 : n * 30);
-    vd += `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }
+  const draw = seg(p, 0.06, 0.8);
+  const warm = seg(p, 0.78, 0.95);
+  const at = 40 + draw * 920;
+  const landed = MOMENTS[LANDED];
+  const lit = at >= landed.x;
   return (
-    <section ref={ref} className="fx-scene fx-coh" style={{ height: "320vh" }} data-pc-section="fit_coherence" data-pc-order="30">
+    <section ref={ref} className="fx-scene fx-line" style={{ height: "300vh" }} data-pc-section="fit_line" data-pc-order="30">
       <div className="fx-stage fx-stage-col">
-        <p className="fx-mono">02 · {t("Coherence")}</p>
+        <p className="fx-mono">02 · {t("The line")}</p>
         <Phases
           p={p}
           className="fx-mid fx-center"
           lines={[
-            [0, 0.36, t("Virality isn't coherent with what you put out. It comes and goes on its own.")],
-            [0.36, 0.7, t("What is coherent is everything else: your work, your life, your energy — every day.")],
-            [0.7, 1, t("When those line up, the content follows. Not the other way around.")],
+            [0, 0.34, t("A clip is fifteen seconds. A life is the whole line.")],
+            [0.34, 0.7, t("Most moments are quiet. Now and then one lands — and you never know which.")],
+            [0.7, 1, t("But it always comes from the line. So that's what we work on.")],
           ]}
         />
-        <svg className="fx-coh-svg" viewBox={`0 0 ${CW} ${CH}`} aria-hidden="true">
-          <path d={vd} className="fx-coh-viral" style={{ opacity: 0.55 * viral }} />
-          {WAVES.map((name, i) => (
-            <path key={name} d={wave(i)} className="fx-coh-wave" style={{ "--c": c, opacity: 0.35 + c * 0.45 }} />
-          ))}
+        <svg className="fx-line-svg" viewBox="0 0 1000 260" aria-hidden="true">
+          <line x1="40" x2="960" y1={LY} y2={LY} className="fx-line-track" />
+          <line x1="40" x2={at} y1={LY} y2={LY} className="fx-line-now" style={{ opacity: 0.7 + warm * 0.3, stroke: warm > 0 ? `rgba(255,${Math.round(244 - warm * 138)},${Math.round(234 - warm * 191)},1)` : undefined }} />
+          {MOMENTS.map(({ x, h }, i) => {
+            const on = at >= x;
+            const isLanded = i === LANDED;
+            return (
+              <g key={i} className={`fx-mom${on ? " is-on" : ""}${isLanded ? " is-landed" : ""}`}>
+                <line x1={x} x2={x} y1={LY} y2={on ? LY - h : LY} />
+                <circle cx={x} cy={on ? LY - h : LY} r={isLanded ? 5 : 2.5} />
+              </g>
+            );
+          })}
+          <circle cx={at} cy={LY} r="4" className="fx-line-head" />
+          <text x={landed.x} y={LY - landed.h - 18} className="fx-line-label" style={{ opacity: lit ? 1 : 0 }}>{t("The one that landed")}</text>
         </svg>
-        <div className="fx-legend fx-mono" aria-hidden="true">
-          {WAVES.map((name) => (
-            <span key={name}><i className="is-line" style={{ opacity: 0.4 + c * 0.6 }} />{t(name)}</span>
-          ))}
-          <span style={{ opacity: viral }}><i />{t("Virality")}</span>
-        </div>
-        <p className="fx-coh-meter fx-mono" aria-hidden="true">
-          {t("Coherence")} <b>{Math.round(c * 100)}%</b>
-        </p>
       </div>
     </section>
   );
@@ -694,7 +662,7 @@ export default function FitPage() {
         <div className="fx-grain" aria-hidden="true" />
         <Hero />
         <Clip />
-        <Coherence />
+        <Line />
         <Person />
         <Spike />
         <People />
@@ -791,12 +759,19 @@ const FIT_CSS = `
   .fx-copy-veil { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(6,6,8,0.88), rgba(6,6,8,0.35) 70%, transparent), linear-gradient(var(--bg), transparent 22%, transparent 78%, var(--bg)); }
   .fx-copy-text { position: relative; z-index: 1; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); text-align: center; display: grid; gap: 22px; }
 
-  /* 02 coherence */
-  .fx-coh .fx-phases { width: 100%; max-width: 980px; }
-  .fx-coh-svg { width: min(1100px, 100%); height: auto; overflow: visible; }
-  .fx-coh-wave { fill: none; stroke: #FF6A2B; stroke-width: calc(1.5px + var(--c) * 1.5px); mix-blend-mode: screen; filter: drop-shadow(0 0 calc(var(--c) * 12px) rgba(255,106,43,0.8)); }
-  .fx-coh-viral { fill: none; stroke: rgba(244,241,234,0.8); stroke-width: 1.2; stroke-dasharray: 2 4; }
-  .fx-coh-meter b { color: var(--hot); margin-left: 8px; font-weight: 600; }
+  /* 02 line */
+  .fx-line .fx-phases { width: 100%; max-width: 900px; }
+  .fx-line-svg { width: min(1100px, 100%); height: auto; overflow: visible; margin-top: 8px; }
+  .fx-line-track { stroke: rgba(244,241,234,0.1); stroke-width: 1; }
+  .fx-line-now { stroke: rgba(244,241,234,0.85); stroke-width: 1.2; }
+  .fx-line-head { fill: #fff; filter: drop-shadow(0 0 8px rgba(255,255,255,0.8)); }
+  .fx-mom line { stroke: rgba(244,241,234,0.45); stroke-width: 1; transition: y2 0.7s cubic-bezier(0.16,1,0.3,1); }
+  .fx-mom circle { fill: rgba(244,241,234,0.75); opacity: 0; transition: cy 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease; }
+  .fx-mom.is-on circle { opacity: 1; }
+  .fx-mom.is-landed line { stroke: #FF6A2B; stroke-width: 1.5; }
+  .fx-mom.is-landed circle { fill: #FF6A2B; filter: drop-shadow(0 0 10px rgba(255,106,43,0.9)); }
+  .fx-line-label { font-family: ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; fill: #FF8A57; text-anchor: middle; transition: opacity 0.6s ease; }
+  @media (max-width: 700px) { .fx-line-label { font-size: 22px; } .fx-mom circle { r: 4; } }
 
   /* 04 spike */
   .fx-spike .fx-phases { width: 100%; max-width: 980px; }

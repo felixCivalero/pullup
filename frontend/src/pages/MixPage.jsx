@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { initTracking, trackPageView } from "../lib/track.js";
 import { trackEvent } from "../lib/analytics.js";
-import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
 import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
@@ -13,10 +11,10 @@ import { COVERS, SERIES, casePath } from "../components/agency/agencyData.js";
 import { StoryChart } from "../components/agency/StoryChart.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
-import { LANDING_CSS, LogoBand, SectionLabel } from "./LandingPage.jsx";
-import { CORE_CSS, Clip, Spike } from "./CorePage.jsx";
+import { LogoBand, SectionLabel } from "../components/agency/landingParts.jsx";
+import { Clip, Spike } from "./CorePage.jsx";
 
-/* /mix — the third option: the sales path of / (who it's for, proof, how,
+/* The front page (built as /mix, the third option): the sales path of / (who it's for, proof, how,
    toolkit, one offer, booklet) with the /core story told between its
    chapters. Story scenes are unnumbered interludes on black; the sales
    chapters keep their numbers and grounds. Same ids as / so the nav works. */
@@ -205,15 +203,11 @@ function Hero() {
   );
 }
 
-export default function MixPage() {
+// The page content; LandingPage wraps it in the shell (and /login's modal).
+export function MixContent() {
   const t = useT();
-  useEffect(() => {
-    initTracking();
-    trackPageView("mix");
-  }, []);
-
   return (
-    <AgencyShell css={LANDING_CSS + CORE_CSS + MIX_CSS} home>
+    <>
       <Hero />
 
       {/* the story, part one: what everyone sees → what's behind it */}
@@ -277,11 +271,11 @@ export default function MixPage() {
       />
 
       <DeckTeaser source="mix" />
-    </AgencyShell>
+    </>
   );
 }
 
-const MIX_CSS = `
+export const MIX_CSS = `
   /* hero — centred, quiet, one idea; settles back as you scroll on */
   .mx-hero { position: relative; height: 150svh; background: #000; color: #f5f5f7; }
   .mx-hero-stick { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: 1fr auto; grid-template-columns: minmax(0, 1fr); }

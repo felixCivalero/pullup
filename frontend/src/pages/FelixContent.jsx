@@ -7,12 +7,14 @@ import { Network } from "../components/agency/FounderNetwork.jsx";
 import { CaseStack } from "../components/agency/CaseStack.jsx";
 import { CONTACT } from "../components/agency/agencyData.js";
 import { Testimonials } from "../components/agency/Testimonials.jsx";
+import { EngineChart } from "../components/agency/EngineChart.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
    (small cards) → the cases (horizontal rail) → Felix and his network ("we"
-   only here) → the one offer → the deep dive on who he is.
+   only here) → how the work runs (the 12-week picture with the weekly
+   30-minute sprint) → the one offer → a short bio.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 // What Felix builds himself — the engineer half. Every item has shipped in
@@ -26,14 +28,14 @@ const BUILDS = [
   ["AI tools", Bot],
 ];
 
-// Who Felix has been — his words. Don't embellish (no "licensed", no sport).
-const CREDS = [
-  ["Pro freestyler", "Former professional"],
-  ["Ranger", "31st Light Battalion, Karlsborg"],
-  ["Naprapath", "Four years of study, three-plus treating people"],
-  ["Author", "One published book, the next on its way"],
+// The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
+// 31st Light Battalion at Karlsborg, naprapath, author). Don't embellish: no
+// sport name, no "licensed", no invented details.
+const BIO = [
+  "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, then over three years treating patients.",
+  "The common thread is people: how they perform, recover and grow. Today I do the same with brands — I find the person behind it and help them show up as who they actually are.",
+  "I've written a book. The next one is on its way.",
 ];
-
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 const work = (location) => {
@@ -106,8 +108,20 @@ export function FelixContent() {
         </div>
       </section>
 
+      {/* how it runs — the 12-week picture */}
+      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="5">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("How I work")}</p>
+          <Reveal><h2 className="fl-h2">{t("You grow every week. Your brand grows with you.")}</h2></Reveal>
+          <Reveal delay={0.05}>
+            <p className="fl-p">{t("First a clear direction. Then 30 minutes with me every week, where your voice becomes content. Everything is measured, and what works gets scaled.")}</p>
+          </Reveal>
+          <div className="fl-engine"><EngineChart /></div>
+        </div>
+      </section>
+
       {/* the offer */}
-      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="5">
+      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("The offer")}</p>
           <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
@@ -123,17 +137,15 @@ export function FelixContent() {
         </div>
       </section>
       {/* about */}
-      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
+      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="7">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
           <Reveal><h2 className="fl-h2">{t("Developing people is my passion.")}</h2></Reveal>
-          <ul className="fl-creds">
-            {CREDS.map(([k, v], i) => (
-              <Reveal key={k} delay={0.04 * i}>
-                <li><b>{t(k)}</b><span>{t(v)}</span></li>
-              </Reveal>
+          <div className="fl-bio">
+            {BIO.map((para, i) => (
+              <Reveal key={i} delay={0.05 * i}><p>{t(para)}</p></Reveal>
             ))}
-          </ul>
+          </div>
           <Reveal>
             <blockquote className="fl-quote">
               <p>{t("The genuine creative expression no one can copy is you.")}</p>
@@ -222,11 +234,9 @@ export const FELIX_CSS = `
   @media (prefers-reduced-motion: reduce) { .fl-rise { animation: none; opacity: 1; transform: none; } }
 
   /* about */
-  .fl-creds { list-style: none; margin: clamp(32px, 4vw, 48px) 0 0; padding: 0; border-top: 1px solid var(--rule); }
-  .fl-creds li { display: grid; gap: 4px 24px; padding: 18px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
-  @media (min-width: 720px) { .fl-creds li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-  .fl-creds b { font-size: clamp(24px, 2.6vw, 34px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; }
-  .fl-creds span { font-size: 16px; color: var(--grey); }
+  .fl-bio { margin-top: clamp(28px, 3.4vw, 44px); max-width: 680px; display: grid; gap: 18px; }
+  .fl-bio p { font-size: clamp(18px, 1.6vw, 22px); line-height: 1.5; color: #2a2a2e; letter-spacing: -0.01em; }
+  .fl-bio > :first-child p { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.3; font-weight: 600; color: var(--ink); letter-spacing: -0.025em; }
   .fl-quote { margin: clamp(48px, 6vw, 80px) 0 0; padding: 0; max-width: 820px; }
   .fl-quote p { font-size: clamp(28px, 3.4vw, 48px); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; }
   .fl-quote p::before { content: "“"; color: var(--accent); }
@@ -252,6 +262,9 @@ export const FELIX_CSS = `
 
   /* network: the shared graph, quieter on this page */
   .fl .fn-graph { margin-top: clamp(32px, 4vw, 56px); }
+
+  /* how it runs */
+  .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
 
   /* offer */
   .fl-offer { background: var(--ink); color: #fff; padding: clamp(96px, 13vw, 168px) 0; }

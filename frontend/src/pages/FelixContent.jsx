@@ -29,10 +29,10 @@ const BUILDS = [
 ];
 
 // The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
-// 31st Light Battalion at Karlsborg, naprapath, author). Don't embellish: no
+// 31st Light Battalion at Karlsborg, naprapath, seven years of marketing, author). Don't embellish: no
 // sport name, no "licensed", no invented details.
 const BIO = [
-  "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, then over three years treating patients.",
+  "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
   "The common thread is people: how they perform, recover and grow. Today I do the same with brands — I find the person behind it and help them show up as who they actually are.",
   "I've written a book. The next one is on its way.",
 ];

@@ -6,13 +6,14 @@ import { resolveStoredSession } from "../lib/validateStoredSession.mjs";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { LANDING_CSS } from "../components/agency/landingParts.jsx";
+import { FOUNDER_CSS } from "../components/agency/FounderNetwork.jsx";
 import { useT } from "../components/agency/i18n.js";
 import { CORE_CSS } from "./CorePage.jsx";
 import { MixContent, MIX_CSS } from "./MixPage.jsx";
 
 /* The public front door. Hero → the clip (what everyone sees vs. the person
    behind it) → what we've achieved together → the spike → how we build the
-   line → toolkit → one offer → booklet. The content lives in MixPage.jsx
+   line → toolkit → one offer → Felix and his network. The content lives in MixPage.jsx
    (built as /mix, now the main page); this file adds /login's auth modal. */
 
 const TITLE = "We develop the people behind the brand. Growth that lasts.";
@@ -44,7 +45,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "offer", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "toolkit", "#toolkit": "toolkit", "#deck": "deck", "#start": "start" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "offer", "#services": "services", "#how": "services", "#superpowers": "offer", "#offer": "offer", "#talent": "toolkit", "#toolkit": "toolkit", "#deck": "felix", "#felix": "felix", "#about": "felix", "#network": "felix", "#start": "start" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -88,7 +89,7 @@ export function LandingPage() {
 
   return (
     <>
-      <AgencyShell css={LANDING_CSS + CORE_CSS + MIX_CSS} hideCursor={view === "login"} home>
+      <AgencyShell css={LANDING_CSS + CORE_CSS + MIX_CSS + FOUNDER_CSS} hideCursor={view === "login"} home>
         <MixContent />
       </AgencyShell>
       {view === "login" && (

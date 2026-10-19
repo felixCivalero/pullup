@@ -4,7 +4,7 @@ import { trackEvent } from "../../lib/analytics.js";
 import { track } from "../../lib/track.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
-import { CONTACT, DECK_PATH, SERIES, casePath } from "./agencyData.js";
+import { CONTACT, SERIES, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { openRequest, rememberArrival } from "./request.js";
 import { LangSwitch } from "./LangSwitch.jsx";
@@ -20,7 +20,7 @@ const NAV = [
   ["services", "How we work", "pc-nav-wide"],
   ["toolkit", "Toolkit", "pc-nav-wide"],
   ["offer", "Offer"],
-  ["deck", "Booklet", "pc-nav-booklet"],
+  ["felix", "About Felix", "pc-nav-booklet"],
 ];
 
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {
@@ -191,16 +191,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             ))}
           </nav>
           <nav aria-label="PullUp">
-            <a
-              className="pc-footer-work"
-              href={DECK_PATH}
-              onClick={(e) => {
-                e.preventDefault();
-                goSection("deck", "footer_booklet");
-              }}
-            >
-              {t("Booklet")}
-            </a>
             <a
               className="pc-footer-work"
               href="/canvas"

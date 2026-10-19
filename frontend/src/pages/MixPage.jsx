@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { AgencyOffer } from "../components/agency/AgencyOffer.jsx";
-import { DeckTeaser } from "../components/agency/DeckTeaser.jsx";
+import { FounderNetwork } from "../components/agency/FounderNetwork.jsx";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { EngineChart } from "../components/agency/EngineChart.jsx";
 import { Toolkit } from "../components/agency/Toolkit.jsx";
@@ -39,7 +39,7 @@ function CountUp({ text }) {
       obs.disconnect();
       const t0 = performance.now();
       const tick = (now) => {
-        const x = Math.min(1, (now - t0) / 1400);
+        const x = Math.min(1, Math.max(0, (now - t0) / 1400));
         setK(1 - (1 - x) ** 3);
         if (x < 1) raf = requestAnimationFrame(tick);
       };
@@ -278,7 +278,8 @@ export function MixContent() {
         sub="We work with the person behind the brand, month after month — that's where growth that lasts comes from. Strategy, the weekly sprint and every tool behind it are included. Content is scoped to what moves you forward, never a quota."
       />
 
-      <DeckTeaser source="mix" />
+      {/* The booklet (DeckTeaser) is paused on the front page — case pages keep it. */}
+      <FounderNetwork />
     </>
   );
 }

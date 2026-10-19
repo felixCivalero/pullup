@@ -1,6 +1,5 @@
 // Shared analytics helpers — now a thin shim over the batched SDK in
-// track.js. Same API as before (trackEvent/getVisitorId) so onboarding,
-// login and any future surface keep working unchanged; whitelisted funnel
+// track.js. Same API as before (trackEvent/getVisitorId); whitelisted funnel
 // names ride the /t/batch spine into analytics_events, everything else
 // stays gtag-only so debug pings don't hit the DB.
 import { track, getVisitorId, initTracking } from "./track.js";

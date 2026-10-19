@@ -1,23 +1,24 @@
-// The analytics SDK — batched, sessionized, exactly-once event tracking.
+// The analytics SDK — batched, exactly-once, and stateless on the device.
 //
 // Every event gets a client-minted UUID and a timestamp, queues in memory,
 // and flushes to POST /t/batch on a 5s timer / 20-event high-water mark /
 // pagehide (via sendBeacon, so deep-scroll and exit events survive the tab
-// closing). Failed batches persist to localStorage and retry on next load.
-// The server upserts on the event UUID, so a retried batch can never
+// closing). The server upserts on the event UUID, so a retried batch can never
 // double-count.
+//
+// Nothing is written to the visitor's browser (no cookies, no localStorage):
+// the visitor/session id is random per page load and lives only in memory, so
+// no consent is needed under LEK 9:28 / ePrivacy. The price: no returning-
+// visitor counts. A batch that fails is dropped, never stored for later.
 //
 // Tracking must never break a page: every entry point swallows.
 
 import { API_BASE } from "./env.js";
 
-const VISITOR_KEY = "pullup_visitor_id";
-const SESSION_KEY = "pullup_session";
-const RETRY_KEY = "pullup_track_retry";
-const SESSION_IDLE_MS = 30 * 60 * 1000;
+// Keys earlier versions stored on the device — cleared on load.
+const OLD_KEYS = ["pullup_visitor_id", "pullup_session", "pullup_track_retry"];
 const FLUSH_INTERVAL_MS = 5000;
 const FLUSH_AT_QUEUE_SIZE = 20;
-const RETRY_CAP = 100;
 
 let queue = [];
 let flushTimer = null;
@@ -34,39 +35,11 @@ function uuid() {
   });
 }
 
+// One random id per page load, in memory only.
+let pageId = null;
 export function getVisitorId() {
-  try {
-    let id = localStorage.getItem(VISITOR_KEY);
-    if (!id) {
-      id = uuid();
-      localStorage.setItem(VISITOR_KEY, id);
-    }
-    return id;
-  } catch {
-    return null;
-  }
-}
-
-// Session id rotates after 30 minutes of inactivity. Stored in localStorage
-// (not sessionStorage) so a same-tab reload within the window keeps the
-// session — that's what makes bounce/session metrics honest.
-export function getSessionId() {
-  try {
-    const now = Date.now();
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (raw) {
-      const { id, at } = JSON.parse(raw);
-      if (id && now - at < SESSION_IDLE_MS) {
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ id, at: now }));
-        return id;
-      }
-    }
-    const id = uuid();
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ id, at: now }));
-    return id;
-  } catch {
-    return null;
-  }
+  if (!pageId) pageId = uuid();
+  return pageId;
 }
 
 function getContext() {
@@ -92,7 +65,7 @@ function buildPayload(events) {
   const ctx = getContext();
   return {
     visitorId: getVisitorId(),
-    sessionId: getSessionId(),
+    sessionId: getVisitorId(),
     deviceType: ctx.deviceType,
     referrer: ctx.referrer,
     utm: ctx.utm,
@@ -101,22 +74,10 @@ function buildPayload(events) {
   };
 }
 
-function stashForRetry(events) {
+function clearOldStorage() {
   try {
-    const prev = JSON.parse(localStorage.getItem(RETRY_KEY) || "[]");
-    const merged = prev.concat(events).slice(-RETRY_CAP);
-    localStorage.setItem(RETRY_KEY, JSON.stringify(merged));
-  } catch { /* storage full or blocked — drop */ }
-}
-
-function recoverRetries() {
-  try {
-    const prev = JSON.parse(localStorage.getItem(RETRY_KEY) || "[]");
-    if (prev.length) {
-      localStorage.removeItem(RETRY_KEY);
-      queue = prev.concat(queue);
-    }
-  } catch { /* ignore */ }
+    for (const k of OLD_KEYS) localStorage.removeItem(k);
+  } catch { /* storage blocked — nothing to clear */ }
 }
 
 export function flush({ beacon = false } = {}) {
@@ -133,8 +94,7 @@ export function flush({ beacon = false } = {}) {
   try {
     if (beacon && typeof navigator !== "undefined" && navigator.sendBeacon) {
       // sendBeacon can't set Content-Type via init — wrap in a Blob.
-      const ok = navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
-      if (!ok) stashForRetry(events);
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
       return;
     }
     fetch(url, {
@@ -142,12 +102,8 @@ export function flush({ beacon = false } = {}) {
       headers: { "Content-Type": "application/json" },
       body,
       keepalive: true,
-    }).then((res) => {
-      if (!res.ok && res.status !== 400) stashForRetry(events);
-    }).catch(() => stashForRetry(events));
-  } catch {
-    stashForRetry(events);
-  }
+    }).catch(() => { /* dropped — nothing is kept on the device */ });
+  } catch { /* never break the page */ }
 }
 
 function scheduleFlush() {
@@ -177,13 +133,13 @@ export function trackPageView(page = "landing") {
   track("page_view", { page });
 }
 
-// Wire the lifecycle once per load: recover any stranded batches and make
+// Wire the lifecycle once per load: clear what older versions stored and make
 // sure whatever is queued goes out when the page is hidden or closed.
 let lifecycleWired = false;
 export function initTracking() {
   if (lifecycleWired || typeof window === "undefined") return;
   lifecycleWired = true;
-  recoverRetries();
+  clearOldStorage();
   const onHide = () => flush({ beacon: true });
   window.addEventListener("pagehide", onHide);
   document.addEventListener("visibilitychange", () => {

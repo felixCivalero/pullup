@@ -7,7 +7,8 @@ import { CONTACT } from "../components/agency/agencyData.js";
 /* /privacy, /terms, /cookies — what this site actually does with data, in
    Swedish and English (Swahili reads the English). Keep these in step with
    the code: forms → backend/src/routes/{agencyRequests,deckDownloads}.js,
-   statistics → lib/track.js, storage keys → i18n.js, request.js, track.js. */
+   statistics → lib/track.js (stores nothing), browser storage → i18n.js (language),
+   lib/lazyPage.js (chunk reload) and the Supabase login. */
 
 const UPDATED = { sv: "Senast uppdaterad 19 oktober 2026", en: "Last updated 19 October 2026" };
 const Mail = () => <a href={`mailto:${CONTACT}`}>{CONTACT}</a>;
@@ -55,7 +56,7 @@ export function PrivacyPage() {
             <ul>
               <li><strong>När du hör av dig</strong> via ”Jobba med mig”: namn, e-post och det du skriver i formuläret. Med följer var du kom ifrån – sidan du skickade från, länken som tog dig hit (referrer), eventuella kampanjparametrar (UTM), språk, skärmstorlek, mobil eller dator och när besöket började.</li>
               <li><strong>När du ber om bookleten:</strong> e-post, och namn och företag om du fyller i dem.</li>
-              <li><strong>Besöksstatistik:</strong> ett slumpat besöks-id och sessions-id, vilka sidor du ser och vad du klickar på, referrer, UTM och mobil eller dator. Statistiken innehåller inte namn, e-post eller IP-adress. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
+              <li><strong>Besöksstatistik:</strong> vilka sidor du ser och vad du klickar på, referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Inget sparas i din webbläsare, och statistiken innehåller inte namn, e-post eller IP-adress – den kan inte känna igen dig nästa gång du kommer tillbaka. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
               <li><strong>Tekniska loggar:</strong> servern loggar IP-adress och webbläsare för drift och säkerhet.</li>
               <li><strong>Felrapporter:</strong> om sidan kraschar skickas en rapport om felet, webbläsaren och sidan.</li>
             </ul>
@@ -96,7 +97,7 @@ export function PrivacyPage() {
             <ul>
               <li><strong>When you get in touch</strong> through “Work with me”: your name, email and what you write in the form. It comes with where you came from – the page you sent it from, the link that brought you here (referrer), any campaign parameters (UTM), language, screen size, phone or computer and when the visit started.</li>
               <li><strong>When you ask for the booklet:</strong> your email, plus your name and company if you fill them in.</li>
-              <li><strong>Visit statistics:</strong> a random visitor ID and session ID, which pages you view and what you click, referrer, UTM and phone or computer. The statistics hold no names, emails or IP addresses. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
+              <li><strong>Visit statistics:</strong> which pages you view and what you click, referrer, UTM and phone or computer, under a random ID that only exists while the page is open. Nothing is stored in your browser, and the statistics hold no names, emails or IP addresses – they can't recognise you the next time you visit. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
               <li><strong>Technical logs:</strong> the server logs IP address and browser for operations and security.</li>
               <li><strong>Error reports:</strong> if the page crashes, a report about the error, the browser and the page is sent.</li>
             </ul>
@@ -191,11 +192,10 @@ export function CookiesPage() {
       {{
         sv: (
           <>
-            <p>Sajten sätter inga cookies. Den sparar några små saker i din webbläsares lagring (localStorage och sessionStorage):</p>
+            <p>Sajten sätter inga cookies och sparar ingenting i din webbläsare för statistik eller spårning. Det enda som kan sparas är sådant du själv valt eller som sajten behöver för att fungera:</p>
             <ul>
-              <li><strong>Språkval</strong> – om du byter språk, så att sajten minns det.</li>
-              <li><strong>Besöks-id och sessions-id</strong> – slumpade id:n för besöksstatistiken, plus händelser som inte hann skickas.</li>
-              <li><strong>Var du kom ifrån</strong> – sparas under besöket och följer med om du skickar en förfrågan.</li>
+              <li><strong>Språkval</strong> – bara om du byter språk, så att sajten minns det (localStorage).</li>
+              <li><strong>Omladdning efter uppdatering</strong> – en teknisk markering under besöket om sidan behövt laddas om efter att jag publicerat en ny version (sessionStorage).</li>
               <li><strong>Inloggning</strong> – bara för mig, när jag loggar in.</li>
             </ul>
             <p>Du kan rensa allt detta när du vill i webbläsarens inställningar. Sajten fungerar som vanligt ändå. Mer om hur uppgifterna används finns i <Link to="/privacy">integritetspolicyn</Link>.</p>
@@ -203,11 +203,10 @@ export function CookiesPage() {
         ),
         en: (
           <>
-            <p>The site sets no cookies. It keeps a few small things in your browser's storage (localStorage and sessionStorage):</p>
+            <p>The site sets no cookies and stores nothing in your browser for statistics or tracking. The only things that can be stored are ones you chose yourself or that the site needs to work:</p>
             <ul>
-              <li><strong>Language</strong> – if you switch language, so the site remembers it.</li>
-              <li><strong>Visitor ID and session ID</strong> – random IDs for the visit statistics, plus events that didn't get sent yet.</li>
-              <li><strong>Where you came from</strong> – kept during the visit and included if you send a request.</li>
+              <li><strong>Language</strong> – only if you switch language, so the site remembers it (localStorage).</li>
+              <li><strong>Reload after an update</strong> – a technical marker during your visit if the page had to reload after I published a new version (sessionStorage).</li>
               <li><strong>Login</strong> – only for me, when I log in.</li>
             </ul>
             <p>You can clear all of it whenever you like in your browser settings. The site works just the same. More on how the data is used in the <Link to="/privacy">privacy policy</Link>.</p>

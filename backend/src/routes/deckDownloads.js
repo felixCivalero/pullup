@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
 import { sendEmail } from "../email/index.js";
-import { normalizeEmail, isValidEmail } from "../services/account.js";
+import { normalizeEmail, isValidEmail } from "../lib/emailAddress.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DECKS = {

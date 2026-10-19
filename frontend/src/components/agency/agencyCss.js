@@ -88,11 +88,6 @@ export const AGENCY_CSS = `
   .pc-nav-cta::after { content: ""; position: absolute; inset: -4px -6px; }
   .pc-nav-cta:hover { background: #B83C0B; border-color: #B83C0B; }
   .pc-nav-cta:focus-visible { outline: 2px solid #D9480F; outline-offset: 3px; }
-  .pc-nav-signin {
-    background: none; border: 0; padding: 8px 0; cursor: pointer; color: inherit;
-    font: inherit; font-size: 13px; opacity: 0.5; transition: opacity 0.2s ease;
-  }
-  .pc-nav-signin:hover { opacity: 0.9; }
   /* language: a quiet pill, the native select laid over it */
   .pc-lang {
     position: relative; display: inline-flex; align-items: center; gap: 5px;
@@ -538,7 +533,6 @@ export const AGENCY_CSS = `
     .pc-nav-link { font-size: 15px; }
     .pc-nav-actions { gap: 14px; }
     .pc-nav-cta { min-height: 36px; padding: 0 14px; font-size: 14px; }
-    .pc-nav-signin { display: none; }
     /* phones: the language pill takes the booklet's place (it's in the footer) */
     .pc-nav-booklet { display: none; }
     .pc-close-sub { font-size: 18px; }

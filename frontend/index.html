@@ -16,7 +16,7 @@
     <!-- Open Graph. Absolute URLs so strict crawlers (Instagram via Facebook)
          don't drop the preview. Bump the image ?v= whenever the card art
          changes to bust Facebook's ~24h cache. og-agency.jpg is the homepage
-         card; og-image.jpg stays as the imageless-event fallback. -->
+         card. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://pullup.se/" />
     <meta property="og:site_name" content="Felix Civalero Stolpe" />
@@ -72,19 +72,11 @@
     <!-- Theme -->
     <meta name="theme-color" content="#ffffff" />
 
-    <!-- PWA / installed-app behaviour. iOS ignores the manifest's display mode,
-         so these tell Safari to launch chrome-free from the home screen. -->
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="PullUp" />
-
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
   </head>
   <body>
     <div id="root"></div>

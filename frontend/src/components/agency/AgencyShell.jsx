@@ -110,8 +110,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     };
   }, []);
 
-  // `home` = this page carries the landing sections itself (e.g. /mix).
-  const onHome = home || pathname === "/" || pathname === "/login";
+  // `home` = this page carries the landing sections itself.
+  const onHome = home || pathname === "/";
   const goHome = () => {
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
     else navigate("/");
@@ -145,16 +145,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 {t(label)}
               </button>
             ))}
-            <button
-              type="button"
-              className="pc-nav-signin"
-              onClick={() => {
-                trackEvent("cta_click", { location: "nav_login" });
-                navigate("/login");
-              }}
-            >
-              {t("Log in")}
-            </button>
             <LangSwitch />
             <button
               type="button"
@@ -188,28 +178,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 {c.client}
               </a>
             ))}
-          </nav>
-          <nav aria-label="PullUp">
-            <a
-              className="pc-footer-work"
-              href="/canvas"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate("/canvas");
-              }}
-            >
-              {t("Canvas")}
-            </a>
-            <a
-              className="pc-footer-work"
-              href="/login"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate("/login");
-              }}
-            >
-              {t("Log in")}
-            </a>
           </nav>
           <nav aria-label="Legal">
             <a href="/privacy">{t("Privacy")}</a>

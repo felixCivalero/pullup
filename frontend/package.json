@@ -7,25 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node src/lib/authFetchCore.test.mjs && node src/lib/validateStoredSession.test.mjs && node --test src/components/mediaFormat.test.js",
     "preview": "vite preview",
     "deadfiles": "node scripts/find-dead-files.mjs"
   },
   "dependencies": {
     "@sentry/react": "^10.57.0",
-    "@stripe/react-stripe-js": "^5.4.1",
-    "@stripe/stripe-js": "^8.5.3",
     "@supabase/supabase-js": "^2.87.1",
-    "globe.gl": "^2.46.1",
-    "heic2any": "^0.0.4",
-    "leaflet": "^1.9.4",
     "lucide-react": "^0.574.0",
-    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-icons": "^5.5.0",
-    "react-router-dom": "^7.10.1",
-    "topojson-client": "^3.1.0"
+    "react-router-dom": "^7.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

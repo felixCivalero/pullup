@@ -123,20 +123,19 @@ jobs:
 
             # ─── DEPLOY GATE ─────────────────────────────────────────────
             # The NEW backend code must prove itself BEFORE it replaces the
-            # running process: unit tests, service-level e2e, then the HTTP
-            # probe suite against a side-port boot of the new code. Any red →
-            # the old API keeps running and the frontend swap is undone.
+            # running process: unit tests, then the HTTP probe suite against a
+            # side-port boot of the new code. Any red → the old API keeps
+            # running and the frontend swap is undone.
             echo "🛡️ Deploy gate: tests + probes on the new code..."
             GATE_OK=1
             npm test || GATE_OK=0
-            if [ "$GATE_OK" = "1" ]; then npm run e2e || GATE_OK=0; fi
             if [ "$GATE_OK" = "1" ]; then
               echo "  booting new code on :3299 for HTTP probes..."
               PORT=3299 nohup node src/index.js > /tmp/gate-server.log 2>&1 &
               GATE_PID=$!
               BOOTED=0
               for i in $(seq 1 20); do
-                if curl -fsS -o /dev/null http://127.0.0.1:3299/mcp/health 2>/dev/null; then BOOTED=1; break; fi
+                if curl -fsS -o /dev/null http://127.0.0.1:3299/health 2>/dev/null; then BOOTED=1; break; fi
                 sleep 1
               done
               if [ "$BOOTED" = "1" ]; then
@@ -164,28 +163,20 @@ jobs:
             echo "🔄 Reloading PM2 processes with updated env..."
 
             # API — reload (not restart) for zero-downtime. Falls back to
-            # ecosystem.config.js on first deploy when the process isn't
+            # ecosystem.config.cjs on first deploy when the process isn't
             # yet registered.
             if ! pm2 reload pullup-api --update-env; then
-              if [ -f ecosystem.config.js ]; then
-                echo "ℹ️ pm2 process 'pullup-api' not found, starting from ecosystem.config.js"
-                pm2 start ecosystem.config.js --only pullup-api
+              if [ -f ecosystem.config.cjs ]; then
+                echo "ℹ️ pm2 process 'pullup-api' not found, starting from ecosystem.config.cjs"
+                pm2 start ecosystem.config.cjs --only pullup-api
               else
-                echo "❌ Failed to reload pm2 process 'pullup-api' and no ecosystem.config.js found" >&2
+                echo "❌ Failed to reload pm2 process 'pullup-api' and no ecosystem.config.cjs found" >&2
                 exit 1
               fi
             fi
 
-            # Email worker
-            if ! pm2 reload pullup-email-worker --update-env; then
-              if [ -f ecosystem.config.js ]; then
-                echo "ℹ️ pm2 process 'pullup-email-worker' not found, starting from ecosystem.config.js"
-                pm2 start ecosystem.config.js --only pullup-email-worker
-              else
-                echo "❌ Failed to reload pm2 process 'pullup-email-worker' and no ecosystem.config.js found" >&2
-                exit 1
-              fi
-            fi
+            # The email outbox worker is retired (mail goes straight to Resend).
+            pm2 delete pullup-email-worker >/dev/null 2>&1 || true
 
             pm2 save
 
@@ -197,7 +188,7 @@ jobs:
             echo "🏥 Backend health check (up to ~30s for the API to bind)..."
             HEALTH_OK=0
             for attempt in $(seq 1 15); do
-              if curl -fsS -o /dev/null http://127.0.0.1:3001/mcp/health; then
+              if curl -fsS -o /dev/null http://127.0.0.1:3001/health; then
                 HEALTH_OK=1
                 echo "✅ Healthy after ${attempt} attempt(s)."
                 break
@@ -217,4 +208,3 @@ jobs:
 
             echo "✅ Deployment complete"
             pm2 status pullup-api
-            pm2 status pullup-email-worker

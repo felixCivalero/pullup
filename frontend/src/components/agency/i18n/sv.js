@@ -1082,4 +1082,17 @@ export const SV = {
   "Light & stage": "Ljus & scen",
   "Event producers": "Eventproducenter",
   "Artists & talent": "Artister & talanger",
+
+  "I'm Felix. Developing people is my passion.": "Jag heter Felix. Att utveckla människor är min passion.",
+  "Pro freestyler": "Freestyleproffs",
+  "Former professional": "Tidigare, på proffsnivå",
+  "Ranger": "Jägarsoldat",
+  "31st Light Battalion, Karlsborg": "31:a lätta bataljonen, Karlsborg",
+  "Naprapath": "Naprapat",
+  "Four years of study, three-plus treating people": "Fyra års studier, över tre år med patienter",
+  "Author": "Författare",
+  "One published book, the next on its way": "En utgiven bok, nästa på väg",
+  "Now I build brands around people — and I love it.": "I dag bygger jag varumärken runt människor – och jag älskar det.",
+  "The genuine creative expression no one can copy is you.": "Det genuina kreativa uttrycket som ingen kan kopiera är du.",
+  "You just need help channelling it. A brand is the same thing — at the level of a group.": "Du behöver bara hjälp att kanalisera det. Med varumärken är det samma sak – på gruppnivå.",
 };

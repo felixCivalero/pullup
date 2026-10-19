@@ -10,9 +10,17 @@ import { SectionLabel } from "./landingParts.jsx";
 import { useT } from "./i18n.js";
 
 /* §05 The person behind it — Felix, and the network under his umbrella.
-   Bio facts are Felix's own (the earlier landing bio). The network shows ROLES,
+   Bio and philosophy are Felix's own words (2026-10-19). The network shows ROLES,
    never names or headcounts: people he has worked with and pulls in when a
    brand's direction needs them. Edit the lists below to prune or add. */
+
+// Who Felix has been. His words — don't embellish (no "licensed", no sport).
+const CREDS = [
+  ["Pro freestyler", "Former professional"],
+  ["Ranger", "31st Light Battalion, Karlsborg"],
+  ["Naprapath", "Four years of study, three-plus treating people"],
+  ["Author", "One published book, the next on its way"],
+];
 
 // Inner ring: the core of most productions.
 const CORE = [
@@ -154,19 +162,25 @@ export function FounderNetwork() {
           </Reveal>
           <div className="fn-bio">
             <Reveal>
-              <h2 className="pc-h2 fn-h2">{t("I'm Felix. Developing people is what I do.")}</h2>
+              <h2 className="pc-h2 fn-h2">{t("I'm Felix. Developing people is my passion.")}</h2>
             </Reveal>
-            <Reveal delay={0.06}>
-              <p className="fn-p">
-                {t("Four years studying how people work — cognition and pain — and more than three years treating them. One published book, the next on its way.")}
-              </p>
-            </Reveal>
+            <ul className="fn-creds">
+              {CREDS.map(([k, v], i) => (
+                <Reveal key={k} delay={0.05 + i * 0.05}>
+                  <li><b>{t(k)}</b><span>{t(v)}</span></li>
+                </Reveal>
+              ))}
+            </ul>
             <Reveal delay={0.1}>
-              <p className="fn-p">
-                {t("Since then I've built brands around the people behind them: founders, artists, my own venue in Stockholm and the talent inside a global sports brand. Every story on this page started with a person.")}
-              </p>
+              <p className="fn-p">{t("Now I build brands around people — and I love it.")}</p>
             </Reveal>
             <Reveal delay={0.14}>
+              <blockquote className="fn-quote">
+                <p>{t("The genuine creative expression no one can copy is you.")}</p>
+                <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
+              </blockquote>
+            </Reveal>
+            <Reveal delay={0.18}>
               <p className="fn-sign">Felix Civalero Stolpe <span>· {t("Founder, PullUp")}</span></p>
             </Reveal>
           </div>
@@ -207,6 +221,13 @@ export const FOUNDER_CSS = `
   .fn-photo { border-radius: 24px; overflow: hidden; aspect-ratio: 4 / 5; max-width: 460px; background: #eee; }
   .fn-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
   .fn-h2 { max-width: 14ch; }
+  .fn-creds { list-style: none; margin: clamp(22px, 3vw, 32px) 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 620px; }
+  .fn-creds li { height: 100%; box-sizing: border-box; border: 1px solid rgba(0,0,0,0.14); border-radius: 16px; padding: 14px 16px; display: grid; gap: 4px; }
+  .fn-creds b { font-size: clamp(18px, 1.7vw, 22px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+  .fn-creds span { font-size: 13.5px; line-height: 1.35; color: var(--pc-grey); }
+  .fn-quote { margin: clamp(18px, 2.4vw, 26px) 0 0; padding: 0 0 0 clamp(16px, 2vw, 24px); border-left: 3px solid #D9480F; max-width: 620px; }
+  .fn-quote p { font-size: clamp(24px, 2.6vw, 36px); font-weight: 700; line-height: 1.12; letter-spacing: -0.035em; }
+  .fn-quote footer { margin-top: 12px; font-size: clamp(16px, 1.4vw, 18px); line-height: 1.45; color: #444; max-width: 40ch; }
   .fn-p { margin-top: 20px; max-width: 46ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #333; }
   .fn-sign { margin-top: 28px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
   .fn-sign span { font-weight: 500; color: var(--pc-grey); }

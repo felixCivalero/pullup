@@ -16,8 +16,8 @@ import { useT } from "./i18n.js";
 // The nav follows the landing page, in order — each link lands on its section
 // (from other pages via /#id). Narrow screens keep Results + Offer.
 const NAV = [
-  ["about", "About me", "pc-nav-wide"],
   ["stories", "Cases"],
+  ["about", "About me", "pc-nav-wide"],
   ["network", "Network", "pc-nav-wide"],
   ["offer", "Offer"],
 ];

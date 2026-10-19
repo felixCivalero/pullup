@@ -8,10 +8,11 @@ import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { LANDING_CSS } from "../components/agency/landingParts.jsx";
 import { FOUNDER_CSS } from "../components/agency/FounderNetwork.jsx";
 import { FelixContent, FELIX_CSS } from "./FelixContent.jsx";
+import { CASE_STACK_CSS } from "../components/agency/CaseStack.jsx";
 import { useT } from "../components/agency/i18n.js";
 
-/* The public front door: Felix, in first person (FelixContent.jsx) — who he
-   is, the cases, what clients say, his network, the one offer. This file adds
+/* The public front door: Felix, in first person (FelixContent.jsx) — the
+   cases, what clients say, who he is, his network, the one offer. This file adds
    /login's auth modal on top. */
 
 const TITLE = "I develop the people behind brands. Growth that lasts.";
@@ -87,7 +88,7 @@ export function LandingPage() {
 
   return (
     <>
-      <AgencyShell css={LANDING_CSS + FOUNDER_CSS + FELIX_CSS} hideCursor={view === "login"} home>
+      <AgencyShell css={LANDING_CSS + FOUNDER_CSS + FELIX_CSS + CASE_STACK_CSS} hideCursor={view === "login"} home>
         <FelixContent />
       </AgencyShell>
       {view === "login" && (

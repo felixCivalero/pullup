@@ -1,15 +1,15 @@
-import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
 import { Network } from "../components/agency/FounderNetwork.jsx";
-import { CONTACT, COVERS, SERIES, casePath } from "../components/agency/agencyData.js";
+import { CaseStack } from "../components/agency/CaseStack.jsx";
+import { CONTACT, COVERS } from "../components/agency/agencyData.js";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
-/* The front page: Felix, in first person. Who he is → who he's worked with →
-   what they say → the network ("we" only here) → the one offer.
+/* The front page: Felix, in first person. The cases → what clients say →
+   who he is → the network ("we" only here) → the one offer.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 // Who Felix has been — his words. Don't embellish (no "licensed", no sport).
@@ -19,18 +19,6 @@ const CREDS = [
   ["Naprapath", "Four years of study, three-plus treating people"],
   ["Author", "One published book, the next on its way"],
 ];
-
-// One line and one number per case. Numbers trace to agencyData.
-const LINES = {
-  "li-karlsen": ["Her own voice on camera.", "8 h → 30 min", "per piece of content"],
-  bkm: ["Two founders became the face of their brand.", "10,000+", "organic followers"],
-  stiga: ["In-house talent became faces fans follow.", "28.1M", "views in seven months"],
-  kaijas: ["The artists, the team and the guests became the brand.", "3 months", "booked in advance"],
-  "adam-dawood": ["An identity built on who he actually is.", "0 → Sony", "from zero to signed"],
-  "adam-flambo": ["Faces instead of followers.", null, "in his community"],
-};
-const ORDER = ["li-karlsen", "bkm", "stiga", "kaijas", "adam-dawood", "adam-flambo"];
-const CASE_ROWS = ORDER.map((slug) => SERIES.find((c) => c.slug === slug)).filter(Boolean);
 
 // Real words from real clients only — add each one as it comes in.
 // English is the translation; the Swedish dictionary holds the original.
@@ -51,7 +39,6 @@ const work = (location) => {
 
 export function FelixContent() {
   const t = useT();
-  const navigate = useNavigate();
   return (
     <div className="fl">
       {/* hero */}
@@ -82,8 +69,35 @@ export function FelixContent() {
         </div>
       </section>
 
+      {/* cases */}
+      <section id="stories" className="fl-sec" data-pc-section="stories" data-pc-order="2">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("Cases")}</p>
+          <Reveal><h2 className="fl-h2">{t("People I've worked with.")}</h2></Reveal>
+          <div className="fl-stack"><CaseStack /></div>
+        </div>
+      </section>
+
+      {/* what they say */}
+      <section id="words" className="fl-sec fl-rule" data-pc-section="words" data-pc-order="3">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("What they say")}</p>
+          {WORDS.map((w) => (
+            <Reveal key={w.who}>
+              <figure className="fl-word">
+                <blockquote>“{t(w.quote)}”</blockquote>
+                <figcaption>
+                  <img src={COVERS[w.slug]} alt="" loading="lazy" decoding="async" />
+                  <span><b>{w.who}</b> · {t(w.role)}</span>
+                </figcaption>
+              </figure>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
       {/* about */}
-      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="2">
+      <section id="about" className="fl-sec fl-rule" data-pc-section="about" data-pc-order="4">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
           <Reveal><h2 className="fl-h2">{t("Developing people is my passion.")}</h2></Reveal>
@@ -100,62 +114,6 @@ export function FelixContent() {
               <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
             </blockquote>
           </Reveal>
-        </div>
-      </section>
-
-      {/* cases */}
-      <section id="stories" className="fl-sec fl-rule" data-pc-section="stories" data-pc-order="3">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("Cases")}</p>
-          <Reveal><h2 className="fl-h2">{t("People I've worked with.")}</h2></Reveal>
-          <ul className="fl-cases">
-            {CASE_ROWS.map((c, i) => {
-              const [line, num, unit] = LINES[c.slug];
-              return (
-                <Reveal key={c.slug} delay={0.03 * i}>
-                  <li>
-                    <a
-                      href={casePath(c.slug)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        trackEvent("cta_click", { location: `case_${c.slug}` });
-                        navigate(casePath(c.slug));
-                      }}
-                    >
-                      <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" />
-                      <span className="fl-case-who">
-                        <b>{c.name}</b>
-                        <span>{t(line)}</span>
-                      </span>
-                      <span className="fl-case-num">
-                        <b>{t(num ?? c.score[0])}</b>
-                        <span>{t(unit)}</span>
-                      </span>
-                      <ArrowRight className="fl-case-go" size={20} strokeWidth={1.5} />
-                    </a>
-                  </li>
-                </Reveal>
-              );
-            })}
-          </ul>
-        </div>
-      </section>
-
-      {/* what they say */}
-      <section id="words" className="fl-sec fl-rule" data-pc-section="words" data-pc-order="4">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("What they say")}</p>
-          {WORDS.map((w) => (
-            <Reveal key={w.who}>
-              <figure className="fl-word">
-                <blockquote>“{t(w.quote)}”</blockquote>
-                <figcaption>
-                  <img src={COVERS[w.slug]} alt="" loading="lazy" decoding="async" />
-                  <span><b>{w.who}</b> · {t(w.role)}</span>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
         </div>
       </section>
 
@@ -247,24 +205,8 @@ export const FELIX_CSS = `
   .fl-quote p::before { content: "“"; color: var(--accent); }
   .fl-quote footer { margin-top: 16px; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #444; max-width: 46ch; }
 
-  /* cases */
-  .fl-cases { list-style: none; margin: clamp(32px, 4vw, 48px) 0 0; padding: 0; border-top: 1px solid var(--rule); }
-  .fl-cases a { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 6px 18px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--rule); color: inherit; text-decoration: none; }
-  @media (min-width: 720px) { .fl-cases a { grid-template-columns: 64px minmax(0, 1fr) minmax(0, 15rem) 24px; gap: 24px; padding: 22px 0; } }
-  .fl-cases img { width: 100%; aspect-ratio: 1; border-radius: 12px; object-fit: cover; }
-  .fl-case-who { display: grid; gap: 3px; }
-  .fl-case-who b { font-size: clamp(19px, 1.8vw, 24px); font-weight: 700; letter-spacing: -0.025em; }
-  .fl-case-who span { font-size: 15px; color: var(--grey); line-height: 1.4; }
-  .fl-case-num { display: grid; gap: 2px; text-align: right; }
-  .fl-case-num b { font-size: clamp(20px, 2.2vw, 30px); font-weight: 700; letter-spacing: -0.035em; white-space: nowrap; }
-  .fl-case-num span { font-size: 13px; color: var(--grey); }
-  .fl-case-go { color: var(--grey); transition: transform 0.2s ease, color 0.2s ease; }
-  .fl-cases a:hover .fl-case-go { transform: translateX(4px); color: var(--accent); }
-  .fl-cases a:hover .fl-case-who b { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
-  @media (max-width: 719px) {
-    .fl-case-num { grid-column: 2 / -1; text-align: left; display: flex; gap: 8px; align-items: baseline; }
-    .fl-case-go { display: none; }
-  }
+  /* cases: the card stack (CaseStack) */
+  .fl-stack { margin-top: clamp(32px, 4vw, 56px); }
 
   /* what they say */
   .fl-word { margin: clamp(28px, 4vw, 44px) 0 0; max-width: 900px; }

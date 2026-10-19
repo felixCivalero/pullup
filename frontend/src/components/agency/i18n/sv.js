@@ -23,8 +23,6 @@ export const SV = {
   "views for STIGA in seven months": "visningar för STIGA på sju månader",
   "8 h → 30 min": "8 h → 30 min",
   "per piece of content for Li Karlsén": "per innehåll för Li Karlsén",
-  "Sony Music": "Sony Music",
-  "Adam Dawood, from zero to signed": "Adam Dawood, från noll till skivkontrakt",
 
   // ─── what you get ───
   "What you get": "Det här får du",
@@ -106,13 +104,9 @@ export const SV = {
   "per sprint": "per sprint",
 
   "Creator · Music": "Kreatör · Musik",
-  "From zero to signed.": "Från noll till skivkontrakt.",
   "An artist with a sound, a world and nobody watching yet.": "En artist med ett sound, en egen värld – och ingen som lyssnade än.",
   "Built the identity around who he actually is, before any audience.": "Byggde identiteten kring den han faktiskt är, innan det fanns en publik.",
   "The visual language and the story the music tells — rolled out step by step.": "Bildspråket och berättelsen i musiken – lanserat steg för steg.",
-  "Signed by Sony Music.": "Signad av Sony Music.",
-  "0 → Sony": "0 → Sony",
-  "From zero to signed by Sony Music": "Från noll till skivkontrakt med Sony Music",
 
   "Creator · Community": "Kreatör · Community",
   "A following became a community.": "Följarna blev en community.",
@@ -358,13 +352,9 @@ export const SV = {
   "Operational drag eliminated. Internal alignment got faster because the communication model itself changed.": "Den operativa bromsen försvann. Samordningen internt gick snabbare, eftersom själva sättet att kommunicera förändrades.",
   "The engine that took a founder from 0 to 10k scales to a global giant. Same rhythm. Bigger machine.": "Motorn som tog en grundare från 0 till 10k fungerar lika bra för en global jätte. Samma rytm. Större maskin.",
 
-  // Adam Dawood
-  "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.": "En artist med ett sound, en egen värld – och ingen som lyssnade än. Vi byggde identiteten kring den han faktiskt är – från bildspråket till berättelsen i musiken – och lät den växa steg för steg. Från noll till skivkontrakt med Sony Music.",
-  "{#} → Signed": "{#} → Signad",
   "The starting point": "Utgångsläget",
   "No audience to aim at.": "Ingen publik att sikta på.",
   "Most advice starts with the target audience. At zero there isn't one — and aiming at an imagined one makes everything sound like everyone else.": "De flesta råd börjar med målgruppen. På noll finns ingen – och att sikta på en påhittad gör att allt låter som alla andra.",
-  "So the work didn't start outside. It started with the only question that matters at zero: who is DAWOOD — today?": "Så jobbet började inte utåt. Det började med den enda frågan som spelar roll på noll: vem är DAWOOD – i dag?",
   "The audience comes last. Because you are the audience.": "Publiken kommer sist. För du är publiken.",
   "The method": "Metoden",
   "Produce the core.": "Producera kärnan.",
@@ -379,8 +369,6 @@ export const SV = {
   "The curve": "Kurvan",
   "When it bends isn't yours to choose. It only bends for the ones still producing when it does.": "När den vänder uppåt bestämmer inte du. Den vänder bara för dem som fortfarande producerar när det händer.",
   "The result": "Resultatet",
-  "Signed": "Signad",
-  "From zero to a deal with Sony Music.": "Från noll till skivkontrakt med Sony Music.",
   "It's a long-term game. Consistency is the only part you hold.": "Det är ett långsiktigt spel. Kontinuiteten är det enda du har i din hand.",
 
   // Kaijas
@@ -487,7 +475,6 @@ export const SV = {
   "Our own team and artists, grown from an empty room in Stockholm.": "Vårt eget team och våra artister, framvuxna ur ett tomt rum i Stockholm.",
   "per piece of content": "per innehåll",
   "views in seven months": "visningar på sju månader",
-  "from zero to signed": "från noll till signad",
   "people pulled up, in real life": "personer som dök upp, på riktigt",
   "Time to make one piece of content": "Tid per innehåll",
   "Before": "Förut",
@@ -833,7 +820,6 @@ export const SV = {
   "Adam turned the room into a printed journal: the community's own photographs, handed back to them.": "Adam gjorde om rummet till en tryckt tidning: communityns egna bilder, tillbaka i deras händer.",
   "After every walk": "Efter varje promenad",
   "An archive photograph of a player training at a table tennis table": "Ett arkivfoto av en spelare som tränar vid ett pingisbord",
-  "An artist with a sound, a world and nobody listening yet. How producing who he is — every day — took him from zero to signed.": "En artist med ett sound, en värld och ingen som lyssnade än. Så tog det honom från noll till skivkontrakt att producera den han är – varje dag.",
   "An empty bar room, lamps on, nobody there yet": "En tom barlokal, lamporna tända, ingen där än",
   "An open window onto a Stockholm courtyard": "Ett öppet fönster mot en innergård i Stockholm",
   "Because you are the audience.": "För du är publiken.",
@@ -940,9 +926,7 @@ export const SV = {
   "We didn't wait for a full room to act like a venue. We lived it four nights a week — until it was booked three months ahead.": "Vi väntade inte på ett fullt rum för att bete oss som en scen. Vi levde det fyra kvällar i veckan – tills det var fullbokat tre månader framåt.",
   "We introduced STIGA's in-house talents to the world and built personas and stories around each of them.": "Vi presenterade STIGA:s egna talanger för världen och byggde personor och berättelser kring var och en av dem.",
   "We lived it": "Vi levde det",
-  "Who is DAWOOD — today?": "Vem är DAWOOD – i dag?",
   "Who you are isn't a statement. It's a decision taken every day — and produced, consistently, into the world.": "Vem du är är inget påstående. Det är ett beslut du tar varje dag – och producerar, konsekvent, ut i världen.",
-  "from zero to signed by Sony Music": "från noll till kontrakt med Sony Music",
   "people following Kaijas on Instagram": "personer följer Kaijas på Instagram",
   "the core, produced": "kärnan, producerad",
   // 2026-10-16 offer: money-back first month

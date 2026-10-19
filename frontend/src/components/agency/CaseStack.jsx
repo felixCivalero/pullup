@@ -178,7 +178,7 @@ export function CaseStack({ head }) {
 
 // The order and emphasis for this page: STIGA right after BKM, and Kaijas
 // led by its people — artists, team and guests — not the room.
-const ORDER = ["li-karlsen", "bkm", "stiga", "kaijas", "adam-dawood", "adam-flambo"];
+const ORDER = ["li-karlsen", "bkm", "stiga", "kaijas", "adam-flambo"];
 const MIX_EDIT = {
   kaijas: {
     score: ["Artists. Team. Guests.", "the brand was the people — never the room"],

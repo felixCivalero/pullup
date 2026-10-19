@@ -9,7 +9,6 @@ const LOADERS = {
   bkm: () => import("./data/bkm.jsx"),
   kaijas: () => import("./data/kaijas.jsx"),
   stiga: () => import("./data/stiga.jsx"),
-  "adam-dawood": () => import("./data/adam-dawood.jsx"),
   "adam-flambo": () => import("./data/adam-flambo.jsx"),
 };
 

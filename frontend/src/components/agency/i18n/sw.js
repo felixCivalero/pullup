@@ -23,8 +23,6 @@ export const SW = {
   "views for STIGA in seven months": "watazamaji wa STIGA ndani ya miezi saba",
   "8 h → 30 min": "saa 8 → dakika 30",
   "per piece of content for Li Karlsén": "kwa kila kipande cha maudhui cha Li Karlsén",
-  "Sony Music": "Sony Music",
-  "Adam Dawood, from zero to signed": "Adam Dawood, kutoka sifuri hadi mkataba",
 
   // ─── what you get ───
   "What you get": "Unachopata",
@@ -106,13 +104,9 @@ export const SW = {
   "per sprint": "kwa kikao",
 
   "Creator · Music": "Mbunifu · Muziki",
-  "From zero to signed.": "Kutoka sifuri hadi mkataba wa muziki.",
   "An artist with a sound, a world and nobody watching yet.": "Msanii mwenye mtindo wake na ulimwengu wake — lakini bado hakuna aliyekuwa akisikiliza.",
   "Built the identity around who he actually is, before any audience.": "Tulijenga utambulisho kuzunguka yeye ni nani hasa, kabla ya hadhira yoyote.",
   "The visual language and the story the music tells — rolled out step by step.": "Lugha ya picha na hadithi ambayo muziki unasimulia — vikizinduliwa hatua kwa hatua.",
-  "Signed by Sony Music.": "Amesaini mkataba na Sony Music.",
-  "0 → Sony": "0 → Sony",
-  "From zero to signed by Sony Music": "Kutoka sifuri hadi mkataba na Sony Music",
 
   "Creator · Community": "Mbunifu · Jamii",
   "A following became a community.": "Wafuasi wakawa jamii.",
@@ -379,16 +373,10 @@ export const SW = {
   "The engine that took a founder from 0 to 10k scales to a global giant. Same rhythm. Bigger machine.":
     "Injini iliyompeleka mwanzilishi kutoka 0 hadi 10k inafanya kazi pia kwa kampuni kubwa ya kimataifa. Mdundo ule ule. Mashine kubwa zaidi.",
 
-  // Adam Dawood
-  "An artist with a sound, a world and nobody watching yet. We built the identity around who he actually is — from the visual language to the story the music tells — and grew it step by step. From zero to signed by Sony Music.":
-    "Msanii mwenye sauti yake, ulimwengu wake na bado hakuna anayetazama. Tulijenga utambulisho kuzunguka yeye ni nani hasa — kuanzia lugha ya picha hadi hadithi ambayo muziki unasimulia — na tukaukuza hatua kwa hatua. Kutoka sifuri hadi kusainiwa na Sony Music.",
-  "{#} → Signed": "{#} → Mkataba",
   "The starting point": "Mahali pa kuanzia",
   "No audience to aim at.": "Hakuna hadhira ya kulenga.",
   "Most advice starts with the target audience. At zero there isn't one — and aiming at an imagined one makes everything sound like everyone else.":
     "Ushauri mwingi huanza na hadhira lengwa. Ukiwa sifuri haipo — na kulenga hadhira ya kufikirika kunafanya kila kitu kisikike kama cha kila mtu mwingine.",
-  "So the work didn't start outside. It started with the only question that matters at zero: who is DAWOOD — today?":
-    "Kwa hiyo kazi haikuanzia nje. Ilianza na swali pekee lenye maana ukiwa sifuri: DAWOOD ni nani — leo?",
   "The audience comes last. Because you are the audience.": "Hadhira huja mwisho. Kwa sababu wewe ndiye hadhira.",
   "The method": "Mbinu",
   "Produce the core.": "Zalisha kiini.",
@@ -405,8 +393,6 @@ export const SW = {
   "The curve": "Mkunjo",
   "When it bends isn't yours to choose. It only bends for the ones still producing when it does.": "Lini unapinda si uamuzi wako. Unapinda tu kwa wale ambao bado wanazalisha unapopinda.",
   "The result": "Matokeo",
-  "Signed": "Mkataba",
-  "From zero to a deal with Sony Music.": "Kutoka sifuri hadi mkataba na Sony Music.",
   "It's a long-term game. Consistency is the only part you hold.": "Ni mchezo wa muda mrefu. Uthabiti ndio sehemu pekee iliyo mikononi mwako.",
 
   // Kaijas
@@ -525,7 +511,6 @@ export const SW = {
   "Our own team and artists, grown from an empty room in Stockholm.": "Timu yetu na wasanii wetu, waliokua kutoka chumba kitupu Stockholm.",
   "per piece of content": "kwa kila kipande cha maudhui",
   "views in seven months": "watazamaji ndani ya miezi saba",
-  "from zero to signed": "kutoka sifuri hadi kusainiwa",
   "people pulled up, in real life": "watu walifika, ana kwa ana",
   "Time to make one piece of content": "Muda wa kutengeneza kipande kimoja",
   "Before": "Awali",
@@ -871,7 +856,6 @@ export const SW = {
   "Adam turned the room into a printed journal: the community's own photographs, handed back to them.": "Adam alikigeuza chumba kuwa jarida lililochapishwa: picha za jumuiya yenyewe, zikirudishwa kwao.",
   "After every walk": "Baada ya kila matembezi",
   "An archive photograph of a player training at a table tennis table": "Picha ya kumbukumbu ya mchezaji akifanya mazoezi kwenye meza ya tenisi",
-  "An artist with a sound, a world and nobody listening yet. How producing who he is — every day — took him from zero to signed.": "Msanii mwenye sauti yake, ulimwengu wake na bado hakuna anayesikiliza. Jinsi kuzalisha yeye ni nani — kila siku — kulivyomtoa sifuri hadi kusainiwa.",
   "An empty bar room, lamps on, nobody there yet": "Chumba cha baa kitupu, taa zikiwaka, bado hakuna mtu",
   "An open window onto a Stockholm courtyard": "Dirisha lililo wazi kuelekea uwanja wa ndani huko Stockholm",
   "Because you are the audience.": "Kwa sababu wewe ndiye hadhira.",
@@ -978,9 +962,7 @@ export const SW = {
   "We didn't wait for a full room to act like a venue. We lived it four nights a week — until it was booked three months ahead.": "Hatukusubiri chumba kijae ndipo tujione ukumbi. Tuliliishi usiku nne kwa wiki — hadi nafasi zikajaa miezi mitatu mbele.",
   "We introduced STIGA's in-house talents to the world and built personas and stories around each of them.": "Tuliwatambulisha vipaji vya ndani vya STIGA kwa ulimwengu na kujenga haiba na hadithi kuzunguka kila mmoja wao.",
   "We lived it": "Tuliliishi",
-  "Who is DAWOOD — today?": "DAWOOD ni nani — leo?",
   "Who you are isn't a statement. It's a decision taken every day — and produced, consistently, into the world.": "Wewe ni nani si kauli. Ni uamuzi unaofanywa kila siku — na kuzalishwa, kwa uthabiti, ulimwenguni.",
-  "from zero to signed by Sony Music": "kutoka sifuri hadi kusainiwa na Sony Music",
   "people following Kaijas on Instagram": "watu wanaoifuata Kaijas kwenye Instagram",
   "the core, produced": "kiini, kimezalishwa",
   // 2026-10-16 offer: money-back first month

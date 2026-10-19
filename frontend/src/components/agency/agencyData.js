@@ -154,26 +154,6 @@ export const CASES = [
     stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
   },
   {
-    slug: "adam-dawood",
-    client: "Adam Dawood",
-    name: "Adam Dawood",
-    kicker: "Creator · Music",
-    color: "#7C3AED",
-    title: "From zero to signed.",
-    who: "An artist with a sound, a world and nobody listening yet.",
-    gained: "An identity built around who he actually is, rolled out step by step.",
-    brand: "Signed by Sony Music.",
-    score: ["0 → Sony", "from zero to signed"],
-    chart: { type: "path", steps: ["Zero", "Identity", "Story", "Rollout", "Sony Music"] },
-    spine: {
-      start: "An artist with a sound, a world and nobody watching yet.",
-      did: "Built the identity around who he actually is, before any audience.",
-      made: "The visual language and the story the music tells — rolled out step by step.",
-      result: "Signed by Sony Music.",
-    },
-    hero: ["0 → Sony", "From zero to signed by Sony Music"],
-  },
-  {
     slug: "adam-flambo",
     client: "Adam Flambo",
     name: "Adam Flambo",
@@ -216,7 +196,6 @@ export const COVERS = {
   bkm: "/stories/bkm/big-blue.webp",
   kaijas: "/stories/kaijas/crowd.webp",
   stiga: "/stories/stiga/arena.webp",
-  "adam-dawood": "/stories/dawood/studio.webp",
   "adam-flambo": "/stories/adam-hero.webp",
 };
 

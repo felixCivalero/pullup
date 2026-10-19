@@ -42,8 +42,6 @@ export const WORDS = [
     photo: COVERS["li-karlsen"],
     quote: "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.",
   },
-  // Reserved — waiting for his own words.
-  { who: "Adam Dawood", org: "Artist", photo: COVERS["adam-dawood"], quote: null },
 ];
 const LIVE = WORDS.filter((w) => w.quote);
 const initials = (name) => name.split(" ").map((p) => p[0]).slice(0, 2).join("");

@@ -167,13 +167,13 @@ function Hero() {
       <div className="mx-hero-stick">
         <div className="mx-hero-glow" aria-hidden="true" style={{ opacity: 1 - out * 0.6 }} />
         <div className="mx-hero-in" style={{ transform: `scale(${1 - out * 0.08}) translateY(${-out * 4}vh)`, opacity: 1 - out * 1.15 }}>
-          <p className="mx-eyebrow mx-rise" style={{ "--d": "0.1s" }}>{t("For founders, artists and small brands")}</p>
+          <p className="mx-eyebrow mx-rise" style={{ "--d": "0.1s" }}>{t("Content and marketing for founders, artists and small brands")}</p>
           <h1 className="mx-h1">
-            <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("Everyone looks at the clip.")}</span>
-            <span className="mx-rise mx-grad" style={{ "--d": "0.55s" }}>{t("We develop the person behind it.")}</span>
+            <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("We develop the people behind the brand.")}</span>
           </h1>
+          <p className="mx-slogan mx-rise mx-grad" style={{ "--d": "0.6s" }}>{t("Growth that lasts.")}</p>
           <p className="mx-sub mx-rise" style={{ "--d": "0.85s" }}>
-            {t("Your voice, your direction, the habit of showing up — built week by week. That's growth that lasts.")}
+            {t("Your voice, your direction, the habit of showing up — built week by week.")}
           </p>
           <div className="mx-ctas mx-rise" style={{ "--d": "1.05s" }}>
             <button
@@ -301,6 +301,8 @@ export const MIX_CSS = `
   .mx-link { font: inherit; font-size: 17px; font-weight: 500; background: none; border: 0; cursor: pointer; color: #FF8A57; padding: 6px 0; }
   .mx-link:hover { text-decoration: underline; }
   .mx-link span { font-size: 1.15em; margin-left: 2px; }
+  .mx-h1 .mx-rise { max-width: 14ch; margin-inline: auto; }
+  .mx-slogan { margin-top: clamp(10px, 1.6vh, 18px); font-size: clamp(30px, 4.2vw, 60px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; }
   .mx-sub { margin-top: clamp(16px, 2.4vh, 24px); max-width: 34ch; font-size: clamp(18px, 1.7vw, 23px); line-height: 1.4; font-weight: 500; color: #c7c7cc; letter-spacing: -0.01em; text-wrap: balance; }
   .mx-meet { display: inline-flex; align-items: center; gap: 10px; }
   .mx-faces { display: inline-flex; }

@@ -1048,4 +1048,10 @@ export const SV = {
   "Built for the long run. No tiers, no add-ons.": "Byggt för lång sikt. Inga nivåer, inga tillägg.",
   "We work with the person behind the brand, month after month — that's where growth that lasts comes from. Strategy, the weekly sprint and every tool behind it are included. Content is scoped to what moves you forward, never a quota.": "Vi jobbar med personen bakom varumärket, månad efter månad – det är därifrån tillväxt som håller kommer. Strategi, veckosprinten och alla verktyg bakom ingår. Innehållet planeras efter det som tar dig framåt, aldrig efter en kvot.",
   "{#} h → {#} min": "{#} h → {#} min",
+
+  "Content and marketing for founders, artists and small brands": "Content och marknadsföring för grundare, artister och mindre varumärken",
+  "We develop the people behind the brand.": "Vi utvecklar människorna bakom varumärket.",
+  "Growth that lasts.": "Tillväxt som håller.",
+  "Your voice, your direction, the habit of showing up — built week by week.": "Din röst, din riktning, vanan att synas – byggt vecka för vecka.",
+  "We develop the people behind the brand. Growth that lasts.": "Vi utvecklar människorna bakom varumärket. Tillväxt som håller.",
 };

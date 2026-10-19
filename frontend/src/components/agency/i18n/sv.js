@@ -1148,4 +1148,5 @@ export const SV = {
   "Proof: PullUp — the platform Adam Flambo's community runs on — I built from the ground up. This site too.": "Bevis: PullUp – plattformen som Adam Flambos community körs på – har jag byggt från grunden. Den här sidan också.",
   "See it in use": "Se den i bruk",
   "Strategy, content, growth — and the tech behind it, built by me. No tiers, no add-ons. Not happy after the first month? You get your money back.": "Strategi, content, tillväxt – och tekniken bakom, som jag bygger själv. Inga nivåer, inga tillägg. Inte nöjd efter första månaden? Du får pengarna tillbaka.",
+  "If you're weighing hiring someone versus bringing in Felix, Felix is 10x the value you actually want. Just sayin'.": "Om man funderar på att anställa vs ta in Felix, så är Felix 10x värdet man egentligen vill ha. Just sayin'.",
 };

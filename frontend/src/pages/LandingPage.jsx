@@ -34,7 +34,7 @@ export function LandingPage() {
 
   // Arriving via a link from another page (/#stories, /#deck …) lands on it.
   useEffect(() => {
-    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "about", "#services": "about", "#how": "about", "#superpowers": "offer", "#offer": "offer", "#talent": "network", "#toolkit": "network", "#deck": "about", "#felix": "about", "#about": "about", "#network": "network", "#words": "words", "#start": "offer" }[location.hash];
+    const target = { "#stories": "stories", "#cases": "stories", "#work": "stories", "#why": "about", "#services": "about", "#how": "about", "#superpowers": "offer", "#offer": "offer", "#talent": "stories", "#toolkit": "stories", "#deck": "about", "#felix": "about", "#about": "about", "#network": "stories", "#words": "words", "#start": "offer" }[location.hash];
     if (!target) return;
     const t = setTimeout(() => {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });

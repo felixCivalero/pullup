@@ -2,7 +2,6 @@ import { ArrowRight } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
-import { Network } from "../components/agency/FounderNetwork.jsx";
 import { CaseStack } from "../components/agency/CaseStack.jsx";
 import { CONTACT } from "../components/agency/agencyData.js";
 import { Testimonials } from "../components/agency/Testimonials.jsx";
@@ -11,8 +10,7 @@ import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
-   (small cards) → the cases (horizontal rail) → Felix and his network ("we"
-   only here) → how the work runs (the 12-week picture with the weekly
+   (small cards) → the cases (horizontal rail) → how the work runs (the 12-week picture with the weekly
    30-minute sprint) → the one offer → a short bio.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
@@ -40,9 +38,9 @@ export function FelixContent() {
           <div className="fl-hero-text">
             <p className="fl-me fl-rise" style={{ "--d": "0.05s" }}>
               <img src="/felix.jpg" alt="" decoding="async" />
-              <span><b>Felix Civalero Stolpe</b>{t("For founders, artists and small brands")}</span>
+              <span><b>Felix Civalero Stolpe</b>{t("For founders, brands and creators")}</span>
             </p>
-            <p className="fl-k fl-rise" style={{ "--d": "0.05s" }}>{t("For founders, artists and small brands")}</p>
+            <p className="fl-k fl-rise" style={{ "--d": "0.05s" }}>{t("For founders, brands and creators")}</p>
             <h1 className="fl-h1 fl-rise" style={{ "--d": "0.15s" }}>{t("I develop the people behind brands.")}</h1>
             <p className="fl-slogan fl-rise" style={{ "--d": "0.35s" }}>{t("Growth that lasts.")}</p>
             <div className="fl-ctas fl-rise" style={{ "--d": "0.55s" }}>
@@ -82,20 +80,9 @@ export function FelixContent() {
         />
       </section>
 
-      {/* network — the one place it's "we" */}
-      <section id="network" className="fl-sec fl-rule" data-pc-section="network" data-pc-order="4">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("My network")}</p>
-          <Reveal><h2 className="fl-h2">{t("When it's needed, we're a team.")}</h2></Reveal>
-          <Reveal delay={0.05}>
-            <p className="fl-p">{t("Photographers, videographers, 3D animators, producers and many more. People I've worked with and trust.")}</p>
-          </Reveal>
-          <Network />
-        </div>
-      </section>
 
       {/* how it runs — the 12-week picture */}
-      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="5">
+      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="4">
         <div className="fl-wrap">
           <p className="fl-label">{t("How I work")}</p>
           <Reveal><h2 className="fl-h2">{t("You grow every week. Your brand grows with you.")}</h2></Reveal>
@@ -107,7 +94,7 @@ export function FelixContent() {
       </section>
 
       {/* the offer */}
-      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
+      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="5">
         <div className="fl-wrap">
           <p className="fl-label">{t("The offer")}</p>
           <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
@@ -123,7 +110,7 @@ export function FelixContent() {
         </div>
       </section>
       {/* about */}
-      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="7">
+      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
           <Reveal><h2 className="fl-h2">{t("Developing people is my passion.")}</h2></Reveal>
@@ -205,9 +192,6 @@ export const FELIX_CSS = `
   .fl-tm { margin-top: 16px; }
   .fl-cases-sec { padding: clamp(72px, 10vw, 128px) 0 clamp(48px, 6vw, 80px); }
   .fl-cases-sec .fl-h2 { max-width: none; }
-
-  /* network: the shared graph, quieter on this page */
-  .fl .fn-graph { margin-top: clamp(32px, 4vw, 56px); }
 
   /* how it runs */
   .fl-engine { margin-top: clamp(32px, 4vw, 56px); }

@@ -17,7 +17,6 @@ import { useT } from "./i18n.js";
 // (from other pages via /#id). Narrow screens keep Results + Offer.
 const NAV = [
   ["stories", "Cases"],
-  ["network", "Network", "pc-nav-wide"],
   ["offer", "Offer"],
   ["about", "About me", "pc-nav-wide"],
 ];

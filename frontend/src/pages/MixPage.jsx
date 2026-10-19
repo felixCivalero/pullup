@@ -172,9 +172,6 @@ function Hero() {
             <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("We develop the people behind the brand.")}</span>
           </h1>
           <p className="mx-slogan mx-rise mx-grad" style={{ "--d": "0.6s" }}>{t("Growth that lasts.")}</p>
-          <p className="mx-sub mx-rise" style={{ "--d": "0.85s" }}>
-            {t("Your voice, your direction, the habit of showing up — built week by week.")}
-          </p>
           <div className="mx-ctas mx-rise" style={{ "--d": "1.05s" }}>
             <button
               type="button"
@@ -196,7 +193,7 @@ function Hero() {
             >
               <span className="mx-faces" aria-hidden="true">
                 {STORIES.map((c) => (
-                  <img key={c.slug} src={COVERS[c.slug] || c.image} alt="" decoding="async" style={{ "--sc": c.color }} />
+                  <img key={c.slug} src={COVERS[c.slug] || c.image} alt="" decoding="async" />
                 ))}
               </span>
               {t("Meet the people behind it")} <span aria-hidden="true">›</span>
@@ -289,11 +286,11 @@ export function MixContent() {
 export const MIX_CSS = `
   /* hero — centred, quiet, one idea; settles back as you scroll on */
   .mx-hero { position: relative; height: 150svh; background: #000; color: #f5f5f7; }
-  .mx-hero-stick { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: 1fr auto; grid-template-columns: minmax(0, 1fr); }
+  .mx-hero-stick { position: sticky; top: 0; height: 100svh; overflow: hidden; display: grid; grid-template-rows: minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); }
   .mx-hero-glow { position: absolute; left: 50%; top: 58%; width: 120vmax; height: 70vmax; translate: -50% -50%; background: radial-gradient(ellipse at center, rgba(255,106,43,0.22), rgba(255,106,43,0.06) 35%, transparent 62%); pointer-events: none; }
   .mx-hero-in { position: relative; align-self: center; display: grid; justify-items: center; text-align: center; padding: 96px clamp(16px, 5vw, 56px) 0; transform-origin: 50% 40%; will-change: transform, opacity; }
   .mx-eyebrow { font-size: clamp(15px, 1.3vw, 19px); font-weight: 600; color: #86868b; letter-spacing: -0.01em; }
-  .mx-h1 { margin-top: 14px; display: grid; gap: 0.04em; font-size: clamp(44px, 7.6vw, 112px); line-height: 1.02; letter-spacing: -0.05em; font-weight: 700; }
+  .mx-h1 { margin-top: 14px; display: grid; gap: 0.04em; font-size: clamp(40px, min(7.6vw, 10.5svh), 112px); line-height: 1.02; letter-spacing: -0.05em; font-weight: 700; }
   .mx-grad { background: linear-gradient(90deg, #FF6A2B 0%, #FF9D6B 50%, #FFC9A8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: 0.06em; }
   .mx-ctas { margin-top: clamp(26px, 4vh, 40px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 30px; }
   .mx-pill { font: inherit; font-size: 17px; font-weight: 500; padding: 13px 26px; border-radius: 999px; border: 0; cursor: pointer; background: #FF6A2B; color: #fff; transition: background-color 0.2s ease, transform 0.2s ease; }
@@ -302,15 +299,17 @@ export const MIX_CSS = `
   .mx-link:hover { text-decoration: underline; }
   .mx-link span { font-size: 1.15em; margin-left: 2px; }
   .mx-h1 .mx-rise { max-width: 14ch; margin-inline: auto; }
-  .mx-slogan { margin-top: clamp(10px, 1.6vh, 18px); font-size: clamp(30px, 4.2vw, 60px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; }
+  .mx-slogan { margin-top: clamp(10px, 1.6vh, 18px); font-size: clamp(28px, min(4.2vw, 6svh), 60px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; }
   .mx-sub { margin-top: clamp(16px, 2.4vh, 24px); max-width: 34ch; font-size: clamp(18px, 1.7vw, 23px); line-height: 1.4; font-weight: 500; color: #c7c7cc; letter-spacing: -0.01em; text-wrap: balance; }
   .mx-meet { display: inline-flex; align-items: center; gap: 10px; }
   .mx-faces { display: inline-flex; }
-  .mx-faces img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #000, 0 0 0 3.5px var(--sc); }
+  .mx-faces img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255,255,255,0.28); }
   .mx-faces img + img { margin-left: -9px; }
   @media (max-width: 520px) { .mx-faces img:nth-child(n+5) { display: none; } }
   .mx-price { margin-top: 18px; font-size: 14px; color: #86868b; }
   .mx-hero-logos { position: relative; padding-bottom: clamp(16px, 3vh, 32px); }
+  .mx-hero-logos .pc-logos-label { color: rgba(255,255,255,0.6); }
+  .mx-hero-logos .pc-logos-group img { opacity: 1; }
   .mx-rise { opacity: 0; transform: translateY(20px); animation: mx-rise 1.1s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: var(--d, 0s); }
   .mx-h1 .mx-rise { display: block; }
   @keyframes mx-rise { to { opacity: 1; transform: none; } }
@@ -328,7 +327,7 @@ export const MIX_CSS = `
   @media (min-width: 900px) { .mx-people { grid-template-columns: repeat(6, 1fr); } }
   .mx-people button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; width: 100%; text-align: center; }
   .mx-people .pc-reveal { display: grid; justify-items: center; gap: 4px; }
-  .mx-face { width: clamp(76px, 9vw, 120px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--sc); transition: transform 0.35s cubic-bezier(0.16,1,0.3,1); margin-bottom: 10px; }
+  .mx-face { width: clamp(76px, 9vw, 120px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: block; box-shadow: 0 0 0 3px #fff, 0 0 0 4px #d2d2d7; transition: transform 0.35s cubic-bezier(0.16,1,0.3,1); margin-bottom: 10px; }
   .mx-face img { width: 100%; height: 100%; object-fit: cover; }
   .mx-people button:hover .mx-face { transform: scale(1.06); }
   .mx-face-n { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }

@@ -6,7 +6,6 @@ import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
 import { CONTACT, DECK_PATH, SERIES, casePath } from "./agencyData.js";
 import { RequestDialog } from "./RequestDialog.jsx";
-import { ScrollLine } from "./ScrollLine.jsx";
 import { openRequest, rememberArrival } from "./request.js";
 import { LangSwitch } from "./LangSwitch.jsx";
 import { useT } from "./i18n.js";
@@ -171,7 +170,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           </div>
         </header>
 
-        <ScrollLine />
         {children}
 
         <footer className="pc-footer" data-pc-tone="dark">

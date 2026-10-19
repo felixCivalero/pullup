@@ -4,7 +4,8 @@ import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
 import { Network } from "../components/agency/FounderNetwork.jsx";
 import { CaseStack } from "../components/agency/CaseStack.jsx";
-import { CONTACT, COVERS } from "../components/agency/agencyData.js";
+import { CONTACT } from "../components/agency/agencyData.js";
+import { Testimonials } from "../components/agency/Testimonials.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
@@ -20,16 +21,6 @@ const CREDS = [
   ["Author", "One published book, the next on its way"],
 ];
 
-// Real words from real clients only — add each one as it comes in.
-// English is the translation; the Swedish dictionary holds the original.
-const WORDS = [
-  {
-    slug: "adam-flambo",
-    who: "Adam Flambo",
-    role: "Creator",
-    quote: "That's how I see you. Besides being a super chill guy, you're the one who set up my studio in a single day while I stood there navel-gazing. That's what you wish clients understood — that you're a fucking maker. An action taker.",
-  },
-];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 const work = (location) => {
@@ -82,17 +73,7 @@ export function FelixContent() {
       <section id="words" className="fl-sec fl-rule" data-pc-section="words" data-pc-order="3">
         <div className="fl-wrap">
           <p className="fl-label">{t("What they say")}</p>
-          {WORDS.map((w) => (
-            <Reveal key={w.who}>
-              <figure className="fl-word">
-                <blockquote>“{t(w.quote)}”</blockquote>
-                <figcaption>
-                  <img src={COVERS[w.slug]} alt="" loading="lazy" decoding="async" />
-                  <span><b>{w.who}</b> · {t(w.role)}</span>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
+          <Reveal><Testimonials /></Reveal>
         </div>
       </section>
 
@@ -207,13 +188,6 @@ export const FELIX_CSS = `
 
   /* cases: the card stack (CaseStack) */
   .fl-stack { margin-top: clamp(32px, 4vw, 56px); }
-
-  /* what they say */
-  .fl-word { margin: clamp(28px, 4vw, 44px) 0 0; max-width: 900px; }
-  .fl-word blockquote { margin: 0; font-size: clamp(24px, 2.7vw, 38px); font-weight: 600; line-height: 1.2; letter-spacing: -0.03em; }
-  .fl-word figcaption { margin-top: 24px; display: flex; align-items: center; gap: 12px; font-size: 16px; color: var(--grey); }
-  .fl-word figcaption b { color: var(--ink); }
-  .fl-word figcaption img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
 
   /* network: the shared graph, quieter on this page */
   .fl .fn-graph { margin-top: clamp(32px, 4vw, 56px); }

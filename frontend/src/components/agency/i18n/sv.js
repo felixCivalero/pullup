@@ -1125,4 +1125,15 @@ export const SV = {
   "Tell me who you are and where you want to go.": "Berätta vem du är och vart du vill.",
   "A selection": "Urval",
   "Hand-picked client cases.": "Handplockade kundcase.",
+  // Testimonials — the originals, verbatim.
+  "Everyone should have a Felix.": "Alla borde ha en Felix.",
+  "We'd never have got here without you.": "Vi hade aldrig varit här utan dig.",
+  "If Mulle Meck were a real person, it would probably be Felix. Whatever you need, he fixes it. Either himself or with help from someone he knows.": "Om Mulle Meck hade varit en verklig person hade det nog varit Felix. Vad man än behöver, fixar han. Antingen själv eller med hjälp av någon han känner.",
+  "Freediver": "Fridykerska",
+  "Artist": "Artist",
+  "Previous": "Föregående",
+  "Next": "Nästa",
+  "POC": "POC",
+  "BKM Health": "BKM Health",
+  "STIGA": "STIGA",
 };

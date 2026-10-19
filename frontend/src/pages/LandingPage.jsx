@@ -9,6 +9,7 @@ import { LANDING_CSS } from "../components/agency/landingParts.jsx";
 import { FOUNDER_CSS } from "../components/agency/FounderNetwork.jsx";
 import { FelixContent, FELIX_CSS } from "./FelixContent.jsx";
 import { CASE_STACK_CSS } from "../components/agency/CaseStack.jsx";
+import { TESTIMONIALS_CSS } from "../components/agency/Testimonials.jsx";
 import { useT } from "../components/agency/i18n.js";
 
 /* The public front door: Felix, in first person (FelixContent.jsx) — the
@@ -88,7 +89,7 @@ export function LandingPage() {
 
   return (
     <>
-      <AgencyShell css={LANDING_CSS + FOUNDER_CSS + FELIX_CSS + CASE_STACK_CSS} hideCursor={view === "login"} home>
+      <AgencyShell css={LANDING_CSS + FOUNDER_CSS + FELIX_CSS + CASE_STACK_CSS + TESTIMONIALS_CSS} hideCursor={view === "login"} home>
         <FelixContent />
       </AgencyShell>
       {view === "login" && (

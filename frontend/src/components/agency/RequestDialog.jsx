@@ -75,7 +75,7 @@ export function RequestDialog() {
         setError(
           {
             invalid_email: t("That email doesn't look right."),
-            missing_name: t("Tell us your name."),
+            missing_name: t("Tell me your name."),
             missing_description: t("Tell us a little more — a sentence or two."),
             rate_limited: t("Too many tries — give it a minute."),
           }[data.error] || t("Something went wrong. Try again, or email {email}.", { email: CONTACT }),
@@ -86,7 +86,7 @@ export function RequestDialog() {
       trackEvent("request_sent", { source });
       setState("done");
     } catch {
-      setError(t("Couldn't reach us. Check your connection and try again."));
+      setError(t("Couldn't reach me. Check your connection and try again."));
       setState("error");
     }
   };
@@ -103,7 +103,7 @@ export function RequestDialog() {
             <span className="rq-done-icon"><Check size={26} strokeWidth={2} /></span>
             <h2 id="rq-title">{t("Request sent.")}</h2>
             <p>
-              {t("Thanks, {name}. It's with us at {contact} — we'll get back to you at {email} to find a time.", {
+              {t("Thanks, {name}. It's with me at {contact} — I'll get back to you at {email} to find a time.", {
                 name: form.name.split(" ")[0] || t("friend"),
                 contact: CONTACT,
                 email: form.email,
@@ -114,7 +114,7 @@ export function RequestDialog() {
         ) : (
           <form onSubmit={submit} noValidate>
             <p className="rq-k">{t("Start a conversation")}</p>
-            <h2 id="rq-title" className="rq-h">{t("Tell us who you are and where you want to go.")}</h2>
+            <h2 id="rq-title" className="rq-h">{t("Tell me who you are and where you want to go.")}</h2>
             <p className="rq-offer">
               <b>{t(OFFER.label)} · {t(OFFER.price)} {t(OFFER.cadence)}</b>
               {t("First month: full scope. Not happy? Money back.")}

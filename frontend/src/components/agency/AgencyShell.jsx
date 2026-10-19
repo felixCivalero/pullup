@@ -16,11 +16,10 @@ import { useT } from "./i18n.js";
 // The nav follows the landing page, in order — each link lands on its section
 // (from other pages via /#id). Narrow screens keep Results + Offer.
 const NAV = [
-  ["stories", "Results"],
-  ["services", "How we work", "pc-nav-wide"],
-  ["toolkit", "Toolkit", "pc-nav-wide"],
+  ["about", "About me", "pc-nav-wide"],
+  ["stories", "Cases"],
+  ["network", "Network", "pc-nav-wide"],
   ["offer", "Offer"],
-  ["felix", "About Felix", "pc-nav-booklet"],
 ];
 
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {
@@ -132,8 +131,8 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           ref={navRef}
           className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}`}
         >
-          <button type="button" className="pc-nav-brand" onClick={goHome} aria-label="PullUp — home">
-            <img src="/pullup-textlogo.svg" alt="PullUp" />
+          <button type="button" className="pc-nav-brand pc-nav-name" onClick={goHome} aria-label="Felix Civalero Stolpe — home">
+            Felix<span> Civalero Stolpe</span>
           </button>
           <div className="pc-nav-actions">
             {NAV.map(([id, label, cls]) => (
@@ -165,7 +164,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 openRequest({ source: "nav" });
               }}
             >
-              {t("Build with us")}
+              {t("Work with me")}
             </button>
           </div>
         </header>
@@ -173,7 +172,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
         {children}
 
         <footer className="pc-footer" data-pc-tone="dark">
-          <span>PullUp &copy; {new Date().getFullYear()}</span>
+          <span>Felix Civalero Stolpe &copy; {new Date().getFullYear()}</span>
           <nav aria-label="Cases">
             {SERIES.map((c) => (
               <a

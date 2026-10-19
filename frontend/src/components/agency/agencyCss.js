@@ -69,6 +69,11 @@ export const AGENCY_CSS = `
     display: flex; cursor: pointer;
   }
   .pc-nav-brand img { height: 22px; width: auto; display: block; transition: filter 0.25s ease; }
+  .pc-nav-name { font: inherit; font-size: 17px; font-weight: 700; letter-spacing: -0.025em; color: inherit; white-space: nowrap; }
+  .pc-nav.is-dark .pc-nav-name { color: #fff; }
+  .pc-nav.is-light .pc-nav-name { color: #0a0a0a; }
+  .pc-nav-name span { margin-left: 0.28em; }
+  @media (max-width: 640px) { .pc-nav-name span { display: none; } }
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
   .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
   /* the sales CTA is the loud one; Log in is a quiet text link */

@@ -3,24 +3,12 @@ import {
   AudioWaveform, Box, Brush, CalendarDays, Camera, Clapperboard, Code, Droplet, Lightbulb,
   Music, Palette, PenLine, PenTool, Scissors, Shirt, Sparkles, Star, Video,
 } from "lucide-react";
-import { trackEvent } from "../../lib/analytics.js";
-import { openRequest } from "./request.js";
-import { Reveal } from "./Reveal.jsx";
-import { SectionLabel } from "./landingParts.jsx";
 import { useT } from "./i18n.js";
 
-/* §05 The person behind it — Felix, and the network under his umbrella.
-   Bio and philosophy are Felix's own words (2026-10-19). The network shows ROLES,
+/* Felix's network as a live graph — Felix at the centre, the core of a
+   production around him, the wider ring beyond. The network shows ROLES,
    never names or headcounts: people he has worked with and pulls in when a
    brand's direction needs them. Edit the lists below to prune or add. */
-
-// Who Felix has been. His words — don't embellish (no "licensed", no sport).
-const CREDS = [
-  ["Pro freestyler", "Former professional"],
-  ["Ranger", "31st Light Battalion, Karlsborg"],
-  ["Naprapath", "Four years of study, three-plus treating people"],
-  ["Author", "One published book, the next on its way"],
-];
 
 // Inner ring: the core of most productions.
 const CORE = [
@@ -83,7 +71,7 @@ function useInView(threshold = 0.25) {
   return [ref, seen];
 }
 
-function Network() {
+export function Network() {
   const t = useT();
   const [ref, on] = useInView();
   const [hot, setHot] = useState(null); // ["c", k] | ["w", k]
@@ -149,96 +137,9 @@ function Network() {
   );
 }
 
-export function FounderNetwork() {
-  const t = useT();
-  return (
-    <section id="felix" className="pc-section fn" data-pc-section="felix" data-pc-order="95">
-      <div className="pc-wrap">
-        <SectionLabel n="05">{t("The person behind it")}</SectionLabel>
-
-        <div className="fn-me-grid">
-          <Reveal className="fn-photo">
-            <img src="/felix.jpg" alt="Felix Civalero Stolpe" loading="lazy" decoding="async" />
-          </Reveal>
-          <div className="fn-bio">
-            <Reveal>
-              <h2 className="pc-h2 fn-h2">{t("I'm Felix. Developing people is my passion.")}</h2>
-            </Reveal>
-            <ul className="fn-creds">
-              {CREDS.map(([k, v], i) => (
-                <Reveal key={k} delay={0.05 + i * 0.05}>
-                  <li><b>{t(k)}</b><span>{t(v)}</span></li>
-                </Reveal>
-              ))}
-            </ul>
-            <Reveal delay={0.1}>
-              <p className="fn-p">{t("Now I build brands around people — and I love it.")}</p>
-            </Reveal>
-            <Reveal delay={0.14}>
-              <blockquote className="fn-quote">
-                <p>{t("The genuine creative expression no one can copy is you.")}</p>
-                <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
-              </blockquote>
-            </Reveal>
-            <Reveal delay={0.18}>
-              <p className="fn-sign">Felix Civalero Stolpe <span>· {t("Founder, PullUp")}</span></p>
-            </Reveal>
-          </div>
-        </div>
-
-        <div className="fn-net-head">
-          <Reveal>
-            <h3 className="fn-h3">{t("And when it's needed: the whole network.")}</h3>
-          </Reveal>
-          <Reveal delay={0.06}>
-            <p className="fn-net-sub">
-              {t("Photographers, videographers, 3D animators, producers and many more — people I've worked with and trust. We bring them in the moment your direction calls for it.")}
-            </p>
-          </Reveal>
-        </div>
-        <Network />
-        <div className="fn-cta">
-          <button
-            type="button"
-            className="mx-pill"
-            onClick={() => {
-              trackEvent("cta_click", { location: "felix_network" });
-              openRequest({ source: "felix_network" });
-            }}
-          >
-            {t("Build with us")}
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export const FOUNDER_CSS = `
-  .fn { background: #fff; color: #000; }
-  .fn-me-grid { display: grid; gap: clamp(28px, 4vw, 64px); align-items: center; margin-top: clamp(28px, 4vw, 48px); }
-  @media (min-width: 900px) { .fn-me-grid { grid-template-columns: 5fr 7fr; } }
-  .fn-photo { border-radius: 24px; overflow: hidden; aspect-ratio: 4 / 5; max-width: 460px; background: #eee; }
-  .fn-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
-  .fn-h2 { max-width: 14ch; }
-  .fn-creds { list-style: none; margin: clamp(22px, 3vw, 32px) 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 620px; }
-  .fn-creds li { height: 100%; box-sizing: border-box; border: 1px solid rgba(0,0,0,0.14); border-radius: 16px; padding: 14px 16px; display: grid; gap: 4px; }
-  .fn-creds b { font-size: clamp(18px, 1.7vw, 22px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
-  .fn-creds span { font-size: 13.5px; line-height: 1.35; color: var(--pc-grey); }
-  .fn-quote { margin: clamp(18px, 2.4vw, 26px) 0 0; padding: 0 0 0 clamp(16px, 2vw, 24px); border-left: 3px solid #D9480F; max-width: 620px; }
-  .fn-quote p { font-size: clamp(24px, 2.6vw, 36px); font-weight: 700; line-height: 1.12; letter-spacing: -0.035em; }
-  .fn-quote footer { margin-top: 12px; font-size: clamp(16px, 1.4vw, 18px); line-height: 1.45; color: #444; max-width: 40ch; }
-  .fn-p { margin-top: 20px; max-width: 46ch; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #333; }
-  .fn-sign { margin-top: 28px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
-  .fn-sign span { font-weight: 500; color: var(--pc-grey); }
-
-  .fn-net-head { margin-top: clamp(72px, 10vw, 128px); text-align: center; display: grid; justify-items: center; gap: 14px; }
-  .fn-h3 { font-size: clamp(30px, 4.2vw, 58px); font-weight: 700; line-height: 1.02; letter-spacing: -0.045em; max-width: 18ch; }
-  .fn-net-sub { max-width: 52ch; font-size: clamp(16px, 1.4vw, 19px); line-height: 1.5; color: #555; }
-
   .fn-graph { position: relative; margin: clamp(28px, 4vw, 48px) auto 0; max-width: 1120px; aspect-ratio: 1000 / 640; }
   .fn-graph { isolation: isolate; }
-  .fn-cta { margin-top: clamp(28px, 4vw, 48px); display: flex; justify-content: center; }
   .fn-graph > svg { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .fn-l { fill: none; stroke: #000; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1s cubic-bezier(0.16,1,0.3,1), stroke 0.25s ease, opacity 0.25s ease; }
   .fn-l1 { stroke-width: 1.6; opacity: 0.55; }

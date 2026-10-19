@@ -48,7 +48,7 @@ export const OFFER = {
     ["Content", "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month."],
     ["After that", "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate."],
   ],
-  cta: "Build with us",
+  cta: "Work with me",
 };
 
 // The one story frame. Every case — card, case page, booklet — answers the

@@ -4,8 +4,11 @@
 //                            personal token; the deck link is also emailed.
 //   GET  /deck/:token      – streams the PDF for a known token and counts it.
 //
-// The PDF lives in backend/assets (built from docs/deck/production-core.html)
-// and is never served publicly; only a token minted here unlocks it.
+// The PDFs live in backend/assets (built by docs/deck/build.mjs, Swedish +
+// English) and are never served publicly; only a token minted here unlocks one.
+// The site asks for "production-core-sv" when the visitor reads in Swedish
+// (the default) and "production-core" (English — the key older links carry)
+// otherwise.
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,10 +19,33 @@ import { normalizeEmail, isValidEmail } from "../services/account.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DECKS = {
+  "production-core-sv": {
+    lang: "sv",
+    file: path.join(here, "../../assets/the-production-core.sv.pdf"),
+    filename: "The Production Core - PullUps häfte.pdf",
+    title: "The Production Core",
+  },
   "production-core": {
+    lang: "en",
     file: path.join(here, "../../assets/the-production-core.pdf"),
     filename: "The Production Core - PullUp booklet.pdf",
     title: "The Production Core",
+  },
+};
+const COPY = {
+  sv: {
+    hi: (first) => (first ? `Hej ${first},` : "Hej,"),
+    body: "Här är ditt exemplar. Det börjar där personlig utveckling börjar – vart vill vi, och hur tar vi oss dit – och landar i svaret: genom att bestämma vilka vi är, varje dag. Ett varumärke bärs av många människor, så det beslutet tas tillsammans. Det är samstämmigheten.",
+    cta: "Ladda ner häftet (PDF)",
+    reply: "Vill du ha motorn byggd, eller driven åt dig? Svara bara på det här mejlet.",
+    subject: (title) => `${title} – ditt häfte`,
+  },
+  en: {
+    hi: (first) => (first ? `Hi ${first},` : "Hi,"),
+    body: "Here is your copy. It starts where personal development starts — where do we want to go, and how do we get there — and lands on the answer: by deciding who we are, every day. A brand is held by many people, so that decision is taken together. That is the alignment.",
+    cta: "Download the booklet (PDF)",
+    reply: "Want the engine built, or run for you? Just reply to this email.",
+    subject: (title) => `${title} — your booklet`,
   },
 };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,20 +79,21 @@ function clip(v, max) {
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-function deckEmail({ name, url, title }) {
-  const hi = name ? `Hi ${esc(name.split(" ")[0])},` : "Hi,";
-  return `<!doctype html><html><body style="margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#000;">
+function deckEmail({ name, url, title, lang }) {
+  const c = COPY[lang] || COPY.sv;
+  const hi = c.hi(name ? esc(name.split(" ")[0]) : "");
+  return `<!doctype html><html lang="${lang}"><body style="margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#000;">
     <div style="max-width:520px;margin:0 auto;padding:44px 28px;">
       <p style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(0,0,0,0.45);margin:0 0 20px;">PullUp</p>
       <h1 style="font-size:28px;line-height:1.1;font-weight:700;letter-spacing:-0.02em;margin:0 0 18px;">${esc(title)}</h1>
       <p style="font-size:15px;line-height:1.6;color:rgba(0,0,0,0.72);margin:0 0 14px;">${hi}</p>
       <p style="font-size:15px;line-height:1.6;color:rgba(0,0,0,0.72);margin:0 0 24px;">
-        Here is your copy. It starts where personal development starts — where do we want to go, and how do we get there — and lands on the answer: by deciding who we are, every day. A brand is held by many people, so that decision is taken together. That is the alignment.
+        ${c.body}
       </p>
       <p style="margin:0 0 28px;">
-        <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 24px;border-radius:999px;">Download the booklet (PDF)</a>
+        <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 24px;border-radius:999px;">${c.cta}</a>
       </p>
-      <p style="font-size:14px;line-height:1.6;color:rgba(0,0,0,0.55);margin:0 0 6px;">Want the engine built, or run for you? Just reply to this email.</p>
+      <p style="font-size:14px;line-height:1.6;color:rgba(0,0,0,0.55);margin:0 0 6px;">${c.reply}</p>
       <p style="font-size:13px;line-height:1.6;color:rgba(0,0,0,0.45);margin:22px 0 0;">— PullUp · pullup.se</p>
     </div>
   </body></html>`;
@@ -79,7 +106,7 @@ export function registerDeckDownloadRoutes(app) {
       const body = req.body || {};
       const email = normalizeEmail(body.email);
       if (!isValidEmail(email)) return res.status(400).json({ ok: false, error: "invalid_email" });
-      const deck = DECKS[body.deck] ? body.deck : "production-core";
+      const deck = DECKS[body.deck] ? body.deck : "production-core-sv";
 
       const row = {
         email,
@@ -104,8 +131,8 @@ export function registerDeckDownloadRoutes(app) {
       // The booklet is email-only: the emailed link is the one way in.
       sendEmail({
         to: email,
-        subject: `${DECKS[deck].title} — your booklet`,
-        html: deckEmail({ name: row.name, url, title: DECKS[deck].title }),
+        subject: (COPY[DECKS[deck].lang] || COPY.sv).subject(DECKS[deck].title),
+        html: deckEmail({ name: row.name, url, title: DECKS[deck].title, lang: DECKS[deck].lang }),
         idempotencyKey: `deck:${deck}:${email}:${new Date().toISOString().slice(0, 10)}`,
       }).catch((err) => logger?.warn?.("[deck] email failed", { error: err?.message }));
 
@@ -137,7 +164,9 @@ export function registerDeckDownloadRoutes(app) {
         .then(({ error: e }) => e && logger?.warn?.("[deck] count failed", { error: e.message }));
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${deck.filename}"`);
+      // ASCII fallback + RFC 5987 UTF-8 name ("häfte" isn't header-safe raw).
+      const ascii = deck.filename.normalize("NFD").replace(/[^\x20-\x7e]/g, "");
+      res.setHeader("Content-Disposition", `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(deck.filename)}`);
       res.setHeader("Cache-Control", "private, no-store");
       res.setHeader("X-Robots-Tag", "noindex");
       return fs.createReadStream(deck.file).pipe(res);

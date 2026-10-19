@@ -25,7 +25,7 @@ export function DeckTeaser({ source = "landing" }) {
       const res = await fetch(`${API_BASE}/deck-downloads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, deck: "production-core", source: `booklet_${source}`, meta: requestMeta() }),
+        body: JSON.stringify({ email, deck: t.lang === "sv" ? "production-core-sv" : "production-core", source: `booklet_${source}`, meta: requestMeta() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {

@@ -17,7 +17,7 @@ export const SV = {
     "Trettio minuter av dig i veckan. En veckas innehåll som låter som du – publicerat i alla kanaler, mätt och utvecklat.",
   "For brands and creators · Stockholm · Nairobi": "För varumärken och kreatörer · Stockholm · Nairobi",
   "See the stories": "Se våra case",
-  "Trusted by": "De litar på oss",
+  "Trusted by": "De litar på mig",
 
   // ─── proof ───
   "views for STIGA in seven months": "visningar för STIGA på sju månader",

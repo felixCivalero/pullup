@@ -17,7 +17,7 @@ export const SW = {
     "Dakika thelathini zako kwa wiki. Maudhui ya wiki nzima yanayosikika kama wewe — yamechapishwa kwenye kila jukwaa, yamepimwa na kukuzwa.",
   "For brands and creators · Stockholm · Nairobi": "Kwa chapa na wabunifu · Stockholm · Nairobi",
   "See the stories": "Tazama kazi zetu",
-  "Trusted by": "Wanaotuamini",
+  "Trusted by": "Wananiamini",
 
   // ─── proof ───
   "views for STIGA in seven months": "watazamaji wa STIGA ndani ya miezi saba",

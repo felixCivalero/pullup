@@ -76,6 +76,12 @@ export function CaseStack({ head }) {
       const on = !!mq?.matches;
       setPinned(on);
       if (!on) { setHeight(null); track.style.transform = ""; return; }
+      // Every card shows the same parts: if any card overflows, drop the chart
+      // on all of them, then "where they started" — never a clipped card.
+      outer.classList.remove("fit-1", "fit-2");
+      const over = () => [...track.querySelectorAll(".mx-story-body")].some((b) => b.scrollHeight > b.clientHeight + 1);
+      if (over()) outer.classList.add("fit-1");
+      if (over()) outer.classList.add("fit-2");
       dist = Math.max(0, track.scrollWidth - view.clientWidth);
       setHeight(dist + window.innerHeight);
     };
@@ -95,6 +101,12 @@ export function CaseStack({ head }) {
     };
     measure();
     onScroll();
+    // Fit is decided on real text: measure again once the web font is in.
+    let alive = true;
+    const again = () => { if (alive) { measure(); onScroll(); } };
+    document.fonts?.ready?.then(again);
+    window.addEventListener("load", again);
+    const late = setTimeout(again, 1200); // every weight in, counters settled
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { measure(); onScroll(); }) : null;
     ro?.observe(view);
     ro?.observe(track);
@@ -102,6 +114,9 @@ export function CaseStack({ head }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     view.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      alive = false;
+      clearTimeout(late);
+      window.removeEventListener("load", again);
       ro?.disconnect();
       mq?.removeEventListener?.("change", measure);
       window.removeEventListener("scroll", onScroll);
@@ -117,7 +132,7 @@ export function CaseStack({ head }) {
         <div ref={viewRef} className="cr-view">
           <div ref={trackRef} className="cr-track">
             {STORIES.map((c, i) => (
-              <article key={c.slug} id={`story-${c.slug}`} className="mx-story" style={{ "--sc": c.color, "--i": i }}>
+              <article key={c.slug} id={`story-${c.slug}`} className="mx-story" style={{ "--i": i }}>
                 <div className="mx-story-photo">
                   <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" />
                 </div>
@@ -179,7 +194,7 @@ const STORIES = ORDER.map((slug) => SERIES.find((c) => c.slug === slug))
 
 export const CASE_STACK_CSS = `
   /* rail geometry: the track starts where the page's content column starts */
-  .cr { --gut: max(clamp(16px, 5vw, 56px), calc((100vw - 1180px) / 2 + clamp(16px, 5vw, 56px))); position: relative; }
+  .cr { --sc: #D9480F; --gut: max(clamp(16px, 5vw, 56px), calc((100vw - 1180px) / 2 + clamp(16px, 5vw, 56px))); position: relative; }
   .cr-head { padding: 0 var(--gut); }
   .cr-view { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; margin-top: clamp(24px, 3vw, 40px); }
   .cr-view::-webkit-scrollbar { display: none; }
@@ -197,20 +212,20 @@ export const CASE_STACK_CSS = `
     width: min(86vw, 420px); scroll-snap-align: start; scroll-margin-left: var(--gut);
     border: 1px solid rgba(0,0,0,0.14); border-radius: 22px; background: #fff; color: #000;
   }
-  .mx-story::before { content: ""; position: absolute; z-index: 2; left: 0; right: 0; top: 0; height: 5px; background: var(--sc); }
   .mx-story-photo { position: relative; height: 200px; overflow: hidden; background: #111; }
   .mx-story-photo img { width: 100%; height: 100%; object-fit: cover; }
-  .mx-story-body { padding: clamp(20px, 2.6vw, 36px); display: grid; align-content: start; }
-  .mx-story-name { margin-top: 12px; font-size: clamp(24px, 2.4vw, 34px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
-  .mx-story-tog { margin-top: 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sc); }
-  .mx-story-big { margin-top: 4px; font-size: clamp(48px, 6vw, 96px); font-weight: 700; line-height: 0.95; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--sc); }
-  .mx-story-big.is-long { font-size: clamp(40px, 4.6vw, 72px); }
+  .mx-story-body { padding: clamp(20px, min(2.6vw, 4svh), 36px); display: grid; align-content: start; }
+  .mx-story-name { margin-top: 10px; font-size: clamp(22px, min(2.2vw, 4svh), 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .mx-story-tog { margin-top: clamp(10px, 1.8vh, 16px); font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sc); }
+  .mx-story-big { margin-top: 4px; font-size: clamp(40px, min(5.4vw, 9svh), 88px); font-weight: 700; line-height: 0.95; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--sc); }
+  .mx-story-big.is-long { font-size: clamp(32px, min(3.6vw, 6svh), 56px); }
   .mx-story-big-l { margin-top: 8px; font-size: clamp(16px, 1.5vw, 19px); font-weight: 600; letter-spacing: -0.01em; }
-  .mx-story-pb { margin: 20px 0 0; display: grid; gap: 12px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 16px; }
+  .mx-story-pb { margin: clamp(12px, 2vh, 20px) 0 0; display: grid; gap: 12px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: clamp(10px, 1.8vh, 16px); }
   .mx-story-pb dt { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6e6e73; }
   .mx-story-pb dd { margin: 3px 0 0; font-size: 15px; line-height: 1.45; }
-  .mx-story-chart { margin-top: 20px; }
+  .mx-story-chart { margin-top: clamp(12px, 2vh, 20px); }
   .mx-story .st-link { margin-top: 18px; }
+  .mx-story .sc-grow, .mx-story .sc-cols { height: clamp(110px, 16svh, 168px); }
   @media (max-width: 899px) { .mx-story { align-content: start; } }
 
   /* wide screens: pinned, the vertical scroll drives the rail */
@@ -218,15 +233,15 @@ export const CASE_STACK_CSS = `
     .cr.is-pinned .cr-pin { position: sticky; top: 0; height: 100svh; box-sizing: border-box; padding: 88px 0 clamp(20px, 3vh, 32px); display: flex; flex-direction: column; }
     .cr.is-pinned .cr-view { flex: 1; min-height: 0; overflow: visible; scroll-snap-type: none; }
     .cr.is-pinned .cr-track { height: 100%; box-sizing: border-box; }
-    .mx-story { width: min(1000px, 76vw); grid-template-columns: 5fr 6fr; }
-    .cr.is-pinned .mx-story { height: 100%; max-height: 720px; }
+    .mx-story { width: min(1040px, 78vw); grid-template-columns: 4fr 7fr; }
+    .cr.is-pinned .cr-head .fl-h2 { font-size: clamp(28px, min(3vw, 5svh), 46px); margin-top: 8px; }
+    .cr.is-pinned .cr-view { margin-top: clamp(16px, 2.4vh, 28px); }
+    .cr.is-pinned .mx-story { height: 100%; max-height: 700px; }
+    .cr.fit-1 .mx-story-chart { display: none; }
+    .cr.fit-2 .mx-story-pb { grid-template-columns: 1fr; }
+    .cr.fit-2 .mx-story-pb > div:first-child { display: none; }
     .mx-story-photo { height: auto; }
     .mx-story-body { overflow: hidden; }
     .mx-story-pb { grid-template-columns: 1fr 1fr; gap: 20px; }
-  }
-  @media (min-width: 900px) and (max-height: 820px) {
-    .mx-story-pb { grid-template-columns: 1fr; margin-top: 14px; padding-top: 12px; }
-    .mx-story-pb > div:first-child { display: none; }
-    .mx-story-chart { margin-top: 14px; }
   }
 `;

@@ -223,7 +223,7 @@ export const SV = {
 
   // ─── booklet teaser · booklet page ───
   "The booklet · open": "Broschyren · öppen",
-  "Where do we want to go — and who do we need to be to get there?": "Vart vill vi – och vilka måste vi vara för att komma dit?",
+  "Where do we want to go — and who do we need to be to get there?": "Vart vill vi – och vilka behöver vi vara för att komma dit?",
   "Getting there isn't a plan you finish — it's a decision you take every day: who we are. A brand is held by many people, so that decision has to be taken together. The booklet shows how one system aligns them, from a founder to a global brand.": "Att komma dit är ingen plan som blir klar – det är ett beslut du fattar varje dag: vilka vi är. Ett varumärke bärs av många människor, så det beslutet måste fattas tillsammans. Häftet visar hur ett och samma system samlar dem – från en ensam grundare till ett globalt varumärke.",
   "Read the booklet": "Läs broschyren",
   "The booklet": "Häftet",
@@ -1030,4 +1030,22 @@ export const SV = {
   "A clear direction, content that sounds like you, and growth you can measure.": "En tydlig riktning, innehåll som låter som du och tillväxt du kan mäta.",
   "month": "månad",
   "See the whole picture": "Se hela bilden",
+
+  // Front page — the person behind it (2026-10-19).
+  "We develop the person behind it.": "Vi utvecklar människan bakom det.",
+  "Everyone looks at the clip. We develop the person behind it.": "Alla tittar på klippet. Vi utvecklar människan bakom det.",
+  "Your voice, your direction, the habit of showing up — built week by week. That's growth that lasts.": "Din röst, din riktning, vanan att synas – byggt vecka för vecka. Det är tillväxt som håller.",
+  "Meet the people behind it": "Möt människorna bakom",
+  "The people": "Människorna",
+  "We developed the people.": "Vi utvecklade människorna.",
+  "The brands grew with them.": "Varumärkena växte med dem.",
+  "Founders, artists, the people behind a venue and the talent inside a global brand. Different starting points — the same work: find the person, give them a direction, let it show every week.": "Grundare, artister, människorna bakom en scen och talangerna i ett globalt varumärke. Olika utgångslägen – samma arbete: hitta personen, ge den en riktning och låt det synas varje vecka.",
+  "What followed": "Det som följde",
+  "How they grew": "Hur de växte",
+  "You grow every week. Your brand grows with you.": "Du växer varje vecka. Varumärket växer med dig.",
+  "First a clear direction: who you are and where you're going. Then a 30-minute sprint every week where we sharpen your voice and turn where you are right now into content. Every piece is measured, so we scale what works — month after month.": "Först en tydlig riktning: vem du är och vart du ska. Sedan en 30-minuterssprint varje vecka där vi vässar din röst och gör innehåll av där du är just nu. Allt mäts, så att vi skalar det som fungerar – månad efter månad.",
+  "Built around you, as you grow.": "Byggt runt dig, i takt med att du växer.",
+  "Built for the long run. No tiers, no add-ons.": "Byggt för lång sikt. Inga nivåer, inga tillägg.",
+  "We work with the person behind the brand, month after month — that's where growth that lasts comes from. Strategy, the weekly sprint and every tool behind it are included. Content is scoped to what moves you forward, never a quota.": "Vi jobbar med personen bakom varumärket, månad efter månad – det är därifrån tillväxt som håller kommer. Strategi, veckosprinten och alla verktyg bakom ingår. Innehållet planeras efter det som tar dig framåt, aldrig efter en kvot.",
+  "{#} h → {#} min": "{#} h → {#} min",
 };

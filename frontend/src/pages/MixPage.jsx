@@ -21,7 +21,10 @@ import { Clip, Spike } from "./CorePage.jsx";
 
 // Counts every number in a string up from zero the first time it's seen:
 // "28.1M" → 0.0M…28.1M, "10,000+" → 0…10,000+. Words stay as they are.
+// Animates the English source; every frame goes through t(), so Swedish reads
+// "10 000+" and "28,1 milj." all the way up.
 function CountUp({ text }) {
+  const t = useT();
   const ref = useRef(null);
   const [k, setK] = useState(() =>
     typeof IntersectionObserver === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 1 : 0,
@@ -50,7 +53,7 @@ function CountUp({ text }) {
     const v = Number(m.replace(/,/g, "")) * k;
     return m.includes(",") ? Math.round(v).toLocaleString("en-US") : v.toFixed(dec);
   });
-  return <span ref={ref} aria-label={text}>{out}</span>;
+  return <span ref={ref} aria-label={t(text)}>{t(out)}</span>;
 }
 
 // The people first: a row of faces, each one a door to their story below.
@@ -97,12 +100,12 @@ function StoryStack() {
               {t(c.kicker)}
             </p>
             <h3 className="mx-story-name">{c.name}</h3>
-            <p className="mx-story-tog">{t("Together")}</p>
-            <p className={`mx-story-big${t(c.score[0]).length > 8 ? " is-long" : ""}`}><CountUp text={t(c.score[0])} /></p>
+            <p className="mx-story-tog">{t("What followed")}</p>
+            <p className={`mx-story-big${t(c.score[0]).length > 8 ? " is-long" : ""}`}><CountUp text={c.score[0]} /></p>
             <p className="mx-story-big-l">{t(c.score[1])}</p>
             <dl className="mx-story-pb">
               <div><dt>{t("Where they started")}</dt><dd>{t(c.who)}</dd></div>
-              <div><dt>{t("What they gained")}</dt><dd>{t(c.gained)}</dd></div>
+              <div><dt>{t("How they grew")}</dt><dd>{t(c.gained)}</dd></div>
             </dl>
             <Reveal className="mx-story-chart"><StoryChart chart={c.chart} /></Reveal>
             <a
@@ -167,8 +170,11 @@ function Hero() {
           <p className="mx-eyebrow mx-rise" style={{ "--d": "0.1s" }}>{t("For founders, artists and small brands")}</p>
           <h1 className="mx-h1">
             <span className="mx-rise" style={{ "--d": "0.25s" }}>{t("Everyone looks at the clip.")}</span>
-            <span className="mx-rise mx-grad" style={{ "--d": "0.55s" }}>{t("We look at the people behind it.")}</span>
+            <span className="mx-rise mx-grad" style={{ "--d": "0.55s" }}>{t("We develop the person behind it.")}</span>
           </h1>
+          <p className="mx-sub mx-rise" style={{ "--d": "0.85s" }}>
+            {t("Your voice, your direction, the habit of showing up — built week by week. That's growth that lasts.")}
+          </p>
           <div className="mx-ctas mx-rise" style={{ "--d": "1.05s" }}>
             <button
               type="button"
@@ -182,13 +188,18 @@ function Hero() {
             </button>
             <button
               type="button"
-              className="mx-link"
+              className="mx-link mx-meet"
               onClick={() => {
                 trackEvent("cta_click", { location: "mix_hero_stories" });
                 scrollToId("stories");
               }}
             >
-              {t("See the stories")} <span aria-hidden="true">›</span>
+              <span className="mx-faces" aria-hidden="true">
+                {STORIES.map((c) => (
+                  <img key={c.slug} src={COVERS[c.slug] || c.image} alt="" decoding="async" style={{ "--sc": c.color }} />
+                ))}
+              </span>
+              {t("Meet the people behind it")} <span aria-hidden="true">›</span>
             </button>
           </div>
           <p className="mx-price mx-rise" style={{ "--d": "1.2s" }}>
@@ -219,12 +230,12 @@ export function MixContent() {
       <section id="stories" className="pc-section ch-1" data-pc-section="stories" data-pc-order="3">
         <div className="pc-wrap">
           <header className="mx-res-head">
-            <Reveal><p className="mx-res-k">01 · {t("What we've achieved together")}</p></Reveal>
+            <Reveal><p className="mx-res-k">01 · {t("The people")}</p></Reveal>
             <Reveal delay={0.06}>
-              <h2 className="mx-res-h">{t("We found the direction with them.")} <span>{t("Here's where it took them.")}</span></h2>
+              <h2 className="mx-res-h">{t("We developed the people.")} <span>{t("The brands grew with them.")}</span></h2>
             </Reveal>
             <Reveal delay={0.12}>
-              <p className="mx-res-sub">{t("Founders, artists, a venue and a global brand. Different people, different starting points — the same way of working.")}</p>
+              <p className="mx-res-sub">{t("Founders, artists, the people behind a venue and the talent inside a global brand. Different starting points — the same work: find the person, give them a direction, let it show every week.")}</p>
             </Reveal>
           </header>
           <People />
@@ -241,11 +252,11 @@ export function MixContent() {
         <div className="pc-wrap">
           <SectionLabel n="02">{t("How we take you there")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 hw-h2">{t("We build the line. Every week.")}</h2>
+            <h2 className="pc-h2 hw-h2">{t("You grow every week. Your brand grows with you.")}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <p className="st-lede hw-lede">
-              {t("A clear direction first. Then a 30-minute sprint every week that turns where you are right now into content — and every piece measured, so we scale what works.")}
+              {t("First a clear direction: who you are and where you're going. Then a 30-minute sprint every week where we sharpen your voice and turn where you are right now into content. Every piece is measured, so we scale what works — month after month.")}
             </p>
           </Reveal>
           <EngineChart />
@@ -256,7 +267,7 @@ export function MixContent() {
         <div className="pc-wrap">
           <SectionLabel n="03">{t("What we build along the way")}</SectionLabel>
           <Reveal>
-            <h2 className="pc-h2 tk-h2">{t("Everything we can build. Pulled in when you need it.")}</h2>
+            <h2 className="pc-h2 tk-h2">{t("Built around you, as you grow.")}</h2>
           </Reveal>
           <Toolkit />
         </div>
@@ -266,8 +277,8 @@ export function MixContent() {
         id="offer"
         source="mix"
         chapter={["04", "One offer"]}
-        heading="30,000 SEK a month. No tiers, no add-ons."
-        sub="Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels."
+        heading="Built for the long run. No tiers, no add-ons."
+        sub="We work with the person behind the brand, month after month — that's where growth that lasts comes from. Strategy, the weekly sprint and every tool behind it are included. Content is scoped to what moves you forward, never a quota."
       />
 
       <DeckTeaser source="mix" />
@@ -290,6 +301,12 @@ export const MIX_CSS = `
   .mx-link { font: inherit; font-size: 17px; font-weight: 500; background: none; border: 0; cursor: pointer; color: #FF8A57; padding: 6px 0; }
   .mx-link:hover { text-decoration: underline; }
   .mx-link span { font-size: 1.15em; margin-left: 2px; }
+  .mx-sub { margin-top: clamp(16px, 2.4vh, 24px); max-width: 34ch; font-size: clamp(18px, 1.7vw, 23px); line-height: 1.4; font-weight: 500; color: #c7c7cc; letter-spacing: -0.01em; text-wrap: balance; }
+  .mx-meet { display: inline-flex; align-items: center; gap: 10px; }
+  .mx-faces { display: inline-flex; }
+  .mx-faces img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #000, 0 0 0 3.5px var(--sc); }
+  .mx-faces img + img { margin-left: -9px; }
+  @media (max-width: 520px) { .mx-faces img:nth-child(n+5) { display: none; } }
   .mx-price { margin-top: 18px; font-size: 14px; color: #86868b; }
   .mx-hero-logos { position: relative; padding-bottom: clamp(16px, 3vh, 32px); }
   .mx-rise { opacity: 0; transform: translateY(20px); animation: mx-rise 1.1s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: var(--d, 0s); }

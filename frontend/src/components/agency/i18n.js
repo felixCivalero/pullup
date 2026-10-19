@@ -62,12 +62,26 @@ const subscribe = (fn) => {
 export const useLang = () => useSyncExternalStore(subscribe, () => current, () => DEFAULT);
 
 const NUM = /\d[\d,.]*\d|\d/g;
+
+// Swedish number style: "10,000" → "10 000", "28.1M" → "28,1 milj.".
+// Runs on everything t() returns in Swedish, so data and live counts written
+// in English format read natively.
+const NB = "\u00a0";
+export function svNumbers(s) {
+  return s
+    .replace(/\b(\d+)\.(\d+)M\b/g, `$1,$2${NB}milj.`)
+    .replace(/\b\d{1,3}(?:,\d{3})+\b/g, (m) => m.replace(/,/g, NB));
+}
 const fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s);
 const missed = import.meta.env?.DEV ? new Set() : null;
 
 export function translate(lang, s, vars) {
   if (typeof s !== "string") return s;
   if (lang === "en" || !DICTS[lang]) return fill(s, vars);
+  return lang === "sv" ? svNumbers(lookup(lang, s, vars)) : lookup(lang, s, vars);
+}
+
+function lookup(lang, s, vars) {
   const dict = DICTS[lang];
   let out = dict[s];
   if (out == null) {

@@ -15,7 +15,7 @@ import { MixContent, MIX_CSS } from "./MixPage.jsx";
    line → toolkit → one offer → booklet. The content lives in MixPage.jsx
    (built as /mix, now the main page); this file adds /login's auth modal. */
 
-const TITLE = "Everyone looks at the clip. We look at the people behind it.";
+const TITLE = "Everyone looks at the clip. We develop the person behind it.";
 
 /* ─── component ─── */
 export function LandingPage() {

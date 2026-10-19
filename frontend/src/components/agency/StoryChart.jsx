@@ -61,7 +61,7 @@ function Channels() {
           <div key={r.channel} className="sc-hrow is-hot">
             <span className="sc-hk">{r.channel}</span>
             <span className="sc-track"><span className="sc-bar" style={{ "--w": r.views / max, "--i": i }} /></span>
-            <span className="sc-hv">{compact(r.views)}</span>
+            <span className="sc-hv">{t(compact(r.views))}</span>
           </div>
         ))}
       </div>

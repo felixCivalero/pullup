@@ -89,9 +89,9 @@ export function DeckTeaser({ source = "landing" }) {
         </div>
 
         <div className="pc-deck-stack" aria-hidden="true">
-          <img src="/deck-preview/system.webp" alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
-          <img src="/deck-preview/who.webp" alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
-          <img src="/deck-preview/cover.webp" alt="" className="pc-deck-slide s1" loading="lazy" decoding="async" />
+          <img src={`/deck-preview/${t.lang === "sv" ? "sv/" : ""}system.webp`} alt="" className="pc-deck-slide s3" loading="lazy" decoding="async" />
+          <img src={`/deck-preview/${t.lang === "sv" ? "sv/" : ""}who.webp`} alt="" className="pc-deck-slide s2" loading="lazy" decoding="async" />
+          <img src={`/deck-preview/${t.lang === "sv" ? "sv/" : ""}cover.webp`} alt="" className="pc-deck-slide s1" loading="lazy" decoding="async" />
         </div>
       </div>
     </section>

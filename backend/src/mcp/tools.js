@@ -1257,7 +1257,7 @@ function buildHandlers(api, hostId) {
       );
     }
     lines.push(
-      `Ticket fee: ${((sum?.plan?.ticketFeeBps ?? 300) / 100).toFixed(0)}% on paid tickets — the only usage fee. Agency (for teams) is coming soon via hello@pullup.se.`,
+      `Ticket fee: ${((sum?.plan?.ticketFeeBps ?? 300) / 100).toFixed(0)}% on paid tickets — the only usage fee. Agency (for teams) is coming soon via felix@pullup.se.`,
     );
     const byCur = Object.entries(sum?.month?.byCurrency || {}).filter(
       ([, v]) => (v.grossCents || 0) > 0 || (v.feeCents || 0) > 0,

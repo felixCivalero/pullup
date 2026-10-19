@@ -2,13 +2,13 @@
 //
 //   POST /agency-requests  – public: name, email, description (+ company,
 //                            preferred time, picked superpowers, attribution
-//                            metadata) → stored, then emailed to hello@pullup.se.
+//                            metadata) → stored, then emailed to felix@pullup.se.
 import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
 import { sendEmail } from "../email/index.js";
 import { normalizeEmail, isValidEmail } from "../services/account.js";
 
-const INBOX = process.env.AGENCY_REQUESTS_TO || "hello@pullup.se";
+const INBOX = process.env.AGENCY_REQUESTS_TO || "felix@pullup.se";
 const POWERS = {
   crm: { name: "Real People CRM", price: 750 },
   room: { name: "The Room", price: 500 },

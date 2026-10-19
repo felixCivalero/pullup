@@ -31,7 +31,7 @@ export function PrivacyPage() {
 
         <h2 style={s.h2}>1. Who we are, and our two roles</h2>
         <p style={s.p}>
-          PullUp is an event platform based in Stockholm, Sweden. If you have questions about your data, contact us at <strong>hello@pullup.se</strong>.
+          PullUp is an event platform based in Stockholm, Sweden. If you have questions about your data, contact us at <strong>felix@pullup.se</strong>.
         </p>
         <p style={s.p}>
           Depending on the data, PullUp plays one of two roles under GDPR:
@@ -156,7 +156,7 @@ export function PrivacyPage() {
           <li style={s.li}><strong>Object</strong> to processing based on legitimate interest (including host event emails)</li>
           <li style={s.li}><strong>Withdraw consent</strong> for PullUp's newsletter at any time</li>
         </ul>
-        <p style={s.p}>To exercise any of these rights, email us at <strong>hello@pullup.se</strong>. We will respond within 30 days. Where a host is the controller of your data, we will pass your request to them or put you in touch.</p>
+        <p style={s.p}>To exercise any of these rights, email us at <strong>felix@pullup.se</strong>. We will respond within 30 days. Where a host is the controller of your data, we will pass your request to them or put you in touch.</p>
 
         <h2 style={s.h2}>10. Consent and opting out</h2>
         <p style={s.p}>
@@ -164,7 +164,7 @@ export function PrivacyPage() {
         </p>
         <ul style={s.ul}>
           <li style={s.li}>Clicking the unsubscribe link in any email</li>
-          <li style={s.li}>Emailing us at <strong>hello@pullup.se</strong></li>
+          <li style={s.li}>Emailing us at <strong>felix@pullup.se</strong></li>
         </ul>
         <p style={s.p}>
           Transactional emails (RSVP confirmations, payment receipts, event reminders) are part of the service you use and do not require separate consent. These cannot be opted out of while you have an active booking or account.
@@ -185,7 +185,7 @@ export function PrivacyPage() {
         <p style={s.p}>
           PullUp<br />
           Stockholm, Sweden<br />
-          <strong>hello@pullup.se</strong>
+          <strong>felix@pullup.se</strong>
         </p>
       </div>
     </div>

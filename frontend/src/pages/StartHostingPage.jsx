@@ -211,7 +211,7 @@ export function StartHostingPage() {
             </div>
             <p style={{ fontSize: 12.5, color: colors.textSubtle, margin: "16px 0 0", lineHeight: 1.5, textAlign: "center" }}>
               Team or agency? The Agency plan is coming soon —{" "}
-              <a href="mailto:hello@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
+              <a href="mailto:felix@pullup.se" style={{ color: colors.accent, fontWeight: 600 }}>say hi</a>{" "}
               and we'll onboard you personally.
             </p>
           </>

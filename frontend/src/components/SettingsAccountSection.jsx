@@ -43,7 +43,7 @@ export function SettingsAccountSection({ showToast }) {
       showToast?.("Deletion request received — we'll erase your account within 30 days.", "success");
     } catch (err) {
       console.error("[settings] deletion request failed:", err);
-      showToast?.("Couldn't submit your request. Email hello@pullup.se and we'll handle it.", "error");
+      showToast?.("Couldn't submit your request. Email felix@pullup.se and we'll handle it.", "error");
     } finally {
       setDeletingAccount(false);
     }

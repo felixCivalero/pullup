@@ -90,7 +90,7 @@ export function CookiesPage() {
 
         <h2 style={s.h2}>7. Contact</h2>
         <p style={s.p}>
-          Questions about our data practices? Email us at <strong>hello@pullup.se</strong>.
+          Questions about our data practices? Email us at <strong>felix@pullup.se</strong>.
         </p>
       </div>
     </div>

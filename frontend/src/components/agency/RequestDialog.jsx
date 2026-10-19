@@ -8,7 +8,7 @@ import { useT } from "./i18n.js";
 
 /* "Start a conversation": who you are, where you want to go, when we can
    talk — posted to /agency-requests, which emails it to
-   hello@pullup.se with where the visitor came from. Opened via openRequest(). */
+   felix@pullup.se with where the visitor came from. Opened via openRequest(). */
 const WHEN = ["This week", "Next week", "Within a month", "Pick a time"];
 
 export function RequestDialog() {

@@ -69,7 +69,7 @@ export function TermsPage() {
 
         <h2 style={s.h2}>6. Refunds</h2>
         <p style={s.p}>
-          Event hosts are responsible for their own refund policies. PullUp provides tools for hosts to issue full or partial refunds. If a host fails to fulfill an event, guests may contact us at hello@pullup.se for assistance.
+          Event hosts are responsible for their own refund policies. PullUp provides tools for hosts to issue full or partial refunds. If a host fails to fulfill an event, guests may contact us at felix@pullup.se for assistance.
         </p>
 
         <h2 style={s.h2}>7. Email communications and consent</h2>
@@ -121,7 +121,7 @@ export function TermsPage() {
         <p style={s.p}>
           PullUp<br />
           Stockholm, Sweden<br />
-          <strong>hello@pullup.se</strong>
+          <strong>felix@pullup.se</strong>
         </p>
       </div>
     </div>

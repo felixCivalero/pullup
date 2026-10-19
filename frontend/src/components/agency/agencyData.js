@@ -4,7 +4,7 @@ import { CASE_TODAY as FLAMBO } from "../../pages/stories/adamFlamboData.js";
 // registry every surface links from (landing work index, nav, footer, each
 // case page's "next case"). Order here = order everywhere.
 
-export const CONTACT = "hello@pullup.se";
+export const CONTACT = "felix@pullup.se";
 // The booklet: by email only (DeckTeaser → /deck-downloads). The PDF lives in
 // backend/assets, printed by docs/deck/build.mjs; never served publicly.
 export const DECK_PATH = "/#deck";

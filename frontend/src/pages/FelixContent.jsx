@@ -9,8 +9,9 @@ import { Testimonials } from "../components/agency/Testimonials.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
-/* The front page: Felix, in first person. The cases → what clients say →
-   who he is → the network ("we" only here) → the one offer.
+/* The front page: Felix, in first person. Hero + logos → what clients say
+   (small cards) → the cases (horizontal rail) → who he is → the network
+   ("we" only here) → the one offer.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 // Who Felix has been — his words. Don't embellish (no "licensed", no sport).
@@ -60,21 +61,24 @@ export function FelixContent() {
         </div>
       </section>
 
-      {/* cases */}
-      <section id="stories" className="fl-sec" data-pc-section="stories" data-pc-order="2">
+      {/* what they say — small cards right under the logo band */}
+      <section id="words" className="fl-words" data-pc-section="words" data-pc-order="2">
         <div className="fl-wrap">
-          <p className="fl-label">{t("A selection")}</p>
-          <Reveal><h2 className="fl-h2">{t("Hand-picked client cases.")}</h2></Reveal>
-          <div className="fl-stack"><CaseStack /></div>
+          <p className="fl-label">{t("What they say")}</p>
+          <Reveal><div className="fl-tm"><Testimonials /></div></Reveal>
         </div>
       </section>
 
-      {/* what they say */}
-      <section id="words" className="fl-sec fl-rule" data-pc-section="words" data-pc-order="3">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("What they say")}</p>
-          <Reveal><Testimonials /></Reveal>
-        </div>
+      {/* cases — a horizontal rail */}
+      <section id="stories" className="fl-cases-sec" data-pc-section="stories" data-pc-order="3">
+        <CaseStack
+          head={
+            <>
+              <p className="fl-label">{t("A selection")}</p>
+              <h2 className="fl-h2">{t("Hand-picked client cases.")}</h2>
+            </>
+          }
+        />
       </section>
 
       {/* about */}
@@ -186,8 +190,11 @@ export const FELIX_CSS = `
   .fl-quote p::before { content: "“"; color: var(--accent); }
   .fl-quote footer { margin-top: 16px; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #444; max-width: 46ch; }
 
-  /* cases: the card stack (CaseStack) */
-  .fl-stack { margin-top: clamp(32px, 4vw, 56px); }
+  /* testimonials under the logos, then the case rail */
+  .fl-words { padding: clamp(40px, 6vw, 72px) 0 0; }
+  .fl-tm { margin-top: 16px; }
+  .fl-cases-sec { padding: clamp(72px, 10vw, 128px) 0 clamp(48px, 6vw, 80px); }
+  .fl-cases-sec .fl-h2 { max-width: none; }
 
   /* network: the shared graph, quieter on this page */
   .fl .fn-graph { margin-top: clamp(32px, 4vw, 56px); }

@@ -72,8 +72,8 @@ export function FelixContent() {
       {/* cases */}
       <section id="stories" className="fl-sec" data-pc-section="stories" data-pc-order="2">
         <div className="fl-wrap">
-          <p className="fl-label">{t("Cases")}</p>
-          <Reveal><h2 className="fl-h2">{t("People I've worked with.")}</h2></Reveal>
+          <p className="fl-label">{t("A selection")}</p>
+          <Reveal><h2 className="fl-h2">{t("Hand-picked client cases.")}</h2></Reveal>
           <div className="fl-stack"><CaseStack /></div>
         </div>
       </section>

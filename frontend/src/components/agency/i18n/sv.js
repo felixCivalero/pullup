@@ -1123,4 +1123,6 @@ export const SV = {
   "Couldn't reach me. Check your connection and try again.": "Jag gick inte att nå. Kontrollera din anslutning och försök igen.",
   "Thanks, {name}. It's with me at {contact} — I'll get back to you at {email} to find a time.": "Tack, {name}! Den har landat hos mig på {contact} – jag hör av mig till {email} för att hitta en tid.",
   "Tell me who you are and where you want to go.": "Berätta vem du är och vart du vill.",
+  "A selection": "Urval",
+  "Hand-picked client cases.": "Handplockade kundcase.",
 };

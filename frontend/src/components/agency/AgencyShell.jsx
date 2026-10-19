@@ -17,9 +17,9 @@ import { useT } from "./i18n.js";
 // (from other pages via /#id). Narrow screens keep Results + Offer.
 const NAV = [
   ["stories", "Cases"],
-  ["about", "About me", "pc-nav-wide"],
   ["network", "Network", "pc-nav-wide"],
   ["offer", "Offer"],
+  ["about", "About me", "pc-nav-wide"],
 ];
 
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {

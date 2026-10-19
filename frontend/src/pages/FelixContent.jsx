@@ -10,8 +10,8 @@ import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
-   (small cards) → the cases (horizontal rail) → who he is → the network
-   ("we" only here) → the one offer.
+   (small cards) → the cases (horizontal rail) → Felix and his network ("we"
+   only here) → the one offer → the deep dive on who he is.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 // Who Felix has been — his words. Don't embellish (no "licensed", no sport).
@@ -81,8 +81,36 @@ export function FelixContent() {
         />
       </section>
 
+      {/* network — the one place it's "we" */}
+      <section id="network" className="fl-sec fl-rule" data-pc-section="network" data-pc-order="4">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("My network")}</p>
+          <Reveal><h2 className="fl-h2">{t("When it's needed, we're a team.")}</h2></Reveal>
+          <Reveal delay={0.05}>
+            <p className="fl-p">{t("Photographers, videographers, 3D animators, producers and many more. People I've worked with and trust.")}</p>
+          </Reveal>
+          <Network />
+        </div>
+      </section>
+
+      {/* the offer */}
+      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="5">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("The offer")}</p>
+          <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
+          <Reveal delay={0.05}>
+            <p className="fl-p">{t("Strategy, content, growth and every tool behind it. No tiers, no add-ons. Not happy after the first month? You get your money back.")}</p>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="fl-ctas">
+              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Work with me")}</button>
+              <a className="fl-link fl-link-light" href={`mailto:${CONTACT}`}>{CONTACT}</a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
       {/* about */}
-      <section id="about" className="fl-sec fl-rule" data-pc-section="about" data-pc-order="4">
+      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
           <Reveal><h2 className="fl-h2">{t("Developing people is my passion.")}</h2></Reveal>
@@ -98,35 +126,6 @@ export function FelixContent() {
               <p>{t("The genuine creative expression no one can copy is you.")}</p>
               <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
             </blockquote>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* network — the one place it's "we" */}
-      <section id="network" className="fl-sec fl-rule" data-pc-section="network" data-pc-order="5">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("My network")}</p>
-          <Reveal><h2 className="fl-h2">{t("When it's needed, we're a team.")}</h2></Reveal>
-          <Reveal delay={0.05}>
-            <p className="fl-p">{t("Photographers, videographers, 3D animators, producers and many more. People I've worked with and trust.")}</p>
-          </Reveal>
-          <Network />
-        </div>
-      </section>
-
-      {/* the offer */}
-      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("The offer")}</p>
-          <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
-          <Reveal delay={0.05}>
-            <p className="fl-p">{t("Strategy, content, growth and every tool behind it. No tiers, no add-ons. Not happy after the first month? You get your money back.")}</p>
-          </Reveal>
-          <Reveal delay={0.1}>
-            <div className="fl-ctas">
-              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Work with me")}</button>
-              <a className="fl-link fl-link-light" href={`mailto:${CONTACT}`}>{CONTACT}</a>
-            </div>
           </Reveal>
         </div>
       </section>

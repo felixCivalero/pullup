@@ -156,7 +156,7 @@ export function FelixContent() {
             </ul>
             <Reveal delay={0.05}>
               <p className="fl-proof">
-                {t("Proof: PullUp — the platform Adam Flambo's community runs on — I built from the ground up. This site too.")}{" "}
+                {t("Proof: I built PullUp, which then became Adam Flambo's own internal system. I built this site too.")}{" "}
                 <a
                   href="/work/adam-flambo"
                   onClick={(e) => {

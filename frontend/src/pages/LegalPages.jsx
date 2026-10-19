@@ -238,6 +238,11 @@ const LEGAL_CSS = `
   .lp-foot { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 24px clamp(16px, 5vw, 56px); border-top: 1px solid rgba(0,0,0,0.08); font-size: 13px; }
   .lp-foot a { color: #6e6e73; text-decoration: none; }
   .lp-foot a:hover { color: #0a0a0a; }
+  @media (pointer: coarse) {
+    .lp-home { display: inline-flex; align-items: center; min-height: 44px; }
+    .lp-foot { row-gap: 0; }
+    .lp-foot a { display: inline-flex; align-items: center; min-height: 44px; }
+  }
   /* the language pill from the site nav */
   .pc-lang { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: 999px;
     border: 1px solid rgba(0,0,0,0.18); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; cursor: pointer; }

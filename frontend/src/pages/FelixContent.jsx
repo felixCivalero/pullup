@@ -169,6 +169,7 @@ export const FELIX_CSS = `
   .fl-link { font: inherit; font-size: 16px; font-weight: 600; background: none; border: 0; padding: 6px 0; cursor: pointer; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
   .fl-link:hover { text-decoration: underline; text-underline-offset: 4px; }
   .fl-link-light { color: #fff; }
+  @media (pointer: coarse) { .fl-link { min-height: 44px; } }
   .fl-fine { margin-top: 18px; font-size: 14px; color: var(--grey); }
   .fl-hero-photo { justify-self: center; height: min(560px, calc(100svh - 300px)); max-width: 100%; aspect-ratio: 4 / 5; border-radius: 20px; overflow: hidden; background: #eee; }
   .fl-hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }

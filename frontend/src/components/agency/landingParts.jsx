@@ -168,6 +168,7 @@ export const LANDING_CSS = `
   }
   .st-link svg { transition: transform 0.2s ease; }
   .st-link:hover svg { transform: translateX(4px); }
+  @media (pointer: coarse) { .st-link { position: relative; } .st-link::after { content: ""; position: absolute; inset: -12px -8px; } }
 ${STORY_CHART_CSS}
 
   /* ─── chapters: each numbered section has its own ground ─── */
@@ -198,7 +199,7 @@ ${TOOLKIT_CSS}
   @media (max-width: 640px) {
     .pc-hero { padding: clamp(88px, 13vh, 112px) 0 calc(20px + env(safe-area-inset-bottom, 0px)); }
     .pc-hero-logos { margin-top: clamp(28px, 5vh, 44px); }
-    .pc-logos-label { margin-bottom: 12px; font-size: 11px; }
+    .pc-logos-label { margin-bottom: 12px; font-size: 12px; }
     .pc-logos-group li { padding: 0 22px; height: 40px; }
     .pc-logos-group img { height: calc(19px * var(--boost, 1)); max-width: 112px; max-height: 50px; }
     .pc-logos-track { animation-duration: 30s; }

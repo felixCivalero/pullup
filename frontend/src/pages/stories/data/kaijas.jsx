@@ -6,7 +6,7 @@ import { Steps, Waffle } from "../../../components/agency/story/StoryKit.jsx";
    Instagram as the front door, 10,000+ followers; booked three months in
    advance. Photos: Wikimedia Commons placeholders (no named musicians). */
 
-const IMG = (f) => `/stories/kaijas/${f}.jpg`;
+const IMG = (f) => `/stories/kaijas/${f}.webp`;
 const tenK = (v, done) => (done || v >= 9999 ? "10,000+" : (Math.round(v / 50) * 50).toLocaleString("en-US"));
 
 export default {

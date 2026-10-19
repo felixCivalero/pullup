@@ -7,7 +7,7 @@ import { Rhythm, Steps, Waffle } from "../../../components/agency/story/StoryKit
    about monthly; sales and subscriptions growing exponentially (words only).
    Never claim "no paid ads". Photos: Wikimedia Commons placeholders. */
 
-const IMG = (f) => `/stories/bkm/${f}.jpg`;
+const IMG = (f) => `/stories/bkm/${f}.webp`;
 
 const tenK = (v, done) => (done || v >= 9999 ? "10,000+" : (Math.round(v / 50) * 50).toLocaleString("en-US"));
 

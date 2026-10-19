@@ -266,6 +266,12 @@ export const STORY_CSS = `
   .sy-credits p { margin: 12px 0 8px; }
   .sy-credits ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
   .sy-credits a { color: rgba(255,255,255,0.75); }
+  @media (pointer: coarse) {
+    .sy-toggle button { min-height: 40px; }
+    .sy-credits summary { padding: 12px 0; }
+    .sy-credits ul { gap: 0; }
+    .sy-credits li { padding: 6px 0; }
+  }
 
   @media (max-width: 900px) {
     .sy-split, .sy-split-wide { grid-template-columns: 1fr; }
@@ -285,7 +291,9 @@ export const STORY_CSS = `
     .sy-waffle { max-width: 260px; gap: 6px; }
     .sy-bars li { grid-template-columns: 72px 1fr auto; font-size: 13px; }
     .sy-cols { height: 200px; gap: 3px; }
-    .sy-col-l { font-size: 9px; }
+    .sy-col-l { font-size: 10px; }
+    .sy-hero-h { font-size: clamp(36px, 10.5vw, 56px); max-width: none; }
+    .sy-ch-h { font-size: clamp(36px, 10.5vw, 56px); }
     .sy-col-v { font-size: 11px; }
   }
   @media (prefers-reduced-motion: reduce) {

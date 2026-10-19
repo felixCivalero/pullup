@@ -206,6 +206,6 @@ export const STORY_CHART_CSS = `
     .sc-path li.is-hot .sc-path-l { font-size: 13px; }
     .sc-month { min-height: 76px; padding: 10px; }
     .sc-month-v { font-size: 15px; }
-    .sc-col-l { font-size: 10px; }
+    .sc-col-l { font-size: 11px; }
   }
 `;

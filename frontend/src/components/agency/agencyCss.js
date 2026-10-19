@@ -28,6 +28,14 @@ export const AGENCY_CSS = `
   :where(.pc) :where(p, h1, h2, h3, figure, blockquote, ol) { margin: 0; }
   .pc h1, .pc h2, .pc h3 { text-wrap: balance; }
   .pc p, .pc blockquote { text-wrap: pretty; }
+  /* phones: long words (Swedish compounds) break with a hyphen instead of
+     running off the screen; short words are left alone */
+  @media (max-width: 640px) {
+    .pc h1, .pc h2, .pc h3, .pc blockquote {
+      overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto;
+      hyphenate-limit-chars: 12 5 5; -webkit-hyphenate-limit-before: 5; -webkit-hyphenate-limit-after: 5;
+    }
+  }
   .pc button, .pc a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   .agency-root { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .pc :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
@@ -198,7 +206,7 @@ export const AGENCY_CSS = `
   .pc-close .pc-h2-xl { margin-bottom: 28px; }
   .pc-offer-one { margin-top: clamp(40px, 6vw, 72px); display: grid; grid-template-columns: 1fr; gap: clamp(32px, 4vw, 64px); }
   @media (min-width: 960px) { .pc-offer-one { grid-template-columns: 6fr 5fr; } }
-  .pc-offer-main { display: flex; flex-direction: column; gap: 22px; }
+  .pc-offer-main { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
   .pc-offer-terms { margin: 4px 0 0; display: grid; border-top: 1px solid var(--pc-line-dark); }
   .pc-offer-terms > div { display: grid; gap: 4px; padding: 16px 0; border-bottom: 1px solid var(--pc-line-dark); }
   @media (min-width: 640px) { .pc-offer-terms > div { grid-template-columns: 150px 1fr; gap: 20px; } }
@@ -493,7 +501,7 @@ export const AGENCY_CSS = `
     .cs-beats li em { grid-column: 2; }
     .cs-phone { width: min(230px, 62vw); border-radius: 28px; padding: 14px 14px 16px; }
     .cs-phone-line { font-size: 22px; }
-    .cs-edit-phase { padding: 6px 9px; font-size: 10px; }
+    .cs-edit-phase { padding: 6px 9px; font-size: 11px; }
   }
   /* compact: the landing card */
   .cs-reel-grid.is-compact { grid-template-columns: 132px 1fr; gap: 20px; align-items: center; }
@@ -506,7 +514,7 @@ export const AGENCY_CSS = `
   .is-compact .cs-phone-sub { height: 5px; }
   .is-compact .cs-phone-tag { font-size: 8px; }
   .is-compact .cs-edit-top { gap: 5px; margin-bottom: 16px; }
-  .is-compact .cs-edit-phase { font-size: 9px; padding: 5px 8px; }
+  .is-compact .cs-edit-phase { font-size: 10px; padding: 5px 8px; }
   .is-compact .cs-track { padding-top: 22px; }
   .is-compact .cs-strip { gap: 4px; }
   .is-compact .cs-seg .cs-seg-name { top: -20px; font-size: 10px; }
@@ -537,11 +545,18 @@ export const AGENCY_CSS = `
     .pc-nav-booklet { display: none; }
     .pc-close-sub { font-size: 18px; }
     .pc-offer { padding: 24px 20px; border-radius: 18px; }
-    .pc-offer-price { font-size: 76px; }
+    .pc-offer-price { font-size: clamp(54px, 18vw, 76px); }
     .pc-offer-cta { align-self: stretch; }
     .pc-footer { flex-direction: column; gap: 16px; padding-top: 32px; }
     .pc-footer nav { gap: 8px 20px; }
     .pc-footer a { padding: 6px 0; }
+  }
+  /* touch: every link and button is at least a 44px target */
+  @media (pointer: coarse) {
+    .pc-nav-link, .pc-nav-name { min-height: 44px; }
+    .pc-lang select { inset: -6px -4px; height: auto; width: auto; }
+    .pc-footer a { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+    .pc-footer nav { gap: 0 20px; }
   }
   @media (max-width: 480px) {
     .pc-nav-actions { gap: 12px; }

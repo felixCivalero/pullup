@@ -7,7 +7,7 @@ import { Steps } from "../../../components/agency/story/StoryKit.jsx";
    you control. Photos: Wikimedia Commons placeholders — objects and rooms,
    never a performer who could be mistaken for him. */
 
-const IMG = (f) => `/stories/dawood/${f}.jpg`;
+const IMG = (f) => `/stories/dawood/${f}.webp`;
 
 export default {
   slug: "adam-dawood",

@@ -192,7 +192,7 @@ export const CASES = [
       result: `${FLAMBO.pulledUnique} people pulled up. ${FLAMBO.community} in his community.`,
     },
     stats: [[String(FLAMBO.events.length), "events hosted"], [String(FLAMBO.pulledUnique), "people pulled up"], [String(FLAMBO.community), "in his community", true]],
-    image: "/stories/adam-hero.jpg",
+    image: "/stories/adam-hero.webp",
   },
 ];
 
@@ -212,12 +212,12 @@ export const storyCount = String(SERIES.length).padStart(2, "0");
 
 // A photo per story, for pages that show the stories as images.
 export const COVERS = {
-  "li-karlsen": "/stories/li/sunburst.jpg",
-  bkm: "/stories/bkm/big-blue.jpg",
-  kaijas: "/stories/kaijas/crowd.jpg",
-  stiga: "/stories/stiga/arena.jpg",
-  "adam-dawood": "/stories/dawood/studio.jpg",
-  "adam-flambo": "/stories/adam-hero.jpg",
+  "li-karlsen": "/stories/li/sunburst.webp",
+  bkm: "/stories/bkm/big-blue.webp",
+  kaijas: "/stories/kaijas/crowd.webp",
+  stiga: "/stories/stiga/arena.webp",
+  "adam-dawood": "/stories/dawood/studio.webp",
+  "adam-flambo": "/stories/adam-hero.webp",
 };
 
 export const casePath = (slug) => `/work/${slug}`;

@@ -7,7 +7,7 @@ import { REEL_BEATS } from "../../../components/agency/agencyData.js";
    beats (Hook, Credibility, Core, Outro) cut frame by frame (the edit loop is
    illustrative). Photos: Wikimedia Commons placeholders. */
 
-const IMG = (f) => `/stories/li/${f}.jpg`;
+const IMG = (f) => `/stories/li/${f}.webp`;
 const ALL = Array.from({ length: 16 }, (_, i) => i);
 
 export default {

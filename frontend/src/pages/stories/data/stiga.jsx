@@ -7,7 +7,7 @@ import { STIGA_ROWS } from "../../../components/agency/agencyData.js";
    personas and stories built around them. NEVER state a starting follower
    count. Photos: Wikimedia Commons placeholders — no identifiable players. */
 
-const IMG = (f) => `/stories/stiga/${f}.jpg`;
+const IMG = (f) => `/stories/stiga/${f}.webp`;
 const VIEWS = STIGA_ROWS.reduce((a, r) => a + r.views, 0);
 const views = (v, done) => (done ? "28.1M" : new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v));
 

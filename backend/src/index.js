@@ -2,7 +2,8 @@
 //
 // The API behind pullup.se — Felix's site. Public: the "Jobba med mig"
 // request, the booklet link on the case pages and the site's own visit
-// analytics. Private: /admin/*, Felix only (requireOwner).
+// analytics. Private: /admin/* (statistics, Stockholm scraper, content
+// timeline), Felix only (requireOwner).
 //
 // The old PullUp platform (events, rooms, messaging, MCP …) lives on the
 // `pullup-app` branch.
@@ -18,7 +19,9 @@ dotenv.config({ override: true });
 import { registerAgencyRequestRoutes } from "./routes/agencyRequests.js";
 import { registerDeckDownloadRoutes } from "./routes/deckDownloads.js";
 import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
-import { requireOwner } from "./middleware/requireOwner.js";
+import { registerAdminRoutes } from "./routes/admin.js";
+import { registerAdminStockholmRoutes } from "./routes/adminStockholm.js";
+import { registerAdminPlannerRoutes } from "./routes/adminPlanner.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -59,9 +62,9 @@ registerDeckDownloadRoutes(app);
 registerTrackBatchRoutes(app);
 
 // ── Admin (Felix only) ──────────────────────────────────────────────
-app.get("/admin/me", requireOwner, (req, res) => {
-  res.json({ ok: true, email: req.user.email });
-});
+registerAdminRoutes(app);
+registerAdminStockholmRoutes(app);
+registerAdminPlannerRoutes(app);
 
 // Old platform links (/e/:slug event pages, /v/ verify links, /share/ cards)
 // still reach the API through nginx. Send people to the front page instead

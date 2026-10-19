@@ -6,6 +6,9 @@ import { track, getVisitorId, initTracking } from "./track.js";
 
 const FUNNEL_EVENTS = new Set([
   "cta_click",
+  "request_open",
+  "request_sent",
+  "deck_requested",
   "onboarding_step_view",
   "onboarding_skip",
   "auth_start",

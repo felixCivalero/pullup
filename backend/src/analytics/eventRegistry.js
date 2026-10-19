@@ -11,6 +11,9 @@ export const TRACKED_EVENTS = new Set([
   "page_view",            // one per page load (server dedupes via client_event_id only)
   "section_view",         // { section, order } — first time a landing beat enters the viewport
   "cta_click",            // { location }
+  "request_open",         // { source } — the "Jobba med mig" form opened (Statistik: CTA clicks)
+  "request_sent",         // { source } — the form sent (the request itself is in agency_requests)
+  "deck_requested",       // { source } — booklet asked for
   "onboarding_step_view", // { step }
   "onboarding_skip",      // { from }
   "auth_start",           // { method }

@@ -19,6 +19,9 @@ const json = (body) => ({ method: "POST", headers: { "Content-Type": "applicatio
 await probe("health", "/health", {}, (r) => r.status === 200);
 await probe("admin refuses no session", "/admin/me", {}, (r) => r.status === 401);
 await probe("admin refuses a bad token", "/admin/me", { headers: { Authorization: "Bearer nope" } }, (r) => r.status === 401);
+for (const path of ["/admin/stats", "/admin/stockholm-events", "/admin/scrape-sources", "/admin/planner/cards", "/admin/planner/events"]) {
+  await probe(`${path} refuses no session`, path, {}, (r) => r.status === 401);
+}
 await probe("request form rejects an empty body", "/agency-requests", json({}), (r) => r.status === 400);
 await probe("booklet form rejects an empty body", "/deck-downloads", json({}), (r) => r.status === 400);
 await probe("old event links go to the front page", "/e/some-old-event", {}, (r) => r.status === 302);

@@ -9,9 +9,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
    the `pullup-app` branch. */
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
 const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
-const PrivacyPage = lazyPage(() => import("./pages/PrivacyPage"), "PrivacyPage");
-const TermsPage = lazyPage(() => import("./pages/TermsPage"), "TermsPage");
-const CookiesPage = lazyPage(() => import("./pages/CookiesPage"), "CookiesPage");
+const PrivacyPage = lazyPage(() => import("./pages/LegalPages"), "PrivacyPage");
+const TermsPage = lazyPage(() => import("./pages/LegalPages"), "TermsPage");
+const CookiesPage = lazyPage(() => import("./pages/LegalPages"), "CookiesPage");
 const LoginPage = lazyPage(() => import("./pages/LoginPage"), "LoginPage");
 const AdminPage = lazyPage(() => import("./pages/AdminPage"), "AdminPage");
 

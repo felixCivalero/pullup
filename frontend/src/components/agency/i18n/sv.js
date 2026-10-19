@@ -1145,10 +1145,10 @@ export const SV = {
   "Dashboards & tracking": "Dashboards & tracking",
   "Automations": "Automationer",
   "AI tools": "AI-verktyg",
-  "See it in use": "Se den i bruk",
+  "See the case": "Se caset",
   "Strategy, content, growth — and the tech behind it, built by me. No tiers, no add-ons. Not happy after the first month? You get your money back.": "Strategi, content, tillväxt – och tekniken bakom, som jag bygger själv. Inga nivåer, inga tillägg. Inte nöjd efter första månaden? Du får pengarna tillbaka.",
   "If you're weighing hiring someone versus bringing in Felix, Felix is 10x the value you actually want. Just sayin'.": "Om man funderar på att anställa vs ta in Felix, så är Felix 10x värdet man egentligen vill ha. Just sayin'.",
   "We'd never have got here without Felix.": "Vi hade aldrig varit här utan Felix.",
   "And it was damn fun on the way here.": "Och det va jävligt kul på vägen hit.",
-  "Proof: I built PullUp, which then became Adam Flambo's own internal system. I built this site too.": "Bevis: Jag byggde PullUp, som sedan blev Adam Flambos eget interna system. Den här sidan har jag också byggt.",
+  "Proof: I built PullUp – the event system Adam Flambo ran his whole community on. I built this site too.": "Bevis: Jag byggde PullUp – eventsystemet som Adam Flambo drev hela sin community på. Den här sidan har jag också byggt.",
 };

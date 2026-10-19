@@ -156,7 +156,7 @@ export function FelixContent() {
             </ul>
             <Reveal delay={0.05}>
               <p className="fl-proof">
-                {t("Proof: I built PullUp, which then became Adam Flambo's own internal system. I built this site too.")}{" "}
+                {t("Proof: I built PullUp – the event system Adam Flambo ran his whole community on. I built this site too.")}{" "}
                 <a
                   href="/work/adam-flambo"
                   onClick={(e) => {
@@ -165,7 +165,7 @@ export function FelixContent() {
                     navigate("/work/adam-flambo");
                   }}
                 >
-                  {t("See it in use")} <ArrowRight size={14} strokeWidth={1.75} />
+                  {t("See the case")} <ArrowRight size={14} strokeWidth={1.75} />
                 </a>
               </p>
             </Reveal>

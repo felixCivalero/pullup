@@ -1,5 +1,4 @@
-import { ArrowRight, BarChart3, Bot, Globe, Smartphone, Users, Workflow } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
@@ -17,24 +16,12 @@ import { useT } from "../components/agency/i18n.js";
    30-minute sprint) → the one offer → a short bio.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
-// What Felix builds himself — the engineer half. Every item has shipped in
-// PullUp (events, CRM, dashboards, WhatsApp/IG automations, the MCP/AI coach).
-const BUILDS = [
-  ["Apps & platforms", Smartphone],
-  ["Websites", Globe],
-  ["CRM & community", Users],
-  ["Dashboards & tracking", BarChart3],
-  ["Automations", Workflow],
-  ["AI tools", Bot],
-];
-
 // The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
-// 31st Light Battalion at Karlsborg, naprapath, seven years of marketing, author). Don't embellish: no
+// 31st Light Battalion at Karlsborg, naprapath, seven years of marketing). Don't embellish: no
 // sport name, no "licensed", no invented details.
 const BIO = [
   "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
   "The common thread is people: how they perform, recover and grow. Today I do the same with brands — I find the person behind it and help them show up as who they actually are.",
-  "I've written a book. The next one is on its way.",
 ];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -45,7 +32,6 @@ const work = (location) => {
 
 export function FelixContent() {
   const t = useT();
-  const navigate = useNavigate();
   return (
     <div className="fl">
       {/* hero */}
@@ -152,36 +138,6 @@ export function FelixContent() {
               <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
             </blockquote>
           </Reveal>
-
-          {/* the engineer half */}
-          <div className="fl-eng">
-            <Reveal><h3 className="fl-h2 fl-eng-h">{t("And I'm an engineer at heart.")} <span>{t("So I build the rest myself.")}</span></h3></Reveal>
-            <Reveal delay={0.05}>
-              <p className="fl-p">{t("Whatever your brand needs to grow, I can build it. No agency in between, no waiting on someone else's roadmap.")}</p>
-            </Reveal>
-            <ul className="fl-builds">
-              {BUILDS.map(([label, Icon], k) => (
-                <Reveal key={label} delay={0.03 * k}>
-                  <li><Icon size={20} strokeWidth={1.6} aria-hidden="true" />{t(label)}</li>
-                </Reveal>
-              ))}
-            </ul>
-            <Reveal delay={0.05}>
-              <p className="fl-proof">
-                {t("Proof: I built PullUp – the event system Adam Flambo ran his whole community on. I built this site too.")}{" "}
-                <a
-                  href="/work/adam-flambo"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    trackEvent("cta_click", { location: "about_engineer_proof" });
-                    navigate("/work/adam-flambo");
-                  }}
-                >
-                  {t("See the case")} <ArrowRight size={14} strokeWidth={1.75} />
-                </a>
-              </p>
-            </Reveal>
-          </div>
         </div>
       </section>
     </div>
@@ -242,17 +198,6 @@ export const FELIX_CSS = `
   .fl-quote p::before { content: "“"; color: var(--accent); }
   .fl-quote footer { margin-top: 16px; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #444; max-width: 46ch; }
 
-  /* about: the engineer half */
-  .fl-eng { margin-top: clamp(72px, 9vw, 120px); padding-top: clamp(40px, 5vw, 64px); border-top: 1px solid var(--rule); }
-  .fl-eng-h { margin-top: 0; max-width: 20ch; }
-  .fl-eng-h span { color: var(--grey); }
-  .fl-builds { list-style: none; margin: clamp(28px, 3.4vw, 40px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 900px; }
-  @media (min-width: 720px) { .fl-builds { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .fl-builds li { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 14px; font-size: clamp(15px, 1.3vw, 17px); font-weight: 600; letter-spacing: -0.01em; }
-  .fl-builds svg { color: var(--accent); flex: none; }
-  .fl-proof { margin-top: 24px; max-width: 60ch; font-size: 16px; line-height: 1.5; color: #444; }
-  .fl-proof a { color: var(--ink); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-  .fl-proof a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
   /* testimonials under the logos, then the case rail */
   .fl-words { padding: clamp(40px, 6vw, 72px) 0 0; }

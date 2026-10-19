@@ -15,7 +15,7 @@ const POWERS = {
   tracking: { name: "Deep Tracking", price: 400 },
   app: { name: "Your Own App", price: 1500, from: true },
 };
-const BASE_MONTHLY = 3000;
+const BASE_MONTHLY = 30000; // SEK, mirrors frontend agencyData
 // Bundle ladder — mirrors frontend agencyData BUNDLE_OFF: more powers, less each.
 const BUNDLE_OFF = [0, 0, 0.1, 0.15, 0.2];
 const bundleOff = (n) => BUNDLE_OFF[Math.min(n, BUNDLE_OFF.length - 1)] || 0;
@@ -46,7 +46,7 @@ function clip(v, max) {
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const usd = (n) => `$${Number(n).toLocaleString("en-US")}`;
+const usd = (n) => `${Number(n).toLocaleString("sv-SE")} kr`; // priced in SEK
 
 // Only known, short, string-valued attribution keys survive.
 const META_KEYS = [

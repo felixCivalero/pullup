@@ -642,7 +642,7 @@ function Close() {
         <Words as="h2" className="fx-h1 fx-close-h" text={t("We don't make you go viral. We make you more you — then we scale it.")} />
         <Words className="fx-close-sub" text={t("A clear direction, content that sounds like you, and growth you can measure.")} />
         <p className="fx-close-offer fx-mono">
-          {t(OFFER.label)} · {OFFER.price} / {t("month")} · {t("first month money back if you're not happy")}
+          {t(OFFER.label)} · {t(OFFER.price)} / {t("month")} · {t("first month money back if you're not happy")}
         </p>
         <div className="fx-close-ctas">
           <button

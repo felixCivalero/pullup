@@ -116,7 +116,7 @@ export function RequestDialog() {
             <p className="rq-k">{t("Start a conversation")}</p>
             <h2 id="rq-title" className="rq-h">{t("Tell us who you are and where you want to go.")}</h2>
             <p className="rq-offer">
-              <b>{t(OFFER.label)} · {OFFER.price} {t(OFFER.cadence)}</b>
+              <b>{t(OFFER.label)} · {t(OFFER.price)} {t(OFFER.cadence)}</b>
               {t("First month: full scope. Not happy? Money back.")}
             </p>
 

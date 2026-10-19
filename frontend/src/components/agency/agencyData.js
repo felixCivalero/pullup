@@ -27,10 +27,11 @@ export const mailto = (subject) =>
 // money-back: paid, and refunded in full if the client isn't happy. After it,
 // the client commits to continue (longer commitments cost less — no tier
 // numbers published) or leaves with their money back.
-export const BASE_MONTHLY = 3000;
+// Priced in SEK in every language.
+export const BASE_MONTHLY = 30000;
 export const OFFER = {
   label: "One offer",
-  price: "$3,000",
+  price: "30,000 SEK",
   cadence: "/ month",
   line: "Every tool is included. Content is scoped together — quality over volume.",
   includes: [
@@ -43,7 +44,7 @@ export const OFFER = {
     "Your own apps and tools, built when you need them",
   ],
   terms: [
-    ["First month", "Full scope, $3,000. Not happy? You get your money back."],
+    ["First month", "Full scope, 30,000 SEK. Not happy? You get your money back."],
     ["Content", "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month."],
     ["After that", "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate."],
   ],

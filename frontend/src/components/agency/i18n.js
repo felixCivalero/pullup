@@ -8,33 +8,35 @@ import { SW } from "./i18n/sw.js";
    back to English, so nothing ever renders blank. Strings with numbers
    ("126 people pulled up.") also match a "{#}" key ("{#} people pulled up."),
    so live counts don't need one entry per value.
-   English is always the default. The visitor's own switch is remembered per
-   browser; ?lang=sv|sw|en in a link applies to that visit only. */
+   Swedish is always the default (Felix 2026-10-19); English is a toggle away.
+   The visitor's own switch is remembered per browser; ?lang=sv|sw|en in a
+   link applies to that visit only. Prices are SEK in every language. */
 
 export const LANGS = [
-  { code: "en", short: "EN", name: "English" },
   { code: "sv", short: "SV", name: "Svenska" },
+  { code: "en", short: "EN", name: "English" },
   { code: "sw", short: "SW", name: "Kiswahili" },
 ];
 const DICTS = { sv: SV, sw: SW };
 const KEY = "pullup.lang";
+const DEFAULT = "sv";
 const valid = (c) => LANGS.some((l) => l.code === c);
 
 function initial() {
   try {
     // A ?lang= link applies to this visit only — only the visitor's own
-    // switch (setLang) is remembered. Default is always English.
+    // switch (setLang) is remembered. Default is always Swedish.
     const q = new URLSearchParams(window.location.search).get("lang");
     if (valid(q)) return q;
     const saved = localStorage.getItem(KEY);
     if (valid(saved)) return saved;
   } catch {
-    /* storage blocked — English for this visit */
+    /* storage blocked — Swedish for this visit */
   }
-  return "en";
+  return DEFAULT;
 }
 
-let current = typeof window === "undefined" ? "en" : initial();
+let current = typeof window === "undefined" ? DEFAULT : initial();
 const listeners = new Set();
 const apply = () => {
   if (typeof document !== "undefined") document.documentElement.lang = current;
@@ -57,7 +59,7 @@ const subscribe = (fn) => {
   listeners.add(fn);
   return () => listeners.delete(fn);
 };
-export const useLang = () => useSyncExternalStore(subscribe, () => current, () => "en");
+export const useLang = () => useSyncExternalStore(subscribe, () => current, () => DEFAULT);
 
 const NUM = /\d[\d,.]*\d|\d/g;
 const fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s);

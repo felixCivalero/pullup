@@ -5,7 +5,7 @@ import { useLocalized, useT } from "./i18n.js";
 import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
-// The one offer — $3,000 a month, everything included. Landing (after What
+// The one offer — 30,000 SEK a month, everything included. Landing (after What
 // you get) and the end of every case page.
 export function AgencyOffer({
   id,

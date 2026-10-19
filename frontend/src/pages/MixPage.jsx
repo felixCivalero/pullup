@@ -192,7 +192,7 @@ function Hero() {
             </button>
           </div>
           <p className="mx-price mx-rise" style={{ "--d": "1.2s" }}>
-            {t("One offer. $3,000 a month. Not happy after the first month? Money back.")}
+            {t("One offer. 30,000 SEK a month. Not happy after the first month? Money back.")}
           </p>
         </div>
         <div className="mx-hero-logos mx-rise" style={{ "--d": "1.4s", opacity: 1 - out * 1.5 }}>
@@ -266,7 +266,7 @@ export function MixContent() {
         id="offer"
         source="mix"
         chapter={["04", "One offer"]}
-        heading="$3,000 a month. No tiers, no add-ons."
+        heading="30,000 SEK a month. No tiers, no add-ons."
         sub="Strategy, the weekly sprint and every tool behind it — apps, dashboards, tracking. Content is scoped to what actually moves your brand, not a quota of reels."
       />
 

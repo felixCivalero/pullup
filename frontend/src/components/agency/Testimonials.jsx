@@ -16,7 +16,8 @@ export const WORDS = [
   {
     who: "Anton Dalsätt",
     org: "BKM Health",
-    quote: "We'd never have got here without you.",
+    lead: "We'd never have got here without Felix.",
+    quote: "And it was damn fun on the way here.",
   },
   {
     who: "Sebastian Ramsay",

@@ -1127,6 +1127,9 @@ export const SV = {
   "Hand-picked client cases.": "Handplockade kundcase.",
   // Testimonials — the originals, verbatim.
   "Everyone should have a Felix.": "Alla borde ha en Felix.",
+  "Felix is a machine.": "Felix är maskin.",
+  "Everything in marketing. Content, tracking, analytics, e-commerce — he knows it by heart.": "Allt inom marketing. Content, tracking, analytics, e-handel – han kan det utantill.",
+  "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.": "Felix ser helheten, men kan också gå ner på millimeternivå för att vara precis och exakt. Det älskar jag.",
   "We'd never have got here without you.": "Vi hade aldrig varit här utan dig.",
   "If Mulle Meck were a real person, it would probably be Felix. Whatever you need, he fixes it. Either himself or with help from someone he knows.": "Om Mulle Meck hade varit en verklig person hade det nog varit Felix. Vad man än behöver, fixar han. Antingen själv eller med hjälp av någon han känner.",
   "Freediver": "Fridykerska",

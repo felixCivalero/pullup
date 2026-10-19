@@ -1,7 +1,7 @@
 import { COVERS } from "./agencyData.js";
 import { useT } from "./i18n.js";
 
-/* What clients say — small cards in a row under the logo band (a swipeable
+/* What clients say — small cards, three across, under the logo band (a swipeable
    row on phones). Real words from real people ONLY:
    an entry with `quote: null` is a reserved slot and never renders. Paste the
    person's own words in when they send them (English here = translation; the
@@ -30,9 +30,19 @@ export const WORDS = [
     photo: COVERS["adam-flambo"],
     quote: "That's how I see you. Besides being a super chill guy, you're the one who set up my studio in a single day while I stood there navel-gazing. That's what you wish clients understood — that you're a fucking maker. An action taker.",
   },
-  // Reserved — waiting for their own words.
-  { who: "Tolga Duran", org: "BKM Health", quote: null },
-  { who: "Li Karlsén", org: "Freediver", photo: COVERS["li-karlsen"], quote: null },
+  {
+    who: "Tolga Duran",
+    org: "BKM Health",
+    lead: "Felix is a machine.",
+    quote: "Everything in marketing. Content, tracking, analytics, e-commerce — he knows it by heart.",
+  },
+  {
+    who: "Li Karlsén",
+    org: "Freediver",
+    photo: COVERS["li-karlsen"],
+    quote: "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.",
+  },
+  // Reserved — waiting for his own words.
   { who: "Adam Dawood", org: "Artist", photo: COVERS["adam-dawood"], quote: null },
 ];
 const LIVE = WORDS.filter((w) => w.quote);
@@ -64,7 +74,7 @@ export function Testimonials() {
 export const TESTIMONIALS_CSS = `
   .tm { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
   @media (min-width: 720px) { .tm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (min-width: 1080px) { .tm { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 1080px) { .tm { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .tm-card { border: 1px solid rgba(0,0,0,0.12); border-radius: 18px; padding: 20px 20px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 20px; background: #fff; }
   .tm-card blockquote { margin: 0; font-size: 15.5px; line-height: 1.45; font-weight: 500; letter-spacing: -0.01em; color: #0a0a0a; }
   .tm-lead { display: block; margin-bottom: 8px; font-size: clamp(22px, 2vw, 26px); line-height: 1.12; font-weight: 700; letter-spacing: -0.03em; }

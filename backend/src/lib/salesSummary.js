@@ -71,6 +71,8 @@ function prospectOf(o) {
     nextStep: text(o["Next step"]),
     nextStepDate: toDay(o["Next step date"]),
     value: Number(o["Value (SEK/mo)"]) || 0,
+    deadline: toDay(o.Deadline), // a job ad's last day: reach them before they hire
+    source: text(o.List),
   };
 }
 
@@ -119,12 +121,19 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
   }
 
   const reachable = (p) => p.email.includes("@");
-  const queue = prospects
-    .map((p, row) => ({ p, row }))
-    .filter(({ p }) => p.stage === "Not contacted" && !p.dateSent && reachable(p))
-    .sort((a, b) => a.p.priority - b.p.priority || a.row - b.row)
-    .slice(0, goal?.perDay || QUEUE_SIZE)
-    .map(({ p }) => p);
+  // Untouched prospects still worth a first email. A job ad that closed
+  // before we wrote is gone: they've hired.
+  const open = (p) => p.stage === "Not contacted" && !p.dateSent && !(p.deadline && p.deadline < today);
+  // Priority first (0 = hand-picked or hiring now), then the closest
+  // deadline, then sheet order.
+  const byUrgency = (a, b) => a.p.priority - b.p.priority
+    || (a.p.deadline || "9999").localeCompare(b.p.deadline || "9999")
+    || a.row - b.row;
+  const ranked = prospects.map((p, row) => ({ p, row })).filter(({ p }) => open(p)).sort(byUrgency);
+  const queue = ranked.filter(({ p }) => reachable(p)).slice(0, goal?.perDay || QUEUE_SIZE).map(({ p }) => p);
+  // Hiring now but no address yet: find the founder/CEO before the deadline.
+  const needsEmail = ranked.filter(({ p }) => !reachable(p) && p.deadline).slice(0, QUEUE_SIZE).map(({ p }) => p);
+  const expired = prospects.filter((p) => p.stage === "Not contacted" && !p.dateSent && p.deadline && p.deadline < today).length;
 
   const followUpBy = addDays(today, -FOLLOW_UP_AFTER_DAYS);
   const followUps = prospects
@@ -154,7 +163,9 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
     totals: {
       prospects: prospects.length,
       reachable: prospects.filter(reachable).length,
-      notContactedReachable: prospects.filter((p) => p.stage === "Not contacted" && !p.dateSent && reachable(p)).length,
+      notContactedReachable: prospects.filter((p) => open(p) && reachable(p)).length,
+      hiringOpen: prospects.filter((p) => open(p) && p.deadline).length,
+      expired,
       contacted: contacted.length,
       answered,
       met,
@@ -164,6 +175,7 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
     },
     stages: STAGES.map((stage) => ({ stage, count: stageCounts[stage] })),
     queue,
+    needsEmail,
     toAnswer,
     followUps,
     due,

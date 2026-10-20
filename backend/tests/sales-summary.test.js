@@ -7,7 +7,7 @@ function assert(cond, msg) {
   else { console.log("✅", msg); }
 }
 
-const HEADER = ["ID", "Priority", "Company", "Person(s)", "Sector", "Location", "What they do", "Why PullUp", "Email", "Email type", "Contact note", "Contact checked", "Source", "List", "Stage", "Date sent", "Notes", "Last contact", "Next step", "Next step date", "Value (SEK/mo)"];
+const HEADER = ["ID", "Priority", "Company", "Person(s)", "Sector", "Location", "What they do", "Why PullUp", "Email", "Email type", "Contact note", "Contact checked", "Source", "List", "Stage", "Date sent", "Notes", "Last contact", "Next step", "Next step date", "Value (SEK/mo)", "Deadline", "Ad ID", "Org nr"];
 const row = (o) => HEADER.map((h) => o[h] ?? "");
 const prospectRows = [
   HEADER,
@@ -45,6 +45,21 @@ assert(s.log.length === 1 && s.log[0].company === "Zeta", "log rows without a da
 
 const handPicked = summarizeSales({ prospectRows: [...prospectRows, row({ ID: "P-009", Priority: 0, Company: "Mine", Email: "m@mine.se" })], overviewRows, today: "2026-10-28" });
 assert(handPicked.queue[0].id === "P-009", "priority 0 jumps the queue even when added last");
+
+const ads = summarizeSales({
+  prospectRows: [
+    ...prospectRows,
+    row({ ID: "P-010", Priority: 0, Company: "Late", Email: "l@late.se", Deadline: "2026-11-20" }),
+    row({ ID: "P-011", Priority: 0, Company: "Soon", Email: "s@soon.se", Deadline: "2026-10-30" }),
+    row({ ID: "P-012", Priority: 0, Company: "Closed", Email: "c@closed.se", Deadline: "2026-10-27" }),
+    row({ ID: "P-013", Priority: 0, Company: "NoMail", Email: "—", Deadline: "2026-11-01" }),
+  ],
+  overviewRows,
+  today: "2026-10-28",
+});
+assert(ads.queue.slice(0, 2).map((p) => p.id).join() === "P-011,P-010", "priority 0 job ads go closest deadline first");
+assert(!ads.queue.some((p) => p.id === "P-012") && ads.totals.expired === 1, "a closed ad leaves the queue and counts as expired");
+assert(ads.needsEmail.map((p) => p.id).join() === "P-013", "hiring without an email is listed to research");
 
 const before = summarizeSales({ prospectRows, overviewRows, today: "2026-10-20" });
 assert(before.plan.expected === 0 && before.plan.daysLeft === 42, "before the start nothing is expected yet");

@@ -24,6 +24,13 @@ const pct = (a, b) => (b ? `${Math.round((a / b) * 100)} %` : "–");
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 const time = (iso) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 const daysAgo = (d, today) => Math.round((Date.parse(today) - Date.parse(d)) / 86400000);
+// "stänger idag" / "stänger om 3 d" for a job ad's last day.
+function closes(deadline, today) {
+  const n = -daysAgo(deadline, today);
+  if (n <= 0) return "stänger idag";
+  if (n === 1) return "stänger imorgon";
+  return n <= 14 ? `stänger om ${n} d` : `stänger ${dayLabel(deadline)}`;
+}
 
 function pace(delta) {
   if (delta > 0) return `${nf.format(delta)} före`;
@@ -122,13 +129,20 @@ export function SalesPage() {
             <div className="sl-grid">
               <section>
                 <h2>Dagens {data.queue.length}</h2>
-                <p className="sl-muted">Nästa på listan efter prioritet. {nf.format(t.notContactedReachable)} kvar med mejladress.</p>
+                <p className="sl-muted">
+                  Prioritet först, sedan närmast deadline. {nf.format(t.notContactedReachable)} kvar med mejladress
+                  {t.hiringOpen > 0 && <> · {nf.format(t.hiringOpen)} rekryterar just nu</>}
+                  {t.expired > 0 && <> · {nf.format(t.expired)} annonser stängda innan vi hann skriva</>}.
+                </p>
                 <ol className="sl-queue">
                   {data.queue.map((p) => (
                     <li key={p.id}>
                       <div className="sl-row-top">
                         <b>{p.company}</b>
-                        <span className="sl-tag">P{p.priority} · {p.emailType || "–"}</span>
+                        <span className="sl-tag">
+                          {p.deadline && <em className={-daysAgo(p.deadline, data.today) <= 7 ? "is-soon" : ""}>{closes(p.deadline, data.today)}</em>}
+                          P{p.priority} · {p.emailType || "–"}
+                        </span>
                       </div>
                       {p.person && <div className="sl-sub">{p.person}</div>}
                       <a href={`mailto:${p.email}`}>{p.email}</a>
@@ -139,6 +153,20 @@ export function SalesPage() {
               </section>
 
               <section>
+                {data.needsEmail.length > 0 && (
+                  <>
+                    <h2>Rekryterar, saknar mejl</h2>
+                    <p className="sl-muted">Hitta grundaren eller vd:n innan annonsen stänger.</p>
+                    <ul className="sl-list">
+                      {data.needsEmail.map((p) => (
+                        <li key={p.id}>
+                          <b>{p.company}</b>
+                          <span>{closes(p.deadline, data.today)} · {p.id}{p.location ? ` · ${p.location}` : ""}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 <h2>Väntar på dig{waiting ? ` (${waiting})` : ""}</h2>
                 {!waiting && <p className="sl-muted">Inget som väntar. Skicka dagens mejl.</p>}
                 {data.toAnswer.length > 0 && <h3>Svara</h3>}
@@ -235,7 +263,9 @@ const SALES_CSS = `
   .sl-queue li { counter-increment: q; position: relative; border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 12px 14px 12px 44px; display: grid; gap: 2px; }
   .sl-queue li::before { content: counter(q); position: absolute; left: 14px; top: 12px; width: 20px; height: 20px; border-radius: 999px; background: #0a0a0a; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
   .sl-row-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
-  .sl-tag { font-size: 11.5px; font-weight: 600; color: #6e6e73; white-space: nowrap; }
+  .sl-tag { font-size: 11.5px; font-weight: 600; color: #6e6e73; white-space: nowrap; display: flex; gap: 8px; align-items: baseline; }
+  .sl-tag em { font-style: normal; color: #3a3a3e; }
+  .sl-tag em.is-soon { color: #D9480F; }
   .sl-sub { font-size: 13.5px; color: #3a3a3e; }
   .sl-queue a { font-size: 13.5px; color: #0a0a0a; text-decoration-color: #D9480F; text-underline-offset: 3px; justify-self: start; overflow-wrap: anywhere; }
   .sl-queue p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: #6e6e73; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

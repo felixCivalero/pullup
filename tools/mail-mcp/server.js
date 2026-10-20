@@ -160,19 +160,25 @@ const isAuto = (headers, subject) => {
   return /auto-submitted:\s*auto-(replied|generated)/.test(h) || /x-autore(ply|spond)/.test(h) || /precedence:\s*(auto_reply|bulk|junk)/.test(h) || AUTO_SUBJECT.test(subject || '');
 };
 
-// Every message in INBOX and Sent since `since`, as the sync planner wants it.
+// Every message in INBOX and Sent since `since`, as the sync planner wants it,
+// plus the UIDs of unread auto-replies in INBOX (to mark read).
 async function recentMessages(client, since) {
   const f = await folders(client);
   const out = [];
+  const unreadAuto = [];
   for (const [folder, dir] of [[f.inbox, 'in'], [f.sent, 'out']]) {
     const lock = await client.getMailboxLock(folder);
     try {
       const uids = (await client.search({ since }, { uid: true })) || [];
       if (!uids.length) continue;
-      for await (const msg of client.fetch(uids, { envelope: true, uid: true, internalDate: true, headers: ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence'] }, { uid: true })) {
+      for await (const msg of client.fetch(uids, { envelope: true, uid: true, internalDate: true, flags: true, headers: ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence'] }, { uid: true })) {
         const e = msg.envelope || {};
         const from = bare(e.from);
-        if (dir === 'in' && from.some((a) => AUTOMATED.test(a) || a === USER.toLowerCase())) continue;
+        const automated = from.some((a) => AUTOMATED.test(a));
+        // A "Re:" from a no-reply address is an auto-reply to something we sent.
+        const auto = dir === 'in' && (isAuto(msg.headers, e.subject) || (automated && /^\s*(re|sv|aw)\s*:/i.test(e.subject || '')));
+        if (auto && !msg.flags?.has?.('\\Seen')) unreadAuto.push(msg.uid);
+        if (dir === 'in' && (automated || from.includes(USER.toLowerCase()))) continue;
         out.push({
           dir,
           date: stockholmDay(e.date || msg.internalDate || new Date()),
@@ -180,14 +186,14 @@ async function recentMessages(client, since) {
           subject: e.subject || '',
           messageId: e.messageId || null,
           from: addr(e.from),
-          auto: dir === 'in' && isAuto(msg.headers, e.subject),
+          auto,
         });
       }
     } finally {
       lock.release();
     }
   }
-  return out;
+  return { messages: out, unreadAuto, inbox: f.inbox };
 }
 
 const AUTOMATED = /(no-?reply|noreply|mailer-daemon|notifications?|newsletter|bounce|support@|info@one\.com)/i;
@@ -340,7 +346,7 @@ server.registerTool(
   'sales_sync_mail',
   {
     description:
-      "Record recent mail (INBOX + Sent) in the sales sheet: for each prospect emailed or answering, sets Date sent (first email), Last contact, moves Stage forward (Not contacted → Emailed → Followed up → Replied; never touches Meeting booked and later) and logs each message once in the Log tab. Matches by address, or by company domain for shared inboxes. Returns what changed plus inbound senders not on the list. Run before any pipeline review and after Felix has sent mail. dry_run shows the plan without writing.",
+      "Record recent mail (INBOX + Sent) in the sales sheet: for each prospect emailed or answering, sets Date sent (first email), Last contact, moves Stage forward (Not contacted → Emailed → Followed up → Replied; never touches Meeting booked and later) and logs each message once in the Log tab. Auto-replies (out-of-office, ticket receipts) are logged as notes, never count as an answer, and are marked read in INBOX. Matches by address, or by company domain for shared inboxes. Returns what changed plus inbound senders not on the list. Run before any pipeline review and after Felix has sent mail. dry_run shows the plan without writing.",
     inputSchema: {
       since_days: z.number().int().min(1).max(365).optional(),
       dry_run: z.boolean().optional(),
@@ -350,7 +356,7 @@ server.registerTool(
     withImap(async (client) => {
       if (!sheetReady()) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON / SALES_SHEET_ID missing (backend/.env)');
       const since = new Date(Date.now() - since_days * 86400000);
-      const messages = await recentMessages(client, since);
+      const { messages, unreadAuto, inbox } = await recentMessages(client, since);
       const [prospectRows, logRows] = await batchGetValues(SHEET, ['Prospects!A:X', 'Log!A:F']);
       const plan = planMailSync({ prospectRows, logRows, messages });
 
@@ -364,6 +370,15 @@ server.registerTool(
           next += 1;
         }
         if (data.length) await batchUpdateValues(SHEET, data);
+        // Auto-replies don't need Felix: mark them read.
+        if (unreadAuto.length) {
+          const lock = await client.getMailboxLock(inbox);
+          try {
+            await client.messageFlagsAdd(unreadAuto, ['\\Seen'], { uid: true });
+          } finally {
+            lock.release();
+          }
+        }
       }
 
       const unknown = new Map();
@@ -380,6 +395,8 @@ server.registerTool(
         messages_seen: messages.length,
         prospects_changed: plan.changes,
         log_rows_added: plan.logAppend.length,
+        auto_replies_marked_read: dry_run ? 0 : unreadAuto.length,
+        unread_auto_replies: unreadAuto.length,
         unknown_senders: [...unknown.values()].sort((a, b) => b.last_at.localeCompare(a.last_at)),
       });
     })

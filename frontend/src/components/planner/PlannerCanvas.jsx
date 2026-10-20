@@ -936,6 +936,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
                   row={rows[ev.id]}
                   color={eventMarkColor(ev)}
                   phase={eventPhase(ev, today)}
+                  today={today}
                   open={flippedIds.has(key)}
                   raised={raisedId === key}
                   onRaise={() => bringToFront(key)}
@@ -1365,32 +1366,52 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
 }
 
 // ── Event pill ──────────────────────────────────────────────────────
-// A slim pill on its lane's band, starting at the event's date. Events close
-// together stack above the band (rows), each with a stem down to its date.
-// Clicking opens a small editor; Done, Enter, Esc or a click outside close it.
+// A slim pill on its lane's band, centred on the event's date line, so the
+// pill itself carries only the title. Events close together stack above the
+// band (rows), each with a stem down to its date. Hover shows the date, how
+// far away it is and the notes; a click opens a small editor that closes on
+// Done, Enter, Esc or a click outside.
 const EVENT_H = 24;
 const EVENT_ROW = 30; // vertical step between stacked rows
 const EVENT_MAX_W = 230;
-const EVENT_EDIT_W = 260;
-const eventPillW = (ev) => Math.min(EVENT_MAX_W, 46 + String(ev.title || "").length * 6.4);
+const EVENT_EDIT_W = 280;
+const EVENT_FONT = '700 11.5px "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif';
+let measureCtx = null;
+const eventPillW = (ev) => {
+  measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+  measureCtx.font = EVENT_FONT;
+  const text = measureCtx.measureText(String(ev.title || "")).width;
+  return Math.min(EVENT_MAX_W, Math.ceil(text) + 26 + (ev.thumb ? 20 : 0) + (ev.note ? 9 : 0));
+};
 // Row 0 sits on the band; later rows only when a pill would overlap.
 function eventRows(evs, xOf) {
   const rows = {};
   const ends = [];
   [...evs].sort((a, b) => xOf(a) - xOf(b)).forEach((ev) => {
-    const x = xOf(ev) - 7;
+    const w = eventPillW(ev);
+    const left = xOf(ev) - w / 2;
     let r = 0;
-    while (ends[r] !== undefined && ends[r] > x - 6) r += 1;
-    ends[r] = x + eventPillW(ev);
+    while (ends[r] !== undefined && ends[r] > left - 6) r += 1;
+    ends[r] = left + w;
     rows[ev.id] = r;
   });
   return rows;
 }
 const eventTop = (laneY, row) => (row === 0 ? laneY + BAND_TOP + (BAND_H - EVENT_H) / 2 : laneY + BAND_TOP - 6 - row * EVENT_ROW);
+const LONG_DATE = (iso) => new Date(iso).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+function untilLabel(iso, today) {
+  const days = Math.round((startOfDay(new Date(iso)).getTime() - today.getTime()) / DAY_MS);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days === -1) return "Yesterday";
+  return days > 0 ? `In ${days} days` : `${-days} days ago`;
+}
 
-function EventPill({ ev, x, laneY, row, color, phase, open, raised, onRaise, onOpen, onClose, onChange, onDelete }) {
+function EventPill({ ev, x, laneY, row, color, phase, today, open, raised, onRaise, onOpen, onClose, onChange, onDelete }) {
   const wrapRef = useRef(null);
+  const [hover, setHover] = useState(false);
   const top = eventTop(laneY, row);
+  const w = eventPillW(ev);
   const past = phase === "past";
 
   useEffect(() => {
@@ -1406,30 +1427,39 @@ function EventPill({ ev, x, laneY, row, color, phase, open, raised, onRaise, onO
   }, [open, onClose]);
 
   return (
-    <div ref={wrapRef} onPointerDownCapture={onRaise} style={{ position: "absolute", left: 0, top: 0, zIndex: open ? 30 : raised ? 12 : 3 }}>
-      {/* Mark through the band at the date, and a stem up to a stacked pill */}
+    <div ref={wrapRef} onPointerDownCapture={onRaise} style={{ position: "absolute", left: 0, top: 0, zIndex: open ? 30 : hover ? 25 : raised ? 12 : 3 }}>
+      {/* The date line through the band (behind the pill), and a stem up to a stacked pill */}
       <div style={{ position: "absolute", left: x, top: laneY + BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)", pointerEvents: "none" }} />
       {row > 0 && <div style={{ position: "absolute", left: x, top: top + EVENT_H, width: 2, height: laneY + BAND_TOP - (top + EVENT_H), background: `${color}88`, transform: "translateX(-1px)", pointerEvents: "none" }} />}
 
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => (open ? onClose() : onOpen())}
-        title={`${ev.title} · ${ev.startsAt ? fmtDate(new Date(ev.startsAt)) : ""}`}
-        style={{ position: "absolute", left: x - 7, top, height: EVENT_H, maxWidth: EVENT_MAX_W, display: "inline-flex", alignItems: "center", gap: 6, padding: "0 10px 0 4px", borderRadius: 999, border: `1.5px solid ${color}`, background: open ? color : colors.background, color: open ? "#fff" : colors.text, fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", opacity: past && !open ? 0.6 : 1, boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onClick={() => { setHover(false); if (open) onClose(); else onOpen(); }}
+        style={{ position: "absolute", left: x - w / 2, top, width: w, height: EVENT_H, boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 12px", borderRadius: 999, border: `1.5px solid ${color}`, background: open ? color : colors.background, color: open ? "#fff" : colors.text, font: EVENT_FONT, whiteSpace: "nowrap", cursor: "pointer", opacity: past && !open ? 0.6 : 1, boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
       >
-        {ev.thumb
-          ? <img src={ev.thumb} alt="" style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-          : <span style={{ width: 8, height: 8, margin: "0 4px", borderRadius: 2, transform: "rotate(45deg)", background: open ? "#fff" : color, flexShrink: 0 }} />}
+        {ev.thumb && <img src={ev.thumb} alt="" style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover", flexShrink: 0, marginLeft: -6 }} />}
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</span>
-        <span style={{ fontWeight: 500, opacity: 0.6 }}>{ev.startsAt ? fmtDate(new Date(ev.startsAt)) : ""}</span>
+        {ev.note && <span style={{ width: 5, height: 5, borderRadius: "50%", background: open ? "#fff" : color, flexShrink: 0, marginRight: -4 }} title="Has notes" />}
       </button>
+
+      {hover && !open && (
+        <div style={{ position: "absolute", left: x, top: top - 8, width: 240, transform: "translate(-50%, -100%)", padding: "10px 12px", borderRadius: 12, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 14px 38px rgba(10,10,10,0.14)", pointerEvents: "none", fontFamily: "inherit" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, lineHeight: 1.3 }}>{ev.title}</div>
+          <div style={{ marginTop: 3, fontSize: 11.5, color: colors.textMuted }}>
+            {ev.startsAt ? `${LONG_DATE(ev.startsAt)} · ${untilLabel(ev.startsAt, today)}` : "No date"}
+          </div>
+          {ev.note && <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}`, fontSize: 12, lineHeight: 1.45, color: colors.text, whiteSpace: "pre-wrap", maxHeight: 160, overflow: "hidden" }}>{ev.note}</div>}
+        </div>
+      )}
 
       {open && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
-          style={{ position: "absolute", left: x - 7, top: top - 8, width: EVENT_EDIT_W, transform: "translateY(-100%)", borderRadius: 12, overflow: "hidden", background: colors.background, border: `1.5px solid ${color}`, boxShadow: "0 14px 38px rgba(10,10,10,0.14)" }}
+          style={{ position: "absolute", left: x, top: top - 8, width: EVENT_EDIT_W, transform: "translate(-50%, -100%)", borderRadius: 12, overflow: "hidden", background: colors.background, border: `1.5px solid ${color}`, boxShadow: "0 14px 38px rgba(10,10,10,0.14)" }}
         >
           <EventEdit ev={ev} color={color} onChange={onChange} onDelete={onDelete} onDone={onClose} />
         </div>
@@ -1442,7 +1472,18 @@ function EventPill({ ev, x, laneY, row, color, phase, open, raised, onRaise, onO
 // Felix adds himself — there is no separate event page.
 function EventEdit({ ev, color, onChange, onDelete, onDone }) {
   const [title, setTitle] = useState(ev.title);
-  const save = () => { const t = title.trim() || "Event"; if (t !== ev.title) onChange({ title: t }); };
+  const [note, setNote] = useState(ev.note || "");
+  const save = () => {
+    const patch = {};
+    const t = title.trim() || "Event";
+    if (t !== ev.title) patch.title = t;
+    if (note !== (ev.note || "")) patch.note = note;
+    if (Object.keys(patch).length) onChange(patch);
+  };
+  // However the editor closes (Done, Enter, Esc, a click outside), keep what was typed.
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; });
+  useEffect(() => () => saveRef.current(), []);
   const iso = (ev.startsAt || "").slice(0, 10);
   const label = { fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.textSubtle, marginBottom: 4 };
   const field = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13, fontFamily: "inherit" };
@@ -1460,13 +1501,24 @@ function EventEdit({ ev, color, onChange, onDelete, onDone }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={save}
-            onKeyDown={(e) => { if (e.key === "Enter") { save(); onDone(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") onDone(); }}
             style={{ ...field, fontWeight: 600 }}
           />
         </label>
         <label>
           <div style={label}>Date</div>
           <input type="date" value={iso} onChange={(e) => e.target.value && onChange({ startsAt: `${e.target.value}T12:00:00` })} style={field} />
+        </label>
+        <label>
+          <div style={label}>Notes</div>
+          <textarea
+            value={note}
+            rows={4}
+            placeholder="What it is, who's involved, what has to be ready…"
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={save}
+            style={{ ...field, resize: "vertical", lineHeight: 1.45 }}
+          />
         </label>
       </div>
       <div style={{ padding: "8px 12px", borderTop: `1px solid ${colors.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1477,7 +1529,7 @@ function EventEdit({ ev, color, onChange, onDelete, onDone }) {
           <Trash2 size={12} /> Delete
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); save(); onDone(); }}
+          onClick={(e) => { e.stopPropagation(); onDone(); }}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 999, border: "none", background: color, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
         >
           <Check size={13} /> Done

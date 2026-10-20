@@ -2,11 +2,13 @@
 //
 //   POST /agency-requests  – public: name, email, description (+ company,
 //                            preferred time, picked superpowers, attribution
-//                            metadata) → stored, then emailed to felix@pullup.se.
+//                            metadata) → stored, emailed to felix@pullup.se and
+//                            added to the sales sheet as a Priority 0 prospect.
 import { supabase } from "../supabase.js";
 import { logger } from "../logger.js";
 import { sendEmail } from "../email/index.js";
 import { normalizeEmail, isValidEmail } from "../lib/emailAddress.js";
+import { recordWebsiteLead, salesSheetConfigured } from "../lib/salesSheet.js";
 
 const INBOX = process.env.AGENCY_REQUESTS_TO || "felix@pullup.se";
 const POWERS = {
@@ -178,6 +180,15 @@ export function registerAgencyRequestRoutes(app) {
         html: requestEmail({ ...record, id: data.id }, received),
         idempotencyKey: `agency-request:${data.id}`,
       }).catch((err) => logger?.error?.("[agency-request] email failed", { id: data.id, error: err?.message }));
+
+      // Into the sales pipeline: a new Priority 0 row, or the existing one moved
+      // to Replied. Never blocks or fails the request.
+      if (salesSheetConfigured()) {
+        const plan = isFull(powers) ? FULL_SERVICE.name : ["Core engine", ...powers.map((id) => POWERS[id].name)].join(" + ");
+        recordWebsiteLead({ name, email, company: record.company, description, preferredTime: record.preferred_time, plan })
+          .then((prospectId) => supabase.from("agency_requests").update({ prospect_id: prospectId }).eq("id", data.id))
+          .catch((err) => logger?.error?.("[agency-request] sheet failed", { id: data.id, error: err?.message }));
+      }
 
       return res.json({ ok: true, id: data.id });
     } catch (err) {

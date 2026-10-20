@@ -62,6 +62,7 @@ function prospectOf(o) {
     person: text(o["Person(s)"]),
     sector: text(o.Sector),
     location: text(o.Location),
+    contactNote: text(o["Contact note"]),
     why: text(o["Why PullUp"]),
     email: text(o.Email),
     emailType: text(o["Email type"]),
@@ -73,11 +74,17 @@ function prospectOf(o) {
     value: Number(o["Value (SEK/mo)"]) || 0,
     deadline: toDay(o.Deadline), // a job ad's last day: reach them before they hire
     source: text(o.List),
+    notes: text(o.Notes),
   };
 }
 
-export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today }) {
-  const prospects = rowsToObjects(prospectRows).map(prospectOf).filter((p) => p.company);
+// Stages where Felix is working with them: these have a client card in PullUp.
+export const CLIENT_STAGES = new Set(["Meeting booked", "Proposal sent", "Won"]);
+
+export const parseProspects = (prospectRows) => rowsToObjects(prospectRows).map(prospectOf).filter((p) => p.company);
+
+export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today, clientIds = new Set() }) {
+  const prospects = parseProspects(prospectRows).map((p) => ({ ...p, inPullUp: clientIds.has(p.id) }));
   const goal = readGoal(overviewRows);
 
   const stageCounts = Object.fromEntries(STAGES.map((s) => [s, 0]));

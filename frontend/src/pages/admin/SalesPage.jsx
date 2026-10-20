@@ -55,6 +55,17 @@ export function SalesPage() {
       .finally(() => setLoading(false)), []);
 
   useEffect(() => { load(); }, [load]);
+  // Start working with someone before the sheet says meeting: a client card now.
+  const [pulling, setPulling] = useState(null);
+  const pullIn = async (prospectId) => {
+    setPulling(prospectId);
+    const r = await authenticatedFetch("/admin/clients", { method: "POST", body: JSON.stringify({ prospectId }) }).catch(() => null);
+    if (r?.ok) await load(true);
+    setPulling(null);
+  };
+  const inPullUp = (p) => (p.inPullUp
+    ? <a className="sl-in" href="/admin/clients">I PullUp →</a>
+    : <button type="button" className="sl-pull" disabled={pulling === p.id} onClick={() => pullIn(p.id)}>{pulling === p.id ? "Tar in…" : "Ta in i PullUp"}</button>);
   const refresh = () => { setLoading(true); load(true); };
 
   const plan = data?.plan;
@@ -172,15 +183,18 @@ export function SalesPage() {
                 {data.toAnswer.length > 0 && <h3>Svara</h3>}
                 <ul className="sl-list">
                   {data.toAnswer.map((p) => (
-                    <li key={p.id}><b>{p.company}</b><span>{p.person || p.email}</span></li>
+                    <li key={p.id} className="sl-row"><div><b>{p.company}</b><span>{p.person || p.email}{p.source === "Website" ? " · via hemsidan" : ""}</span></div>{inPullUp(p)}</li>
                   ))}
                 </ul>
                 {data.due.length > 0 && <h3>Nästa steg</h3>}
                 <ul className="sl-list">
                   {data.due.map((p) => (
-                    <li key={p.id} className={p.overdue ? "is-late" : ""}>
-                      <b>{p.company}</b>
-                      <span>{p.nextStep || STAGE_SV[p.stage]} · {p.overdue ? `sen sedan ${dayLabel(p.nextStepDate)}` : "idag"}</span>
+                    <li key={p.id} className={`sl-row${p.overdue ? " is-late" : ""}`}>
+                      <div>
+                        <b>{p.company}</b>
+                        <span>{p.nextStep || STAGE_SV[p.stage]} · {p.overdue ? `sen sedan ${dayLabel(p.nextStepDate)}` : "idag"}</span>
+                      </div>
+                      {inPullUp(p)}
                     </li>
                   ))}
                 </ul>
@@ -273,6 +287,11 @@ const SALES_CSS = `
   .sl-list li { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.07); font-size: 14px; }
   .sl-list li span { color: #6e6e73; font-size: 13px; }
   .sl-list li.is-late span { color: #D9480F; font-weight: 600; }
+  .sl-list li.sl-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  .sl-list li.sl-row > div { display: grid; gap: 2px; }
+  .sl-pull { font: inherit; font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.15); background: #fff; cursor: pointer; white-space: nowrap; }
+  .sl-pull:hover { border-color: #0a0a0a; }
+  .sl-in { font-size: 12px; font-weight: 600; color: #1f7a3a; text-decoration: none; white-space: nowrap; }
   .sl-funnel { display: grid; gap: 8px; margin-top: 12px; }
   .sl-step { display: grid; grid-template-columns: 120px minmax(0, 1fr) 48px; gap: 12px; align-items: center; font-size: 14px; }
   .sl-step > i { display: block; height: 14px; border-radius: 4px; background: #f2f2f2; overflow: hidden; }

@@ -12,6 +12,7 @@ import { ToastProvider } from "../../components/Toast.jsx";
 const NAV = [
   ["/admin", "Statistik"],
   ["/admin/sales", "Sälj"],
+  ["/admin/clients", "Kunder"],
   ["/admin/stockholm", "Stockholm"],
   ["/admin/timeline", "Tidslinje"],
 ];

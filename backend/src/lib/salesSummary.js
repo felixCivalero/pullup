@@ -93,7 +93,8 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
   const sentByDay = new Map();
   for (const p of prospects) if (p.dateSent) sentByDay.set(p.dateSent, (sentByDay.get(p.dateSent) || 0) + 1);
 
-  const contacted = prospects.filter((p) => p.dateSent || p.stage !== "Not contacted");
+  // Reply rate is about outreach: only people we actually emailed.
+  const contacted = prospects.filter((p) => p.dateSent);
   const answered = contacted.filter((p) => ANSWERED.has(p.stage)).length;
   const met = contacted.filter((p) => MET.has(p.stage)).length;
 
@@ -116,6 +117,7 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
       + (inPlanToday ? Math.min(goal.perDay, sentByDay.get(today) || 0) : 0);
     plan = {
       ...goal,
+      started: today >= goal.start,
       days,
       target,
       sent,
@@ -130,17 +132,25 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
   const reachable = (p) => p.email.includes("@");
   // Untouched prospects still worth a first email. A job ad that closed
   // before we wrote is gone: they've hired.
-  const open = (p) => p.stage === "Not contacted" && !p.dateSent && !(p.deadline && p.deadline < today);
+  // Once today's quota is done the list is for tomorrow, so an ad closing
+  // today is already too late for it.
+  const perDay = goal?.perDay || QUEUE_SIZE;
+  const sentTodayList = prospects.filter((p) => p.dateSent === today);
+  const leftToday = Math.max(0, perDay - sentTodayList.length);
+  const queueFor = leftToday > 0 ? "today" : "tomorrow";
+  const cutoff = queueFor === "today" ? today : addDays(today, 1);
+  const open = (p) => p.stage === "Not contacted" && !p.dateSent && !(p.deadline && p.deadline < cutoff);
   // Priority first (0 = hand-picked or hiring now), then the closest
   // deadline, then sheet order.
   const byUrgency = (a, b) => a.p.priority - b.p.priority
     || (a.p.deadline || "9999").localeCompare(b.p.deadline || "9999")
     || a.row - b.row;
   const ranked = prospects.map((p, row) => ({ p, row })).filter(({ p }) => open(p)).sort(byUrgency);
-  const queue = ranked.filter(({ p }) => reachable(p)).slice(0, goal?.perDay || QUEUE_SIZE).map(({ p }) => p);
+  // What's left of today's quota; once it's done the list shows tomorrow's.
+  const queue = ranked.filter(({ p }) => reachable(p)).slice(0, leftToday || perDay).map(({ p }) => p);
   // Hiring now but no address yet: find the founder/CEO before the deadline.
   const needsEmail = ranked.filter(({ p }) => !reachable(p) && p.deadline).slice(0, QUEUE_SIZE).map(({ p }) => p);
-  const expired = prospects.filter((p) => p.stage === "Not contacted" && !p.dateSent && p.deadline && p.deadline < today).length;
+  const expired = prospects.filter((p) => p.stage === "Not contacted" && !p.dateSent && p.deadline && p.deadline < cutoff).length;
 
   const followUpBy = addDays(today, -FOLLOW_UP_AFTER_DAYS);
   const followUps = prospects
@@ -166,6 +176,10 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
   return {
     today,
     sentToday: sentByDay.get(today) || 0,
+    sentTodayList,
+    perDay,
+    leftToday,
+    queueFor,
     plan,
     totals: {
       prospects: prospects.length,

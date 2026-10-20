@@ -66,5 +66,22 @@ assert(before.plan.expected === 0 && before.plan.daysLeft === 42, "before the st
 const first = summarizeSales({ prospectRows: [HEADER], overviewRows, today: "2026-10-21" });
 assert(first.plan.delta === 0, "the first morning isn't behind");
 
+const fresh = summarizeSales({ prospectRows, overviewRows, today: "2026-10-21" });
+assert(fresh.queueFor === "today" && fresh.leftToday === 8 && fresh.queue.length === 2, "two sent today: eight left, the list is today's");
+const done = summarizeSales({
+  prospectRows: [HEADER, ...Array.from({ length: 10 }, (_, i) => row({ ID: `P-${100 + i}`, Company: `Sent${i}`, Email: `s${i}@x.se`, Stage: "Emailed", "Date sent": "2026-10-28" })), row({ ID: "P-200", Priority: 1, Company: "Next", Email: "n@x.se" })],
+  overviewRows,
+  today: "2026-10-28",
+});
+assert(done.queueFor === "tomorrow" && done.leftToday === 0 && done.sentTodayList.length === 10 && done.queue[0].id === "P-200", "quota done: the list shows tomorrow's next ones");
+const doneClosing = summarizeSales({
+  prospectRows: [HEADER, ...Array.from({ length: 10 }, (_, i) => row({ ID: `P-${100 + i}`, Company: `Sent${i}`, Email: `s${i}@x.se`, Stage: "Emailed", "Date sent": "2026-10-28" })), row({ ID: "P-300", Priority: 0, Company: "ClosesToday", Email: "c@x.se", Deadline: "2026-10-28" }), row({ ID: "P-301", Priority: 0, Company: "ClosesLater", Email: "l@x.se", Deadline: "2026-11-02" })],
+  overviewRows,
+  today: "2026-10-28",
+});
+assert(doneClosing.queue[0].id === "P-301", "tomorrow's list skips ads that close today");
+assert(s.totals.contacted === 5 && s.totals.answered === 3, "reply rate counts only prospects that were emailed");
+assert(before.plan.started === false && s.plan.started === true, "the plan knows whether it has started");
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall sales-summary tests passed");

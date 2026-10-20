@@ -17,6 +17,7 @@ const STAGE_SV = {
   Lost: "Förlorad",
   "Not a fit": "Passar inte",
 };
+const LOG_SV = { "Email out": "Mejl ut", "Follow-up": "Uppföljning", "Email in": "Svar in", Note: "Autosvar / notering", Meeting: "Möte", Call: "Samtal" };
 const FUNNEL = ["Emailed", "Followed up", "Replied", "Meeting booked", "Proposal sent", "Won"];
 
 const nf = new Intl.NumberFormat("sv-SE");
@@ -96,30 +97,56 @@ export function SalesPage() {
 
         {data && (
           <>
+            <section className={`sl-today${data.leftToday === 0 ? " is-done" : ""}`}>
+              <div className="sl-today-head">
+                <div>
+                  <span>Idag · {dayLabel(data.today)}</span>
+                  <b>
+                    {data.leftToday === 0
+                      ? `Dagens ${data.perDay} är skickade.`
+                      : data.sentToday === 0
+                        ? `Skicka dagens ${data.perDay}.`
+                        : `Kvar idag: ${data.leftToday} av ${data.perDay}.`}
+                  </b>
+                </div>
+                <strong>{data.sentToday}<small> / {data.perDay}</small></strong>
+              </div>
+              <i className="sl-meter"><i style={{ width: `${Math.min(100, (data.sentToday / data.perDay) * 100)}%` }} /></i>
+              {data.sentTodayList.length > 0 && (
+                <ul className="sl-sent">
+                  {data.sentTodayList.map((p) => (
+                    <li key={p.id} title={p.email}>{p.company}{p.stage !== "Emailed" ? <em> · {STAGE_SV[p.stage]}</em> : null}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <div className="sl-kpis">
               <div>
-                <span>Idag</span>
-                <b>{data.sentToday}<small> / {plan?.perDay ?? "–"}</small></b>
-                {plan && <i className="sl-meter"><i style={{ width: `${Math.min(100, (data.sentToday / plan.perDay) * 100)}%` }} /></i>}
-              </div>
-              <div>
                 <span>Planen</span>
-                <b>{plan ? nf.format(plan.sent) : "–"}<small> / {plan ? nf.format(plan.target) : "–"}</small></b>
-                {plan && <em className={plan.delta < 0 ? "is-behind" : ""}>{pace(plan.delta)}</em>}
+                {plan && !plan.started
+                  ? <><b className="sl-small">Startar {dayLabel(plan.start)}</b><em className="sl-grey">{nf.format(plan.target)} mejl på {plan.days} dagar</em></>
+                  : <><b>{plan ? nf.format(plan.sent) : "–"}<small> / {plan ? nf.format(plan.target) : "–"}</small></b>
+                    {plan && <em className={plan.delta < 0 ? "is-behind" : ""}>{pace(plan.delta)}</em>}</>}
               </div>
               <div>
                 <span>Dagar kvar</span>
                 <b>{plan ? plan.daysLeft : "–"}</b>
-                {plan && plan.daysLeft > 0 && <em>{plan.neededPerDay} / dag till {dayLabel(plan.end)}</em>}
+                {plan && plan.daysLeft > 0 && <em className="sl-grey">till {dayLabel(plan.end)}</em>}
               </div>
               <div>
                 <span>Svar</span>
                 <b>{pct(t.answered, t.contacted)}</b>
-                <em>{nf.format(t.answered)} av {nf.format(t.contacted)} · {nf.format(t.met)} möten</em>
+                <em className="sl-grey">{nf.format(t.answered)} av {nf.format(t.contacted)} mejlade har svarat · {nf.format(t.met)} {t.met === 1 ? "möte" : "möten"}</em>
+              </div>
+              <div>
+                <span>Väntar på dig</span>
+                <b>{waiting}</b>
+                <em className="sl-grey">{waiting ? "svar, uppföljningar, nästa steg" : "inget just nu"}</em>
               </div>
             </div>
 
-            {plan && (
+            {plan?.started && (
               <>
                 <div className="sl-chart" aria-label="Skickade per dag mot målet">
                   <div className="sl-target" style={{ bottom: `${(plan.perDay / maxDay) * 100}%` }} />
@@ -139,11 +166,12 @@ export function SalesPage() {
 
             <div className="sl-grid">
               <section>
-                <h2>Dagens {data.queue.length}</h2>
+                <h2>{data.queueFor === "today" ? `Att skicka idag (${data.queue.length})` : `Imorgon: nästa ${data.queue.length}`}</h2>
                 <p className="sl-muted">
+                  {data.queueFor === "today" ? "Inte mejlade än. " : "Du är klar för idag. Det här är tur imorgon. "}
                   Prioritet först, sedan närmast deadline. {nf.format(t.notContactedReachable)} kvar med mejladress
                   {t.hiringOpen > 0 && <> · {nf.format(t.hiringOpen)} rekryterar just nu</>}
-                  {t.expired > 0 && <> · {nf.format(t.expired)} annonser stängda innan vi hann skriva</>}.
+                  {t.expired > 0 && <> · {nf.format(t.expired)} {t.expired === 1 ? "annons stängd" : "annonser stängda"} innan vi hann skriva</>}.
                 </p>
                 <ol className="sl-queue">
                   {data.queue.map((p) => (
@@ -164,22 +192,8 @@ export function SalesPage() {
               </section>
 
               <section>
-                {data.needsEmail.length > 0 && (
-                  <>
-                    <h2>Rekryterar, saknar mejl</h2>
-                    <p className="sl-muted">Hitta grundaren eller vd:n innan annonsen stänger.</p>
-                    <ul className="sl-list">
-                      {data.needsEmail.map((p) => (
-                        <li key={p.id}>
-                          <b>{p.company}</b>
-                          <span>{closes(p.deadline, data.today)} · {p.id}{p.location ? ` · ${p.location}` : ""}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
                 <h2>Väntar på dig{waiting ? ` (${waiting})` : ""}</h2>
-                {!waiting && <p className="sl-muted">Inget som väntar. Skicka dagens mejl.</p>}
+                {!waiting && <p className="sl-muted">Inget som väntar just nu. Svar, uppföljningar och nästa steg hamnar här.</p>}
                 {data.toAnswer.length > 0 && <h3>Svara</h3>}
                 <ul className="sl-list">
                   {data.toAnswer.map((p) => (
@@ -207,6 +221,20 @@ export function SalesPage() {
                     </li>
                   ))}
                 </ul>
+                {data.needsEmail.length > 0 && (
+                  <>
+                    <h2>Rekryterar, saknar mejl</h2>
+                    <p className="sl-muted">Hitta grundaren eller vd:n innan annonsen stänger.</p>
+                    <ul className="sl-list">
+                      {data.needsEmail.map((p) => (
+                        <li key={p.id}>
+                          <b>{p.company}</b>
+                          <span>{closes(p.deadline, data.today)} · {p.id}{p.location ? ` · ${p.location}` : ""}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </section>
             </div>
 
@@ -231,7 +259,7 @@ export function SalesPage() {
               {data.log.map((e, i) => (
                 <li key={`${e.date}-${e.id}-${i}`}>
                   <b>{e.company || e.id}</b>
-                  <span>{dayLabel(e.date)} · {e.type}{e.summary ? ` · ${e.summary}` : ""}</span>
+                  <span>{dayLabel(e.date)} · {LOG_SV[e.type] || e.type}{e.summary ? ` · ${e.summary.replace(/^Auto-reply: /, "")}` : ""}</span>
                 </li>
               ))}
             </ul>
@@ -253,6 +281,21 @@ const SALES_CSS = `
   .sl-actions button, .sl-actions a { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.12); background: #fff; color: #0a0a0a; cursor: pointer; text-decoration: none; }
   .sl-actions a { background: #0a0a0a; color: #fff; border-color: #0a0a0a; }
   .sl-actions button:disabled { color: #6e6e73; cursor: default; }
+  .sl-today { border: 1px solid rgba(0,0,0,0.1); border-radius: 18px; padding: 18px 20px; margin-bottom: 12px; }
+  .sl-today.is-done { background: #f3faf5; border-color: rgba(31,122,58,0.25); }
+  .sl-today-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .sl-today-head span { display: block; font-size: 13px; color: #6e6e73; margin-bottom: 4px; }
+  .sl-today-head b { font-size: clamp(22px, 3.4vw, 30px); font-weight: 700; letter-spacing: -0.03em; }
+  .sl-today.is-done .sl-today-head b { color: #1f7a3a; }
+  .sl-today-head strong { font-size: clamp(28px, 4vw, 38px); font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sl-today-head strong small { font-size: 0.5em; color: #6e6e73; font-weight: 600; }
+  .sl-today .sl-meter { margin-top: 12px; }
+  .sl-today.is-done .sl-meter i { background: #1f7a3a; }
+  .sl-sent { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .sl-sent li { font-size: 13px; padding: 5px 10px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,0.1); }
+  .sl-sent em { font-style: normal; color: #1f7a3a; font-weight: 600; }
+  .sl-kpis em.sl-grey { color: #6e6e73; font-weight: 500; }
+  .sl-kpis b.sl-small { font-size: clamp(20px, 2.6vw, 24px); }
   .sl-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .sl-kpis > div { border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; padding: 16px; display: grid; gap: 4px; align-content: start; }
   .sl-kpis span { font-size: 13px; color: #6e6e73; }

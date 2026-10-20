@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { isOwnerEmail, useSession } from "../../lib/owner.js";
@@ -12,10 +13,10 @@ import { ToastProvider } from "../../components/Toast.jsx";
 const NAV = [
   ["/admin", "Statistik"],
   ["/admin/sales", "Sälj"],
-  ["/admin/clients", "Kunder"],
-  ["/admin/stockholm", "Stockholm"],
   ["/admin/timeline", "Tidslinje"],
 ];
+// Side project, not the main work: kept apart on the right, in orange.
+const SIDE = ["/admin/stockholm", "Stockholm"];
 
 // The server check runs once per signed-in user, not on every page switch.
 let verifiedUserId = null;
@@ -70,7 +71,13 @@ export function AdminShell({ title, fill = false, children }) {
               </NavLink>
             ))}
           </nav>
-          <button type="button" onClick={() => supabase.auth.signOut()}>Logga ut</button>
+          <div className="ad-side">
+            <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>
+            <button type="button" onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
+              <span className="ad-out-text">Logga ut</span>
+              <LogOut className="ad-out-icon" size={17} />
+            </button>
+          </div>
         </header>
         <main className="ad-main">{children}</main>
       </div>
@@ -88,7 +95,20 @@ const ADMIN_CSS = `
   .ad-bar nav a { padding: 7px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; color: #6e6e73; text-decoration: none; white-space: nowrap; }
   .ad-bar nav a:hover { color: #0a0a0a; }
   .ad-bar nav a.is-on { background: #0a0a0a; color: #fff; }
+  .ad-side { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .ad-stockholm { padding: 7px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; color: #D9480F; background: rgba(217,72,15,0.08); }
+  .ad-stockholm:hover { background: rgba(217,72,15,0.14); }
+  .ad-stockholm.is-on { background: #D9480F; color: #fff; }
   .ad-bar button { font: inherit; font-size: 13px; color: #6e6e73; background: none; border: 0; cursor: pointer; white-space: nowrap; }
   .ad-bar button:hover { color: #0a0a0a; }
+  .ad-out-icon { display: none; }
+  @media (max-width: 520px) {
+    .ad-bar { gap: 8px; }
+    .ad-bar nav { gap: 0; min-width: 0; }
+    .ad-bar nav a, .ad-stockholm { padding: 7px 10px; }
+    .ad-side { gap: 8px; }
+    .ad-out-text { display: none; }
+    .ad-out-icon { display: block; }
+  }
   .ad-fill .ad-main { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; overflow: hidden; }
 `;

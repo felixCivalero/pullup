@@ -29,9 +29,16 @@ const LANE_GAP = 360; // default vertical spacing when auto-placing a new lane
 const LANE_PALETTE = ["#fb923c", "#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#22d3ee", "#f87171", "#a3e635"];
 
 // Which events a lane shows, given its filter.
+// The default lane made for an empty timeline, per scope: a second mount
+// (React dev, or switching back fast) reuses it instead of posting another.
+const defaultLanes = new Map();
+
 const laneEvents = (lane, events) => (lane?.eventFilter?.mode === "selected" ? events.filter((e) => (lane.eventFilter.eventIds || []).includes(e.id)) : events);
 
-export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, events = [], onSaveStatus, onEventCreate, onEventChange, onEventDelete }, ref) {
+// clientId: whose timeline this is. The parent remounts the canvas (key) when
+// it changes, so mount-time loads read the right one.
+export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, clientId = null, events = [], onSaveStatus, onEventCreate, onEventChange, onEventDelete }, ref) {
+  const scope = clientId ? `?client=${clientId}` : "";
   const containerRef = useRef(null);
   const today = useMemo(() => startOfDay(new Date()), []);
   // Stable, chronological colour per event — drives "event" colour mode.
@@ -103,7 +110,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     let alive = true;
     (async () => {
       try {
-        const res = await authenticatedFetch("/admin/planner/cards");
+        const res = await authenticatedFetch(`/admin/planner/cards${scope}`);
         if (res.ok) {
           const data = await res.json();
           if (alive) setState((s) => ({ ...s, items: Array.isArray(data.cards) ? data.cards : [] }));
@@ -123,14 +130,18 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     let alive = true;
     (async () => {
       try {
-        const res = await authenticatedFetch("/admin/planner/timelines");
+        const res = await authenticatedFetch(`/admin/planner/timelines${scope}`);
         if (!res.ok) return;
         const data = await res.json();
         let tls = Array.isArray(data.timelines) ? data.timelines : [];
         if (!tls.length) {
-          const def = { id: uid(), name: "All events", color: LANE_PALETTE[0], y: 0, sort: 0, eventFilter: { mode: "all", eventIds: [] } };
+          let def = defaultLanes.get(scope);
+          if (!def) {
+            def = { id: uid(), name: "All events", color: LANE_PALETTE[0], y: 0, sort: 0, eventFilter: { mode: "all", eventIds: [] } };
+            defaultLanes.set(scope, def);
+            authenticatedFetch(`/admin/planner/timelines${scope}`, { method: "POST", body: JSON.stringify(def) }).catch(() => {});
+          }
           tls = [def];
-          authenticatedFetch("/admin/planner/timelines", { method: "POST", body: JSON.stringify(def) }).catch(() => {});
         }
         if (alive) setTimelines(tls);
       } catch {
@@ -233,9 +244,9 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
 
   const createCardRemote = useCallback(
     async (c) => {
-      await trackFetch("/admin/planner/cards", { method: "POST", body: JSON.stringify({ id: c.id, ...cardPayload(c) }) }).catch(() => {});
+      await trackFetch(`/admin/planner/cards${scope}`, { method: "POST", body: JSON.stringify({ id: c.id, ...cardPayload(c) }) }).catch(() => {});
     },
-    [trackFetch],
+    [trackFetch, scope],
   );
 
   const deleteCardRemote = useCallback(
@@ -282,8 +293,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, eve
     const maxSort = tls.reduce((m, t) => Math.max(m, t.sort), -1);
     const t = { id: uid(), name: "New timeline", color: LANE_PALETTE[tls.length % LANE_PALETTE.length], y: tls.length ? maxY + LANE_GAP : 0, sort: maxSort + 1, eventFilter: { mode: "all", eventIds: [] } };
     setTimelines((p) => [...p, t]);
-    trackFetch("/admin/planner/timelines", { method: "POST", body: JSON.stringify(t) }).catch(() => {});
-  }, [trackFetch]);
+    trackFetch(`/admin/planner/timelines${scope}`, { method: "POST", body: JSON.stringify(t) }).catch(() => {});
+  }, [trackFetch, scope]);
 
   const deleteTimeline = useCallback(
     (id) => {

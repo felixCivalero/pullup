@@ -1,6 +1,7 @@
 // Content timeline (admin → Tidslinje): cards, timelines (lanes), event marks
 // and signed upload URLs for card media. Owner only; rows scoped to the
-// owner's user id.
+// owner's user id. Each client has its own timeline: lists and creates take
+// ?client=<client id>; without it they work on content that has no client.
 import crypto from "crypto";
 import { requireOwner } from "../middleware/requireOwner.js";
 import { supabase } from "../supabase.js";
@@ -15,6 +16,8 @@ const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "im
 
 // Wrap a handler: owner gate, JSON errors, `result.error` → status.
 const STATUS = { not_found: 404, missing_id: 400, bad_date: 400 };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const clientOf = (req) => (UUID.test(String(req.query.client || "")) ? req.query.client : null);
 function handle(fn, okStatus = 200) {
   return [
     requireOwner,
@@ -35,9 +38,9 @@ export function registerAdminPlannerRoutes(app) {
   const P = "/admin/planner";
 
   // Cards
-  app.get(`${P}/cards`, ...handle(async (req) => ({ cards: await getPlannerCards(req.user.id) })));
+  app.get(`${P}/cards`, ...handle(async (req) => ({ cards: await getPlannerCards(req.user.id, clientOf(req)) })));
   app.post(`${P}/cards`, ...handle(async (req) => {
-    const r = await createPlannerCard(req.user.id, req.body || {});
+    const r = await createPlannerCard(req.user.id, req.body || {}, clientOf(req));
     return r.error ? r : r.card;
   }, 201));
   app.patch(`${P}/cards/:id`, ...handle(async (req) => {
@@ -54,9 +57,9 @@ export function registerAdminPlannerRoutes(app) {
   }));
 
   // Timelines (lanes)
-  app.get(`${P}/timelines`, ...handle(async (req) => ({ timelines: await getPlannerTimelines(req.user.id) })));
+  app.get(`${P}/timelines`, ...handle(async (req) => ({ timelines: await getPlannerTimelines(req.user.id, clientOf(req)) })));
   app.post(`${P}/timelines`, ...handle(async (req) => {
-    const r = await createPlannerTimeline(req.user.id, req.body || {});
+    const r = await createPlannerTimeline(req.user.id, req.body || {}, clientOf(req));
     return r.error ? r : r.timeline;
   }, 201));
   app.patch(`${P}/timelines/:id`, ...handle(async (req) => {
@@ -66,9 +69,9 @@ export function registerAdminPlannerRoutes(app) {
   app.delete(`${P}/timelines/:id`, ...handle(async (req) => deletePlannerTimeline(req.params.id, req.user.id)));
 
   // Event marks
-  app.get(`${P}/events`, ...handle(async (req) => ({ events: await getPlannerEvents(req.user.id) })));
+  app.get(`${P}/events`, ...handle(async (req) => ({ events: await getPlannerEvents(req.user.id, clientOf(req)) })));
   app.post(`${P}/events`, ...handle(async (req) => {
-    const r = await createPlannerEvent(req.user.id, req.body || {});
+    const r = await createPlannerEvent(req.user.id, req.body || {}, clientOf(req));
     return r.error ? r : r.event;
   }, 201));
   app.patch(`${P}/events/:id`, ...handle(async (req) => {

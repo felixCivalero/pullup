@@ -1,7 +1,20 @@
 // Content timeline repo (admin → Tidslinje): cards, timelines (lanes) and the
 // event marks Felix adds himself, with their snake_case<->camelCase maps.
-// Everything is scoped by host_id = the owner's user id.
+// Everything is scoped by host_id = the owner's user id, and by client_id:
+// each client has its own timeline. null = content from before clients.
 import { supabase } from "../supabase.js";
+
+const forClient = (q, clientId) => (clientId ? q.eq("client_id", clientId) : q.is("client_id", null));
+
+// How many rows have no client: the admin offers them as "Utan kund".
+export async function countUnassignedPlanner(hostId) {
+  const counts = await Promise.all(["planner_cards", "planner_timelines", "planner_events"].map(async (table) => {
+    const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("host_id", hostId).is("client_id", null);
+    if (error) throw error;
+    return count || 0;
+  }));
+  return counts.reduce((a, b) => a + b, 0);
+}
 
 function mapPlannerCardFromDb(r) {
   return {
@@ -50,11 +63,11 @@ function plannerCardToDb(p) {
   return d;
 }
 
-export async function getPlannerCards(hostId) {
-  const { data, error } = await supabase
+export async function getPlannerCards(hostId, clientId = null) {
+  const { data, error } = await forClient(supabase
     .from("planner_cards")
     .select("*")
-    .eq("host_id", hostId)
+    .eq("host_id", hostId), clientId)
     .order("created_at", { ascending: true });
   if (error) {
     console.error("[getPlannerCards] error:", error);
@@ -63,9 +76,9 @@ export async function getPlannerCards(hostId) {
   return (data || []).map(mapPlannerCardFromDb);
 }
 
-export async function createPlannerCard(hostId, card) {
+export async function createPlannerCard(hostId, card, clientId = null) {
   if (!card?.id) return { error: "missing_id" };
-  const row = { id: card.id, host_id: hostId, ...plannerCardToDb(card) };
+  const row = { id: card.id, host_id: hostId, ...plannerCardToDb(card), client_id: clientId };
   const { data, error } = await supabase.from("planner_cards").insert(row).select("*").single();
   if (error) {
     console.error("[createPlannerCard] error:", error);
@@ -131,11 +144,11 @@ function timelineToDb(p) {
   return d;
 }
 
-export async function getPlannerTimelines(hostId) {
-  const { data, error } = await supabase
+export async function getPlannerTimelines(hostId, clientId = null) {
+  const { data, error } = await forClient(supabase
     .from("planner_timelines")
     .select("*")
-    .eq("host_id", hostId)
+    .eq("host_id", hostId), clientId)
     .order("sort", { ascending: true });
   if (error) {
     console.error("[getPlannerTimelines] error:", error);
@@ -144,8 +157,8 @@ export async function getPlannerTimelines(hostId) {
   return (data || []).map(mapTimelineFromDb);
 }
 
-export async function createPlannerTimeline(hostId, t) {
-  const row = { host_id: hostId, ...timelineToDb(t) };
+export async function createPlannerTimeline(hostId, t, clientId = null) {
+  const row = { host_id: hostId, ...timelineToDb(t), client_id: clientId };
   if (t?.id) row.id = t.id; // client may mint the id for optimistic add
   const { data, error } = await supabase.from("planner_timelines").insert(row).select("*").single();
   if (error) {
@@ -204,11 +217,11 @@ function plannerEventToDb(p) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function getPlannerEvents(hostId) {
-  const { data, error } = await supabase
+export async function getPlannerEvents(hostId, clientId = null) {
+  const { data, error } = await forClient(supabase
     .from("planner_events")
     .select("*")
-    .eq("host_id", hostId)
+    .eq("host_id", hostId), clientId)
     .order("starts_at", { ascending: true });
   if (error) {
     console.error("[getPlannerEvents] error:", error);
@@ -217,8 +230,8 @@ export async function getPlannerEvents(hostId) {
   return (data || []).map(mapPlannerEventFromDb);
 }
 
-export async function createPlannerEvent(hostId, ev) {
-  const row = { host_id: hostId, ...plannerEventToDb(ev) };
+export async function createPlannerEvent(hostId, ev, clientId = null) {
+  const row = { host_id: hostId, ...plannerEventToDb(ev), client_id: clientId };
   if (!DATE_RE.test(row.starts_at || "")) return { error: "bad_date" };
   if (ev?.id) row.id = ev.id;
   const { data, error } = await supabase.from("planner_events").insert(row).select("*").single();

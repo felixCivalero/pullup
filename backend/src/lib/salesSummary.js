@@ -78,13 +78,13 @@ function prospectOf(o) {
   };
 }
 
-// Stages where Felix is working with them: these have a client card in PullUp.
-export const CLIENT_STAGES = new Set(["Meeting booked", "Proposal sent", "Won"]);
+// A client is someone Felix works for: they get a content timeline in PullUp.
+export const CLIENT_STAGES = new Set(["Won"]);
 
 export const parseProspects = (prospectRows) => rowsToObjects(prospectRows).map(prospectOf).filter((p) => p.company);
 
-export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today, clientIds = new Set() }) {
-  const prospects = parseProspects(prospectRows).map((p) => ({ ...p, inPullUp: clientIds.has(p.id) }));
+export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today }) {
+  const prospects = parseProspects(prospectRows);
   const goal = readGoal(overviewRows);
 
   const stageCounts = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -159,6 +159,11 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
 
   const toAnswer = prospects.filter((p) => p.stage === "Replied");
 
+  // Booked meetings with prospects, soonest first (the date is Next step date).
+  const meetings = prospects
+    .filter((p) => p.stage === "Meeting booked")
+    .sort((a, b) => (a.nextStepDate || "9999").localeCompare(b.nextStepDate || "9999"));
+
   const due = prospects
     .filter((p) => p.nextStepDate && p.nextStepDate <= today && !CLOSED.has(p.stage))
     .sort((a, b) => a.nextStepDate.localeCompare(b.nextStepDate))
@@ -198,6 +203,7 @@ export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], 
     queue,
     needsEmail,
     toAnswer,
+    meetings,
     followUps,
     due,
     log,

@@ -82,6 +82,12 @@ const doneClosing = summarizeSales({
 assert(doneClosing.queue[0].id === "P-301", "tomorrow's list skips ads that close today");
 assert(s.totals.contacted === 5 && s.totals.answered === 3, "reply rate counts only prospects that were emailed");
 assert(before.plan.started === false && s.plan.started === true, "the plan knows whether it has started");
+const met = summarizeSales({
+  prospectRows: [HEADER, row({ ID: "P-400", Company: "Later", Stage: "Meeting booked", "Next step date": "2026-11-10" }), row({ ID: "P-401", Company: "Sooner", Stage: "Meeting booked", "Next step date": "2026-11-03" }), row({ ID: "P-402", Company: "Client", Stage: "Won" })],
+  overviewRows,
+  today: "2026-10-28",
+});
+assert(met.meetings.map((p) => p.id).join() === "P-401,P-400", "booked meetings are listed, soonest first");
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall sales-summary tests passed");

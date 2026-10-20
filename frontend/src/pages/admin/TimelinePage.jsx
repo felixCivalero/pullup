@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { useSession } from "../../lib/owner.js";
 import { colors } from "../../theme/colors.js";
@@ -7,14 +8,18 @@ import { PlannerCanvas } from "../../components/planner/PlannerCanvas.jsx";
 import { layoutKey } from "../../lib/plannerStore.js";
 import { AdminShell } from "./AdminShell.jsx";
 
-/* /admin/timeline — the content timeline: a pan/zoom canvas with dated lanes.
-   Content cards (drop media or add a placeholder) pin to dates; event marks
-   are added here too ("Add event") and edited on their flip side. */
+/* /admin/timeline — each client's content timeline: a pan/zoom canvas with
+   dated lanes. Content cards (drop media or add a placeholder) pin to dates;
+   event marks are added here too ("Add event") and edited on their flip side.
+   A client is a Won row in the sales sheet; pick one at the top (?kund=P-666).
+   Meeting notes live in the client's Google Doc, linked from here. */
 
 // The canvas works in local dates; the API stores 'YYYY-MM-DD'. Noon keeps a
 // date on the same day in every timezone.
 const toCanvas = (e) => ({ ...e, startsAt: `${e.startsAt}T12:00:00` });
 const toApi = (patch) => (patch.startsAt ? { ...patch, startsAt: patch.startsAt.slice(0, 10) } : patch);
+const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+const NONE = "utan-kund"; // content from before clients existed
 
 export function TimelinePage() {
   return (
@@ -25,20 +30,54 @@ export function TimelinePage() {
 }
 
 function Timeline() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
+  const [params, setParams] = useSearchParams();
+
+  useEffect(() => {
+    authenticatedFetch("/admin/clients")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setData)
+      .catch(() => setError(true));
+  }, []);
+
+  if (error) return <Empty>Kunde inte hämta kunderna.</Empty>;
+  if (!data) return null;
+
+  const clients = [...data.clients].sort((a, b) => (a.stage === "Won" ? 0 : 1) - (b.stage === "Won" ? 0 : 1));
+  const wanted = params.get("kund");
+  const current = wanted === NONE && data.unassigned > 0 ? null : clients.find((c) => c.prospectId === wanted) || clients[0] || null;
+  const pick = (key) => setParams({ kund: key }, { replace: true });
+  const updateClient = (client) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === client.id ? { ...c, ...client } : c)) }));
+
+  if (!current && !data.unassigned) {
+    return <Empty>Inga kunder än. En kund dyker upp här när raden i arket får Stage <b>Won</b>.</Empty>;
+  }
+
+  return (
+    <>
+      <ClientCanvas key={current?.id || NONE} clientId={current?.id || null} />
+      <ClientBar clients={clients} current={current} unassigned={data.unassigned} onPick={pick} onUpdate={updateClient} />
+    </>
+  );
+}
+
+function ClientCanvas({ clientId }) {
   const session = useSession();
-  const storageKey = session?.user?.id ? layoutKey(session.user.id) : null;
+  const storageKey = session?.user?.id ? `${layoutKey(session.user.id)}:${clientId || NONE}` : null;
+  const scope = clientId ? `?client=${clientId}` : "";
   const [events, setEvents] = useState([]);
   const [saveStatus, setSaveStatus] = useState("saved");
   const canvasRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
-    authenticatedFetch("/admin/planner/events")
+    authenticatedFetch(`/admin/planner/events${scope}`)
       .then((r) => (r.ok ? r.json() : { events: [] }))
       .then((d) => alive && setEvents((d.events || []).map(toCanvas)))
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [scope]);
 
   // Event writes are optimistic; a failed write shows in the save status.
   const write = useCallback(async (path, init) => {
@@ -54,8 +93,8 @@ function Timeline() {
 
   const onEventCreate = useCallback((ev) => {
     setEvents((p) => [...p, ev]);
-    write("/admin/planner/events", { method: "POST", body: JSON.stringify(toApi(ev)) });
-  }, [write]);
+    write(`/admin/planner/events${scope}`, { method: "POST", body: JSON.stringify(toApi(ev)) });
+  }, [write, scope]);
 
   const onEventChange = useCallback((id, patch) => {
     setEvents((p) => p.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -74,6 +113,7 @@ function Timeline() {
       <PlannerCanvas
         ref={canvasRef}
         storageKey={storageKey}
+        clientId={clientId}
         events={events}
         onSaveStatus={setSaveStatus}
         onEventCreate={onEventCreate}
@@ -112,6 +152,88 @@ function Timeline() {
     </div>
   );
 }
+
+function Empty({ children }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24, background: colors.background }}>
+      <p style={{ maxWidth: 420, textAlign: "center", fontSize: 15, lineHeight: 1.5, color: colors.textSubtle, margin: 0 }}>{children}</p>
+    </div>
+  );
+}
+
+// Top of the canvas: whose timeline this is, their meetings doc, next step.
+function ClientBar({ clients, current, unassigned, onPick, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setEditing(false); setUrl(current?.docUrl || ""); }, [current?.id, current?.docUrl]);
+
+  const saveDoc = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const r = await authenticatedFetch(`/admin/clients/${current.id}`, { method: "PATCH", body: JSON.stringify({ docUrl: url.trim() }) }).catch(() => null);
+    if (r?.ok) {
+      onUpdate((await r.json()).client);
+      setEditing(false);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="tl-bar">
+      <style>{BAR_CSS}</style>
+      <div className="tl-chips">
+        {clients.map((c) => (
+          <button key={c.id} type="button" className={`${c.id === current?.id ? "is-on" : ""}${c.stage !== "Won" ? " is-past" : ""}`} onClick={() => onPick(c.prospectId)} title={c.stage !== "Won" ? `Stage i arket: ${c.stage || "saknas"}` : undefined}>
+            {c.company}
+          </button>
+        ))}
+        {unassigned > 0 && (
+          <button type="button" className={`is-past${current ? "" : " is-on"}`} onClick={() => onPick(NONE)}>Utan kund</button>
+        )}
+      </div>
+      {current && (
+        <div className="tl-meta">
+          {!editing && current.docUrl && (
+            <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
+          )}
+          {!editing && (
+            <button type="button" className="tl-link" onClick={() => setEditing(true)}>{current.docUrl ? "Byt dokument" : "Lägg till mötesdokument"}</button>
+          )}
+          {editing && (
+            <form onSubmit={saveDoc}>
+              <input autoFocus type="url" placeholder="Länk till Google Doc" value={url} onChange={(e) => setUrl(e.target.value)} />
+              <button type="submit" disabled={saving}>{saving ? "Sparar…" : "Spara"}</button>
+              <button type="button" className="tl-link" onClick={() => setEditing(false)}>Avbryt</button>
+            </form>
+          )}
+          {current.nextStepDate && (
+            <span title={current.nextStep}>Nästa: {dayLabel(current.nextStepDate)}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BAR_CSS = `
+  .tl-bar { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; pointer-events: none; }
+  .tl-bar > * { pointer-events: auto; }
+  .tl-chips { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 6px 20px rgba(10,10,10,0.06); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .tl-chips button { font: inherit; font-size: 13.5px; font-weight: 600; padding: 7px 14px; border-radius: 999px; border: 0; background: none; color: #0a0a0a; cursor: pointer; white-space: nowrap; }
+  .tl-chips button:hover { background: #f2f2f2; }
+  .tl-chips button.is-past { color: #8e8e93; }
+  .tl-chips button.is-on { background: #0a0a0a; color: #fff; }
+  .tl-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 1px solid rgba(0,0,0,0.08); font-size: 13px; color: #6e6e73; }
+  .tl-meta a { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #0a0a0a; text-decoration: none; }
+  .tl-meta a:hover { text-decoration: underline; }
+  .tl-meta form { display: flex; align-items: center; gap: 8px; }
+  .tl-meta input { font: inherit; font-size: 13px; width: min(320px, 52vw); padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.18); }
+  .tl-meta form button[type=submit] { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 0; background: #0a0a0a; color: #fff; cursor: pointer; }
+  .tl-link { font: inherit; font-size: 13px; color: #6e6e73; background: none; border: 0; padding: 0; cursor: pointer; }
+  .tl-link:hover { color: #0a0a0a; }
+  @media (max-width: 640px) { .tl-bar { top: 66px; left: 10px; right: 10px; } }
+`;
 
 const Divider = () => <div style={{ width: 1, background: colors.border, margin: "2px 0", flexShrink: 0 }} />;
 

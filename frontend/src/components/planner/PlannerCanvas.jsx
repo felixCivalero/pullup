@@ -1348,7 +1348,8 @@ function ContentCard({ card, uploading, events, formats, timelines, linkColor, p
 
 // ── Content summary ────────────────────────────────────────────────
 // How much content this timeline has, broken down per event (with its
-// formats) and per format. Collapses to the total.
+// formats) and per format. Only what has content: no zero rows, and no
+// summary at all on an empty timeline. Collapses to the total.
 const NO_FORMAT = "No format";
 function ContentSummary({ cards, events }) {
   const [open, setOpen] = useState(() => typeof window === "undefined" || window.innerWidth > 640);
@@ -1360,10 +1361,12 @@ function ContentSummary({ cards, events }) {
   };
   const byEvent = [...events]
     .sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))
-    .map((ev) => ({ key: ev.id, title: ev.title, list: cards.filter((c) => c.eventId === ev.id) }));
+    .map((ev) => ({ key: ev.id, title: ev.title, list: cards.filter((c) => c.eventId === ev.id) }))
+    .filter((e) => e.list.length > 0);
   const loose = cards.filter((c) => !c.eventId || !events.some((ev) => ev.id === c.eventId));
   if (loose.length) byEvent.push({ key: "none", title: "No event", list: loose });
   const byFormat = tally(cards);
+  if (!cards.length) return null;
 
   const head = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSubtle, margin: "12px 0 4px" };
   const row = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, padding: "4px 0", fontSize: 12.5 };
@@ -1375,8 +1378,7 @@ function ContentSummary({ cards, events }) {
       </button>
       {open && (
         <div style={{ padding: "0 12px 10px", borderTop: `1px solid ${colors.border}` }}>
-          {cards.length === 0 && <p style={{ margin: "10px 0 0", fontSize: 12, color: colors.textMuted }}>No content yet.</p>}
-          {cards.length > 0 && byEvent.length > 0 && (
+          {byEvent.length > 0 && (
             <>
               <div style={head}>Per event</div>
               {byEvent.map((e) => (
@@ -1385,26 +1387,20 @@ function ContentSummary({ cards, events }) {
                     <span style={{ fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: e.key === "none" ? colors.textMuted : colors.text }}>{e.title}</span>
                     <b>{e.list.length}</b>
                   </div>
-                  {e.list.length > 0 && (
-                    <div style={{ marginTop: 2, fontSize: 11, color: colors.textMuted, lineHeight: 1.4 }}>
-                      {tally(e.list).map(([f, n]) => `${n} ${f}`).join(" · ")}
-                    </div>
-                  )}
+                  <div style={{ marginTop: 2, fontSize: 11, color: colors.textMuted, lineHeight: 1.4 }}>
+                    {tally(e.list).map(([f, n]) => `${n} ${f}`).join(" · ")}
+                  </div>
                 </div>
               ))}
             </>
           )}
-          {cards.length > 0 && (
-            <>
-              <div style={head}>Per format</div>
-              {byFormat.map(([f, n]) => (
-                <div key={f} style={row}>
-                  <span style={{ color: f === NO_FORMAT ? colors.textMuted : colors.text }}>{f}</span>
-                  <b>{n}</b>
-                </div>
-              ))}
-            </>
-          )}
+          <div style={head}>Per format</div>
+          {byFormat.map(([f, n]) => (
+            <div key={f} style={row}>
+              <span style={{ color: f === NO_FORMAT ? colors.textMuted : colors.text }}>{f}</span>
+              <b>{n}</b>
+            </div>
+          ))}
         </div>
       )}
     </div>

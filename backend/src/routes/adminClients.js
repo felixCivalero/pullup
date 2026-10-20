@@ -5,12 +5,10 @@ import { requireOwner } from "../middleware/requireOwner.js";
 import { readSalesSheet, salesSheetConfigured } from "../lib/salesSheet.js";
 import { parseProspects } from "../lib/salesSummary.js";
 import { updateClient } from "../repos/clients.js";
-import { countUnassignedPlanner } from "../repos/planner.js";
 import { syncClients } from "./adminSales.js";
 
 export function registerAdminClientRoutes(app) {
-  // GET /admin/clients — every client with its sheet stage and next step,
-  // and how much timeline content predates clients (unassigned).
+  // GET /admin/clients — every client with its sheet stage and next step.
   app.get("/admin/clients", requireOwner, async (req, res) => {
     if (!salesSheetConfigured()) return res.status(503).json({ error: "not_configured" });
     try {
@@ -22,7 +20,6 @@ export function registerAdminClientRoutes(app) {
           const p = byId.get(c.prospectId);
           return { ...c, stage: p?.stage || "", nextStep: p?.nextStep || "", nextStepDate: p?.nextStepDate || "" };
         }),
-        unassigned: await countUnassignedPlanner(req.user.id),
       });
     } catch (err) {
       console.error("[admin/clients] error:", err?.message);

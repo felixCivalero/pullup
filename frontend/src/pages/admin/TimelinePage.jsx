@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText } from "lucide-react";
+import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText, ChevronDown } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { useSession } from "../../lib/owner.js";
 import { colors } from "../../theme/colors.js";
@@ -19,7 +19,6 @@ import { AdminShell } from "./AdminShell.jsx";
 const toCanvas = (e) => ({ ...e, startsAt: `${e.startsAt}T12:00:00` });
 const toApi = (patch) => (patch.startsAt ? { ...patch, startsAt: patch.startsAt.slice(0, 10) } : patch);
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
-const NONE = "utan-kund"; // content from before clients existed
 
 export function TimelinePage() {
   return (
@@ -45,27 +44,26 @@ function Timeline() {
   if (!data) return null;
 
   const clients = [...data.clients].sort((a, b) => (a.stage === "Won" ? 0 : 1) - (b.stage === "Won" ? 0 : 1));
-  const wanted = params.get("kund");
-  const current = wanted === NONE && data.unassigned > 0 ? null : clients.find((c) => c.prospectId === wanted) || clients[0] || null;
+  const current = clients.find((c) => c.prospectId === params.get("kund")) || clients[0] || null;
   const pick = (key) => setParams({ kund: key }, { replace: true });
   const updateClient = (client) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === client.id ? { ...c, ...client } : c)) }));
 
-  if (!current && !data.unassigned) {
+  if (!current) {
     return <Empty>Inga kunder än. En kund dyker upp här när raden i arket får Stage <b>Won</b>.</Empty>;
   }
 
   return (
     <>
-      <ClientCanvas key={current?.id || NONE} clientId={current?.id || null} />
-      <ClientBar clients={clients} current={current} unassigned={data.unassigned} onPick={pick} onUpdate={updateClient} />
+      <ClientCanvas key={current.id} clientId={current.id} />
+      <ClientBar key={current.id} clients={clients} current={current} onPick={pick} onUpdate={updateClient} />
     </>
   );
 }
 
 function ClientCanvas({ clientId }) {
   const session = useSession();
-  const storageKey = session?.user?.id ? `${layoutKey(session.user.id)}:${clientId || NONE}` : null;
-  const scope = clientId ? `?client=${clientId}` : "";
+  const storageKey = session?.user?.id ? `${layoutKey(session.user.id)}:${clientId}` : null;
+  const scope = `?client=${clientId}`;
   const [events, setEvents] = useState([]);
   const [saveStatus, setSaveStatus] = useState("saved");
   const canvasRef = useRef(null);
@@ -161,12 +159,26 @@ function Empty({ children }) {
   );
 }
 
-// Top of the canvas: whose timeline this is, their meetings doc, next step.
-function ClientBar({ clients, current, unassigned, onPick, onUpdate }) {
+// Top of the canvas: whose timeline this is (a dropdown of clients), their
+// meetings doc, and the next step from the sheet. Keyed by client.
+function ClientBar({ clients, current, onPick, onUpdate }) {
+  const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(current.docUrl || "");
   const [saving, setSaving] = useState(false);
-  useEffect(() => { setEditing(false); setUrl(current?.docUrl || ""); }, [current?.id, current?.docUrl]);
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onDown = (e) => { if (!pickerRef.current?.contains(e.target)) setMenu(false); };
+    const onKey = (e) => { if (e.key === "Escape") setMenu(false); };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
 
   const saveDoc = async (e) => {
     e.preventDefault();
@@ -182,36 +194,43 @@ function ClientBar({ clients, current, unassigned, onPick, onUpdate }) {
   return (
     <div className="tl-bar">
       <style>{BAR_CSS}</style>
-      <div className="tl-chips">
-        {clients.map((c) => (
-          <button key={c.id} type="button" className={`${c.id === current?.id ? "is-on" : ""}${c.stage !== "Won" ? " is-past" : ""}`} onClick={() => onPick(c.prospectId)} title={c.stage !== "Won" ? `Stage i arket: ${c.stage || "saknas"}` : undefined}>
-            {c.company}
-          </button>
-        ))}
-        {unassigned > 0 && (
-          <button type="button" className={`is-past${current ? "" : " is-on"}`} onClick={() => onPick(NONE)}>Utan kund</button>
+      <div className="tl-picker" ref={pickerRef}>
+        <button type="button" className="tl-current" onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
+          <span>{current.company}</span>
+          <ChevronDown size={16} />
+        </button>
+        {menu && (
+          <ul className="tl-menu">
+            {clients.map((c) => (
+              <li key={c.id}>
+                <button type="button" className={c.id === current.id ? "is-on" : undefined} onClick={() => { setMenu(false); onPick(c.prospectId); }}>
+                  <b>{c.company}</b>
+                  {c.stage !== "Won" && <span>{c.stage || "saknas i arket"}</span>}
+                  {c.id === current.id && <Check size={14} />}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-      {current && (
-        <div className="tl-meta">
-          {!editing && current.docUrl && (
-            <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
-          )}
-          {!editing && (
-            <button type="button" className="tl-link" onClick={() => setEditing(true)}>{current.docUrl ? "Byt dokument" : "Lägg till mötesdokument"}</button>
-          )}
-          {editing && (
-            <form onSubmit={saveDoc}>
-              <input autoFocus type="url" placeholder="Länk till Google Doc" value={url} onChange={(e) => setUrl(e.target.value)} />
-              <button type="submit" disabled={saving}>{saving ? "Sparar…" : "Spara"}</button>
-              <button type="button" className="tl-link" onClick={() => setEditing(false)}>Avbryt</button>
-            </form>
-          )}
-          {current.nextStepDate && (
-            <span title={current.nextStep}>Nästa: {dayLabel(current.nextStepDate)}</span>
-          )}
-        </div>
-      )}
+      <div className="tl-meta">
+        {!editing && current.docUrl && (
+          <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
+        )}
+        {!editing && (
+          <button type="button" className="tl-link" onClick={() => setEditing(true)}>{current.docUrl ? "Byt dokument" : "Lägg till mötesdokument"}</button>
+        )}
+        {editing && (
+          <form onSubmit={saveDoc}>
+            <input autoFocus type="url" placeholder="Länk till Google Doc" value={url} onChange={(e) => setUrl(e.target.value)} />
+            <button type="submit" disabled={saving}>{saving ? "Sparar…" : "Spara"}</button>
+            <button type="button" className="tl-link" onClick={() => setEditing(false)}>Avbryt</button>
+          </form>
+        )}
+        {current.nextStepDate && (
+          <span title={current.nextStep}>Nästa: {dayLabel(current.nextStepDate)}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -219,11 +238,14 @@ function ClientBar({ clients, current, unassigned, onPick, onUpdate }) {
 const BAR_CSS = `
   .tl-bar { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; pointer-events: none; }
   .tl-bar > * { pointer-events: auto; }
-  .tl-chips { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 6px 20px rgba(10,10,10,0.06); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .tl-chips button { font: inherit; font-size: 13.5px; font-weight: 600; padding: 7px 14px; border-radius: 999px; border: 0; background: none; color: #0a0a0a; cursor: pointer; white-space: nowrap; }
-  .tl-chips button:hover { background: #f2f2f2; }
-  .tl-chips button.is-past { color: #8e8e93; }
-  .tl-chips button.is-on { background: #0a0a0a; color: #fff; }
+  .tl-picker { position: relative; }
+  .tl-current { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 14px; font-weight: 700; padding: 9px 12px 9px 16px; border-radius: 999px; border: 0; background: #0a0a0a; color: #fff; cursor: pointer; box-shadow: 0 6px 20px rgba(10,10,10,0.12); max-width: 70vw; }
+  .tl-current span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; margin: 0; padding: 6px; list-style: none; border-radius: 14px; background: #fff; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 14px 38px rgba(10,10,10,0.14); }
+  .tl-menu button { width: 100%; display: flex; align-items: center; gap: 8px; font: inherit; font-size: 14px; text-align: left; padding: 9px 10px; border-radius: 9px; border: 0; background: none; color: #0a0a0a; cursor: pointer; }
+  .tl-menu button:hover { background: #f4f4f5; }
+  .tl-menu b { font-weight: 600; flex: 1; }
+  .tl-menu span { font-size: 12px; color: #8e8e93; }
   .tl-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 1px solid rgba(0,0,0,0.08); font-size: 13px; color: #6e6e73; }
   .tl-meta a { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #0a0a0a; text-decoration: none; }
   .tl-meta a:hover { text-decoration: underline; }

@@ -123,7 +123,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     return () => {
       alive = false;
     };
-  }, []);
+  }, [scope]);
 
   // Load timelines (lanes). Bootstrap a default "All events" lane on first run.
   useEffect(() => {
@@ -151,7 +151,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     return () => {
       alive = false;
     };
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -360,6 +360,14 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
       else n.add(id);
       return n;
     });
+  }, []);
+
+  // Events open one at a time (event keys are "lane:event").
+  const openOnly = useCallback((id) => {
+    setFlippedIds((p) => new Set([...p].filter((k) => !k.includes(":")).concat(id)));
+  }, []);
+  const closeFlip = useCallback((id) => {
+    setFlippedIds((p) => { const n = new Set(p); n.delete(id); return n; });
   }, []);
 
   const bringToFront = useCallback((id) => setRaisedId(id), []);
@@ -756,6 +764,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   const cardLinkColor = (c) =>
     colorMode === "event" ? (c.eventId ? eventColorMap[c.eventId] || NEUTRAL_LINK : NEUTRAL_LINK) : channelColor(c.channel);
   // Event marks stay blue in source mode; take their palette colour in event mode.
+  const eventX = (ev) => offsetToX(offsetOfDate(ev.startsAt));
   const eventMarkColor = (ev) => (colorMode === "event" ? eventColorMap[ev.id] || TIMELINE_COLOR : TIMELINE_COLOR);
   const ready = size.w > 0;
 
@@ -816,7 +825,11 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   for (const lane of timelines) {
     let top = lane.y + BAND_TOP;
     let bottom = lane.y + BAND_BOTTOM + 38; // include the date ticks under the band
-    if (laneEvents(lane, events).length) top = Math.min(top, lane.y + BAND_TOP - 9 - EVENT_FRONT_H);
+    const evs = laneEvents(lane, events);
+    if (evs.length) {
+      const maxRow = Math.max(0, ...Object.values(eventRows(evs, eventX)));
+      top = Math.min(top, eventTop(lane.y, maxRow) - 4);
+    }
     for (const c of cards) {
       if (!lanesOf(c).some((l) => l.id === lane.id)) continue;
       top = Math.min(top, c.y);
@@ -908,28 +921,32 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
             <div key={`${c.key}-dot`} onPointerDown={(e) => startRelink(e, c.cardId, c.linkId)} title="Drag to change the date · drag off the line to remove" style={{ position: "absolute", left: c.x2 - 7, top: c.y2 - 7, width: 14, height: 14, borderRadius: "50%", background: c.color, border: `2px solid ${colors.background}`, cursor: "ew-resize" }} />
           ))}
 
-          {/* Event banners — filtered per lane, sit on that lane's mark */}
-          {timelines.map((lane) =>
-            laneEvents(lane, events).map((ev) => {
-              const bannerKey = `${lane.id}:${ev.id}`;
+          {/* Event pills — filtered per lane, on that lane's band at their date */}
+          {timelines.map((lane) => {
+            const evs = laneEvents(lane, events);
+            const rows = eventRows(evs, eventX);
+            return evs.map((ev) => {
+              const key = `${lane.id}:${ev.id}`;
               return (
-                <EventBanner
-                  key={bannerKey}
+                <EventPill
+                  key={key}
                   ev={ev}
-                  x={offsetToX(offsetOfDate(ev.startsAt))}
+                  x={eventX(ev)}
                   laneY={lane.y}
+                  row={rows[ev.id]}
                   color={eventMarkColor(ev)}
                   phase={eventPhase(ev, today)}
-                  flipped={flippedIds.has(bannerKey)}
-                  raised={raisedId === bannerKey}
-                  onRaise={() => bringToFront(bannerKey)}
-                  onToggleFlip={() => toggleFlip(bannerKey)}
+                  open={flippedIds.has(key)}
+                  raised={raisedId === key}
+                  onRaise={() => bringToFront(key)}
+                  onOpen={() => openOnly(key)}
+                  onClose={() => closeFlip(key)}
                   onChange={(patch) => onEventChange?.(ev.id, patch)}
                   onDelete={() => onEventDelete?.(ev.id)}
                 />
               );
-            }),
-          )}
+            });
+          })}
 
           {/* Content cards */}
           {cards.map((c) => (
@@ -1347,64 +1364,85 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
   );
 }
 
-// ── Event banner ────────────────────────────────────────────────────
-// A wide, slim banner sitting on its lane's mark. Same flip language as
-// content cards: upcoming events flip to a quick editor, past ones to a recap.
-const EVENT_W = 236;
-const EVENT_FRONT_H = 58;
-const EVENT_BACK_H = 236; // fallback before the back is measured
-const EVENT_FLIP_W = 272; // banners widen a touch when flipped open
+// ── Event pill ──────────────────────────────────────────────────────
+// A slim pill on its lane's band, starting at the event's date. Events close
+// together stack above the band (rows), each with a stem down to its date.
+// Clicking opens a small editor; Done, Enter, Esc or a click outside close it.
+const EVENT_H = 24;
+const EVENT_ROW = 30; // vertical step between stacked rows
+const EVENT_MAX_W = 230;
+const EVENT_EDIT_W = 260;
+const eventPillW = (ev) => Math.min(EVENT_MAX_W, 46 + String(ev.title || "").length * 6.4);
+// Row 0 sits on the band; later rows only when a pill would overlap.
+function eventRows(evs, xOf) {
+  const rows = {};
+  const ends = [];
+  [...evs].sort((a, b) => xOf(a) - xOf(b)).forEach((ev) => {
+    const x = xOf(ev) - 7;
+    let r = 0;
+    while (ends[r] !== undefined && ends[r] > x - 6) r += 1;
+    ends[r] = x + eventPillW(ev);
+    rows[ev.id] = r;
+  });
+  return rows;
+}
+const eventTop = (laneY, row) => (row === 0 ? laneY + BAND_TOP + (BAND_H - EVENT_H) / 2 : laneY + BAND_TOP - 6 - row * EVENT_ROW);
 
-function EventBanner({ ev, x, laneY, color, phase, flipped, raised, onRaise, onToggleFlip, onChange, onDelete }) {
-  const backRef = useRef(null);
-  const measuredBackH = useNaturalHeight(backRef);
-  const wrapperW = flipped ? EVENT_FLIP_W : EVENT_W;
-  const h = flipped ? (measuredBackH || EVENT_BACK_H) : EVENT_FRONT_H;
-  const bandTop = laneY + BAND_TOP;
-  const top = bandTop - 9 - h; // bottom edge floats just above the band, grows upward
-  const dim = phase === "past" && !flipped;
+function EventPill({ ev, x, laneY, row, color, phase, open, raised, onRaise, onOpen, onClose, onChange, onDelete }) {
+  const wrapRef = useRef(null);
+  const top = eventTop(laneY, row);
+  const past = phase === "past";
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
   return (
-    <>
-      {/* Mark through the band — same weight as Today, in event colour */}
-      <div style={{ position: "absolute", left: x, top: bandTop - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)", pointerEvents: "none" }} />
+    <div ref={wrapRef} onPointerDownCapture={onRaise} style={{ position: "absolute", left: 0, top: 0, zIndex: open ? 30 : raised ? 12 : 3 }}>
+      {/* Mark through the band at the date, and a stem up to a stacked pill */}
+      <div style={{ position: "absolute", left: x, top: laneY + BAND_TOP - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: color, transform: "translateX(-1px)", pointerEvents: "none" }} />
+      {row > 0 && <div style={{ position: "absolute", left: x, top: top + EVENT_H, width: 2, height: laneY + BAND_TOP - (top + EVENT_H), background: `${color}88`, transform: "translateX(-1px)", pointerEvents: "none" }} />}
 
-      <div onPointerDownCapture={onRaise} style={{ position: "absolute", left: x, top, width: wrapperW, height: h, transform: `translateX(-50%) ${flipped ? "scale(1.03)" : ""}`, perspective: 1400, transition: "height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1), transform 0.35s ease", zIndex: flipped ? 21 : raised ? 12 : 2 }}>
-        <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
-          {/* FRONT */}
-          <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: "50%", top: 0, transform: "translateX(-50%)", width: EVENT_W, height: EVENT_FRONT_H, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", display: "flex", alignItems: "center", gap: 9, padding: "0 12px 0 7px", borderRadius: 12, background: colors.background, border: `2px solid ${color}`, opacity: dim ? 0.78 : 1, filter: dim ? "saturate(0.75)" : "none", overflow: "hidden", cursor: "pointer", boxShadow: "0 8px 30px rgba(10,10,10,0.06)" }}>
-            <span style={{ width: 40, height: 40, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: colors.surface }}>
-              {ev.thumb && <img src={ev.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            </span>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 2, fontSize: 10.5, color: colors.textMuted }}>
-                <CalendarDays size={11} /> {ev.startsAt ? fmtDate(new Date(ev.startsAt)) : "Unscheduled"}
-                <span style={{ marginLeft: 4, padding: "1px 6px", borderRadius: 999, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color, background: `${color}18` }}>{phase === "past" ? "Recap" : "Upcoming"}</span>
-              </div>
-            </div>
-          </div>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => (open ? onClose() : onOpen())}
+        title={`${ev.title} · ${ev.startsAt ? fmtDate(new Date(ev.startsAt)) : ""}`}
+        style={{ position: "absolute", left: x - 7, top, height: EVENT_H, maxWidth: EVENT_MAX_W, display: "inline-flex", alignItems: "center", gap: 6, padding: "0 10px 0 4px", borderRadius: 999, border: `1.5px solid ${color}`, background: open ? color : colors.background, color: open ? "#fff" : colors.text, fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", opacity: past && !open ? 0.6 : 1, boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
+      >
+        {ev.thumb
+          ? <img src={ev.thumb} alt="" style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+          : <span style={{ width: 8, height: 8, margin: "0 4px", borderRadius: 2, transform: "rotate(45deg)", background: open ? "#fff" : color, flexShrink: 0 }} />}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</span>
+        <span style={{ fontWeight: 500, opacity: 0.6 }}>{ev.startsAt ? fmtDate(new Date(ev.startsAt)) : ""}</span>
+      </button>
 
-          {/* BACK */}
-          <div
-            ref={backRef}
-            onPointerDown={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            style={{ position: "absolute", top: 0, left: 0, width: EVENT_FLIP_W, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 12, overflow: "hidden", background: colors.background, border: `2px solid ${color}`, boxShadow: "0 14px 38px rgba(10,10,10,0.10)" }}
-          >
-            <EventEdit key={ev.title} ev={ev} color={color} onChange={onChange} onDelete={onDelete} />
-          </div>
+      {open && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          style={{ position: "absolute", left: x - 7, top: top - 8, width: EVENT_EDIT_W, transform: "translateY(-100%)", borderRadius: 12, overflow: "hidden", background: colors.background, border: `1.5px solid ${color}`, boxShadow: "0 14px 38px rgba(10,10,10,0.14)" }}
+        >
+          <EventEdit ev={ev} color={color} onChange={onChange} onDelete={onDelete} onDone={onClose} />
         </div>
-
-        <FlipTab accent={color} flipped={flipped} phase="future" onToggle={onToggleFlip} />
-      </div>
-    </>
+      )}
+    </div>
   );
 }
 
 // The event's back: edit title + date in place, or delete it. Events are marks
 // Felix adds himself — there is no separate event page.
-function EventEdit({ ev, color, onChange, onDelete }) {
-  const [title, setTitle] = useState(ev.title); // keyed on ev.title by the caller → resets on outside changes
+function EventEdit({ ev, color, onChange, onDelete, onDone }) {
+  const [title, setTitle] = useState(ev.title);
+  const save = () => { const t = title.trim() || "Event"; if (t !== ev.title) onChange({ title: t }); };
   const iso = (ev.startsAt || "").slice(0, 10);
   const label = { fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: colors.textSubtle, marginBottom: 4 };
   const field = { width: "100%", boxSizing: "border-box", padding: "7px 9px", borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.background, color: colors.text, fontSize: 13, fontFamily: "inherit" };
@@ -1417,10 +1455,12 @@ function EventEdit({ ev, color, onChange, onDelete }) {
         <label>
           <div style={label}>Title</div>
           <input
+            autoFocus
+            onFocus={(e) => e.target.select()}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => { const t = title.trim() || "Event"; if (t !== ev.title) onChange({ title: t }); }}
-            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+            onBlur={save}
+            onKeyDown={(e) => { if (e.key === "Enter") { save(); onDone(); } }}
             style={{ ...field, fontWeight: 600 }}
           />
         </label>
@@ -1429,12 +1469,18 @@ function EventEdit({ ev, color, onChange, onDelete }) {
           <input type="date" value={iso} onChange={(e) => e.target.value && onChange({ startsAt: `${e.target.value}T12:00:00` })} style={field} />
         </label>
       </div>
-      <div style={{ padding: "8px 12px", borderTop: `1px solid ${colors.border}`, display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ padding: "8px 12px", borderTop: `1px solid ${colors.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <button
           onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${ev.title}"?`)) onDelete(); }}
-          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 7, border: "none", background: "transparent", color: colors.danger || "#dc2626", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 7, border: "none", background: "transparent", color: colors.danger || "#dc2626", fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <Trash2 size={12} /> Delete event
+          <Trash2 size={12} /> Delete
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); save(); onDone(); }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 999, border: "none", background: color, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <Check size={13} /> Done
         </button>
       </div>
     </div>

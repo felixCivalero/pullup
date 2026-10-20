@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText, ChevronDown } from "lucide-react";
+import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText, ChevronDown, X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { useSession } from "../../lib/owner.js";
 import { colors } from "../../theme/colors.js";
 import { PlannerCanvas } from "../../components/planner/PlannerCanvas.jsx";
 import { layoutKey } from "../../lib/plannerStore.js";
+import { ProjectBoard } from "../../components/project/ProjectBoard.jsx";
+import { StrategyDeck } from "../../components/project/StrategyDeck.jsx";
 import { AdminShell } from "./AdminShell.jsx";
 
-/* /admin/timeline — each client's content timeline: a pan/zoom canvas with
-   dated lanes. Content cards (drop media or add a placeholder) pin to dates;
-   event marks are added here too ("Add event") and edited on their flip side.
-   A client is a Won row in the sales sheet; pick one at the top (?kund=P-666).
-   Meeting notes live in the client's Google Doc, linked from here. */
+/* /admin/projects — one project per client (a Won row in the sales sheet),
+   picked at the top (?kund=P-666), with three views (?vy=):
+     tidslinje  the content timeline: cards pinned to dates, event marks
+     board      free-form, for developing formats in meetings
+     strategi   the strategy deck: vision, goals, audience…
+   Formats tie the first two together: a format frame on the board is a
+   format on the timeline. The frame links to its cards (?format= focuses
+   them) and a card's format label links back to its frame.
+   Meeting notes live in the client's Google Doc, linked from the bar. */
 
 // The canvas works in local dates; the API stores 'YYYY-MM-DD'. Noon keeps a
 // date on the same day in every timezone.
@@ -20,15 +26,17 @@ const toCanvas = (e) => ({ ...e, startsAt: `${e.startsAt}T12:00:00` });
 const toApi = (patch) => (patch.startsAt ? { ...patch, startsAt: patch.startsAt.slice(0, 10) } : patch);
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 
-export function TimelinePage() {
+const VIEWS = [["tidslinje", "Tidslinje"], ["board", "Board"], ["strategi", "Strategi"]];
+
+export function ProjectPage() {
   return (
-    <AdminShell title="Tidslinje" fill>
-      <Timeline />
+    <AdminShell title="Projekt" fill>
+      <Projects />
     </AdminShell>
   );
 }
 
-function Timeline() {
+function Projects() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [params, setParams] = useSearchParams();
@@ -45,7 +53,9 @@ function Timeline() {
 
   const clients = [...data.clients].sort((a, b) => (a.stage === "Won" ? 0 : 1) - (b.stage === "Won" ? 0 : 1));
   const current = clients.find((c) => c.prospectId === params.get("kund")) || clients[0] || null;
-  const pick = (key) => setParams({ kund: key }, { replace: true });
+  const view = VIEWS.some(([v]) => v === params.get("vy")) ? params.get("vy") : "tidslinje";
+  const go = (next) => setParams(Object.fromEntries(Object.entries({ kund: current?.prospectId, vy: view, ...next }).filter(([, v]) => v)), { replace: true });
+  const pick = (key) => setParams({ kund: key, vy: view }, { replace: true });
   const updateClient = (client) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === client.id ? { ...c, ...client } : c)) }));
 
   if (!current) {
@@ -54,13 +64,76 @@ function Timeline() {
 
   return (
     <>
-      <ClientCanvas key={current.id} clientId={current.id} />
-      <ClientBar key={current.id} clients={clients} current={current} onPick={pick} onUpdate={updateClient} />
+      <Project key={current.id} client={current} view={view} focusFormat={params.get("format")} go={go} />
+      <ProjectBar key={`bar-${current.id}`} clients={clients} current={current} view={view} onView={(vy) => go({ vy, format: null })} onPick={pick} onUpdate={updateClient} />
     </>
   );
 }
 
-function ClientCanvas({ clientId }) {
+// One client's project: the format list and counts that tie the timeline and
+// the board together, and whichever view is open.
+function Project({ client, view, focusFormat, go }) {
+  const [boardFormats, setBoardFormats] = useState([]);
+  const [cards, setCards] = useState([]);
+
+  // Formats named on the board, for the timeline's format picker.
+  useEffect(() => {
+    authenticatedFetch(`/admin/projects/${client.id}/board`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setBoardFormats((d.doc?.items || []).filter((i) => i.type === "frame").map((i) => String(i.title || "").trim()).filter(Boolean)))
+      .catch(() => {});
+  }, [client.id]);
+
+  // The timeline's cards, for the counts on the board's format frames.
+  const loadCards = useCallback(() => {
+    authenticatedFetch(`/admin/planner/cards?client=${client.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setCards(d.cards || []))
+      .catch(() => {});
+  }, [client.id]);
+  useEffect(() => { if (view === "board" || focusFormat) loadCards(); }, [view, focusFormat, loadCards]);
+
+  const formatCounts = {};
+  for (const c of cards) {
+    const f = String(c.meta?.format || "").trim();
+    if (f) formatCounts[f] = (formatCounts[f] || 0) + 1;
+  }
+
+  // Renaming a frame renames the format on its timeline cards.
+  const renameFormat = useCallback(async (from, to) => {
+    const r = await authenticatedFetch(`/admin/planner/cards?client=${client.id}`).catch(() => null);
+    const list = r?.ok ? (await r.json()).cards || [] : [];
+    await Promise.all(list.filter((c) => String(c.meta?.format || "").trim() === from).map((c) =>
+      authenticatedFetch(`/admin/planner/cards/${c.id}`, { method: "PATCH", body: JSON.stringify({ meta: { ...c.meta, format: to } }) }).catch(() => null)));
+    loadCards();
+  }, [client.id, loadCards]);
+
+  if (view === "board") {
+    return (
+      <ProjectBoard
+        clientId={client.id}
+        formatCounts={formatCounts}
+        focusFormat={focusFormat}
+        onOpenFormat={(format) => go({ vy: "tidslinje", format })}
+        onRenameFormat={renameFormat}
+        onFramesChange={setBoardFormats}
+      />
+    );
+  }
+  if (view === "strategi") return <StrategyDeck clientId={client.id} projectName={client.company} />;
+  return (
+    <ClientCanvas
+      clientId={client.id}
+      boardFormats={boardFormats}
+      focusFormat={focusFormat}
+      focusCount={formatCounts[focusFormat] || 0}
+      onClearFocus={() => go({ format: null })}
+      onOpenFormat={(format) => go({ vy: "board", format })}
+    />
+  );
+}
+
+function ClientCanvas({ clientId, boardFormats, focusFormat, focusCount, onClearFocus, onOpenFormat }) {
   const session = useSession();
   const storageKey = session?.user?.id ? `${layoutKey(session.user.id)}:${clientId}` : null;
   const scope = `?client=${clientId}`;
@@ -112,6 +185,9 @@ function ClientCanvas({ clientId }) {
         ref={canvasRef}
         storageKey={storageKey}
         clientId={clientId}
+        extraFormats={boardFormats}
+        focusFormat={focusFormat}
+        onOpenFormat={onOpenFormat}
         events={events}
         onSaveStatus={setSaveStatus}
         onEventCreate={onEventCreate}
@@ -146,6 +222,13 @@ function ClientCanvas({ clientId }) {
         <ToolButton onClick={() => canvasRef.current?.addPlaceholder()} icon={<Plus size={16} />} label="Add placeholder" />
         <ToolButton onClick={() => canvasRef.current?.addEvent()} icon={<CalendarPlus size={16} />} label="Add event" />
       </div>
+      {focusFormat && (
+        <div style={{ position: "absolute", top: 72, left: "50%", transform: "translateX(-50%)", zIndex: 25, display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 8px 7px 14px", borderRadius: 999, background: "#0a0a0a", color: "#fff", fontSize: 13, fontWeight: 600, boxShadow: "0 10px 30px rgba(10,10,10,0.18)", whiteSpace: "nowrap" }}>
+          {focusCount ? `${focusCount} kort i formatet ${focusFormat}` : `Inga kort i formatet ${focusFormat} än`}
+          <button type="button" onClick={() => onOpenFormat(focusFormat)} style={{ font: "inherit", fontSize: 12.5, padding: "4px 10px", borderRadius: 999, border: 0, background: "rgba(255,255,255,0.16)", color: "#fff", cursor: "pointer" }}>Till boarden</button>
+          <button type="button" onClick={onClearFocus} aria-label="Visa allt" style={{ display: "grid", placeItems: "center", width: 26, height: 26, borderRadius: 999, border: 0, background: "none", color: "#fff", cursor: "pointer" }}><X size={15} /></button>
+        </div>
+      )}
       <style>{`@keyframes crm-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -159,9 +242,9 @@ function Empty({ children }) {
   );
 }
 
-// Top of the canvas: whose timeline this is (a dropdown of clients), their
+// Top of the project: whose it is (a dropdown of clients), the views, their
 // meetings doc, and the next step from the sheet. Keyed by client.
-function ClientBar({ clients, current, onPick, onUpdate }) {
+function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState(current.docUrl || "");
@@ -213,6 +296,11 @@ function ClientBar({ clients, current, onPick, onUpdate }) {
           </ul>
         )}
       </div>
+      <div className="tl-views" role="tablist">
+        {VIEWS.map(([v, label]) => (
+          <button key={v} type="button" role="tab" aria-selected={v === view} className={v === view ? "is-on" : undefined} onClick={() => onView(v)}>{label}</button>
+        ))}
+      </div>
       <div className="tl-meta">
         {!editing && current.docUrl && (
           <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
@@ -246,6 +334,10 @@ const BAR_CSS = `
   .tl-menu button:hover { background: #f4f4f5; }
   .tl-menu b { font-weight: 600; flex: 1; }
   .tl-menu span { font-size: 12px; color: #8e8e93; }
+  .tl-views { display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 6px 20px rgba(10,10,10,0.06); }
+  .tl-views button { font: inherit; font-size: 13.5px; font-weight: 600; padding: 6px 14px; border-radius: 999px; border: 0; background: none; color: #6e6e73; cursor: pointer; white-space: nowrap; }
+  .tl-views button:hover { color: #0a0a0a; }
+  .tl-views button.is-on { background: #f0f0f0; color: #0a0a0a; }
   .tl-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.94); border: 1px solid rgba(0,0,0,0.08); font-size: 13px; color: #6e6e73; }
   .tl-meta a { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #0a0a0a; text-decoration: none; }
   .tl-meta a:hover { text-decoration: underline; }

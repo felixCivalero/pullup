@@ -37,7 +37,10 @@ const laneEvents = (lane, events) => (lane?.eventFilter?.mode === "selected" ? e
 
 // clientId: whose timeline this is. The parent remounts the canvas (key) when
 // it changes, so mount-time loads read the right one.
-export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, clientId = null, events = [], onSaveStatus, onEventCreate, onEventChange, onEventDelete }, ref) {
+// extraFormats: formats named elsewhere (the project board) for the picker.
+// focusFormat: highlight that format's cards and bring them into view.
+// onOpenFormat(format): a card's format label was clicked (go to the board).
+export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, clientId = null, events = [], extraFormats = [], focusFormat = null, onOpenFormat, onSaveStatus, onEventCreate, onEventChange, onEventDelete }, ref) {
   const scope = clientId ? `?client=${clientId}` : "";
   const containerRef = useRef(null);
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -279,14 +282,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     [queueSaveTimeline],
   );
 
-  const createTimeline = useCallback(() => {
-    const tls = timelinesRef.current;
-    const maxY = tls.reduce((m, t) => Math.max(m, t.y), 0);
-    const maxSort = tls.reduce((m, t) => Math.max(m, t.sort), -1);
-    const t = { id: uid(), name: "New timeline", color: LANE_PALETTE[tls.length % LANE_PALETTE.length], y: tls.length ? maxY + LANE_GAP : 0, sort: maxSort + 1, eventFilter: { mode: "all", eventIds: [] } };
-    setTimelines((p) => [...p, t]);
-    trackFetch(`/admin/planner/timelines${scope}`, { method: "POST", body: JSON.stringify(t) }).catch(() => {});
-  }, [trackFetch, scope]);
 
   const deleteTimeline = useCallback(
     (id) => {
@@ -756,7 +751,21 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   const eventX = (ev) => offsetToX(offsetOfDate(ev.startsAt));
   const eventMarkColor = () => TIMELINE_COLOR;
   // Content formats used on this timeline (card.meta.format), for the picker.
-  const formats = [...new Set(cards.map((c) => String(c.meta?.format || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y));
+  const formats = [...new Set([...extraFormats, ...cards.map((c) => String(c.meta?.format || "").trim())].filter(Boolean))].sort((x, y) => x.localeCompare(y));
+  // Bring a focused format's cards into view (once per focus).
+  useEffect(() => {
+    if (!focusFormat || !loaded || !size.w) return;
+    const m = stateRef.current.items.filter((c) => String(c.meta?.format || "").trim() === focusFormat);
+    if (!m.length) return;
+    const minX = Math.min(...m.map((c) => c.x));
+    const maxX = Math.max(...m.map((c) => c.x + cardFrameW(c)));
+    const minY = Math.min(...m.map((c) => c.y));
+    const maxY = Math.max(...m.map((c) => c.y + cardHeight(c)));
+    const scale = clamp(Math.min((size.w - 120) / (maxX - minX || 1), (size.h - 220) / (maxY - minY || 1), 1), MIN_SCALE, 1);
+    setViewport({ scale, panX: size.w / 2 - ((minX + maxX) / 2) * scale, panY: size.h / 2 + 40 - ((minY + maxY) / 2) * scale }); // a little low: clear of the bars on top
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusFormat, loaded, size.w > 0]);
+  const focusOf = (c) => (focusFormat ? (String(c.meta?.format || "").trim() === focusFormat ? "match" : "other") : null);
   const ready = size.w > 0;
 
   const xMin = -panX / scale;
@@ -948,6 +957,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
               uploading={uploadingIds.has(c.id)}
               events={events}
               formats={formats}
+              focus={focusOf(c)}
+              onOpenFormat={onOpenFormat}
               timelines={timelines}
               linkColor={cardLinkColor(c)}
               phase={phaseOf(c, today)}
@@ -1008,15 +1019,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
           onClose={() => setFilterLaneId(null)}
         />
       )}
-
-      {/* Add timeline — bottom-left, clear of the centre toolbar */}
-      <button
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={createTimeline}
-        style={{ position: "absolute", left: 14, bottom: 22, zIndex: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 11, background: colors.background, border: `1px solid ${colors.border}`, color: colors.text, fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}
-      >
-        <Plus size={16} /> Add timeline
-      </button>
 
       {/* Keyboard shortcuts — discoverable cheat sheet */}
       <button
@@ -1179,7 +1181,7 @@ function useNaturalHeight(ref) {
   return h;
 }
 
-function ContentCard({ card, uploading, events, formats, timelines, linkColor, phase, flipped, raised, selected, coLanes, onRaise, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onToggleFlip, onRemove, onFill }) {
+function ContentCard({ card, uploading, events, formats, focus, onOpenFormat, timelines, linkColor, phase, flipped, raised, selected, coLanes, onRaise, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onToggleFlip, onRemove, onFill }) {
   const fileRef = useRef(null);
   const backRef = useRef(null);
   const measuredBackH = useNaturalHeight(backRef);
@@ -1216,7 +1218,7 @@ function ContentCard({ card, uploading, events, formats, timelines, linkColor, p
   );
 
   return (
-    <div style={{ position: "absolute", left: card.x, top: card.y, width: wrapperW, height: wrapperH, perspective: 1400, transform: flipped ? "scale(1.03)" : "none", transition: "transform 0.35s ease, height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1)", borderRadius: 6, boxShadow: selected ? `0 0 0 2px ${colors.accent}, 0 0 0 6px ${colors.accentSoft}` : "none", zIndex: flipped ? 20 : raised || selected ? 10 : 1 }}>
+    <div style={{ position: "absolute", left: card.x, top: card.y, width: wrapperW, height: wrapperH, perspective: 1400, transform: flipped ? "scale(1.03)" : "none", transition: "transform 0.35s ease, height 0.4s cubic-bezier(0.4,0,0.2,1), width 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s", borderRadius: 6, opacity: focus === "other" && !flipped ? 0.18 : 1, boxShadow: selected ? `0 0 0 2px ${colors.accent}, 0 0 0 6px ${colors.accentSoft}` : focus === "match" ? `0 0 0 3px ${colors.text}` : "none", zIndex: flipped ? 20 : raised || selected || focus === "match" ? 10 : 1 }}>
       <div style={{ position: "relative", width: "100%", height: "100%", transformStyle: "preserve-3d", transition: "transform 0.5s cubic-bezier(0.4,0,0.2,1)", transform: flipped ? "rotateY(180deg)" : "none" }}>
         {/* ── FRONT — the visual identity ── */}
         <div
@@ -1271,9 +1273,15 @@ function ContentCard({ card, uploading, events, formats, timelines, linkColor, p
               )}
               {/* Content format */}
               {card.meta?.format && (
-                <div title="Format" style={{ position: "absolute", bottom: 6, right: 6, maxWidth: "calc(100% - 40px)", padding: "3px 8px", borderRadius: 999, background: "rgba(255,255,255,0.92)", border: `1px solid ${colors.border}`, fontSize: 10.5, fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <button
+                  type="button"
+                  title="Open the format on the board"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); onOpenFormat?.(card.meta.format); }}
+                  style={{ position: "absolute", bottom: 6, right: 6, maxWidth: "calc(100% - 40px)", padding: "3px 8px", borderRadius: 999, background: focus === "match" ? colors.text : "rgba(255,255,255,0.92)", border: `1px solid ${focus === "match" ? colors.text : colors.border}`, fontFamily: "inherit", fontSize: 10.5, fontWeight: 700, color: focus === "match" ? colors.background : colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: onOpenFormat ? "pointer" : "default" }}
+                >
                   {card.meta.format}
-                </div>
+                </button>
               )}
               {/* Note indicator */}
               {card.note?.trim() && (

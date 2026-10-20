@@ -24,6 +24,7 @@ import { registerAdminStockholmRoutes } from "./routes/adminStockholm.js";
 import { registerAdminPlannerRoutes } from "./routes/adminPlanner.js";
 import { registerAdminSalesRoutes } from "./routes/adminSales.js";
 import { registerAdminClientRoutes } from "./routes/adminClients.js";
+import { registerAdminProjectRoutes } from "./routes/adminProjects.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -69,6 +70,7 @@ registerAdminStockholmRoutes(app);
 registerAdminPlannerRoutes(app);
 registerAdminSalesRoutes(app);
 registerAdminClientRoutes(app);
+registerAdminProjectRoutes(app);
 
 // Old platform links (/e/:slug event pages, /v/ verify links, /share/ cards)
 // still reach the API through nginx. Send people to the front page instead

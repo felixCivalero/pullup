@@ -13,7 +13,7 @@ import { ToastProvider } from "../../components/Toast.jsx";
 const NAV = [
   ["/admin", "Statistik"],
   ["/admin/sales", "Sälj"],
-  ["/admin/timeline", "Tidslinje"],
+  ["/admin/projects", "Projekt"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];

@@ -9,6 +9,8 @@
 //     Not contacted → Emailed → Followed up (a second email) → Replied
 //     (they wrote back). Meeting booked and later are Felix's to set.
 //   - every message is logged once in the Log tab (by Message-ID).
+//   - auto-replies (m.auto: out-of-office, ticket receipts, "thanks for your
+//     application") are logged as notes but never count as an answer.
 // A prospect matches by exact address, or by company domain when the sheet
 // has a shared inbox (info@brand.se) and the person answering is anna@brand.se.
 import { rowsToObjects, toDay } from "./salesSummary.js";
@@ -54,15 +56,15 @@ export function planMailSync({ prospectRows, logRows = [], messages }) {
       if (m.dir === "in") unknown.push(m);
       continue;
     }
-    const t = touched.get(p.row) || { p, out: [], in: [] };
-    t[m.dir].push(m);
+    const t = touched.get(p.row) || { p, out: [], in: [], auto: [] };
+    t[m.dir === "in" && m.auto ? "auto" : m.dir].push(m);
     touched.set(p.row, t);
   }
 
   const updates = [];
   const logAppend = [];
   const changes = [];
-  for (const { p, out, in: inbound } of touched.values()) {
+  for (const { p, out, in: inbound, auto } of touched.values()) {
     const id = String(p.o.ID || "");
     const set = (h, v) => updates.push({ row: p.row, col: col(h), header: h, value: v });
     const change = { id, company: String(p.o.Company || "") };
@@ -93,6 +95,9 @@ export function planMailSync({ prospectRows, logRows = [], messages }) {
     });
     for (const m of inbound) {
       if (m.messageId && !logged.has(m.messageId)) logAppend.push([m.date, id, null, "Email in", m.subject, m.messageId]);
+    }
+    for (const m of auto) {
+      if (m.messageId && !logged.has(m.messageId)) logAppend.push([m.date, id, null, "Note", `Auto-reply: ${m.subject}`, m.messageId]);
     }
     if (Object.keys(change).length > 2) changes.push(change);
   }

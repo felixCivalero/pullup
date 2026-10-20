@@ -153,6 +153,13 @@ const stockholmDay = (d) =>
   new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const colLetter = (i) => (i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26)));
 
+// Auto-replies: out-of-office, ticket receipts, "thanks for your application".
+const AUTO_SUBJECT = /^\s*(automatic reply|automatiskt svar|autosvar|auto[- ]?reply|autoreply|out of office|frånvaro|abwesend|fraværende|\[[^\]]*\]\s*förfrågan mottagen|vi har tagit emot|ärende mottaget|ticket received|we('|’)ve received)/i;
+const isAuto = (headers, subject) => {
+  const h = (headers || Buffer.alloc(0)).toString('utf8').toLowerCase();
+  return /auto-submitted:\s*auto-(replied|generated)/.test(h) || /x-autore(ply|spond)/.test(h) || /precedence:\s*(auto_reply|bulk|junk)/.test(h) || AUTO_SUBJECT.test(subject || '');
+};
+
 // Every message in INBOX and Sent since `since`, as the sync planner wants it.
 async function recentMessages(client, since) {
   const f = await folders(client);
@@ -162,7 +169,7 @@ async function recentMessages(client, since) {
     try {
       const uids = (await client.search({ since }, { uid: true })) || [];
       if (!uids.length) continue;
-      for await (const msg of client.fetch(uids, { envelope: true, uid: true, internalDate: true }, { uid: true })) {
+      for await (const msg of client.fetch(uids, { envelope: true, uid: true, internalDate: true, headers: ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence'] }, { uid: true })) {
         const e = msg.envelope || {};
         const from = bare(e.from);
         if (dir === 'in' && from.some((a) => AUTOMATED.test(a) || a === USER.toLowerCase())) continue;
@@ -173,6 +180,7 @@ async function recentMessages(client, since) {
           subject: e.subject || '',
           messageId: e.messageId || null,
           from: addr(e.from),
+          auto: dir === 'in' && isAuto(msg.headers, e.subject),
         });
       }
     } finally {

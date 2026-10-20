@@ -45,5 +45,9 @@ assert(plan.logAppend.every((r) => r[2] === null), "the Company column is left t
 const twice = planMailSync({ prospectRows, logRows, messages: [msg("out", "2026-10-22", "anna@alpha.se", "<a1>"), msg("out", "2026-10-28", "anna@alpha.se", "<a2>")] });
 assert(twice.updates.find((u) => u.row === 2 && u.header === "Stage").value === "Followed up", "a second email out means Followed up");
 
+const auto = planMailSync({ prospectRows, logRows, messages: [msg("out", "2026-10-22", "anna@alpha.se", "<a1>"), { ...msg("in", "2026-10-22", "anna@alpha.se", "<a3>", "Automatic reply: Hej"), auto: true }] });
+assert(auto.updates.find((u) => u.row === 2 && u.header === "Stage").value === "Emailed", "an auto-reply is not an answer");
+assert(auto.logAppend.some((r) => r[3] === "Note" && r[4].startsWith("Auto-reply")), "an auto-reply is logged as a note");
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall sales-mail-sync tests passed");

@@ -34,3 +34,6 @@ node_modules/
 
 # Personal / manual — never tracked (Felix keeps invoices here by hand)
 invoice/
+
+# Felix's CV and other private attachments for the mail tool
+tools/mail-mcp/assets/

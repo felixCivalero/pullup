@@ -34,6 +34,8 @@ const FROM = { name: process.env.MAIL_FROM_NAME || 'Felix Civalero', address: US
 const SEND_ENABLED = process.env.MAIL_SEND_ENABLED === 'true';
 const IMAP = { host: process.env.ONECOM_IMAP_HOST || 'imap.one.com', port: 993, secure: true };
 const SMTP = { host: process.env.ONECOM_SMTP_HOST || 'send.one.com', port: 465, secure: true };
+// Felix's CV, attached to drafts by default (assets/ is gitignored).
+const CV = { filename: 'CV_Felix_Civalero_Stolpe.pdf', path: path.join(here, 'assets', 'CV_Felix_Civalero_Stolpe.pdf'), contentType: 'application/pdf' };
 
 const SHEET = process.env.SALES_SHEET_ID;
 const sheetReady = () => !!SHEET && !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -129,7 +131,7 @@ const baseSubject = (s) => (s || '').replace(/^\s*((re|sv|vs|fw|fwd|aw)\s*:\s*)+
 
 // Build the RFC822 message once, so what we send, what lands in Sent and
 // what we log all share the same Message-ID.
-async function compose({ to, cc, bcc, subject, text, reply }) {
+async function compose({ to, cc, bcc, subject, text, reply, attachments = [] }) {
   const messageId = `<${randomUUID()}@pullup.se>`;
   const headers = {};
   let subj = subject;
@@ -138,7 +140,7 @@ async function compose({ to, cc, bcc, subject, text, reply }) {
     headers.References = [...reply.references, reply.message_id].filter(Boolean).join(' ');
     if (!subj) subj = /^\s*(re|sv)\s*:/i.test(reply.subject) ? reply.subject : `Re: ${reply.subject}`;
   }
-  const mail = new MailComposer({ from: FROM, to, cc, bcc, subject: subj, text, messageId, headers });
+  const mail = new MailComposer({ from: FROM, to, cc, bcc, subject: subj, text, messageId, headers, attachments });
   const raw = await mail.compile().build();
   return { raw, messageId, subject: subj };
 }
@@ -271,17 +273,35 @@ server.registerTool(
   'mail_draft',
   {
     description:
-      "Save a draft in felix@pullup.se's Drafts folder at one.com. Felix reviews and sends it from mail.one.com (or his phone). This is the default way to write mail.",
-    inputSchema: outgoing,
+      "Save a draft in felix@pullup.se's Drafts folder at one.com. Felix reviews and sends it from mail.one.com (or his phone). This is the default way to write mail. Felix's CV (PDF) is attached unless attach_cv is false. `replaces` removes an earlier draft (by its message_id) so a corrected draft doesn't leave a duplicate.",
+    inputSchema: {
+      ...outgoing,
+      attach_cv: z.boolean().optional().describe('Attach CV_Felix_Civalero_Stolpe.pdf (default true)'),
+      replaces: z.string().optional().describe('message_id of an earlier draft to delete'),
+    },
   },
   async (a) =>
     withImap(async (client) => {
       const f = await folders(client);
       const reply = await replyContext(client, a.reply_to);
       if (!a.subject && !reply) throw new Error('subject is required for a new message');
-      const { raw, messageId, subject } = await compose({ ...a, reply });
+      const attachments = a.attach_cv === false ? [] : [CV];
+      const { raw, messageId, subject } = await compose({ ...a, reply, attachments });
       await client.append(f.drafts, raw, ['\\Draft', '\\Seen']);
-      return json({ saved_to: f.drafts, subject, message_id: messageId });
+      let replaced = 0;
+      if (a.replaces) {
+        const lock = await client.getMailboxLock(f.drafts);
+        try {
+          const uids = (await client.search({ header: { 'message-id': a.replaces } }, { uid: true })) || [];
+          if (uids.length) {
+            await client.messageDelete(uids, { uid: true });
+            replaced = uids.length;
+          }
+        } finally {
+          lock.release();
+        }
+      }
+      return json({ saved_to: f.drafts, subject, message_id: messageId, cv_attached: attachments.length > 0, replaced });
     })
 );
 

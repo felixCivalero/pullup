@@ -3,7 +3,7 @@
 // The API behind pullup.se — Felix's site. Public: the "Jobba med mig"
 // request, the booklet link on the case pages and the site's own visit
 // analytics. Private: /admin/* (statistics, Stockholm scraper, content
-// timeline), Felix only (requireOwner).
+// timeline, sales pipeline from the Google Sheet), Felix only (requireOwner).
 //
 // The old PullUp platform (events, rooms, messaging, MCP …) lives on the
 // `pullup-app` branch.
@@ -22,6 +22,7 @@ import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerAdminStockholmRoutes } from "./routes/adminStockholm.js";
 import { registerAdminPlannerRoutes } from "./routes/adminPlanner.js";
+import { registerAdminSalesRoutes } from "./routes/adminSales.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -65,6 +66,7 @@ registerTrackBatchRoutes(app);
 registerAdminRoutes(app);
 registerAdminStockholmRoutes(app);
 registerAdminPlannerRoutes(app);
+registerAdminSalesRoutes(app);
 
 // Old platform links (/e/:slug event pages, /v/ verify links, /share/ cards)
 // still reach the API through nginx. Send people to the front page instead

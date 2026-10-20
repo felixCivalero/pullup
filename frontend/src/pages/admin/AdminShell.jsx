@@ -11,6 +11,7 @@ import { ToastProvider } from "../../components/Toast.jsx";
    `fill` = the page takes the whole viewport under the bar (the timeline). */
 const NAV = [
   ["/admin", "Statistik"],
+  ["/admin/sales", "Sälj"],
   ["/admin/stockholm", "Stockholm"],
   ["/admin/timeline", "Tidslinje"],
 ];

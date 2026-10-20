@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 /* pullup.se — Felix's site. Public: the front page, the case pages and the
    legal pages. Private: /login (not linked anywhere) → /admin (statistics),
    /admin/stockholm (culture scraper), /admin/timeline (content timeline),
+   /admin/sales (sales pipeline, read from the Google Sheet),
    Felix only.
    Everything else goes to the front page. The old PullUp platform lives on
    the `pullup-app` branch. */
@@ -18,6 +19,7 @@ const LoginPage = lazyPage(() => import("./pages/LoginPage"), "LoginPage");
 const StatsPage = lazyPage(() => import("./pages/admin/StatsPage"), "StatsPage");
 const StockholmPage = lazyPage(() => import("./pages/admin/StockholmPage"), "StockholmPage");
 const TimelinePage = lazyPage(() => import("./pages/admin/TimelinePage"), "TimelinePage");
+const SalesPage = lazyPage(() => import("./pages/admin/SalesPage"), "SalesPage");
 
 function App() {
   return (
@@ -34,6 +36,7 @@ function App() {
           <Route path="/admin" element={<StatsPage />} />
           <Route path="/admin/stockholm" element={<StockholmPage />} />
           <Route path="/admin/timeline" element={<TimelinePage />} />
+          <Route path="/admin/sales" element={<SalesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

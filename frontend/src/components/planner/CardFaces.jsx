@@ -74,7 +74,7 @@ export function AnalyticsFace({ card, accent, ranOn, onSet, onEdit }) {
 }
 
 // ── Edit / compose back ─────────────────────────────────────────────
-export function EditFace({ card, events, timelines = [], accent, onSet, onRemove }) {
+export function EditFace({ card, events, formats = [], timelines = [], accent, onSet, onRemove }) {
   const ch = card.channel ? CHANNELS[card.channel] : null;
   const isEmail = card.channel === "email";
   const allowedTypes = ch ? ch.types || [] : [];
@@ -145,6 +145,10 @@ export function EditFace({ card, events, timelines = [], accent, onSet, onRemove
           </select>
         </Field>
 
+        <Field label="Format">
+          <FormatPicker value={meta.format || ""} formats={formats} onChange={(format) => setMeta({ format })} />
+        </Field>
+
         {timelines.length > 1 && (() => {
           const on = card.timelineIds?.length ? card.timelineIds : timelines[0] ? [timelines[0].id] : [];
           const coPost = on.length > 1;
@@ -183,6 +187,47 @@ export function EditFace({ card, events, timelines = [], accent, onSet, onRemove
 }
 
 // ── small pieces ────────────────────────────────────────────────────
+
+// The content's format (e.g. "Lyrics cinematic"): pick one already used on
+// this timeline, or type a new one.
+const NEW_FORMAT = "__new__";
+function FormatPicker({ value, formats, onChange }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const options = value && !formats.includes(value) ? [...formats, value] : formats;
+  const commit = () => {
+    const f = draft.trim();
+    if (f) onChange(f);
+    setAdding(false);
+    setDraft("");
+  };
+  if (adding) {
+    return (
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }}
+          onBlur={commit}
+          placeholder="e.g. Lyrics cinematic"
+          style={inputStyle}
+        />
+      </div>
+    );
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => (e.target.value === NEW_FORMAT ? setAdding(true) : onChange(e.target.value))}
+      style={selectStyle}
+    >
+      <option value="">No format</option>
+      {options.map((f) => <option key={f} value={f}>{f}</option>)}
+      <option value={NEW_FORMAT}>+ New format…</option>
+    </select>
+  );
+}
 function TagInput({ tags, accent, onChange }) {
   const [draft, setDraft] = useState("");
   const commit = (raw) => {

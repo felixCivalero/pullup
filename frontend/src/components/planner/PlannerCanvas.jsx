@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Palette, Pencil, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Check, Keyboard } from "lucide-react";
+import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Pencil, ChevronDown, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Check, Keyboard } from "lucide-react";
 import { colors } from "../../theme/colors.js";
 import { mediaKind, loadViewport, saveViewport } from "../../lib/plannerStore.js";
 import { DAY_MS, startOfDay, addDays } from "../../lib/plannerTime.js";
@@ -15,7 +15,7 @@ import { authenticatedFetch } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
 import {
   PX_PER_DAY, BAND_H, BAND_TOP, BAND_BOTTOM, TODAY_COLOR, TIMELINE_COLOR, NEUTRAL_LINK,
-  EVENT_PALETTE, CARD_W, MIN_CARD_W, MAX_CARD_W, MIN_SCALE, MAX_SCALE, SNAP_Y, WEEKDAYS, MONTHS,
+  CARD_W, MIN_CARD_W, MAX_CARD_W, MIN_SCALE, MAX_SCALE, SNAP_Y, WEEKDAYS, MONTHS,
   CHANNELS, TYPES, channelColor, uid, clamp, isoOf, cardFrameW, cardHeight, fmtDate, phaseOf, eventPhase,
 } from "./plannerConstants.js";
 import { EditFace, AnalyticsFace } from "./CardFaces.jsx";
@@ -41,13 +41,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   const scope = clientId ? `?client=${clientId}` : "";
   const containerRef = useRef(null);
   const today = useMemo(() => startOfDay(new Date()), []);
-  // Stable, chronological colour per event — drives "event" colour mode.
-  const eventColorMap = useMemo(() => {
-    const sorted = [...events].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-    const m = {};
-    sorted.forEach((ev, i) => { m[ev.id] = EVENT_PALETTE[i % EVENT_PALETTE.length]; });
-    return m;
-  }, [events]);
   const [state, setState] = useState(() => ({ viewport: loadViewport(storageKey) || DEFAULT_STATE.viewport, items: [] }));
   const [timelines, setTimelines] = useState([]);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -66,7 +59,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   const clipboardRef = useRef([]);
   const [loaded, setLoaded] = useState(false);
   const [uploadingIds, setUploadingIds] = useState(() => new Set());
-  const [colorMode, setColorMode] = useState("platform"); // "platform" = by channel · "event" = by event
   const drag = useRef(null);
   const inited = useRef(false);
   const eventsRef = useRef(events);
@@ -759,13 +751,12 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     return ls.length ? ls : timelines[0] ? [timelines[0]] : [{ id: null, y: 0, color: NEUTRAL_LINK }];
   };
 
-  // What a content card's link chain is coloured by, per mode:
-  //   source → its channel (channel spread)   event → its linked event (event distribution)
-  const cardLinkColor = (c) =>
-    colorMode === "event" ? (c.eventId ? eventColorMap[c.eventId] || NEUTRAL_LINK : NEUTRAL_LINK) : channelColor(c.channel);
-  // Event marks stay blue in source mode; take their palette colour in event mode.
+  // A content card's link chain is coloured by its channel; event marks are teal.
+  const cardLinkColor = (c) => channelColor(c.channel);
   const eventX = (ev) => offsetToX(offsetOfDate(ev.startsAt));
-  const eventMarkColor = (ev) => (colorMode === "event" ? eventColorMap[ev.id] || TIMELINE_COLOR : TIMELINE_COLOR);
+  const eventMarkColor = () => TIMELINE_COLOR;
+  // Content formats used on this timeline (card.meta.format), for the picker.
+  const formats = [...new Set(cards.map((c) => String(c.meta?.format || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y));
   const ready = size.w > 0;
 
   const xMin = -panX / scale;
@@ -956,6 +947,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
               card={c}
               uploading={uploadingIds.has(c.id)}
               events={events}
+              formats={formats}
               timelines={timelines}
               linkColor={cardLinkColor(c)}
               phase={phaseOf(c, today)}
@@ -1058,25 +1050,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
         </div>
       )}
 
-      {/* Colour-mode toggle — top-right. Flips what the content colour-coding means. */}
-      <div
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ position: "absolute", top: 14, right: 14, display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 6px 5px 10px", borderRadius: 11, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 4px 14px rgba(10,10,10,0.08)", zIndex: 20 }}
-      >
-        <Palette size={14} color={colors.textSubtle} />
-        <div style={{ display: "inline-flex", padding: 3, borderRadius: 8, background: colors.surface }}>
-          {[["platform", "Platform"], ["event", "Event"]].map(([m, label]) => (
-            <button
-              key={m}
-              onClick={() => setColorMode(m)}
-              title={m === "platform" ? "Colour content by platform — read channel spread" : "Colour content by event — read event distribution"}
-              style={{ padding: "5px 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: colorMode === m ? colors.background : "transparent", color: colorMode === m ? colors.text : colors.textSubtle }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Content summary — top-right: how much there is, per event and per format */}
+      <ContentSummary cards={cards} events={events} />
 
       {!loaded && (
         <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: colors.background, border: `1px solid ${colors.border}`, color: colors.textMuted, fontSize: 12 }}>
@@ -1204,7 +1179,7 @@ function useNaturalHeight(ref) {
   return h;
 }
 
-function ContentCard({ card, uploading, events, timelines, linkColor, phase, flipped, raised, selected, coLanes, onRaise, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onToggleFlip, onRemove, onFill }) {
+function ContentCard({ card, uploading, events, formats, timelines, linkColor, phase, flipped, raised, selected, coLanes, onRaise, onMove, onStartLink, onStartResize, onRemoveLink, onSet, onToggleFlip, onRemove, onFill }) {
   const fileRef = useRef(null);
   const backRef = useRef(null);
   const measuredBackH = useNaturalHeight(backRef);
@@ -1294,6 +1269,12 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
                   {ch.types?.length ? <span style={{ whiteSpace: "nowrap" }}>{ty.label}</span> : null}
                 </div>
               )}
+              {/* Content format */}
+              {card.meta?.format && (
+                <div title="Format" style={{ position: "absolute", bottom: 6, right: 6, maxWidth: "calc(100% - 40px)", padding: "3px 8px", borderRadius: 999, background: "rgba(255,255,255,0.92)", border: `1px solid ${colors.border}`, fontSize: 10.5, fontWeight: 700, color: colors.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {card.meta.format}
+                </div>
+              )}
               {/* Note indicator */}
               {card.note?.trim() && (
                 <div title={card.note} style={{ position: "absolute", bottom: 6, left: 6, width: 22, height: 22, borderRadius: 3, background: "rgba(10,10,10,0.55)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
@@ -1353,7 +1334,7 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
           style={{ position: "absolute", top: 0, left: 0, width: flipW, backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: 10, overflow: "hidden", background: colors.background, border: `1px solid ${linkColor}`, boxShadow: "0 14px 38px rgba(10,10,10,0.10)" }}
         >
           {showingEdit ? (
-            <EditFace card={card} events={events} timelines={timelines} accent={linkColor} onSet={onSet} onRemove={onRemove} />
+            <EditFace card={card} events={events} formats={formats} timelines={timelines} accent={linkColor} onSet={onSet} onRemove={onRemove} />
           ) : (
             <AnalyticsFace card={card} accent={linkColor} ranOn={ranOn} onSet={onSet} onEdit={() => setEditingPast(true)} />
           )}
@@ -1361,6 +1342,71 @@ function ContentCard({ card, uploading, events, timelines, linkColor, phase, fli
       </div>
 
       <FlipTab accent={linkColor} flipped={flipped} phase={phase} onToggle={() => { if (flipped) setEditingPast(false); onToggleFlip(card.id); }} />
+    </div>
+  );
+}
+
+// ── Content summary ────────────────────────────────────────────────
+// How much content this timeline has, broken down per event (with its
+// formats) and per format. Collapses to the total.
+const NO_FORMAT = "No format";
+function ContentSummary({ cards, events }) {
+  const [open, setOpen] = useState(() => typeof window === "undefined" || window.innerWidth > 640);
+  const formatOf = (c) => String(c.meta?.format || "").trim() || NO_FORMAT;
+  const tally = (list) => {
+    const m = new Map();
+    list.forEach((c) => m.set(formatOf(c), (m.get(formatOf(c)) || 0) + 1));
+    return [...m.entries()].sort((a, b) => (a[0] === NO_FORMAT) - (b[0] === NO_FORMAT) || b[1] - a[1]);
+  };
+  const byEvent = [...events]
+    .sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))
+    .map((ev) => ({ key: ev.id, title: ev.title, list: cards.filter((c) => c.eventId === ev.id) }));
+  const loose = cards.filter((c) => !c.eventId || !events.some((ev) => ev.id === c.eventId));
+  if (loose.length) byEvent.push({ key: "none", title: "No event", list: loose });
+  const byFormat = tally(cards);
+
+  const head = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSubtle, margin: "12px 0 4px" };
+  const row = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, padding: "4px 0", fontSize: 12.5 };
+  return (
+    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} style={{ position: "absolute", top: 14, right: 14, zIndex: 20, width: open ? 260 : "auto", maxHeight: "calc(100% - 120px)", overflowY: "auto", borderRadius: 12, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 4px 14px rgba(10,10,10,0.08)", fontFamily: "inherit" }}>
+      <button type="button" onClick={() => setOpen((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 12px", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", color: colors.text }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{cards.length} {cards.length === 1 ? "piece" : "pieces"} of content</span>
+        <ChevronDown size={15} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", color: colors.textSubtle }} />
+      </button>
+      {open && (
+        <div style={{ padding: "0 12px 10px", borderTop: `1px solid ${colors.border}` }}>
+          {cards.length === 0 && <p style={{ margin: "10px 0 0", fontSize: 12, color: colors.textMuted }}>No content yet.</p>}
+          {cards.length > 0 && byEvent.length > 0 && (
+            <>
+              <div style={head}>Per event</div>
+              {byEvent.map((e) => (
+                <div key={e.key} style={{ padding: "4px 0", borderBottom: `1px solid ${colors.borderFaint || colors.border}` }}>
+                  <div style={{ ...row, padding: 0 }}>
+                    <span style={{ fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: e.key === "none" ? colors.textMuted : colors.text }}>{e.title}</span>
+                    <b>{e.list.length}</b>
+                  </div>
+                  {e.list.length > 0 && (
+                    <div style={{ marginTop: 2, fontSize: 11, color: colors.textMuted, lineHeight: 1.4 }}>
+                      {tally(e.list).map(([f, n]) => `${n} ${f}`).join(" · ")}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+          {cards.length > 0 && (
+            <>
+              <div style={head}>Per format</div>
+              {byFormat.map(([f, n]) => (
+                <div key={f} style={row}>
+                  <span style={{ color: f === NO_FORMAT ? colors.textMuted : colors.text }}>{f}</span>
+                  <b>{n}</b>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

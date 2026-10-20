@@ -69,3 +69,16 @@ export async function appendValues(spreadsheetId, range, rows) {
   if (!res.ok) throw new Error(`sheets append: ${res.status} ${body.error?.message || ""}`.trim());
   return body.updates?.updatedRows || 0;
 }
+
+// Write several A1 ranges in one request: [{ range: "Prospects!I5:L5", values: [[…]] }].
+export async function batchUpdateValues(spreadsheetId, data) {
+  if (!data.length) return 0;
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await accessToken(WRITE)}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ valueInputOption: "USER_ENTERED", data }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`sheets batchUpdate: ${res.status} ${body.error?.message || ""}`.trim());
+  return body.totalUpdatedCells || 0;
+}

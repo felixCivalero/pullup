@@ -43,6 +43,9 @@ assert(s.totals.answered === 3 && s.totals.met === 2, "reply and meeting counts"
 assert(s.totals.proposalValue === 30000 && s.totals.wonValue === 30000, "values by stage");
 assert(s.log.length === 1 && s.log[0].company === "Zeta", "log rows without a date are skipped");
 
+const handPicked = summarizeSales({ prospectRows: [...prospectRows, row({ ID: "P-009", Priority: 0, Company: "Mine", Email: "m@mine.se" })], overviewRows, today: "2026-10-28" });
+assert(handPicked.queue[0].id === "P-009", "priority 0 jumps the queue even when added last");
+
 const before = summarizeSales({ prospectRows, overviewRows, today: "2026-10-20" });
 assert(before.plan.expected === 0 && before.plan.daysLeft === 42, "before the start nothing is expected yet");
 const first = summarizeSales({ prospectRows: [HEADER], overviewRows, today: "2026-10-21" });

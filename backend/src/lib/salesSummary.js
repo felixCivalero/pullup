@@ -51,10 +51,13 @@ export function readGoal(overviewRows) {
 
 const text = (v) => String(v ?? "").trim();
 
+// Priority 0 = hand-picked, goes first; blank or junk sorts last.
+const priorityOf = (v) => (text(v) === "" || Number.isNaN(Number(v)) ? 9 : Number(v));
+
 function prospectOf(o) {
   return {
     id: text(o.ID),
-    priority: Number(o.Priority) || 9,
+    priority: priorityOf(o.Priority),
     company: text(o.Company),
     person: text(o["Person(s)"]),
     sector: text(o.Sector),

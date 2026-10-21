@@ -595,11 +595,11 @@ export function StoryPage({ story }) {
     trackPageView(`case_${slug}`);
     window.scrollTo(0, 0);
     const prev = document.title;
-    document.title = `${meta.client} — PullUp`;
+    document.title = `${meta.name} — ${t(meta.title)}`;
     return () => {
       document.title = prev;
     };
-  }, [slug, meta]);
+  }, [slug, meta, t]);
 
   const vars = {
     "--sy-surface": theme.surface,

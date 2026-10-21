@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useLang } from "../components/agency/i18n.js";
 import { LangSwitch } from "../components/agency/LangSwitch.jsx";
-import { CONTACT } from "../components/agency/agencyData.js";
+import { MailLink } from "../components/agency/MailLink.jsx";
 
 /* /privacy, /terms, /cookies — what this site actually does with data, in
    Swedish and English (Swahili reads the English). Keep these in step with
@@ -11,7 +11,7 @@ import { CONTACT } from "../components/agency/agencyData.js";
    lib/lazyPage.js (chunk reload) and the Supabase login. */
 
 const UPDATED = { sv: "Senast uppdaterad 19 oktober 2026", en: "Last updated 19 October 2026" };
-const Mail = () => <a href={`mailto:${CONTACT}`}>{CONTACT}</a>;
+const Mail = () => <MailLink />;
 
 function Legal({ title, children }) {
   const lang = useLang() === "sv" ? "sv" : "en";

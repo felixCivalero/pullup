@@ -3,7 +3,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
 import { CaseStack } from "../components/agency/CaseStack.jsx";
-import { CONTACT } from "../components/agency/agencyData.js";
+import { MailLink } from "../components/agency/MailLink.jsx";
 import { Testimonials } from "../components/agency/Testimonials.jsx";
 import { EngineChart } from "../components/agency/EngineChart.jsx";
 import { openRequest } from "../components/agency/request.js";
@@ -104,7 +104,7 @@ export function FelixContent() {
           <Reveal delay={0.1}>
             <div className="fl-ctas">
               <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Work with me")}</button>
-              <a className="fl-link fl-link-light" href={`mailto:${CONTACT}`}>{CONTACT}</a>
+              <MailLink className="fl-link fl-link-light" />
             </div>
           </Reveal>
         </div>

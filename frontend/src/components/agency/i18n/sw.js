@@ -1106,4 +1106,5 @@ export const SW = {
   "A brand with a red thread — and 10,000+ people following it within a year.": "Chapa yenye uzi mwekundu — na watu 10,000+ wakiifuata ndani ya mwaka mmoja.",
   "Sales and subscriptions grew exponentially alongside. The journey was the marketing. Li's own format for BKM, Week-Li, is a story of its own.": "Mauzo na usajili vilikua kwa kasi kubwa sambamba. Safari ndiyo ilikuwa masoko. Mfumo wa Li mwenyewe kwa BKM, Week-Li, ni hadithi yake yenyewe.",
   "Week-Li: BKM's format with Li": "Week-Li: mfumo wa BKM pamoja na Li",
+  "Address copied \u2014 paste it into your email": "Anwani imenakiliwa — ibandike kwenye barua pepe yako",
 };

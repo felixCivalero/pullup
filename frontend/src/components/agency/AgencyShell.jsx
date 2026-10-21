@@ -4,7 +4,8 @@ import { trackEvent } from "../../lib/analytics.js";
 import { track } from "../../lib/track.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
-import { CONTACT, SERIES, casePath } from "./agencyData.js";
+import { SERIES, casePath } from "./agencyData.js";
+import { MailLink } from "./MailLink.jsx";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { openRequest, rememberArrival } from "./request.js";
 import { LangSwitch } from "./LangSwitch.jsx";
@@ -171,7 +172,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             <a href="/privacy">{t("Privacy")}</a>
             <a href="/terms">{t("Terms")}</a>
             <a href="/cookies">{t("Cookies")}</a>
-            <a href={`mailto:${CONTACT}`}>{CONTACT}</a>
+            <MailLink />
           </nav>
         </footer>
         <RequestDialog />

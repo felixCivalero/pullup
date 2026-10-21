@@ -1271,4 +1271,5 @@ export const SV = {
   "A brand with a red thread — and 10,000+ people following it within a year.": "Ett varumärke med en röd tråd – och 10 000+ människor som följde det inom ett år.",
   "Sales and subscriptions grew exponentially alongside. The journey was the marketing. Li's own format for BKM, Week-Li, is a story of its own.": "Försäljning och prenumerationer växte exponentiellt samtidigt. Resan var marknadsföringen. Lis eget format för BKM, Week-Li, är en egen story.",
   "Week-Li: BKM's format with Li": "Week-Li: BKM:s format med Li",
+  "Address copied \u2014 paste it into your email": "Adressen kopierad – klistra in den i ditt mejl",
 };

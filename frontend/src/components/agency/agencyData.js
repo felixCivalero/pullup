@@ -102,19 +102,20 @@ export const CASES = [
     name: "BKM Health",
     kicker: "Brand · Health",
     color: "#B7791F",
-    title: "0 to 10k organic. No marketing team.",
+    // Never call the followers organic — not all of them were (Felix 2026-10-21).
+    title: "One red thread, from vision to every post.",
     who: "Two founders, Li and Tolga, with a vision and no audience.",
-    gained: "They became the faces of their own brand — no marketing team needed.",
-    brand: "10,000+ organic followers in one year — and sales and subscriptions growing exponentially.",
-    score: ["10,000+", "organic followers, from zero"],
-    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "organic followers now"], note: "Sales and subscriptions: growing exponentially" },
+    gained: "A vision and a strategy that every sprint, event and story followed.",
+    brand: "10,000+ followers in one year, several million views across channels — and sales and subscriptions growing exponentially.",
+    score: ["10,000+", "followers in one year, from zero"],
+    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "Sales and subscriptions: growing exponentially" },
     spine: {
       start: "Two founders, Li and Tolga, with a vision and no audience.",
-      did: "30-minute sprints with the founders instead of a marketing department.",
-      made: "Founder-led content in their own voice — and a community around it.",
-      result: "10,000+ organic followers in one year — and sales and subscriptions growing exponentially.",
+      did: "Vision and strategy as one red thread — kept moving by 30-minute sprints.",
+      made: "A community post the same day as every event, and a flow that let the ambassadors tell deep stories.",
+      result: "10,000+ followers in one year and several million views across channels — with sales and subscriptions growing exponentially.",
     },
-    stats: [["10,000+", "organic followers"], ["30 min", "per sprint"], ["Exponential", "growth in sales and subscriptions", true]],
+    stats: [["10,000+", "followers in one year"], ["Millions", "of views across channels"], ["Exponential", "growth in sales and subscriptions", true]],
   },
   {
     slug: "kaijas",
@@ -182,7 +183,7 @@ export const CASES = [
 // The numbered stories — what the landing lists and the rail walks through.
 export const SERIES = CASES.filter((c) => c.series !== false);
 export const storyNo = (slug) => String(SERIES.findIndex((c) => c.slug === slug) + 1).padStart(2, "0");
-// Li's edit: one reel in four beats; `cut` = frames taken out (illustrative).
+// The Week-Li edit: one reel in five beats; `cut` = frames taken out (illustrative).
 export const REEL_BEATS = [
   { t: "Hook", line: "Stop the scroll in the first seconds.", frames: 3, cut: [2] },
   { t: "Introduction", line: "What this is about, and why it matters.", frames: 4, cut: [1, 3] },
@@ -195,9 +196,9 @@ export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);
 export const storyCount = String(SERIES.length).padStart(2, "0");
 
 // A photo per story, for pages that show the stories as images. Week-Li has
-// none until Li sends the photos she wants (Felix 2026-10-21).
+// none until Li sends the photos she wants, and BKM's freediving photos are
+// gone with the freediving story (Felix 2026-10-21).
 export const COVERS = {
-  bkm: "/stories/bkm/big-blue.webp",
   kaijas: "/stories/kaijas/crowd.webp",
   stiga: "/stories/stiga/arena.webp",
   "adam-flambo": "/stories/adam-hero.webp",

@@ -437,6 +437,25 @@ export function ReelDesk({ beats }) {
   );
 }
 
+/* A short flow, left to right (top to bottom on phones): [k, h, b] per step,
+   joined by a line that draws in once seen. */
+export function Flow({ items }) {
+  const t = useT();
+  const [ref, seen] = useSeen();
+  return (
+    <ol className={`sy-flow${seen ? " is-on" : ""}`} ref={ref} style={{ "--n": items.length }}>
+      {items.map(([k, h, b], i) => (
+        <li key={h} style={{ "--i": i }}>
+          <span className="sy-flow-dot" aria-hidden="true" />
+          <p className="sy-step-k">{t(k)}</p>
+          <h3>{t(h)}</h3>
+          <p className="sy-flow-b">{t(b)}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /* From a topic down to seconds: one row per level, each bar narrower than the
    last. Pick a level to read what was decided there. The widths show the
    narrowing, not a measurement — `note` says so. */

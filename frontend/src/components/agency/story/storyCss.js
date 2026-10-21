@@ -296,6 +296,16 @@ export const STORY_CSS = `
   .sy-narrow-b { font-size: clamp(16px, 1.4vw, 18px); line-height: 1.6; color: var(--sy-ink-2); max-width: 56ch; animation: sy-fade 0.35s ease; }
   @keyframes sy-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
+  /* ─── flow: steps joined by a line ─── */
+  .sy-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 24px; position: relative; }
+  .sy-flow::before { content: ""; position: absolute; left: 7px; right: 0; top: 7px; height: 2px; background: var(--sy-a); transform-origin: left; transform: scaleX(0); transition: transform 1.1s cubic-bezier(.2,.7,.2,1); }
+  .sy-flow.is-on::before { transform: scaleX(1); }
+  .sy-flow li { position: relative; padding-top: 34px; opacity: 0.25; transition: opacity 0.5s ease calc(var(--i) * 0.25s); }
+  .sy-flow.is-on li { opacity: 1; }
+  .sy-flow-dot { position: absolute; top: 0; left: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--sy-deep); border: 2px solid var(--sy-a); }
+  .sy-flow li:last-child .sy-flow-dot { background: var(--sy-a); box-shadow: 0 0 24px rgba(var(--sy-glow), 0.6); }
+  .sy-flow h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0; }
+  .sy-flow-b { color: var(--sy-ink-2); line-height: 1.55; font-size: 15px; }
   /* ─── closing facts + link on ─── */
   .sy-outcome-link {
     margin-top: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px;
@@ -327,6 +337,11 @@ export const STORY_CSS = `
     .sy-ch-h { font-size: clamp(36px, 10.5vw, 56px); }
     .sy-col-v { font-size: 11px; }
     .sy-narrow button { grid-template-columns: 1fr auto; gap: 8px 12px; }
+    .sy-flow { grid-template-columns: 1fr; gap: 20px; padding-left: 32px; }
+    .sy-flow::before { left: 7px; right: auto; top: 0; bottom: 0; width: 2px; height: auto; transform-origin: top; transform: scaleY(0); }
+    .sy-flow.is-on::before { transform: scaleY(1); }
+    .sy-flow li { padding-top: 0; }
+    .sy-flow-dot { left: -32px; top: 4px; }
     .sy-narrow-track { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
   }
   @media (prefers-reduced-motion: reduce) {

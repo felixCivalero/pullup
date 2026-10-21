@@ -32,7 +32,7 @@ function Grow({ from, to, note }) {
   const t = useT();
   return (
     <figure className="sc">
-      <figcaption className="sc-cap">{t("Organic followers, start to now")}</figcaption>
+      <figcaption className="sc-cap">{t("Followers, start to now")}</figcaption>
       <div className="sc-grow">
         <div className="sc-col">
           <span className="sc-col-bar is-stub" />

@@ -39,9 +39,9 @@ export const WORDS = [
   {
     who: "Li Karlsén",
     org: "BKM Health",
-    // Reserved: the old line was a placeholder Felix wrote, not Li's words.
-    // Li has been asked for her own (2026-10-21) — paste it in when it comes.
-    quote: null,
+    // ⚠️ Felix's draft wording, put back by Felix 2026-10-21 while Li is asked
+    // for her own (she has seen it). Replace with her words when they come.
+    quote: "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.",
   },
 ];
 const LIVE = WORDS.filter((w) => w.quote);

@@ -28,6 +28,8 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/work/:slug" element={<StoryRoute />} />
+          {/* The link in outreach mail: lands on the cases, counted as "mejl". */}
+          <Route path="/case" element={<Navigate to="/?ref=mejl#stories" replace />} />
           <Route path="/stories/adam-flambo" element={<Navigate to="/work/adam-flambo" replace />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { CASES } from "../../components/agency/agencyData.js";
 
 /* /admin — the site's numbers, kept simple: page views, CTA clicks (someone
    opened "Jobba med mig") and requests sent, per day; then the leads. */
@@ -9,6 +10,23 @@ const RANGES = [7, 30, 90];
 const CLICKS_SINCE = "2026-10-19";
 
 const nf = new Intl.NumberFormat("sv-SE");
+
+// Where a visit came from, in words. "mejl" = the pullup.se/case link in
+// outreach mail; webmail sends no referrer, so other mail clicks land in Direkt.
+const SOURCE_LABELS = {
+  direct: "Direkt / okänd",
+  mejl: "Mejl (pullup.se/case)",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  linkedin: "LinkedIn",
+  google: "Google",
+  twitter: "X / Twitter",
+  pullup: "Från pullup.se",
+  other: "Annat",
+};
+const sourceLabel = (s) => SOURCE_LABELS[s] || s;
+const PAGE_LABELS = Object.fromEntries(CASES.map((c) => [`case_${c.slug}`, `Case: ${c.name}`]));
+const pageLabel = (p) => (p === "landing" ? "Startsidan" : PAGE_LABELS[p] || p);
 const pct = (a, b) => (b ? `${(Math.round((a / b) * 1000) / 10).toLocaleString("sv-SE")} %` : "–");
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 const when = (iso) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -85,6 +103,39 @@ export function StatsPage() {
               </tbody>
             </table>
 
+            <div className="st-two">
+              <section>
+                <h2>Källor</h2>
+                <table className="st-table">
+                  <thead><tr><th>Varifrån</th><th>Visningar</th><th>CTA-klick</th></tr></thead>
+                  <tbody>
+                    {(data.sources || []).map((s) => (
+                      <tr key={s.source}>
+                        <td>{sourceLabel(s.source)}</td>
+                        <td>{nf.format(s.views)}</td>
+                        <td>{s.clicks ? nf.format(s.clicks) : "–"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="st-muted st-note">Mejl syns bara via länken pullup.se/case. Webbmejl skickar ingen avsändare, så andra klick från mejl hamnar under Direkt.</p>
+              </section>
+              <section>
+                <h2>Sidor</h2>
+                <table className="st-table">
+                  <thead><tr><th>Sida</th><th>Visningar</th></tr></thead>
+                  <tbody>
+                    {(data.pages || []).map((p) => (
+                      <tr key={p.page}>
+                        <td>{pageLabel(p.page)}</td>
+                        <td>{nf.format(p.views)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </div>
+
             <h2>Leads</h2>
             {data.leads.length === 0 && <p className="st-muted">Inga förfrågningar än.</p>}
             <ul className="st-leads">
@@ -136,6 +187,10 @@ const STATS_CSS = `
   .st-table th { text-align: left; font-size: 12px; font-weight: 600; color: #6e6e73; padding: 8px 6px; border-bottom: 1px solid rgba(0,0,0,0.12); }
   .st-table td { padding: 8px 6px; border-bottom: 1px solid rgba(0,0,0,0.06); }
   .st-table th:not(:first-child), .st-table td:not(:first-child) { text-align: right; }
+  .st-two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .st-two .st-table { margin-top: 0; }
+  .st-note { margin-top: 10px; font-size: 12.5px; line-height: 1.5; }
+  @media (max-width: 720px) { .st-two { grid-template-columns: 1fr; gap: 0; } }
   .st-leads { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .st-leads li { border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; }
   .st-lead-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

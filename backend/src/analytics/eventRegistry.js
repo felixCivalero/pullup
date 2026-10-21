@@ -94,7 +94,8 @@ export function validateBatch(body, { now = Date.now() } = {}) {
 // UTM precedence: an explicit utm_source always beats referrer sniffing.
 export function deriveSource(referrer, utm) {
   if (utm && typeof utm.utm_source === "string" && utm.utm_source.trim()) {
-    return utm.utm_source.trim().toLowerCase().slice(0, 64);
+    const s = utm.utm_source.trim().toLowerCase().slice(0, 64);
+    return s === "ig" ? "instagram" : s; // Instagram's own short form
   }
   if (!referrer) return "direct";
   try {

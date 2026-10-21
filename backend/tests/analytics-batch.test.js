@@ -116,6 +116,8 @@ console.log("🧪 deriveSource: utm beats referrer, referrer maps to channel");
   assert(deriveSource(null, null) === "direct", "no referrer = direct");
   assert(deriveSource("https://instagram.com", { utm_source: "Newsletter" }) === "newsletter", "utm_source wins, lowercased");
   assert(deriveSource("garbage-url", null) === "other", "unparseable referrer = other");
+  assert(deriveSource(null, { utm_source: "ig" }) === "instagram", "utm_source=ig counts as instagram");
+  assert(deriveSource(null, { utm_source: "mejl" }) === "mejl", "ref=mejl (outreach links) is its own source");
 }
 
 console.log("🧪 bot UA filter");

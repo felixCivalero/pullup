@@ -42,6 +42,10 @@ export function getVisitorId() {
   return pageId;
 }
 
+// Only the live site counts: a dev server writes to the same database, and its
+// visits used to show up in Statistik as "localhost".
+const LIVE = typeof window !== "undefined" && /(^|\.)pullup\.se$/.test(window.location.hostname);
+
 function getContext() {
   if (context) return context;
   let utm = null;
@@ -51,6 +55,9 @@ function getContext() {
       const v = params.get(k);
       if (v) { utm = utm || {}; utm[k] = v; }
     }
+    // ?ref=mejl is the short form we put in links (pullup.se/case → ?ref=mejl).
+    const ref = params.get("ref");
+    if (ref && !utm?.utm_source) { utm = utm || {}; utm.utm_source = ref; }
   } catch { /* no utm */ }
   context = {
     referrer: (typeof document !== "undefined" && document.referrer) || null,
@@ -82,6 +89,7 @@ function clearOldStorage() {
 
 export function flush({ beacon = false } = {}) {
   if (queue.length === 0) return;
+  if (!LIVE) { queue = []; return; }
   const events = queue;
   queue = [];
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }

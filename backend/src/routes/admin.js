@@ -22,7 +22,9 @@ export function registerAdminRoutes(app) {
   });
 
   // GET /admin/stats?days=30 — per day: page views, CTA clicks (the "Jobba
-  // med mig" form opened), requests sent. Plus the latest requests (leads).
+  // med mig" form opened), requests sent. Where the views came from (source)
+  // and which pages they read. Plus the latest requests (leads). Visits from a
+  // dev server (source "localhost") are left out everywhere.
   app.get("/admin/stats", requireOwner, async (req, res) => {
     try {
       const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
@@ -33,8 +35,9 @@ export function registerAdminRoutes(app) {
         selectAll(() =>
           supabase
             .from("analytics_events")
-            .select("event_name, occurred_at")
+            .select("event_name, occurred_at, source, props")
             .in("event_name", ["page_view", "request_open"])
+            .neq("source", "localhost")
             .gte("occurred_at", since.toISOString())
             .order("occurred_at", { ascending: true }),
         ),
@@ -70,9 +73,25 @@ export function registerAdminRoutes(app) {
         if (d) d.requests += 1;
       }
 
+      // Per source: views and CTA clicks. Per page: views.
+      const bySource = new Map();
+      const byPage = new Map();
+      for (const e of events) {
+        const src = e.source === "ig" ? "instagram" : e.source || "direct"; // older rows say "ig"
+        const s = bySource.get(src) || { source: src, views: 0, clicks: 0 };
+        if (e.event_name === "page_view") {
+          s.views += 1;
+          const page = e.props?.page || "landing";
+          byPage.set(page, (byPage.get(page) || 0) + 1);
+        } else s.clicks += 1;
+        bySource.set(src, s);
+      }
+      const sources = [...bySource.values()].sort((a, b) => b.views - a.views || b.clicks - a.clicks);
+      const pages = [...byPage].map(([page, views]) => ({ page, views })).sort((a, b) => b.views - a.views);
+
       const series = [...byDay.values()];
       const totals = series.reduce((t, d) => ({ views: t.views + d.views, clicks: t.clicks + d.clicks, requests: t.requests + d.requests }), { views: 0, clicks: 0, requests: 0 });
-      return res.json({ days, series, totals, leads: leads.data || [] });
+      return res.json({ days, series, totals, sources, pages, leads: leads.data || [] });
     } catch (err) {
       console.error("[admin/stats] error:", err?.message);
       return res.status(500).json({ error: "failed" });

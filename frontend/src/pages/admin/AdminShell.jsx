@@ -55,9 +55,11 @@ export function AdminShell({ title, fill = false, children }) {
     return () => { alive = false; };
   }, [session, stranger, verified]);
 
-  if (session === undefined) return null;
+  // While the session and the server check resolve: say so, never a blank page.
+  const waiting = <p style={{ font: "14px -apple-system, sans-serif", color: "#6e6e73", padding: 24, margin: 0 }}>Laddar…</p>;
+  if (session === undefined) return waiting;
   if (!session || stranger || server === "refused") return <Navigate to="/login" replace />;
-  if (server === "checking" && !verified) return null;
+  if (server === "checking" && !verified) return waiting;
 
   return (
     <ToastProvider>

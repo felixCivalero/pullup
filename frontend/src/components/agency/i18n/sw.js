@@ -976,6 +976,8 @@ export const SW = {
   "Month {#} · money back if you're not happy — then commit to continue": "Mwezi {#} · pesa zinarudishwa usiporidhika — kisha ujifunge ili kuendelea",
 
   // Week-Li (BKM) — rewritten 2026-10-21
+  "Deep, broad knowledge of women's health — far too much for one reel.": "Maarifa ya kina na mapana kuhusu afya ya wanawake — mengi mno kwa reel moja.",
+  "Week-Li: short, personal reels for BKM, one clear point each — made in 30 minutes.": "Week-Li: reels fupi na za kibinafsi kwa BKM, kila moja na hoja moja wazi — zikitengenezwa kwa dakika 30.",
   "Week-Li · BKM Health": "Week-Li · BKM Health",
   "Format · BKM Health": "Mfumo · BKM Health",
   "From a whole topic down to seconds.": "Kutoka mada nzima hadi sekunde chache.",

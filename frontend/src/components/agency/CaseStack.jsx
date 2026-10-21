@@ -148,7 +148,7 @@ export function CaseStack({ head }) {
                     <span className="pc-storymark">{t("Story")} {String(i + 1).padStart(2, "0")} <span>/ {String(STORIES.length).padStart(2, "0")}</span></span>
                     {t(c.kicker)}
                   </p>
-                  <h3 className="mx-story-name">{c.name}</h3>
+                  <h3 className="mx-story-name">{c.cardName || c.name}</h3>
                   <p className="mx-story-tog">{t("What followed")}</p>
                   <p className={`mx-story-big${t(c.score[0]).length > 8 ? " is-long" : ""}`}><CountUp text={c.score[0]} /></p>
                   <p className="mx-story-big-l">{t(c.score[1])}</p>

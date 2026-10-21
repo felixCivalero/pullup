@@ -1141,6 +1141,8 @@ export const SV = {
   "Proof: I built PullUp – the event system Adam Flambo ran his whole community on. I built this site too.": "Bevis: Jag byggde PullUp – eventsystemet som Adam Flambo drev hela sin community på. Den här sidan har jag också byggt.",
 
   // Week-Li (BKM) — rewritten 2026-10-21
+  "Deep, broad knowledge of women's health — far too much for one reel.": "Djup och bred kunskap om kvinnors hälsa – alldeles för mycket för en reel.",
+  "Week-Li: short, personal reels for BKM, one clear point each — made in 30 minutes.": "Week-Li: korta, personliga reels för BKM, en tydlig poäng i varje – gjorda på 30 minuter.",
   "Week-Li · BKM Health": "Week-Li · BKM Health",
   "Format · BKM Health": "Format · BKM Health",
   "From a whole topic down to seconds.": "Från ett helt ämne ner till sekunder.",

@@ -77,11 +77,14 @@ export const CASES = [
     slug: "li-karlsen",
     client: "Week-Li",
     name: "Week-Li · BKM Health",
-    kicker: "Format · BKM Health",
+    // The overview card leads with Li so it stands apart from BKM's own card;
+    // the case page itself stays on the format (Felix 2026-10-21).
+    cardName: "Li Karlsén",
+    kicker: "Week-Li · BKM Health",
     color: "#0E9384",
     title: "From a whole topic down to seconds.",
-    who: "BKM's format on women's health — deep, broad knowledge from Li Karlsén, far too much for one reel.",
-    gained: "Short, personal reels for BKM, one clear point each — made in 30 minutes.",
+    who: "Deep, broad knowledge of women's health — far too much for one reel.",
+    gained: "Week-Li: short, personal reels for BKM, one clear point each — made in 30 minutes.",
     brand: "One reel in 30 minutes instead of 8 hours.",
     score: ["8 h → 30 min", "per reel"],
     chart: { type: "time", rows: [["Before", 480, "8 h"], ["Now", 30, "30 min"]] },

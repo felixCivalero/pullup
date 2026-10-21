@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { AgencyShell } from "../AgencyShell.jsx";
 import { AgencyOffer } from "../AgencyOffer.jsx";
-import { DeckTeaser } from "../DeckTeaser.jsx";
 import { Reveal } from "../Reveal.jsx";
 import { ReelEdit } from "../ReelEdit.jsx";
 import { CaseRail, CaseSpine, StoryMark } from "../CaseNav.jsx";
@@ -660,7 +659,6 @@ export function StoryPage({ story }) {
       </div>
 
       <CaseRail slug={slug} />
-      <DeckTeaser source={`case_${slug}`} />
       <AgencyOffer source={`case_${slug}`} />
 
       {(credits?.length || creditNote) && (

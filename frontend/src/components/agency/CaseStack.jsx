@@ -133,9 +133,16 @@ export function CaseStack({ head }) {
           <div ref={trackRef} className="cr-track">
             {STORIES.map((c, i) => (
               <article key={c.slug} id={`story-${c.slug}`} className="mx-story" style={{ "--i": i }}>
-                <div className="mx-story-photo">
-                  <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" />
-                </div>
+                {COVERS[c.slug] || c.image ? (
+                  <div className="mx-story-photo">
+                    <img src={COVERS[c.slug] || c.image} alt="" loading="lazy" decoding="async" />
+                  </div>
+                ) : (
+                  // No photo yet (Week-Li waits for Li's own): the title on the story's colour.
+                  <div className="mx-story-photo is-type" style={{ background: c.color }}>
+                    <p>{t(c.title)}</p>
+                  </div>
+                )}
                 <div className="mx-story-body">
                   <p className="st-kicker">
                     <span className="pc-storymark">{t("Story")} {String(i + 1).padStart(2, "0")} <span>/ {String(STORIES.length).padStart(2, "0")}</span></span>
@@ -214,6 +221,8 @@ export const CASE_STACK_CSS = `
   }
   .mx-story-photo { position: relative; height: 200px; overflow: hidden; background: #111; }
   .mx-story-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .mx-story-photo.is-type { display: flex; align-items: flex-end; padding: clamp(20px, 2.6vw, 36px); box-sizing: border-box; color: #fff; }
+  .mx-story-photo.is-type p { margin: 0; font-size: clamp(28px, min(3vw, 5svh), 44px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
   .mx-story-body { padding: clamp(20px, min(2.6vw, 4svh), 36px); display: grid; align-content: start; }
   .mx-story-name { margin-top: 10px; font-size: clamp(22px, min(2.2vw, 4svh), 32px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
   .mx-story-tog { margin-top: clamp(10px, 1.8vh, 16px); font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sc); }

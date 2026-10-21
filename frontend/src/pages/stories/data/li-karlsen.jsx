@@ -4,7 +4,7 @@ import { REEL_BEATS } from "../../../components/agency/agencyData.js";
 /* Week-Li — BKM Health's format on women's health, built on Li Karlsén's
    knowledge. The work was FOR BKM, not for Li as a person: the story is about
    the format, never about her (no photos of her, no freediving, no personal
-   angle — Li asked, 2026-10-19; her own brand, book and documentary stay
+   angle — Li asked, 2026-10-19; photos wait for the ones Li picks herself; her own brand, book and documentary stay
    hers). BKM's own growth is told in its own story (/work/bkm).
    Facts: one reel went from 8 hours to 30 minutes; 30-minute sprints; reels
    of 1–1.5 minutes; five beats (Hook, Introduction, Build-up, Climax, CTA).
@@ -69,9 +69,5 @@ export default {
         <Outcome link={["BKM's whole story", "bkm"]} />
       ),
     },
-  ],
-  creditNote: "No photographs on this page. The story card elsewhere on the site uses a Wikimedia Commons photo, credited below.",
-  credits: [
-    ["Soleil à travers un paysage sous-marin de Bretagne (913)", "Olivier Dugornay / Ifremer", "CC BY 4.0", "https://commons.wikimedia.org/wiki/File:Soleil_%C3%A0_travers_un_paysage_sous-marin_de_Bretagne_(Ifremer_00378-48922_-_913).jpg"],
   ],
 };

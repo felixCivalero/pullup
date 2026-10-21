@@ -191,9 +191,9 @@ const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "E
 export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);
 export const storyCount = String(SERIES.length).padStart(2, "0");
 
-// A photo per story, for pages that show the stories as images.
+// A photo per story, for pages that show the stories as images. Week-Li has
+// none until Li sends the photos she wants (Felix 2026-10-21).
 export const COVERS = {
-  "li-karlsen": "/stories/li/sunburst.webp",
   bkm: "/stories/bkm/big-blue.webp",
   kaijas: "/stories/kaijas/crowd.webp",
   stiga: "/stories/stiga/arena.webp",

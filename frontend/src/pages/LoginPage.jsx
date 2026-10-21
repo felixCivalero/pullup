@@ -31,7 +31,9 @@ export function LoginPage() {
       if (isOwnerEmail(email)) {
         const { error: err } = await supabase.auth.signInWithOtp({
           email: email.trim().toLowerCase(),
-          options: { shouldCreateUser: false },
+          // The mail's link signs in straight onto /admin of the site the code
+          // was asked from (pullup.se or localhost), not the front page.
+          options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/admin` },
         });
         if (err) throw err;
       }

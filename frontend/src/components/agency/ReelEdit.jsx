@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "./i18n.js";
 
-/* Li Karlsén's edit, as a loop: one reel in four beats. The playhead reviews
+/* The Week-Li edit (BKM), as a loop: one reel in five beats. The playhead reviews
    the raw take frame by frame (cuts get marked), the cut frames collapse,
    then the final cut plays — the phone shows whichever beat is under the
    playhead. Full size on her case page; `compact` on the landing card. */
@@ -70,7 +70,7 @@ export function ReelEdit({ beats, compact = false }) {
         <span className="cs-phone-sub" />
         <span className="cs-phone-sub is-short" />
       </div>
-      <p className="cs-phone-tag">Li Karlsén · BKM</p>
+      <p className="cs-phone-tag">Week-Li · BKM</p>
     </div>
 
     <div className="cs-edit">
@@ -108,7 +108,7 @@ export function ReelEdit({ beats, compact = false }) {
       </div>
       <div className="cs-edit-legend">
         <span><i className="is-keep" />{tr("Kept")}</span>
-        <span><i className="is-cut" />{compact ? tr("Cut") : tr("Cut — spent breath, moved nothing")}</span>
+        <span><i className="is-cut" />{compact ? tr("Cut") : tr("Cut — moved nothing forward")}</span>
       </div>
       {!compact && (
       <ol className="cs-beats">

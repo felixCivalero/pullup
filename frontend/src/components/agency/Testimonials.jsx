@@ -38,9 +38,10 @@ export const WORDS = [
   },
   {
     who: "Li Karlsén",
-    org: "Freediver",
-    photo: COVERS["li-karlsen"],
-    quote: "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.",
+    org: "BKM Health",
+    // Reserved: the old line was a placeholder Felix wrote, not Li's words.
+    // Li has been asked for her own (2026-10-21) — paste it in when it comes.
+    quote: null,
   },
 ];
 const LIVE = WORDS.filter((w) => w.quote);

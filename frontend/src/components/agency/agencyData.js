@@ -75,21 +75,21 @@ export const STIGA_ROWS = [
 export const CASES = [
   {
     slug: "li-karlsen",
-    client: "Li Karlsén",
-    name: "Li Karlsén",
-    kicker: "Founder · BKM · Elite freediver",
+    client: "Week-Li",
+    name: "Week-Li · BKM Health",
+    kicker: "Format · BKM Health",
     color: "#0E9384",
-    title: "8 hours became 30 minutes.",
-    who: "Founder of BKM and elite freediver, with more to say than a reel can hold.",
-    gained: "Her own voice on camera — precise, and done in 30 minutes.",
-    brand: "One piece of content in 30 minutes instead of 8 hours.",
-    score: ["8 h → 30 min", "per piece of content"],
+    title: "From a whole topic down to seconds.",
+    who: "BKM's format on women's health — deep, broad knowledge from Li Karlsén, far too much for one reel.",
+    gained: "Short, personal reels for BKM, one clear point each — made in 30 minutes.",
+    brand: "One reel in 30 minutes instead of 8 hours.",
+    score: ["8 h → 30 min", "per reel"],
     chart: { type: "time", rows: [["Before", 480, "8 h"], ["Now", 30, "30 min"]] },
     spine: {
-      start: "A founder and elite freediver with more to say than a reel can hold.",
-      did: "30-minute extraction sprints, shaped on the spot into four beats.",
-      made: "Reels split into Hook, Credibility, Core and Outro — cut frame by frame.",
-      result: "From 8 hours to 30 minutes to make one piece of content.",
+      start: "Week-Li, BKM's format on women's health: deep, broad knowledge and no way to fit it in one reel.",
+      did: "30-minute sprints that narrowed each topic down to one question.",
+      made: "Reels of 1–1.5 minutes in five beats: hook, introduction, build-up, climax, CTA.",
+      result: "From 8 hours to 30 minutes to make one reel.",
     },
     reel: true,
   },
@@ -181,10 +181,11 @@ export const SERIES = CASES.filter((c) => c.series !== false);
 export const storyNo = (slug) => String(SERIES.findIndex((c) => c.slug === slug) + 1).padStart(2, "0");
 // Li's edit: one reel in four beats; `cut` = frames taken out (illustrative).
 export const REEL_BEATS = [
-  { t: "Hook", line: "The first line earns the second.", frames: 4, cut: [3] },
-  { t: "Credibility", line: "Proof before opinion.", frames: 6, cut: [1, 4] },
-  { t: "Core", line: "The one thing you leave with.", frames: 10, cut: [2, 5, 8] },
-  { t: "Outro", line: "Land it. Then stop.", frames: 5, cut: [2, 4] },
+  { t: "Hook", line: "Stop the scroll in the first seconds.", frames: 3, cut: [2] },
+  { t: "Introduction", line: "What this is about, and why it matters.", frames: 4, cut: [1, 3] },
+  { t: "Build-up", line: "The knowledge, one step at a time.", frames: 8, cut: [2, 5] },
+  { t: "Climax", line: "The one thing you leave with.", frames: 5, cut: [3] },
+  { t: "CTA", line: "What to do next. Then stop.", frames: 3, cut: [2] },
 ];
 const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);

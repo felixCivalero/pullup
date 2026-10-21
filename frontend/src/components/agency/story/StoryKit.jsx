@@ -24,14 +24,16 @@ import { reduceMotion, usePinProgress } from "./storyHooks.js";
 
    Blocks:
      scene   { anchor?, img, alt, pos, chapter?: [n, label, title], cards: [{ k, h, b }] }
-     band    { anchor?, tone?, k?, h?, body?, layout?, node }   solid band, figure in `node`
+     band    { anchor?, tone?, k?, h?, body?, layout?, tight?, node }   solid band, figure in `node`
      quote   { anchor?, img, n, label, text, who, role }
      still   { img, line, em }                                  one quiet sentence
      drift   { imgs: [] }                                       three frames between chapters
      count   { anchor?, img, alt, pos, n, label, from, to, fmt, unit, note, top, bottom }
      path    { anchor?, img, alt, pos, n, label, steps: [], note }
      finale  { img, alt, k, h, body?, facts: [[v, l]] }
-   Every block takes `section` + `order` for scroll-depth tracking. */
+   Every block takes `section` + `order` for scroll-depth tracking.
+   A hero without `img` is a short, flat hero (no pinned photo) that can carry
+   `facts` — for stories told in figures rather than photographs. */
 
 const anchorId = (a) => (a ? `sy-${a}` : undefined);
 
@@ -101,7 +103,7 @@ function Scene({ anchor, img, alt, pos = "center", chapter, cards, section, orde
   );
 }
 
-function Band({ anchor, tone = "deep", k, h, body, layout = "split", node, section, order }) {
+function Band({ anchor, tone = "deep", k, h, body, layout = "split", tight = false, node, section, order }) {
   const t = useT();
   const copy = (k || h || body) && (
     <div>
@@ -111,7 +113,7 @@ function Band({ anchor, tone = "deep", k, h, body, layout = "split", node, secti
     </div>
   );
   return (
-    <section id={anchorId(anchor)} className={`sy-band sy-tone-${tone}`} data-pc-section={section} data-pc-order={order}>
+    <section id={anchorId(anchor)} className={`sy-band sy-tone-${tone}${tight ? " sy-band-tight" : ""}`} data-pc-section={section} data-pc-order={order}>
       <div className={`pc-wrap${layout === "stack" ? "" : ` sy-split sy-${layout}`}`}>
         {copy}
         {node && <div className="sy-fig">{node}</div>}
@@ -436,6 +438,65 @@ export function ReelDesk({ beats }) {
   );
 }
 
+/* From a topic down to seconds: one row per level, each bar narrower than the
+   last. Pick a level to read what was decided there. The widths show the
+   narrowing, not a measurement — `note` says so. */
+export function Narrow({ levels, note }) {
+  const t = useT();
+  const [i, setI] = useState(0);
+  const [ref, seen] = useSeen();
+  return (
+    <figure className="sy-narrow" ref={ref}>
+      <ol>
+        {levels.map((l, j) => (
+          <li key={l.k}>
+            <button type="button" className={j === i ? "is-on" : undefined} aria-pressed={j === i} onClick={() => setI(j)}>
+              <span className="sy-narrow-k">{String(j + 1).padStart(2, "0")} · {t(l.k)}</span>
+              <span className="sy-narrow-track" aria-hidden="true">
+                <span style={{ width: seen ? `${l.w}%` : "0%", transitionDelay: `${j * 0.1}s` }} />
+              </span>
+              <span className="sy-narrow-v">{t(l.v)}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <figcaption>
+        <p className="sy-narrow-b" key={i}>{t(levels[i].b)}</p>
+        {note && <p className="sy-source">{t(note)}</p>}
+      </figcaption>
+    </figure>
+  );
+}
+
+// Closing facts (optional) and a link on to another story.
+export function Outcome({ facts, link }) {
+  const t = useT();
+  const navigate = useNavigate();
+  return (
+    <div className="sy-outcome">
+      {facts && (
+        <dl className="sy-facts" style={{ "--cols": facts.length }}>
+          {facts.map(([v, l]) => (
+            <div key={l}><dt>{t(v)}</dt><dd>{t(l)}</dd></div>
+          ))}
+        </dl>
+      )}
+      {link && (
+        <a
+          className="sy-outcome-link"
+          href={casePath(link[1])}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(casePath(link[1]));
+          }}
+        >
+          {t(link[0])} <ArrowRight size={18} />
+        </a>
+      )}
+    </div>
+  );
+}
+
 /* ─── right-edge chapter gauge ─── */
 function DepthGauge({ rootRef, chapters }) {
   const t = useT();
@@ -538,18 +599,37 @@ export function StoryPage({ story }) {
       <div className="sy" ref={rootRef} style={vars} data-pc-tone="dark">
         <DepthGauge rootRef={rootRef} chapters={chapters} />
 
-        <section ref={heroRef} id={anchorId(chapters[0][0])} className="sy-hero" data-pc-section="case_hero" data-pc-order="1">
-          <div className="sy-pin">
-            <img src={hero.img} alt={t(hero.alt)} style={{ objectPosition: hero.pos || "center" }} fetchPriority="high" decoding="async" />
-            <span className="sy-shade sy-shade-hero" aria-hidden="true" />
-            <div className="pc-wrap sy-hero-in">
+        {hero.img ? (
+          <section ref={heroRef} id={anchorId(chapters[0][0])} className="sy-hero" data-pc-section="case_hero" data-pc-order="1">
+            <div className="sy-pin">
+              <img src={hero.img} alt={t(hero.alt)} style={{ objectPosition: hero.pos || "center" }} fetchPriority="high" decoding="async" />
+              <span className="sy-shade sy-shade-hero" aria-hidden="true" />
+              <div className="pc-wrap sy-hero-in">
+                <Reveal><p className="sy-eyebrow"><StoryMark slug={slug} /> — {meta.name}</p></Reveal>
+                <Reveal delay={0.08}><h1 className="sy-hero-h">{t(meta.title)}</h1></Reveal>
+                <Reveal delay={0.16}><p className="sy-hero-sub">{t(hero.sub)}</p></Reveal>
+                <p className="sy-cue" aria-hidden="true"><span />{t(hero.cue || "Scroll")}</p>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section id={anchorId(chapters[0][0])} className="sy-hero-flat" data-pc-section="case_hero" data-pc-order="1">
+            <div className="pc-wrap">
               <Reveal><p className="sy-eyebrow"><StoryMark slug={slug} /> — {meta.name}</p></Reveal>
               <Reveal delay={0.08}><h1 className="sy-hero-h">{t(meta.title)}</h1></Reveal>
               <Reveal delay={0.16}><p className="sy-hero-sub">{t(hero.sub)}</p></Reveal>
-              <p className="sy-cue" aria-hidden="true"><span />{t(hero.cue || "Scroll")}</p>
+              {hero.facts && (
+                <Reveal delay={0.22}>
+                  <dl className="sy-facts" style={{ "--cols": hero.facts.length }}>
+                    {hero.facts.map(([v, l]) => (
+                      <div key={l}><dt>{t(v)}</dt><dd>{t(l)}</dd></div>
+                    ))}
+                  </dl>
+                </Reveal>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="sy-spine" data-pc-section="spine" data-pc-order="2">
           <div className="pc-wrap">

@@ -497,6 +497,8 @@ export const AGENCY_CSS = `
   @media (max-width: 640px) {
     .cs-frames { height: 48px; padding: 4px; gap: 2px; }
     .cs-seg-name { font-size: 11px; }
+    /* five names don't fit above a phone-wide strip: name the beat playing (the list below names all five) */
+    .cs-seg:not(.is-now) .cs-seg-name { opacity: 0; }
     .cs-beats li { grid-template-columns: 28px 1fr; }
     .cs-beats li em { grid-column: 2; }
     .cs-phone { width: min(230px, 62vw); border-radius: 28px; padding: 14px 14px 16px; }

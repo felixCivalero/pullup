@@ -273,6 +273,37 @@ export const STORY_CSS = `
     .sy-credits li { padding: 6px 0; }
   }
 
+  /* ─── flat hero (no photo): short, carries the key facts ─── */
+  .sy-hero-flat { padding: clamp(128px, 20vh, 200px) 0 clamp(56px, 9vh, 96px); background: radial-gradient(120% 90% at 85% 0%, rgba(var(--sy-glow), 0.28), transparent 60%); }
+  .sy-hero-flat .sy-hero-h { max-width: 16ch; }
+  .sy-hero-flat .sy-facts { max-width: 880px; }
+
+  /* ─── narrowing: topic → seconds ─── */
+  .sy-narrow ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .sy-narrow button {
+    width: 100%; display: grid; grid-template-columns: 11rem 1fr 7.5rem; align-items: center; gap: 16px;
+    padding: 14px 16px; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; background: rgba(255,255,255,0.03);
+    color: #fff; font: inherit; text-align: left; cursor: pointer; transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .sy-narrow button:hover { background: rgba(255,255,255,0.06); }
+  .sy-narrow button.is-on { border-color: var(--sy-a); background: rgba(var(--sy-glow), 0.12); }
+  .sy-narrow-k { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sy-ink-2); }
+  .sy-narrow button.is-on .sy-narrow-k { color: var(--sy-ai); }
+  .sy-narrow-track { height: 10px; display: flex; justify-content: center; }
+  .sy-narrow-track span { height: 100%; border-radius: 999px; background: var(--sy-a); transition: width 0.9s cubic-bezier(.2,.7,.2,1); }
+  .sy-narrow-v { font-size: 15px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .sy-narrow figcaption { margin-top: 18px; min-height: 5.5em; }
+  .sy-narrow-b { font-size: clamp(16px, 1.4vw, 18px); line-height: 1.6; color: var(--sy-ink-2); max-width: 56ch; animation: sy-fade 0.35s ease; }
+  @keyframes sy-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* ─── closing facts + link on ─── */
+  .sy-outcome-link {
+    margin-top: 32px; display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.3); color: #fff; font-weight: 600; text-decoration: none;
+  }
+  .sy-outcome-link:hover { background: #fff; color: #000; }
+  .sy-band-tight { padding: clamp(64px, 9vw, 112px) 0; }
+
   @media (max-width: 900px) {
     .sy-split, .sy-split-wide { grid-template-columns: 1fr; }
     .sy-tracks { grid-template-columns: 72px 1fr; }
@@ -295,6 +326,8 @@ export const STORY_CSS = `
     .sy-hero-h { font-size: clamp(36px, 10.5vw, 56px); max-width: none; }
     .sy-ch-h { font-size: clamp(36px, 10.5vw, 56px); }
     .sy-col-v { font-size: 11px; }
+    .sy-narrow button { grid-template-columns: 1fr auto; gap: 8px 12px; }
+    .sy-narrow-track { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
   }
   @media (prefers-reduced-motion: reduce) {
     .sy-pin > img { transform: none; }

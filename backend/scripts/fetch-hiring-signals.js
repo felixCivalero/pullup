@@ -5,7 +5,9 @@
  * they have the need and a budget, and the ad's last day is the deadline for
  * reaching them before they hire. Two open JobTech APIs (Arbetsförmedlingen,
  * no key):
- *   - JobSearch: Platsbanken ads, with org nr, contacts and the last day.
+ *   - JobSearch: Platsbanken ads, with org nr, contacts and the last day —
+ *     by occupation, plus a free-text pass on marketing titles (ads filed
+ *     under other occupations: content creator, SEO, growth …).
  *   - JobAd Links: ads from other Swedish job sites (thehub.io, studentjob,
  *     ledigajobb …). Only those not also on Platsbanken; no deadline given.
  * Keeps companies (no public sector, staffing/recruitment firms or sales jobs
@@ -38,18 +40,23 @@ const OCCUPATIONS = {
   "64i5_ex4_BP9": "Kommunikationsstrateg",
   aRp4_qjZ_tPV: "Kommunikatör",
 };
+// Free-text Platsbanken searches for marketing roles filed under some other
+// occupation; only headlines that read as marketing are kept.
+const PLATSBANKEN_TERMS = ["content creator", "content manager", "content specialist", "digital marknadsförare", "digital marketing", "marketing specialist", "marketing manager", "growth", "seo", "marketing automation", "brand manager", "varumärkesansvarig", "kommunikationsansvarig", "marknadsansvarig", "sociala medier", "performance marketing", "e-handel", "copywriter"];
 const LEAD_OCCUPATIONS = new Set(["Marknadschef", "Kommunikationschef", "E-commerce manager"]);
 const LEAD_TITLE = /\b(chef|head|ansvarig|lead|director|cmo|manager)\b|marknadschef|kommunikationschef/i;
 
 // JobAd Links has no occupation filter that holds, so search by words and
 // keep headlines that are plainly marketing.
-const LINK_TERMS = ["marknadschef", "marknadsansvarig", "marketing manager", "head of marketing", "marknadsförare", "growth marketing", "brand manager", "social media manager", "content manager", "kommunikationschef", "e-commerce manager"];
-const MARKETING_TITLE = /market|marknad|brand|varumärk|content|social media|sociala medier|kommunikat|growth|\bpr\b|e-?commerce|e-?handel/i;
+const LINK_TERMS = ["marknadschef", "marknadsansvarig", "marketing manager", "head of marketing", "marknadsförare", "growth marketing", "brand manager", "social media manager", "content manager", "kommunikationschef", "e-commerce manager", "kommunikatör", "marknadskoordinator", "marknadsassistent", "content creator", "digital marknadsförare", "marketing specialist", "seo", "performance marketing", "e-handel", "varumärke"];
+const MARKETING_TITLE = /market|marknad|brand|varumärk|content|social media|sociala medier|kommunikat|growth|\bpr\b|\bseo\b|copywrit|e-?commerce|e-?handel/i;
 
-const STAFFING = /bemanning|rekryter|recruit|staffing|academic work|adecco|manpower|randstad|poolia|experis|jefferson wells|student ?consulting|\btng\b|bravura|dreamwork|uniflex|proffice|lernia|jobbusters|keystep|hays\b|michael page|kelly services|personalkoncernen|olivia|jurek|brightby|onepartner|jobandtalent|instaff|novare|perido|clockwork|wise professionals|wise group|ework|incluso|performiq|adding people|interim|eventpersonal|nlmp|personnel|personaltjänst|personal ?service/i;
+const STAFFING = /bemanning|rekryter|recruit|staffing|academic work|adecco|manpower|randstad|poolia|experis|jefferson wells|student ?consulting|\btng\b|bravura|dreamwork|uniflex|proffice|lernia|jobbusters|keystep|hays\b|michael page|kelly services|personalkoncernen|olivia|jurek|brightby|onepartner|jobandtalent|instaff|novare|perido|clockwork|wise professionals|wise group|ework|incluso|performiq|adding people|interim|eventpersonal|nlmp|unik resurs|personnel|personaltjänst|personal ?service/i;
 const PUBLIC_SECTOR = /kommun\b|kommunen|regionen|\bregion\b|landsting|myndighet|verket\b|universitet|högskola|försvarsmakten|polisen/i;
 // Marketing-titled ads that are really sales or phone jobs.
-const NOT_MARKETING = /m[öo]te?s?bokare|telemarket|telefonf[öo]rs|s[äa]ljare|kundtj[äa]nst|customer service|kundservice|f[äa]lts[äa]lj|d[öo]rrknack|intern\b|praktik/i;
+const NOT_MARKETING = /m[öo]te?s?bokare|telemarket|telefonf[öo]rs|telefonpass|s[äa]ljare|kundtj[äa]nst|customer service|kundservice|f[äa]lts[äa]lj|d[öo]rrknack|intern\b|internship|praktik|extrajobb|account (manager|executive)|\bsales\b|inköp|lager|analyst|analytiker|engineer|developer|utvecklare|affärsutveckl|administratör|store manager|butik|it service/i;
+// A free-text find must be plainly a marketing role by its title.
+const STRICT_MARKETING_TITLE = /marknadsf|marknadschef|marknadsansvar|marknadskoord|marknadskommunik|marknadsassist|marketing|brand|varumärk|content|sociala medier|social media|kommunikat|\bseo\b|copywrit|e-?handelsredakt/i;
 const UNION_CONTACT = /saco|vision\b|unionen|akademikerf|ledarna|kommunal\b|st inom|fackli/i;
 const GENERIC_INBOX = /^(info|jobb|jobs?|career|karriar|karriär|hr|rekrytering|recruitment|ansokan|apply|kontakt|contact|hello|hej)@/i;
 
@@ -84,13 +91,24 @@ async function platsbanken(today) {
     for (const h of body.hits || []) ads.set(String(h.id), h);
     if (!body.hits?.length || offset + 100 >= (body.total?.value || 0)) break;
   }
+  // Free text: marketing roles filed under another occupation.
+  const byText = new Set();
+  for (const q of PLATSBANKEN_TERMS) {
+    const body = await getJson(`${SEARCH_API}?${new URLSearchParams({ q, limit: "100" })}`);
+    for (const h of body.hits || []) {
+      if (ads.has(String(h.id)) || !STRICT_MARKETING_TITLE.test(h.headline || "")) continue;
+      ads.set(String(h.id), h);
+      byText.add(String(h.id));
+    }
+  }
   return [...ads.values()]
-    // The API widens an occupation search to related ones; keep only ours.
-    .filter((ad) => OCCUPATIONS[ad.occupation?.concept_id]
+    // The API widens an occupation search to related ones; keep only ours
+    // (and the free-text finds, whose headline already reads as marketing).
+    .filter((ad) => (OCCUPATIONS[ad.occupation?.concept_id] || byText.has(String(ad.id)))
       && /^[59]/.test(ad.employer?.organization_number || "")
       && day(ad.application_deadline) >= today)
     .map((ad) => {
-      const occupation = OCCUPATIONS[ad.occupation.concept_id];
+      const occupation = OCCUPATIONS[ad.occupation?.concept_id] || ad.occupation?.label || "Marknadsroll";
       return {
         adId: String(ad.id),
         org: ad.employer?.organization_number || "",

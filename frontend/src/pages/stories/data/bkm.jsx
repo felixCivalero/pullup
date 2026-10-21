@@ -14,7 +14,7 @@ export default {
   slug: "bkm",
   theme: { surface: "#3D2A0E", mid: "#2A1D0A", deep: "#1A1206", abyss: "#0E0A04", a: "#B7832A", ai: "#E8B86A", b: "#2AA3C9", glow: "183,131,42" },
   hero: {
-    sub: "Tolga Duran had a vision for BKM and no audience. We gave BKM one red thread — vision, strategy and a 30-minute rhythm — and built the structures that turned every event and every ambassador into content.",
+    sub: "Tolga Duran had a vision for BKM and no audience. Together we built one red thread — vision, strategy and a 30-minute rhythm — and the structures that turned every event and every ambassador into content.",
     facts: [["10,000+", "followers in one year"], ["Millions", "of views across channels"], ["30 min", "per sprint"]],
   },
   chapters: [["top", "BKM"], ["thread", "Red thread"], ["sprint", "30 minutes"], ["events", "Events"], ["ambassadors", "Ambassadors"], ["result", "Result"]],
@@ -22,11 +22,11 @@ export default {
     {
       type: "band", anchor: "thread", tone: "mid", layout: "split-wide", tight: true, section: "figure_thread", order: 10,
       k: "The foundation", h: "One red thread, before any content.",
-      body: "Vision, strategy and what BKM stands for came first — so every sprint, every event and every story could be held up against the same line.",
+      body: "Tolga and I set vision, strategy and what BKM stands for first — so every sprint, every event and every story could be held up against the same line.",
       node: (
         <Steps
           items={[
-            ["Vision", "Where BKM is going", "The picture the founder is building towards, said plainly enough that anyone on the team can repeat it."],
+            ["Vision", "Where BKM is going", "The picture BKM is building towards, said plainly enough that anyone on the team can repeat it."],
             ["Strategy", "How it gets there", "Who BKM is for, what it says and where — the choices that decide what gets made, and what doesn't."],
             ["The red thread", "What ties it together", "One line every post, event and story traces back to. If it doesn't, it doesn't go out."],
           ]}
@@ -36,7 +36,7 @@ export default {
     {
       type: "band", anchor: "sprint", tone: "deep", layout: "stack", tight: true, section: "figure_rhythm", order: 20,
       k: "The rhythm", h: "Thirty minutes, on repeat.",
-      body: "No long brainstorms. Short, focused 30-minute sprints with the founder, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.",
+      body: "No long brainstorms. Short, focused 30-minute sprints together, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.",
       node: (
         <Rhythm
           weekly="Up to two edited pieces"
@@ -49,7 +49,7 @@ export default {
     {
       type: "band", anchor: "events", tone: "mid", layout: "stack", tight: true, section: "figure_events", order: 30,
       k: "Events", h: "Every event a community post — the same day.",
-      body: "Events were planned with the post in mind. A fixed structure settled beforehand what to capture and who to feature, so the community post went out the same day, not a week later.",
+      body: "We planned every event with the post in mind. Together we set a fixed structure for what to capture and who to feature, so the community post went out the same day, not a week later.",
       node: (
         <Flow
           items={[
@@ -63,7 +63,7 @@ export default {
     {
       type: "band", anchor: "ambassadors", tone: "deep", layout: "stack", tight: true, section: "figure_ambassadors", order: 40,
       k: "Ambassadors", h: "Deep stories, told so people stay.",
-      body: "BKM's ambassadors had stories worth hearing. We set up a flow that helped them tell those stories in depth — and in a way that holds attention. Across channels, they reached several million views.",
+      body: "BKM's ambassadors had stories worth hearing. Together we set up a flow that helped them tell those stories in depth — and in a way that holds attention. Across channels, they reached several million views.",
       node: (
         <Flow
           items={[
@@ -78,7 +78,7 @@ export default {
       type: "band", anchor: "result", tone: "abyss", layout: "stack", tight: true, section: "result", order: 50,
       k: "The result",
       h: "A brand with a red thread — and 10,000+ people following it within a year.",
-      body: "Sales and subscriptions grew exponentially alongside. The journey was the marketing. Li's own format for BKM, Week-Li, is a story of its own.",
+      body: "Built side by side, week after week. Sales and subscriptions grew exponentially alongside — the journey was the marketing. Li's own format for BKM, Week-Li, is a story of its own.",
       node: <Outcome link={["Week-Li: BKM's format with Li", "li-karlsen"]} />,
     },
   ],

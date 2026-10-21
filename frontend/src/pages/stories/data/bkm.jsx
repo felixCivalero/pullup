@@ -5,7 +5,7 @@ import { Flow, Outcome, Rhythm, Steps } from "../../../components/agency/story/S
    out the same day; a flow for the ambassadors to tell deep stories.
    Facts: 0 → 10,000+ followers in one year — NEVER "organic", not all of them
    were (Felix 2026-10-21); several million views across channels (words, no
-   exact figure); founders Li and Tolga; pace up to two edited pieces a week +
+   exact figure); founder Tolga Duran (always the one founder — Felix 2026-10-21); pace up to two edited pieces a week +
    a production day about monthly; sales and subscriptions growing
    exponentially (words only). No freediving and no quote from Li (her wish,
    2026-10-19) — Li's own format has its own story, Week-Li. No photographs. */
@@ -14,7 +14,7 @@ export default {
   slug: "bkm",
   theme: { surface: "#3D2A0E", mid: "#2A1D0A", deep: "#1A1206", abyss: "#0E0A04", a: "#B7832A", ai: "#E8B86A", b: "#2AA3C9", glow: "183,131,42" },
   hero: {
-    sub: "Two founders with a vision and no audience. We gave BKM one red thread — vision, strategy and a 30-minute rhythm — and built the structures that turned every event and every ambassador into content.",
+    sub: "Tolga Duran had a vision for BKM and no audience. We gave BKM one red thread — vision, strategy and a 30-minute rhythm — and built the structures that turned every event and every ambassador into content.",
     facts: [["10,000+", "followers in one year"], ["Millions", "of views across channels"], ["30 min", "per sprint"]],
   },
   chapters: [["top", "BKM"], ["thread", "Red thread"], ["sprint", "30 minutes"], ["events", "Events"], ["ambassadors", "Ambassadors"], ["result", "Result"]],
@@ -26,7 +26,7 @@ export default {
       node: (
         <Steps
           items={[
-            ["Vision", "Where BKM is going", "The picture the founders are building towards, said plainly enough that anyone on the team can repeat it."],
+            ["Vision", "Where BKM is going", "The picture the founder is building towards, said plainly enough that anyone on the team can repeat it."],
             ["Strategy", "How it gets there", "Who BKM is for, what it says and where — the choices that decide what gets made, and what doesn't."],
             ["The red thread", "What ties it together", "One line every post, event and story traces back to. If it doesn't, it doesn't go out."],
           ]}
@@ -36,7 +36,7 @@ export default {
     {
       type: "band", anchor: "sprint", tone: "deep", layout: "stack", tight: true, section: "figure_rhythm", order: 20,
       k: "The rhythm", h: "Thirty minutes, on repeat.",
-      body: "No long brainstorms. Short, focused 30-minute sprints with the founders, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.",
+      body: "No long brainstorms. Short, focused 30-minute sprints with the founder, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.",
       node: (
         <Rhythm
           weekly="Up to two edited pieces"

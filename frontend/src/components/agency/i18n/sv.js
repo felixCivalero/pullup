@@ -1204,6 +1204,11 @@ export const SV = {
   "No photographs on this page. The story card elsewhere on the site uses a Wikimedia Commons photo, credited below.": "Inga fotografier på den här sidan. Storykortet på andra ställen på sajten använder ett foto från Wikimedia Commons, krediterat nedan.",
 
   // BKM — rewritten 2026-10-21 (never 'organic')
+  "Tolga Duran, BKM's founder, with a vision and no audience.": "Tolga Duran, grundare av BKM – en vision, men ingen publik.",
+  "Tolga Duran had a vision for BKM and no audience. We gave BKM one red thread — vision, strategy and a 30-minute rhythm — and built the structures that turned every event and every ambassador into content.": "Tolga Duran hade en vision för BKM och ingen publik. Vi gav BKM en röd tråd – vision, strategi och en rytm på 30 minuter – och byggde strukturerna som gjorde varje event och varje ambassadör till innehåll.",
+  "The picture the founder is building towards, said plainly enough that anyone on the team can repeat it.": "Bilden grundaren bygger mot, sagd så enkelt att vem som helst i teamet kan upprepa den.",
+  "No long brainstorms. Short, focused 30-minute sprints with the founder, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.": "Inga långa brainstorms. Korta, fokuserade sprintar på 30 minuter med grundaren, likadana varje gång, höll tråden i rörelse vecka efter vecka. Takten landade på upp till två redigerade inlägg i veckan, med en produktionsdag ungefär en gång i månaden.",
+  "Founder, BKM Health": "Grundare, BKM Health",
   "Before the event": "Före eventet",
   "At the event": "Under eventet",
   "One red thread, from vision to every post.": "En röd tråd, från vision till varje inlägg.",

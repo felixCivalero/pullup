@@ -32,7 +32,7 @@ export const WORDS = [
   },
   {
     who: "Tolga Duran",
-    org: "BKM Health",
+    org: "Founder, BKM Health",
     lead: "Felix is a machine.",
     quote: "Everything in marketing. Content, tracking, analytics, e-commerce — he knows it by heart.",
   },

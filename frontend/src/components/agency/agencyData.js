@@ -104,13 +104,14 @@ export const CASES = [
     color: "#B7791F",
     // Never call the followers organic — not all of them were (Felix 2026-10-21).
     title: "One red thread, from vision to every post.",
-    who: "Two founders, Li and Tolga, with a vision and no audience.",
+    // Tolga is THE founder in everything we write (Felix 2026-10-21).
+    who: "Tolga Duran, BKM's founder, with a vision and no audience.",
     gained: "A vision and a strategy that every sprint, event and story followed.",
     brand: "10,000+ followers in one year, several million views across channels — and sales and subscriptions growing exponentially.",
     score: ["10,000+", "followers in one year, from zero"],
     chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "Sales and subscriptions: growing exponentially" },
     spine: {
-      start: "Two founders, Li and Tolga, with a vision and no audience.",
+      start: "Tolga Duran, BKM's founder, with a vision and no audience.",
       did: "Vision and strategy as one red thread — kept moving by 30-minute sprints.",
       made: "A community post the same day as every event, and a flow that let the ambassadors tell deep stories.",
       result: "10,000+ followers in one year and several million views across channels — with sales and subscriptions growing exponentially.",

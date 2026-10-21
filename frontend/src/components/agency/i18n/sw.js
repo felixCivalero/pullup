@@ -1039,6 +1039,11 @@ export const SW = {
   "No photographs on this page. The story card elsewhere on the site uses a Wikimedia Commons photo, credited below.": "Hakuna picha kwenye ukurasa huu. Kadi ya hadithi mahali pengine kwenye tovuti inatumia picha kutoka Wikimedia Commons, iliyotajwa hapa chini.",
 
   // BKM — rewritten 2026-10-21 (never 'organic')
+  "Tolga Duran, BKM's founder, with a vision and no audience.": "Tolga Duran, mwanzilishi wa BKM, mwenye maono na bila hadhira.",
+  "Tolga Duran had a vision for BKM and no audience. We gave BKM one red thread — vision, strategy and a 30-minute rhythm — and built the structures that turned every event and every ambassador into content.": "Tolga Duran alikuwa na maono kwa BKM na hakuwa na hadhira. Tuliipa BKM uzi mmoja mwekundu — maono, mkakati na mdundo wa dakika 30 — na tukajenga mifumo iliyogeuza kila tukio na kila balozi kuwa maudhui.",
+  "The picture the founder is building towards, said plainly enough that anyone on the team can repeat it.": "Picha ambayo mwanzilishi anaijenga, ikielezwa kwa urahisi kiasi kwamba yeyote kwenye timu anaweza kuirudia.",
+  "No long brainstorms. Short, focused 30-minute sprints with the founder, the same every time, kept the thread moving week after week. The pace settled at up to two edited pieces a week, with a production day about once a month.": "Hakuna vikao virefu vya mawazo. Vipindi vifupi na makini vya dakika 30 na mwanzilishi, vilevile kila mara, viliendeleza uzi wiki baada ya wiki. Kasi ilitulia kwenye hadi vipande viwili vilivyohaririwa kwa wiki, na siku ya uzalishaji takriban mara moja kwa mwezi.",
+  "Founder, BKM Health": "Mwanzilishi, BKM Health",
   "Before the event": "Kabla ya tukio",
   "At the event": "Wakati wa tukio",
   "One red thread, from vision to every post.": "Uzi mmoja mwekundu, kutoka maono hadi kila chapisho.",

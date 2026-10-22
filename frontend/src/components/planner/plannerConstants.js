@@ -19,12 +19,13 @@ export const EVENT_PALETTE = ["#60a5fa", "#f472b6", "#34d399", "#a78bfa", "#fb92
 export const CARD_W = 188; // card (and media) width — resizable
 export const MIN_CARD_W = 120;
 export const MAX_CARD_W = 440;
-export const MIN_SCALE = 0.25;
+export const MIN_SCALE = 0.15; // ~a year across a laptop screen
 export const MAX_SCALE = 2.5;
 export const SNAP_Y = 56; // how close to the band counts as "on the timeline"
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 // `types` = the content formats relevant to each channel. The Type dropdown
 // only shows when a channel offers more than one (e.g. Email shows none).

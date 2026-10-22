@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Pencil, ChevronDown, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Check, Keyboard } from "lucide-react";
+import { FileText, Link2, X, StickyNote, CalendarDays, ImagePlus, Loader2, Image as ImageIcon, Pencil, ChevronDown, BarChart3, RotateCcw, GripVertical, ListFilter, Trash2, Plus, Minus, Maximize2, Check, Keyboard } from "lucide-react";
 import { colors } from "../../theme/colors.js";
 import { mediaKind, loadViewport, saveViewport } from "../../lib/plannerStore.js";
 import { DAY_MS, startOfDay, addDays } from "../../lib/plannerTime.js";
@@ -15,7 +15,7 @@ import { authenticatedFetch } from "../../lib/api.js";
 import { supabase } from "../../lib/supabase.js";
 import {
   PX_PER_DAY, BAND_H, BAND_TOP, BAND_BOTTOM, TODAY_COLOR, TIMELINE_COLOR, NEUTRAL_LINK,
-  CARD_W, MIN_CARD_W, MAX_CARD_W, MIN_SCALE, MAX_SCALE, SNAP_Y, WEEKDAYS, MONTHS,
+  CARD_W, MIN_CARD_W, MAX_CARD_W, MIN_SCALE, MAX_SCALE, SNAP_Y, WEEKDAYS, MONTHS, MONTHS_LONG,
   CHANNELS, TYPES, channelColor, uid, clamp, isoOf, cardFrameW, cardHeight, fmtDate, phaseOf, eventPhase,
 } from "./plannerConstants.js";
 import { EditFace, AnalyticsFace } from "./CardFaces.jsx";
@@ -396,28 +396,85 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     setSelectedIds(new Set(clones.map((c) => c.id)));
   }, [viewportCenterWorld, createCardRemote]);
 
-  const zoomBy = useCallback((factor) => {
+  // Animated moves (buttons, presets, keys): the world point at the centre of
+  // the screen glides to `cx/cy` while the zoom changes evenly. Any wheel,
+  // pan or click stops it, so the user is never fighting an animation.
+  const animRef = useRef(null);
+  const animTarget = useRef(null); // where a running animation is headed
+  const stopAnim = useCallback(() => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    animRef.current = null;
+    animTarget.current = null;
+  }, []);
+  const viewCenter = useCallback(() => {
+    const el = containerRef.current;
+    const { panX, panY, scale } = stateRef.current.viewport;
+    return { cx: (el.clientWidth / 2 - panX) / scale, cy: (el.clientHeight / 2 - panY) / scale, scale };
+  }, []);
+  const animateTo = useCallback(({ scale: s1, cx: x1, cy: y1 }, ms = 360) => {
     const el = containerRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.width / 2, cy = rect.height / 2;
-    setState((s) => {
-      const { panX, panY, scale } = s.viewport;
-      const ns = clamp(scale * factor, MIN_SCALE, MAX_SCALE);
-      return { ...s, viewport: { ...s.viewport, scale: ns, panX: cx - ((cx - panX) / scale) * ns, panY: cy - ((cy - panY) / scale) * ns } };
-    });
-  }, []);
+    stopAnim();
+    const w = el.clientWidth, h = el.clientHeight;
+    const { cx: x0, cy: y0, scale: s0 } = viewCenter();
+    const target = clamp(s1, MIN_SCALE, MAX_SCALE);
+    animTarget.current = { scale: target, cx: x1, cy: y1 };
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const t0 = performance.now();
+    const frame = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const k = ease(t);
+      const s = s0 * Math.pow(target / s0, k); // geometric: each step feels the same size
+      const x = x0 + (x1 - x0) * k, y = y0 + (y1 - y0) * k;
+      setState((st) => ({ ...st, viewport: { ...st.viewport, scale: s, panX: w / 2 - x * s, panY: h / 2 - y * s } }));
+      animRef.current = t < 1 ? requestAnimationFrame(frame) : null;
+      if (t >= 1) animTarget.current = null;
+    };
+    animRef.current = requestAnimationFrame(frame);
+  }, [stopAnim, viewCenter]);
+  useEffect(() => stopAnim, [stopAnim]);
+
+  const zoomBy = useCallback((factor) => {
+    if (!containerRef.current) return;
+    const c = animTarget.current || viewCenter(); // quick clicks add up from where the last one was going
+    animateTo({ ...c, scale: c.scale * factor }, 240);
+  }, [animateTo, viewCenter]);
 
   const resetZoom = useCallback(() => {
+    if (!containerRef.current) return;
+    animateTo({ ...viewCenter(), scale: 1 });
+  }, [animateTo, viewCenter]);
+
+  // Show about `days` days across the screen, keeping the centre date.
+  const zoomToDays = useCallback((days) => {
     const el = containerRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const cx = rect.width / 2, cy = rect.height / 2;
-    setState((s) => {
-      const { panX, panY, scale } = s.viewport;
-      return { ...s, viewport: { ...s.viewport, scale: 1, panX: cx - (cx - panX) / scale, panY: cy - (cy - panY) / scale } };
-    });
-  }, []);
+    animateTo({ ...viewCenter(), scale: el.clientWidth / (days * PX_PER_DAY) });
+  }, [animateTo, viewCenter]);
+
+  // Today a third in from the left: a little past, mostly what's coming.
+  const goToday = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { cy, scale } = viewCenter();
+    animateTo({ scale, cy, cx: (el.clientWidth / 2 - el.clientWidth / 3) / scale });
+  }, [animateTo, viewCenter]);
+
+  // Everything on the timeline — lanes, events and cards — in one view.
+  const fitAll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const xs = [], ys = [];
+    for (const c of stateRef.current.items) { xs.push(c.x, c.x + cardFrameW(c)); ys.push(c.y, c.y + cardHeight(c)); }
+    for (const ev of eventsRef.current) xs.push(offsetOfDate(ev.startsAt) * PX_PER_DAY);
+    for (const t of timelinesRef.current) ys.push(t.y + BAND_TOP - 60, t.y + BAND_BOTTOM + 40);
+    if (!xs.length) { goToday(); return; }
+    if (!ys.length) ys.push(0);
+    const minX = Math.min(...xs, 0), maxX = Math.max(...xs, 0); // today stays in the picture
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const scale = Math.min((el.clientWidth - 160) / (maxX - minX || 1), (el.clientHeight - 240) / (maxY - minY || 1));
+    animateTo({ scale, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 - 20 / scale });
+  }, [animateTo, goToday, offsetOfDate]);
 
   const addFiles = useCallback(
     async (files, at) => {
@@ -503,19 +560,24 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     if (!el) return;
     const onWheel = (e) => {
       e.preventDefault();
+      if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; animTarget.current = null; }
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1; // lines/pages → px
       if (e.ctrlKey || e.metaKey) {
         const rect = el.getBoundingClientRect();
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
+        // Zoom in proportion to how far the fingers/wheel moved: a pinch sends
+        // many tiny deltas, a mouse notch one big one (capped to ~14%).
+        const factor = Math.exp(-clamp(e.deltaY * unit, -30, 30) * 0.005);
         setState((s) => {
           const { panX, panY, scale } = s.viewport;
-          const ns = clamp(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), MIN_SCALE, MAX_SCALE);
+          const ns = clamp(scale * factor, MIN_SCALE, MAX_SCALE);
           const wx = (sx - panX) / scale;
           const wy = (sy - panY) / scale;
           return { ...s, viewport: { ...s.viewport, scale: ns, panX: sx - wx * ns, panY: sy - wy * ns } };
         });
       } else {
-        setState((s) => ({ ...s, viewport: { ...s.viewport, panX: s.viewport.panX - e.deltaX, panY: s.viewport.panY - e.deltaY } }));
+        setState((s) => ({ ...s, viewport: { ...s.viewport, panX: s.viewport.panX - e.deltaX * unit, panY: s.viewport.panY - e.deltaY * unit } }));
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -642,6 +704,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
       if (meta && (e.key === "=" || e.key === "+")) { e.preventDefault(); zoomBy(1.2); return; }
       if (meta && (e.key === "-" || e.key === "_")) { e.preventDefault(); zoomBy(1 / 1.2); return; }
       if (meta && e.key === "0") { e.preventDefault(); resetZoom(); return; }
+      if (!meta && (e.key === "t" || e.key === "T")) { goToday(); return; }
+      if (!meta && e.code === "Digit1" && e.shiftKey) { fitAll(); return; }
       if (sel.size && e.key.startsWith("Arrow")) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
@@ -663,14 +727,16 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [deleteSelected, duplicateCards, pasteClipboard, zoomBy, resetZoom, update, queueSave]);
+  }, [deleteSelected, duplicateCards, pasteClipboard, zoomBy, resetZoom, goToday, fitAll, update, queueSave]);
 
   const beginPan = (e) => {
+    stopAnim();
     drag.current = { type: "pan", sx: e.clientX, sy: e.clientY, panX0: state.viewport.panX, panY0: state.viewport.panY };
     setPanning(true);
   };
   // Empty-canvas press: Space/middle-button pans (Adobe hand tool); otherwise rubber-band select.
   const startCanvasPointer = (e) => {
+    stopAnim();
     if (e.button === 1 || spaceRef.current) { beginPan(e); return; }
     if (e.button !== 0) return;
     setFilterLaneId(null);
@@ -773,12 +839,28 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
 
   const dayMin = Math.floor(xMin / PX_PER_DAY) - 1;
   const dayMax = Math.ceil(xMax / PX_PER_DAY) + 1;
-  const labelStep = [1, 2, 3, 7, 14, 30].find((s) => s * PX_PER_DAY * scale >= 50) || 30;
-  const ticks = [];
-  for (let o = dayMin; o <= dayMax; o++) {
-    if (o !== 0 && o % labelStep !== 0) continue;
-    ticks.push(o);
+  // The date axis is drawn in screen space (fixed-size text at any zoom).
+  // Which days get a label depends on how many pixels a day has; Today and
+  // the 1st of each month always do, and crowd out plain labels next to them.
+  const pxd = PX_PER_DAY * scale;
+  const daily = pxd >= 30;
+  const labelled = (d) => (daily ? true : pxd >= 15 ? d.getDate() % 2 === 1 : pxd >= 5 ? d.getDay() === 1 : d.getDate() === 15);
+  const monthStarts = []; // day offsets of each 1st in view (plus one either side for the sticky names)
+  const axisDays = [];
+  for (let o = dayMin - 31; o <= dayMax + 31; o++) {
+    const d = addDays(today, o);
+    if (d.getDate() === 1) monthStarts.push(o);
+    if (o < dayMin || o > dayMax) continue;
+    const isMonth = d.getDate() === 1;
+    const kind = o === 0 ? "today" : isMonth ? "month" : labelled(d) ? "day" : null;
+    axisDays.push({ o, d, kind });
   }
+  const strong = axisDays.filter((a) => a.kind === "today" || a.kind === "month").map((a) => a.o);
+  for (const a of axisDays) {
+    if (a.kind === "day" && strong.some((o) => Math.abs(o - a.o) * pxd < 38)) a.kind = null;
+    if (a.kind === "month" && a.o !== 0 && Math.abs(a.o) * pxd < 44) a.kind = null; // Today wins
+  }
+  const screenX = (o) => o * pxd + panX;
 
   // Connector anchor: card edge nearest its lane band.
   const cardAnchorY = (c, ly) => {
@@ -824,7 +906,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
   const laneExtents = {};
   for (const lane of timelines) {
     let top = lane.y + BAND_TOP;
-    let bottom = lane.y + BAND_BOTTOM + 38; // include the date ticks under the band
+    let bottom = lane.y + BAND_BOTTOM + 40 / scale; // include the (screen-size) date axis under the band
     const evs = laneEvents(lane, events);
     if (evs.length) {
       const maxRow = Math.max(0, ...Object.values(eventRows(evs, eventX)));
@@ -854,6 +936,55 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
       }}
       style={{ position: "absolute", inset: 0, overflow: "hidden", cursor: panning ? "grabbing" : spaceDown ? "grab" : "default", background: `radial-gradient(circle at 1px 1px, ${colors.borderFaint} 1px, transparent 0) 0 0 / 28px 28px, ${colors.surface}`, touchAction: "none" }}
     >
+      {/* Date axis under each lane, in screen space so dates stay readable at any
+          zoom. Underneath the world layer: cards sit on top of it. */}
+      {ready &&
+        timelines.map((lane) => {
+          const axisY = (lane.y + BAND_BOTTOM) * scale + panY;
+          const bandY = lane.y * scale + panY;
+          if (axisY < -60 || bandY > size.h + 30) return null;
+          return (
+            <div key={`axis-${lane.id}`} style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+              {/* Sticky month names on the band: each holds to the left edge until the next month pushes it out */}
+              {monthStarts.slice(0, -1).map((o, i) => {
+                const d = addDays(today, o);
+                const start = screenX(o - 0.5), end = screenX(monthStarts[i + 1] - 0.5);
+                if (end < 0 || start > size.w) return null;
+                // One style per zoom level, so the months read alike: full names when
+                // even February has room, else short (the year only on January).
+                const name = pxd * 28 >= 160 ? `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}` : d.getMonth() === 0 ? `Jan ${d.getFullYear()}` : MONTHS[d.getMonth()];
+                const w = name.length * 7.4 + 18;
+                if (end - start < w + 8) return null;
+                const x = clamp(Math.max(start + 6, 10), start + 6, end - w - 6);
+                return (
+                  <div key={`mname-${o}`} style={{ position: "absolute", left: x, top: bandY - 10, height: 20, display: "flex", alignItems: "center", padding: "0 9px", borderRadius: 999, background: "rgba(255,255,255,0.92)", border: `1px solid ${lane.color}55`, fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: colors.text, whiteSpace: "nowrap" }}>
+                    {name}
+                  </div>
+                );
+              })}
+              {axisDays.map(({ o, d, kind }) => {
+                const x = screenX(o);
+                if (x < -40 || x > size.w + 40) return null;
+                if (!kind) {
+                  return pxd >= 8 ? <div key={`t-${o}`} style={{ position: "absolute", left: x - 0.5, top: axisY + 3, width: 1, height: 4, background: "rgba(10,10,10,0.16)" }} /> : null;
+                }
+                const isToday = kind === "today";
+                const isMonth = d.getDate() === 1;
+                const color = isToday ? TODAY_COLOR : isMonth ? colors.text : "rgba(10,10,10,0.62)";
+                return (
+                  <div key={`l-${o}`} style={{ position: "absolute", left: x, top: axisY + 3, transform: "translateX(-50%)", textAlign: "center", whiteSpace: "nowrap" }}>
+                    <div style={{ width: isToday || isMonth ? 2 : 1, height: isMonth ? 9 : 6, margin: "0 auto", background: isToday ? TODAY_COLOR : isMonth ? "rgba(10,10,10,0.55)" : "rgba(10,10,10,0.25)" }} />
+                    {(daily || isToday) && <div style={{ marginTop: 3, fontSize: 10, lineHeight: 1.1, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: isToday ? TODAY_COLOR : "rgba(10,10,10,0.42)" }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>}
+                    <div style={{ marginTop: daily || isToday ? 1 : 3, fontSize: 12.5, lineHeight: 1.15, fontWeight: isToday || isMonth ? 700 : 500, color, fontVariantNumeric: "tabular-nums" }}>
+                      {isToday || isMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+
       {ready && (
         <div style={{ position: "absolute", left: 0, top: 0, transform: `translate(${panX}px, ${panY}px) scale(${scale})`, transformOrigin: "0 0" }}>
           {/* The past — everything left of Today is settled. A cool wash sets it apart… */}
@@ -872,30 +1003,25 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
             );
           })}
 
-          {/* Each lane: a band tinted in its colour, with Today cutting through + its own date ticks */}
+          {/* Month change — a hairline through the whole canvas, between the last day and the 1st */}
+          {monthStarts.map((o) => (
+            <div key={`mline-${o}`} style={{ position: "absolute", left: (o - 0.5) * PX_PER_DAY, top: -100000, width: 1 / scale, height: 200000, background: "rgba(10,10,10,0.13)", pointerEvents: "none" }} />
+          ))}
+
+          {/* Each lane: a band tinted in its colour, every other month a shade darker, weekends shaded, Today cutting through */}
           {timelines.map((lane) => {
             const bandTop = lane.y + BAND_TOP;
-            const bandBottom = lane.y + BAND_BOTTOM;
             return (
               <div key={`lane-${lane.id}`}>
                 <div style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: bandTop, width: (dayMax - dayMin) * PX_PER_DAY, height: BAND_H, background: `${lane.color}12`, borderTop: `3px solid ${lane.color}66`, borderBottom: `3px solid ${lane.color}66`, pointerEvents: "none" }} />
+                {monthStarts.slice(0, -1).map((o, i) => (addDays(today, o).getMonth() % 2 ? (
+                  <div key={`mtint-${lane.id}-${o}`} style={{ position: "absolute", left: (o - 0.5) * PX_PER_DAY, top: bandTop + 3, width: (monthStarts[i + 1] - o) * PX_PER_DAY, height: BAND_H - 6, background: "rgba(10,10,10,0.045)", pointerEvents: "none" }} />
+                ) : null))}
+                {pxd >= 10 && axisDays.filter((a) => a.d.getDay() === 6).map((a) => (
+                  <div key={`wknd-${lane.id}-${a.o}`} style={{ position: "absolute", left: (a.o - 0.5) * PX_PER_DAY, top: bandTop + 3, width: 2 * PX_PER_DAY, height: BAND_H - 6, background: "rgba(10,10,10,0.04)", pointerEvents: "none" }} />
+                ))}
                 {/* Today mark through this band */}
                 <div style={{ position: "absolute", left: 0, top: bandTop - 7, width: 2, height: BAND_H + 14, borderRadius: 1, background: TODAY_COLOR, transform: "translateX(-1px)", pointerEvents: "none" }} />
-                {/* Date ticks + labels under this band */}
-                {ticks.map((o) => {
-                  const d = addDays(today, o);
-                  const isToday = o === 0;
-                  const showMonth = isToday || d.getDate() === 1;
-                  return (
-                    <div key={`${lane.id}-${o}`} style={{ position: "absolute", left: o * PX_PER_DAY, top: bandBottom + 5, transform: "translateX(-50%)", textAlign: "center", pointerEvents: "none" }}>
-                      {isToday ? <div style={{ height: 6 }} /> : <div style={{ width: 1, height: 6, margin: "0 auto", background: "rgba(10,10,10,0.18)" }} />}
-                      <div style={{ marginTop: 3, fontSize: 9, lineHeight: 1.15, color: isToday ? TODAY_COLOR : "rgba(10,10,10,0.45)", fontWeight: isToday ? 700 : 400, whiteSpace: "nowrap" }}>
-                        <div style={{ opacity: isToday ? 1 : 0.7 }}>{isToday ? "Today" : WEEKDAYS[d.getDay()]}</div>
-                        <div>{showMonth ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : d.getDate()}</div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             );
           })}
@@ -1042,7 +1168,8 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
             ["Delete", "Del / ⌫"],
             ["Copy · paste", "⌘C · ⌘V"],
             ["Pan", "Space-drag / scroll"],
-            ["Zoom · reset", "⌘± · ⌘0"],
+            ["Zoom · reset", "⌘± · ⌘0 · pinch"],
+            ["Today · show everything", "T · ⇧1"],
           ].map(([label, keys]) => (
             <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "3px 0", fontSize: 11.5 }}>
               <span style={{ color: colors.textMuted }}>{label}</span>
@@ -1051,6 +1178,9 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
           ))}
         </div>
       )}
+
+      {/* Zoom — steady steps, presets for showing a client a month / quarter / half year */}
+      {ready && <ZoomControls width={size.w} pxd={pxd} onZoom={zoomBy} onPreset={zoomToDays} onToday={goToday} onFit={fitAll} />}
 
       {/* Content summary — top-right: how much there is, per event and per format */}
       <ContentSummary cards={cards} events={events} />
@@ -1065,6 +1195,37 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     </div>
   );
 });
+
+// ── Zoom controls (screen-space, bottom-left) ─────────────────────────
+const ZOOM_PRESETS = [["Månad", 35], ["Kvartal", 95], ["Halvår", 190]]; // label, days across the screen
+
+function ZoomControls({ width, pxd, onZoom, onPreset, onToday, onFit }) {
+  const days = width / pxd;
+  const compact = width < 1150; // the bottom toolbar needs the room
+  const stop = (e) => e.stopPropagation();
+  const divider = <span style={{ width: 1, height: 20, margin: "0 3px", background: colors.border }} />;
+  return (
+    <div onPointerDown={stop} onWheel={stop} style={{ position: "absolute", left: 14, bottom: 22, zIndex: 16, display: "flex", alignItems: "center", gap: 3, padding: 5, borderRadius: 12, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 4px 14px rgba(10,10,10,0.08)" }}>
+      <ZoomButton onClick={() => onZoom(1 / 1.25)} title="Zooma ut (⌘−)"><Minus size={15} /></ZoomButton>
+      <ZoomButton onClick={() => onZoom(1.25)} title="Zooma in (⌘+)"><Plus size={15} /></ZoomButton>
+      {!compact && divider}
+      {!compact && ZOOM_PRESETS.map(([label, d]) => (
+        <ZoomButton key={label} active={Math.abs(days - d) / d < 0.06} onClick={() => onPreset(d)} title={`Visa ungefär ${d} dagar`}>{label}</ZoomButton>
+      ))}
+      {divider}
+      <ZoomButton onClick={onToday} title="Hoppa till idag (T)">Idag</ZoomButton>
+      <ZoomButton onClick={onFit} title="Visa hela tidslinjen (⇧1)"><Maximize2 size={14} />{!compact && <span>Visa allt</span>}</ZoomButton>
+    </div>
+  );
+}
+
+function ZoomButton({ active, onClick, title, children }) {
+  return (
+    <button type="button" onClick={onClick} title={title} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minWidth: 30, height: 30, padding: "0 9px", borderRadius: 8, border: "none", background: active ? colors.text : "transparent", color: active ? colors.background : colors.text, fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+      {children}
+    </button>
+  );
+}
 
 // ── Lane heading (screen-space, pinned left, tracks its band's y) ─────
 function LaneHeading({ lane, top, shown, soleLane, filterOpen, onStartDrag, onRename, onRecolor, onOpenFilter, onDelete }) {

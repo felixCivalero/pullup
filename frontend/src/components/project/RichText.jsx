@@ -170,7 +170,9 @@ export function RichTextEditor({ doc, at, onChange, onReady }) {
     autofocus: at ? false : "end",
     onCreate: ({ editor: e }) => {
       if (!at) return;
-      const hit = e.view.posAtCoords({ left: at.x, top: at.y });
+      // The camera may be gliding in, so place it by share of the box, not by pixel.
+      const r = e.view.dom.getBoundingClientRect();
+      const hit = e.view.posAtCoords({ left: r.left + at.fx * r.width, top: r.top + at.fy * r.height });
       if (hit) e.chain().focus().setTextSelection(hit.pos).run();
       else e.commands.focus("end");
     },

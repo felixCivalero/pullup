@@ -21,6 +21,7 @@ import { resolveUrl, uid, uploadProjectMedia, useProjectDoc } from "./projectDoc
 const HEADER_H = 36;
 const ZOOM_MIN = 0.15;
 const ZOOM_MAX = 2.5;
+const READ_Z = 0.75; // below this, text you're writing is too small to read
 const STICKY_COLORS = ["#FFE873", "#FFB8D1", "#B8E1FF", "#C2F2C2", "#FFFFFF"];
 const TEXT_BASE = 17; // a text box's body size; headings are em of it
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -83,6 +84,22 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
       return { x: sx - wx * z, y: sy - wy * z, z };
     });
   }, []);
+  // A short eased camera move; any wheel or drag on the stage cancels it.
+  const glide = useRef(0);
+  const stopGlide = useCallback(() => cancelAnimationFrame(glide.current), []);
+  const glideTo = useCallback((to, ms = 320) => {
+    cancelAnimationFrame(glide.current);
+    const from = viewRef.current;
+    const t0 = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const e = 1 - (1 - t) ** 3;
+      setView({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, z: from.z + (to.z - from.z) * e });
+      if (t < 1) glide.current = requestAnimationFrame(step);
+    };
+    glide.current = requestAnimationFrame(step);
+  }, []);
+  useEffect(() => stopGlide, [stopGlide]);
   const stageCenter = useCallback(() => {
     const r = stageRef.current?.getBoundingClientRect();
     return r ? { sx: r.width / 2, sy: r.height / 2 } : { sx: 400, sy: 300 };
@@ -125,19 +142,21 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
     const onWheel = (e) => {
       if (isTypingTarget(e.target) && !(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
+      stopGlide();
       const r = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.01));
       else setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomAt, phase]);
+  }, [zoomAt, stopGlide, phase]);
 
   // ── pointer: pan, pinch, drag + resize items ─────────────────────────────
   const onStagePointerDown = (e) => {
     if (e.target !== e.currentTarget && !e.target.classList.contains("pb-world")) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     e.currentTarget.setPointerCapture(e.pointerId);
+    stopGlide();
     setSelected(null);
     setEditing(null);
     setLinkOpen(false);
@@ -363,6 +382,18 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
     const prev = prevEditing.current;
     if (prev && prev.id !== editing) finishEditing(itemsRef.current.find((i) => i.id === prev.id));
     prevEditing.current = editingItem ? { id: editingItem.id } : null;
+    // Writing in a box too small to read: glide in until the text is real size.
+    if (editingItem && (editingItem.type === "text" || editingItem.type === "sticky") && viewRef.current.z < READ_Z) {
+      const r = stageRef.current?.getBoundingClientRect();
+      if (r) {
+        const z = clamp(Math.min(1, (r.width - 80) / editingItem.w), viewRef.current.z, 1);
+        glideTo({
+          x: r.width / 2 - (editingItem.x + editingItem.w / 2) * z,
+          y: Math.max(120, r.height * 0.32) - editingItem.y * z,
+          z,
+        });
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
@@ -659,7 +690,7 @@ function TextBox({ item, cls, style, editing, onDragStart, onEdit, onPatch, onMe
   }, [isSticky]);
 
   const onChange = useCallback((next, text) => onPatch({ doc: next, text: text.slice(0, 8000) }), [onPatch]);
-  const openedAt = useRef(null); // where the double-click landed
+  const openedAt = useRef(null); // where the double-click landed, as a share of the text's box
   useEffect(() => { if (!editing) openedAt.current = null; }, [editing]);
   return (
     <div
@@ -667,7 +698,12 @@ function TextBox({ item, cls, style, editing, onDragStart, onEdit, onPatch, onMe
       className={`${cls}${isSticky ? "" : " pb-textbox"}`}
       style={{ ...style, ...(isSticky ? { background: item.color || STICKY_COLORS[0] } : { height: "auto", minHeight: 40, fontSize: TEXT_BASE }) }}
       onPointerDown={(ev) => !editing && onDragStart(ev, item, "move")}
-      onDoubleClick={(ev) => { if (editing) return; openedAt.current = { x: ev.clientX, y: ev.clientY }; onEdit(); }}
+      onDoubleClick={(ev) => {
+        if (editing) return;
+        const r = (ev.currentTarget.querySelector(".rt") || ev.currentTarget).getBoundingClientRect();
+        openedAt.current = { fx: (ev.clientX - r.left) / r.width, fy: (ev.clientY - r.top) / r.height };
+        onEdit();
+      }}
     >
       {editing ? (
         <div className="pb-rich" onPointerDown={(ev) => ev.stopPropagation()}>

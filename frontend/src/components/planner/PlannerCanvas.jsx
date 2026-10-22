@@ -299,15 +299,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
     [trackFetch, filterLaneId, queueSave],
   );
 
-  const cycleColor = useCallback(
-    (id) => {
-      const t = timelinesRef.current.find((x) => x.id === id);
-      const i = Math.max(0, LANE_PALETTE.indexOf(t?.color));
-      setTimeline(id, { color: LANE_PALETTE[(i + 1) % LANE_PALETTE.length] });
-    },
-    [setTimeline],
-  );
-
   const uploadMedia = useCallback(
     async (file) => {
       inflight.current += 1;
@@ -994,15 +985,6 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
           {/* The seam itself — an amber line cutting the whole canvas at Today. */}
           <div style={{ position: "absolute", left: 0, top: -100000, width: 1.5, height: 200000, background: TODAY_COLOR, opacity: 0.6, transform: "translateX(-0.75px)", pointerEvents: "none" }} />
 
-          {/* Each lane's group tint — a soft band behind everything it owns, so the grouping reads */}
-          {timelines.map((lane) => {
-            const ext = laneExtents[lane.id];
-            if (!ext) return null;
-            return (
-              <div key={`tint-${lane.id}`} style={{ position: "absolute", left: dayMin * PX_PER_DAY, top: ext.top, width: (dayMax - dayMin) * PX_PER_DAY, height: ext.bottom - ext.top, background: `${lane.color}10`, borderTop: `1px solid ${lane.color}33`, borderRadius: 6, pointerEvents: "none" }} />
-            );
-          })}
-
           {/* Month change — a hairline through the whole canvas, between the last day and the 1st */}
           {monthStarts.map((o) => (
             <div key={`mline-${o}`} style={{ position: "absolute", left: (o - 0.5) * PX_PER_DAY, top: -100000, width: 1 / scale, height: 200000, background: "rgba(10,10,10,0.13)", pointerEvents: "none" }} />
@@ -1127,7 +1109,7 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
               filterOpen={filterLaneId === lane.id}
               onStartDrag={(e) => startLaneDrag(e, lane.id)}
               onRename={(name) => setTimeline(lane.id, { name })}
-              onRecolor={() => cycleColor(lane.id)}
+              onRecolor={(color) => setTimeline(lane.id, { color })}
               onOpenFilter={() => setFilterLaneId((id) => (id === lane.id ? null : lane.id))}
               onDelete={() => deleteTimeline(lane.id)}
             />
@@ -1230,19 +1212,39 @@ function ZoomButton({ active, onClick, title, children }) {
 // ── Lane heading (screen-space, pinned left, tracks its band's y) ─────
 function LaneHeading({ lane, top, shown, soleLane, filterOpen, onStartDrag, onRename, onRecolor, onOpenFilter, onDelete }) {
   const filtered = lane.eventFilter?.mode === "selected";
+  const [picking, setPicking] = useState(false);
+  const wrap = useRef(null);
+  useEffect(() => {
+    if (!picking) return undefined;
+    const off = (e) => { if (!wrap.current?.contains(e.target)) setPicking(false); };
+    window.addEventListener("pointerdown", off);
+    return () => window.removeEventListener("pointerdown", off);
+  }, [picking]);
   return (
     <div
+      ref={wrap}
       onPointerDown={(e) => e.stopPropagation()}
       style={{ position: "absolute", left: 14, top, zIndex: 15, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 8px 0 4px", borderRadius: 10, background: colors.background, border: `1px solid ${lane.color}88`, boxShadow: `0 4px 14px rgba(10,10,10,0.08), 0 0 0 1px ${lane.color}22`, maxWidth: 340 }}
     >
       <span onPointerDown={onStartDrag} title="Drag to move this timeline" style={{ display: "flex", alignItems: "center", color: colors.textSubtle, cursor: "grab", flexShrink: 0 }}>
         <GripVertical size={15} />
       </span>
-      <button onClick={onRecolor} title="Change colour" style={{ width: 14, height: 14, borderRadius: "50%", background: lane.color, border: `1px solid ${colors.border}`, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+      <span style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+        <button onClick={() => setPicking((v) => !v)} title="Byt färg" aria-label="Byt färg" style={{ width: 16, height: 16, borderRadius: "50%", background: lane.color, border: `2px solid ${colors.background}`, boxShadow: `0 0 0 1px ${lane.color}`, cursor: "pointer", padding: 0 }} />
+        {picking && (
+          <span style={{ position: "absolute", left: -6, top: 26, zIndex: 30, display: "grid", gridTemplateColumns: "repeat(4, 22px)", gap: 6, padding: 8, borderRadius: 10, background: colors.background, border: `1px solid ${colors.border}`, boxShadow: "0 10px 28px rgba(10,10,10,0.14)" }}>
+            {LANE_PALETTE.map((c) => (
+              <button key={c} onClick={() => { onRecolor(c); setPicking(false); }} title={c} aria-label={c} style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: "none", boxShadow: c === lane.color ? `0 0 0 2px ${colors.background}, 0 0 0 4px ${c}` : "none", cursor: "pointer", padding: 0 }} />
+            ))}
+          </span>
+        )}
+      </span>
       <input
         value={lane.name}
         onChange={(e) => onRename(e.target.value)}
         onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+        title="Byt namn"
         spellCheck={false}
         style={{ minWidth: 0, width: Math.min(150, Math.max(54, (lane.name?.length || 8) * 8)), background: "transparent", border: "none", outline: "none", color: colors.text, fontSize: 13, fontWeight: 700 }}
       />

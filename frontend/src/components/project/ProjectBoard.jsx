@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight, BringToFront, CheckSquare, Frame, GripHorizontal, Heading, ImagePlus, Link2,
-  Loader2, Maximize, Minus, Plus, StickyNote, Trash2, Type, X,
+  Loader2, Maximize, Minus, Pencil, Plus, StickyNote, Trash2, Type, X,
 } from "lucide-react";
+import { RichTextEditor, RichTextView, RichToolbar } from "./RichText.jsx";
+import { RICH_CSS, docFromItem, docFromText, emptyDoc, toggleTaskAt } from "./richDoc.js";
 import { PLATFORM_LABEL, isUrl, needsResolve, socialEmbed } from "./socialEmbed.js";
 import { resolveUrl, uid, uploadProjectMedia, useProjectDoc } from "./projectDoc.js";
 
 /* ════════════════════════════════════════════════════════════════════════
    A project's board: the free-form space a meeting gathers around to develop
-   formats. Pan/zoom; headings and body text, stickies, to-do lists,
+   formats. Pan/zoom; rich text boxes (RichText.jsx), stickies, to-do lists,
    references (social links that play in place), uploaded images and video,
    and format frames. A frame IS a content format: its title is the format
    cards carry on the timeline; it shows how many there are and links there.
@@ -20,7 +22,7 @@ const HEADER_H = 36;
 const ZOOM_MIN = 0.15;
 const ZOOM_MAX = 2.5;
 const STICKY_COLORS = ["#FFE873", "#FFB8D1", "#B8E1FF", "#C2F2C2", "#FFFFFF"];
-const TEXT_SIZES = { l: 48, m: 28, s: 17 };
+const TEXT_BASE = 17; // a text box's body size; headings are em of it
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const isTypingTarget = (el) => el instanceof Element && el.closest("input, textarea, [contenteditable='true']") != null;
 const inside = (i, f) => i.x >= f.x && i.y >= f.y && i.x + i.w <= f.x + f.w && i.y + i.h <= f.y + f.h;
@@ -36,6 +38,7 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
   const [toast, setToast] = useState("");
   const [interacting, setInteracting] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [richEditor, setRichEditor] = useState(null); // the text box being written in
 
   const stageRef = useRef(null);
   const viewRef = useRef(view);
@@ -245,11 +248,11 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
   };
 
   const addText = (size) => {
-    const it = addItem({ type: "text", text: "", size, w: size === "l" ? 560 : 420, h: size === "l" ? 70 : 60 });
+    const it = addItem({ type: "text", text: "", doc: emptyDoc(size === "l" ? "h1" : "p"), w: size === "l" ? 560 : 420, h: size === "l" ? 70 : 40 });
     setEditing(it.id);
   };
   const addSticky = (text = "") => {
-    const it = addItem({ type: "sticky", text, color: STICKY_COLORS[0], w: 220, h: 220 });
+    const it = addItem({ type: "sticky", text, doc: docFromText(text), color: STICKY_COLORS[0], w: 220, h: 220 });
     if (!text) setEditing(it.id);
   };
   const addTodo = () => addItem({ type: "todo", title: "Att göra", todos: [{ id: uid(), text: "", done: false }], w: 300, h: 220 });
@@ -325,6 +328,13 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
         return;
       }
       if (isTypingTarget(e.target)) return;
+      // Enter on a selected box starts writing in it.
+      const sel = itemsRef.current.find((i) => i.id === selected);
+      if (e.key === "Enter" && sel && (sel.type === "text" || sel.type === "sticky")) {
+        e.preventDefault();
+        setEditing(sel.id);
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selected) {
         e.preventDefault();
         removeItem(selected);
@@ -332,7 +342,7 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, removeItem]);
+  }, [selected, removeItem, itemsRef]);
 
   // A frame's title is its format: renaming it renames the format on the timeline.
   const finishEditing = (item) => {
@@ -392,6 +402,8 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
               onEdit={() => startEditing(it)}
               onStopEdit={() => setEditing(null)}
               onPatch={(patch) => patchItem(it.id, patch)}
+              onMeasure={(h) => setItems(itemsRef.current.map((i) => (i.id === it.id ? { ...i, h } : i)))}
+              onEditor={setRichEditor}
               onRemove={() => removeItem(it.id)}
               onOpenFormat={onOpenFormat}
             />
@@ -413,15 +425,25 @@ export function ProjectBoard({ clientId, formatCounts = {}, focusFormat, onOpenF
           {sel.type === "sticky" && STICKY_COLORS.map((c) => (
             <button key={c} type="button" className={`pb-swatch${sel.color === c ? " is-on" : ""}`} style={{ background: c }} onClick={() => patchItem(sel.id, { color: c })} aria-label="Färg" />
           ))}
-          {sel.type === "text" && [["l", "Rubrik"], ["m", "Underrubrik"], ["s", "Brödtext"]].map(([k, label]) => (
-            <button key={k} type="button" className={`pb-size${(sel.size || "m") === k ? " is-on" : ""}`} onClick={() => patchItem(sel.id, { size: k })}>{label}</button>
-          ))}
+          {(sel.type === "text" || sel.type === "sticky") && (
+            <button type="button" className="pb-size" onClick={() => setEditing(sel.id)} title="Redigera (Enter)"><Pencil size={14} /> Redigera</button>
+          )}
           {(sel.type === "sticky" || sel.type === "text") && <span className="pb-sep" />}
           {sel.type !== "frame" && (
             <button type="button" className="pb-icon" onClick={() => patchItem(sel.id, { z: topZ() })} aria-label="Lägg överst" title="Lägg överst"><BringToFront size={16} /></button>
           )}
           <button type="button" className="pb-icon pb-danger" onClick={() => removeItem(sel.id)} aria-label="Ta bort" title="Ta bort"><Trash2 size={16} /></button>
         </div>
+      )}
+
+      {editingItem && (editingItem.type === "text" || editingItem.type === "sticky") && richEditor && !richEditor.isDestroyed && (
+        <RichToolbar
+          key={editingItem.id}
+          editor={richEditor}
+          left={editingItem.x * view.z + view.x}
+          top={editingItem.y * view.z + view.y - 52}
+          bottomEdge={(editingItem.y + editingItem.h) * view.z + view.y}
+        />
       )}
 
       {phase === "ready" && (
@@ -493,7 +515,7 @@ function mediaRatio(url, kind) {
 }
 
 /* ─── one item on the board ─── */
-function BoardItem({ item, selected, editing, count, onDragStart, onEdit, onStopEdit, onPatch, onRemove, onOpenFormat }) {
+function BoardItem({ item, selected, editing, count, onDragStart, onEdit, onStopEdit, onPatch, onMeasure, onEditor, onRemove, onOpenFormat }) {
   const style = { left: item.x, top: item.y, width: item.w, height: item.h, zIndex: item.z || 0 };
   const cls = `pb-item pb-${item.type}${selected ? " is-selected" : ""}${editing ? " is-editing" : ""}`;
   const resize = <span className="pb-resize" onPointerDown={(e) => onDragStart(e, item, "resize")} aria-hidden="true" />;
@@ -612,33 +634,48 @@ function BoardItem({ item, selected, editing, count, onDragStart, onEdit, onStop
     );
   }
 
-  // text + sticky
+  return <TextBox item={item} cls={cls} style={style} editing={editing} onDragStart={onDragStart} onEdit={onEdit} onPatch={onPatch} onMeasure={onMeasure} onEditor={onEditor} resize={resize} />;
+}
+
+// A text box or sticky: rich text (RichText.jsx). A text box's height follows
+// its content; a sticky keeps its size.
+function TextBox({ item, cls, style, editing, onDragStart, onEdit, onPatch, onMeasure, onEditor, resize }) {
   const isSticky = item.type === "sticky";
-  const size = TEXT_SIZES[item.size || "m"];
+  const ref = useRef(null);
+  const doc = docFromItem(item);
+  const hRef = useRef(item.h);
+  useEffect(() => { hRef.current = item.h; }, [item.h]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (isSticky || !el) return undefined;
+    const ro = new ResizeObserver(() => {
+      const h = Math.ceil(el.offsetHeight);
+      if (h && Math.abs(h - hRef.current) > 1) onMeasure(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSticky]);
+
+  const onChange = useCallback((next, text) => onPatch({ doc: next, text: text.slice(0, 8000) }), [onPatch]);
+  const openedAt = useRef(null); // where the double-click landed
+  useEffect(() => { if (!editing) openedAt.current = null; }, [editing]);
   return (
     <div
-      className={`${cls}${isSticky ? "" : ` pb-text-${item.size || "m"}`}`}
-      style={{ ...style, ...(isSticky ? { background: item.color || STICKY_COLORS[0] } : null) }}
+      ref={ref}
+      className={`${cls}${isSticky ? "" : " pb-textbox"}`}
+      style={{ ...style, ...(isSticky ? { background: item.color || STICKY_COLORS[0] } : { height: "auto", minHeight: 40, fontSize: TEXT_BASE }) }}
       onPointerDown={(ev) => !editing && onDragStart(ev, item, "move")}
-      onDoubleClick={onEdit}
+      onDoubleClick={(ev) => { if (editing) return; openedAt.current = { x: ev.clientX, y: ev.clientY }; onEdit(); }}
     >
       {editing ? (
-        <textarea
-          autoFocus
-          className="pb-textarea"
-          style={isSticky ? null : { fontSize: size }}
-          value={item.text || ""}
-          onChange={(ev) => {
-            const text = ev.target.value.slice(0, 8000);
-            onPatch(isSticky ? { text } : { text, h: Math.max(item.h, ev.target.scrollHeight + 4) });
-          }}
-          onPointerDown={stop}
-          onBlur={onStopEdit}
-          placeholder={isSticky ? "Anteckning…" : item.size === "l" ? "Rubrik" : "Skriv något"}
-        />
+        <div className="pb-rich" onPointerDown={(ev) => ev.stopPropagation()}>
+          <RichTextEditor doc={doc} at={openedAt.current} onChange={onChange} onReady={onEditor} />
+        </div>
       ) : (
-        <div className="pb-textview" style={isSticky ? null : { fontSize: size }}>
-          {item.text || <span className="pb-placeholder">{isSticky ? "Dubbelklicka för att skriva" : "Dubbelklicka för att skriva"}</span>}
+        <div className="pb-rich">
+          <RichTextView doc={doc} placeholder="Dubbelklicka för att skriva" onToggleTask={(i) => onPatch({ doc: toggleTaskAt(doc, i) })} />
         </div>
       )}
       {resize}
@@ -654,7 +691,7 @@ function safeHost(url) {
   }
 }
 
-const CSS = `
+const CSS = RICH_CSS + `
   .pb { position: absolute; inset: 0; overflow: hidden; background: #f4f4f2; color: #0a0a0a; -webkit-font-smoothing: antialiased; touch-action: none; user-select: none; -webkit-user-select: none; }
   .pb * { box-sizing: border-box; }
   .pb button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -682,15 +719,18 @@ const CSS = `
   .pb-frame .pb-resize { pointer-events: auto; }
 
   .pb-text { cursor: move; }
-  .pb-textview { width: 100%; height: 100%; overflow: hidden; white-space: pre-wrap; word-break: break-word; }
-  .pb-text-l .pb-textview, .pb-text-l .pb-textarea { font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
-  .pb-text-m .pb-textview, .pb-text-m .pb-textarea { font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
-  .pb-text-s .pb-textview, .pb-text-s .pb-textarea { font-weight: 400; line-height: 1.5; }
-  .pb-text.is-editing { outline: 2px dashed rgba(0,0,0,0.35); outline-offset: 4px; }
-  .pb-sticky { border-radius: 4px; box-shadow: 0 14px 28px -18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.12); padding: 16px; cursor: move; }
-  .pb-sticky .pb-textview, .pb-sticky .pb-textarea { font-size: 18px; line-height: 1.35; font-weight: 500; }
+  .pb-text.is-editing { outline: 2px solid #ec178f; outline-offset: 6px; border-radius: 2px; }
+  .pb-text.is-editing .pb-resize { opacity: 1; }
+  .pb-rich { height: 100%; }
+  .pb-sticky { border-radius: 4px; box-shadow: 0 14px 28px -18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.12); padding: 16px; cursor: move; font-size: 18px; }
+  .pb-sticky .pb-rich { overflow: hidden; }
+  .pb-sticky.is-editing .pb-rich { overflow-y: auto; }
+  .pb-sticky .rt { line-height: 1.35; }
+  .pb-sticky .rt h1 { font-size: 1.8em; }
+  .pb-sticky .rt h2 { font-size: 1.4em; }
+  .pb-sticky .rt h3 { font-size: 1.2em; }
+  .pb-sticky.is-editing { outline: 2px solid #ec178f; outline-offset: 4px; }
   .pb-placeholder { color: rgba(0,0,0,0.35); font-weight: 400; }
-  .pb-textarea { width: 100%; height: 100%; resize: none; border: 0; outline: none; background: transparent !important; padding: 0; font: inherit; color: #0a0a0a; }
 
   .pb-todo { background: #fff; border-radius: 14px; box-shadow: 0 12px 34px -18px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; }
   .pb-todo-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 6px; cursor: move; }
@@ -725,7 +765,8 @@ const CSS = `
   .pb-selbar { position: absolute; z-index: 25; display: flex; align-items: center; gap: 4px; padding: 4px; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08); }
   .pb-swatch { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.18); margin: 0 2px; }
   .pb-swatch.is-on { outline: 2px solid #000; outline-offset: 2px; }
-  .pb-size { height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; font-size: 12.5px; font-weight: 600; }
+  .pb-size { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 8px; border: 0; background: transparent; font-size: 12.5px; font-weight: 600; }
+  .pb-size:hover { background: rgba(0,0,0,0.06); }
   .pb-size.is-on { background: #0a0a0a; color: #fff !important; }
   .pb-sep { width: 1px; height: 22px; background: rgba(0,0,0,0.12); margin: 0 4px; }
   .pb-icon { width: 32px; height: 32px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 9px; flex: none; }

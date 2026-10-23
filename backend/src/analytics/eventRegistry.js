@@ -21,6 +21,13 @@ export const TRACKED_EVENTS = new Set([
   "waitlist_submit",      // { role, surface } — pressed "Join the waitlist"
   "waitlist_joined",      // { role, surface } — creator_waitlist row written (the conversion)
   "room_view",            // { role } + eventId/userId columns — identified room presence
+  // Reading (frontend/src/lib/engagement.js) — the visit journeys in Statistik:
+  "engagement",           // { page, active, depth, s: { section: seconds } } — deltas since the last one
+  "click",                // { label, href?, section, page } — any link or button
+  "copy",                 // { section, page, chars } — text copied (never the text)
+  "request_field",        // { field } — first touch of a form field per opening (never the value)
+  "request_close",        // { fields, secs } — form closed without sending
+  "request_error",        // { error } — the form refused or failed
 ]);
 
 const MAX_EVENTS_PER_BATCH = 50;

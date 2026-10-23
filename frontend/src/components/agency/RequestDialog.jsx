@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
+import { track } from "../../lib/track.js";
 import { CONTACT, OFFER } from "./agencyData.js";
 import { requestMeta } from "./request.js";
 import { useT } from "./i18n.js";
@@ -21,6 +22,26 @@ export function RequestDialog() {
   const [state, setState] = useState("idle"); // idle | sending | done | error
   const [error, setError] = useState("");
   const firstRef = useRef(null);
+  // Which fields were filled in this opening (names only, never what was typed),
+  // and when it opened — a close without sending is logged with both.
+  const touched = useRef(new Set());
+  const openedAt = useRef(0);
+  const sent = useRef(false);
+
+  function close() {
+    if (!sent.current) {
+      track("request_close", { fields: [...touched.current], secs: Math.round((Date.now() - openedAt.current) / 1000) });
+    }
+    setOpen(false);
+  }
+  // Typing in a field, or picking a time — not the autofocus on opening.
+  const onFieldTouch = (e) => {
+    if (e.type === "click" && !e.target?.closest?.("button")) return;
+    const field = e.target?.closest?.("[data-field]")?.getAttribute("data-field");
+    if (!field || touched.current.has(field)) return;
+    touched.current.add(field);
+    track("request_field", { field });
+  };
 
   useEffect(() => {
     const onOpen = (e) => {
@@ -28,6 +49,9 @@ export function RequestDialog() {
       setState((s) => (s === "done" ? "idle" : s));
       setError("");
       setOpen(true);
+      touched.current = new Set();
+      openedAt.current = Date.now();
+      sent.current = false;
       trackEvent("request_open", { source: e.detail?.source || "" });
     };
     window.addEventListener("pullup:request", onOpen);
@@ -39,7 +63,7 @@ export function RequestDialog() {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const t = setTimeout(() => firstRef.current?.focus(), 80);
-    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && close();
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
@@ -81,20 +105,23 @@ export function RequestDialog() {
           }[data.error] || t("Something went wrong. Try again, or email {email}.", { email: CONTACT }),
         );
         setState("error");
+        track("request_error", { error: data.error || `http_${res.status}` });
         return;
       }
+      sent.current = true;
       trackEvent("request_sent", { source });
       setState("done");
     } catch {
       setError(t("Couldn't reach me. Check your connection and try again."));
       setState("error");
+      track("request_error", { error: "network" });
     }
   };
 
   return (
-    <div className="rq-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
+    <div className="rq-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="rq" role="dialog" aria-modal="true" aria-labelledby="rq-title">
-        <button type="button" className="rq-close" onClick={() => setOpen(false)} aria-label={t("Close")}>
+        <button type="button" className="rq-close" onClick={close} aria-label={t("Close")}>
           <X size={20} strokeWidth={1.75} />
         </button>
 
@@ -112,7 +139,7 @@ export function RequestDialog() {
             <button type="button" className="pc-btn pc-btn-dark" onClick={() => setOpen(false)}>{t("Close")}</button>
           </div>
         ) : (
-          <form onSubmit={submit} noValidate>
+          <form onSubmit={submit} onInput={onFieldTouch} onClick={onFieldTouch} noValidate>
             <p className="rq-k">{t("Start a conversation")}</p>
             <h2 id="rq-title" className="rq-h">{t("Tell me who you are and where you want to go.")}</h2>
             <p className="rq-offer">
@@ -121,20 +148,20 @@ export function RequestDialog() {
             </p>
 
             <div className="rq-row">
-              <label className="rq-field">
+              <label className="rq-field" data-field="name">
                 <span>{t("Name")}</span>
                 <input ref={firstRef} required autoComplete="name" value={form.name} onChange={set("name")} />
               </label>
-              <label className="rq-field">
+              <label className="rq-field" data-field="email">
                 <span>{t("Email")}</span>
                 <input type="email" inputMode="email" required autoComplete="email" value={form.email} onChange={set("email")} />
               </label>
             </div>
-            <label className="rq-field">
+            <label className="rq-field" data-field="company">
               <span>{t("Brand or company")} <em>{t("optional")}</em></span>
               <input autoComplete="organization" value={form.company} onChange={set("company")} />
             </label>
-            <label className="rq-field">
+            <label className="rq-field" data-field="description">
               <span>{t("What's going on")}</span>
               <textarea
                 required
@@ -145,7 +172,7 @@ export function RequestDialog() {
               />
             </label>
 
-            <fieldset className="rq-field">
+            <fieldset className="rq-field" data-field="when">
               <legend>{t("When can we talk?")} <em>{t("30 minutes")}</em></legend>
               <div className="rq-chips">
                 {WHEN.map((w) => (

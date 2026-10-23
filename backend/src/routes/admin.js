@@ -1,6 +1,7 @@
 // Admin basics: who am I, and the site's numbers (Statistik).
 import { requireOwner } from "../middleware/requireOwner.js";
 import { supabase } from "../supabase.js";
+import { summarizeVisits, visitTimeline } from "../lib/visitJourneys.js";
 
 const TZ = "Europe/Stockholm";
 const dayKey = (iso) => new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
@@ -15,6 +16,12 @@ async function selectAll(build) {
     if (!data || data.length < 1000) return out;
   }
 }
+
+const VISIT_COLUMNS = "session_id, visitor_id, event_name, occurred_at, source, device_type, props";
+const VISIT_EVENTS = [
+  "page_view", "section_view", "engagement", "click", "cta_click", "copy",
+  "request_open", "request_field", "request_close", "request_error", "request_sent",
+];
 
 export function registerAdminRoutes(app) {
   app.get("/admin/me", requireOwner, (req, res) => {
@@ -50,7 +57,7 @@ export function registerAdminRoutes(app) {
         ),
         supabase
           .from("agency_requests")
-          .select("id, created_at, name, email, company, description, preferred_time, source")
+          .select("id, created_at, name, email, company, description, preferred_time, source, visit_id:meta->>visitId")
           .order("created_at", { ascending: false })
           .limit(50),
       ]);
@@ -94,6 +101,57 @@ export function registerAdminRoutes(app) {
       return res.json({ days, series, totals, sources, pages, leads: leads.data || [] });
     } catch (err) {
       console.error("[admin/stats] error:", err?.message);
+      return res.status(500).json({ error: "failed" });
+    }
+  });
+
+  // GET /admin/visits?days=30 — every visit as a journey: how far they read,
+  // where the time went, what they clicked, whether the form was opened,
+  // started or sent (a sent request is linked by meta.visitId). Plus the
+  // funnel and, per page and section, how many got there and how long they
+  // read. See lib/visitJourneys.js.
+  app.get("/admin/visits", requireOwner, async (req, res) => {
+    try {
+      const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+      const since = new Date(Date.now() - days * 86400000);
+      since.setUTCHours(0, 0, 0, 0);
+      const [events, requests] = await Promise.all([
+        selectAll(() =>
+          supabase
+            .from("analytics_events")
+            .select(VISIT_COLUMNS)
+            .in("event_name", VISIT_EVENTS)
+            .neq("source", "localhost")
+            .gte("occurred_at", since.toISOString())
+            .order("occurred_at", { ascending: true }),
+        ),
+        selectAll(() =>
+          supabase.from("agency_requests").select("id, name, company, created_at, meta").gte("created_at", since.toISOString()),
+        ),
+      ]);
+      const { visits, funnel, pages } = summarizeVisits({ events, requests });
+      return res.json({ days, funnel, pages, visits: visits.slice(0, 300), total: visits.length });
+    } catch (err) {
+      console.error("[admin/visits] error:", err?.message);
+      return res.status(500).json({ error: "failed" });
+    }
+  });
+
+  // GET /admin/visits/:id — one visit, step by step.
+  app.get("/admin/visits/:id", requireOwner, async (req, res) => {
+    try {
+      const id = String(req.params.id || "").slice(0, 128);
+      const [events, request] = await Promise.all([
+        selectAll(() =>
+          supabase.from("analytics_events").select(VISIT_COLUMNS).eq("session_id", id).in("event_name", VISIT_EVENTS).order("occurred_at", { ascending: true }),
+        ),
+        supabase.from("agency_requests").select("id, name, email, company, created_at, meta").eq("meta->>visitId", id).limit(1).maybeSingle(),
+      ]);
+      if (request.error) throw request.error;
+      if (!events.length) return res.status(404).json({ error: "not_found" });
+      return res.json(visitTimeline({ events, request: request.data }));
+    } catch (err) {
+      console.error("[admin/visits/:id] error:", err?.message);
       return res.status(500).json({ error: "failed" });
     }
   });

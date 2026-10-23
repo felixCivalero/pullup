@@ -56,7 +56,7 @@ export function PrivacyPage() {
             <ul>
               <li><strong>När du hör av dig</strong> via ”Jobba med mig”: namn, e-post och det du skriver i formuläret. Med följer var du kom ifrån – sidan du skickade från, länken som tog dig hit (referrer), eventuella kampanjparametrar (UTM), språk, skärmstorlek, mobil eller dator och när besöket började.</li>
               <li><strong>När du ber om bookleten:</strong> e-post, och namn och företag om du fyller i dem.</li>
-              <li><strong>Besöksstatistik:</strong> vilka sidor du ser och vad du klickar på, referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Inget sparas i din webbläsare, och statistiken innehåller inte namn, e-post eller IP-adress – den kan inte känna igen dig nästa gång du kommer tillbaka. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
+              <li><strong>Besöksstatistik:</strong> vilka sidor du ser, hur långt ner du läser och hur länge du läser varje del, vad du klickar på, att du kopierar text (inte vad), vilka fält i formuläret du fyller i (inte vad du skriver), referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Inget sparas i din webbläsare, och statistiken innehåller inte namn, e-post eller IP-adress – den kan inte känna igen dig nästa gång du kommer tillbaka. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
               <li><strong>Tekniska loggar:</strong> servern loggar IP-adress och webbläsare för drift och säkerhet.</li>
               <li><strong>Felrapporter:</strong> om sidan kraschar skickas en rapport om felet, webbläsaren och sidan.</li>
             </ul>
@@ -64,7 +64,8 @@ export function PrivacyPage() {
             <h2>Varför</h2>
             <ul>
               <li>För att svara på det du bett om – din förfrågan eller bookleten. Det är steg inför ett eventuellt samarbete, eller mitt berättigade intresse av att svara dig.</li>
-              <li>Statistik, loggar och felrapporter: mitt berättigade intresse av att förstå hur sajten används och hålla den igång.</li>
+              <li>Statistik, loggar och felrapporter: mitt berättigade intresse av att förstå hur sajten används, göra den bättre och hålla den igång.</li>
+              <li>Skickar du en förfrågan kopplas den till besöket den kom från, så att jag ser vad du läste innan du hörde av dig. Det är mitt berättigade intresse av att förstå vad som får folk att höra av sig.</li>
             </ul>
             <p>Jag säljer aldrig dina uppgifter, lämnar inte ut dem för någon annans marknadsföring och lägger inte till dig i något nyhetsbrev.</p>
 
@@ -97,7 +98,7 @@ export function PrivacyPage() {
             <ul>
               <li><strong>When you get in touch</strong> through “Work with me”: your name, email and what you write in the form. It comes with where you came from – the page you sent it from, the link that brought you here (referrer), any campaign parameters (UTM), language, screen size, phone or computer and when the visit started.</li>
               <li><strong>When you ask for the booklet:</strong> your email, plus your name and company if you fill them in.</li>
-              <li><strong>Visit statistics:</strong> which pages you view and what you click, referrer, UTM and phone or computer, under a random ID that only exists while the page is open. Nothing is stored in your browser, and the statistics hold no names, emails or IP addresses – they can't recognise you the next time you visit. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
+              <li><strong>Visit statistics:</strong> which pages you view, how far down and for how long you read each part, what you click, that you copied text (not what), which form fields you fill in (not what you type), referrer, UTM and phone or computer, under a random ID that only exists while the page is open. Nothing is stored in your browser, and the statistics hold no names, emails or IP addresses – they can't recognise you the next time you visit. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
               <li><strong>Technical logs:</strong> the server logs IP address and browser for operations and security.</li>
               <li><strong>Error reports:</strong> if the page crashes, a report about the error, the browser and the page is sent.</li>
             </ul>
@@ -105,7 +106,8 @@ export function PrivacyPage() {
             <h2>Why</h2>
             <ul>
               <li>To answer what you asked for – your request or the booklet. That is a step before a possible engagement, or my legitimate interest in replying to you.</li>
-              <li>Statistics, logs and error reports: my legitimate interest in understanding how the site is used and keeping it running.</li>
+              <li>Statistics, logs and error reports: my legitimate interest in understanding how the site is used, improving it and keeping it running.</li>
+              <li>If you send a request, it is linked to the visit it came from, so I can see what you read before getting in touch. That is my legitimate interest in understanding what makes people reach out.</li>
             </ul>
             <p>I never sell your data, never hand it to anyone else for their marketing and never add you to a newsletter.</p>
 

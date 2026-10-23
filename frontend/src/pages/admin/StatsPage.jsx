@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { CASES } from "../../components/agency/agencyData.js";
+import { Journey, Visits, VISITS_CSS } from "./Visits.jsx";
 
 /* /admin — the site's numbers, kept simple: page views, CTA clicks (someone
    opened "Jobba med mig") and requests sent, per day; then the leads. */
@@ -35,6 +36,7 @@ export function StatsPage() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
+  const [leadJourney, setLeadJourney] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -50,7 +52,7 @@ export function StatsPage() {
 
   return (
     <AdminShell title="Statistik">
-      <style>{STATS_CSS}</style>
+      <style>{STATS_CSS + VISITS_CSS}</style>
       <div className="st">
         <div className="st-head">
           <h1>Statistik</h1>
@@ -136,6 +138,8 @@ export function StatsPage() {
               </section>
             </div>
 
+            <Visits days={days} />
+
             <h2>Leads</h2>
             {data.leads.length === 0 && <p className="st-muted">Inga förfrågningar än.</p>}
             <ul className="st-leads">
@@ -148,6 +152,12 @@ export function StatsPage() {
                   <a href={`mailto:${l.email}`}>{l.email}</a>
                   {l.description && <p>{l.description}</p>}
                   {l.preferred_time && <p className="st-muted">Kan prata: {l.preferred_time}</p>}
+                  {l.visit_id && (
+                    <button type="button" className="st-journey-btn" onClick={() => setLeadJourney(leadJourney === l.id ? null : l.id)}>
+                      {leadJourney === l.id ? "Dölj resan" : "Visa resan hit"}
+                    </button>
+                  )}
+                  {leadJourney === l.id && <Journey id={l.visit_id} />}
                 </li>
               ))}
             </ul>
@@ -197,5 +207,7 @@ const STATS_CSS = `
   .st-lead-top b span { font-weight: 500; color: #6e6e73; }
   .st-lead-top time { font-size: 12.5px; color: #6e6e73; }
   .st-leads a { font-size: 14px; color: #0a0a0a; text-decoration-color: #D9480F; text-underline-offset: 3px; justify-self: start; }
+  .st-journey-btn { font: inherit; font-size: 13px; font-weight: 600; justify-self: start; margin-top: 6px; padding: 5px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 999px; background: #fff; cursor: pointer; }
+  .st-leads .vs-journey { margin: 8px -16px -14px; }
   .st-leads p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #3a3a3e; white-space: pre-wrap; }
 `;

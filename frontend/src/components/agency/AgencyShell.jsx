@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { trackEvent } from "../../lib/analytics.js";
-import { track } from "../../lib/track.js";
+import { initTracking, track } from "../../lib/track.js";
+import { initEngagement, setEngagementPage } from "../../lib/engagement.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
 import { SERIES, casePath } from "./agencyData.js";
@@ -82,6 +83,13 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     );
     document.querySelectorAll("[data-pc-section]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
+  }, [pathname]);
+
+  // Reading time, depth, clicks and copies per page (lib/engagement.js).
+  useEffect(() => {
+    initTracking();
+    initEngagement();
+    setEngagementPage(pathname);
   }, [pathname]);
 
   // First touch of the visit — so a later request can say where it came from.

@@ -1,3 +1,5 @@
+import { getVisitorId } from "../../lib/track.js";
+
 // Open the "Start a conversation" request form from anywhere on the agency
 // site (AgencyShell renders it). Also remembers how the visit began, so every
 // request can say where it came from — in memory only, nothing is stored in
@@ -43,5 +45,7 @@ export function requestMeta() {
     siteLang: document.documentElement.lang || "en",
     screen: `${window.screen?.width || 0}×${window.screen?.height || 0}`,
     device: coarse ? (window.innerWidth < 768 ? "phone" : "tablet") : "desktop",
+    // The analytics visit, so Statistik can show the journey behind a request.
+    visitId: getVisitorId(),
   };
 }

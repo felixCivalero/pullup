@@ -55,6 +55,7 @@ const META_KEYS = [
   "page", "pageTitle", "referrer", "landingPage", "firstReferrer",
   "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
   "language", "siteLang", "screen", "device", "visitStartedAt",
+  "visitId", // the analytics session — Statistik shows the journey that led here
 ];
 function cleanMeta(raw) {
   const out = {};

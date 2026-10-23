@@ -49,5 +49,13 @@ const auto = planMailSync({ prospectRows, logRows, messages: [msg("out", "2026-1
 assert(auto.updates.find((u) => u.row === 2 && u.header === "Stage").value === "Emailed", "an auto-reply is not an answer");
 assert(auto.logAppend.some((r) => r[3] === "Note" && r[4].startsWith("Auto-reply")), "an auto-reply is logged as a note");
 
+const noted = planMailSync({
+  prospectRows,
+  logRows: [...logRows, ["2026-10-22", "P-001", "", "Note", "Privat", "<p1>"]],
+  messages: [msg("in", "2026-10-22", "anna@alpha.se", "<p1>"), msg("out", "2026-10-22", "anna@alpha.se", "<p2>")],
+});
+assert(noted.updates.find((u) => u.row === 2 && u.header === "Stage").value === "Emailed", "a message marked Note in the Log never counts");
+assert(noted.logAppend.length === 1 && noted.logAppend[0][5] === "<p2>", "a noted message is not logged again");
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall sales-mail-sync tests passed");

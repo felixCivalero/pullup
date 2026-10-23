@@ -47,10 +47,17 @@ export function planMailSync({ prospectRows, logRows = [], messages }) {
   const logHeader = logRows[0] || [];
   const midCol = logHeader.indexOf("Message ID");
   const logged = new Set(midCol >= 0 ? logRows.slice(1).map((r) => String(r[midCol] || "")) : []);
+  // A message logged as a Note (an auto-reply, or one Felix marked as not
+  // sales mail, e.g. a private gig with a prospect's team) never moves a row.
+  const typeCol = logHeader.indexOf("Type");
+  const noted = new Set(
+    midCol >= 0 && typeCol >= 0 ? logRows.slice(1).filter((r) => r[typeCol] === "Note").map((r) => String(r[midCol] || "")) : [],
+  );
 
   const touched = new Map(); // row → { p, out: [], in: [] }
   const unknown = [];
   for (const m of [...messages].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (m.messageId && noted.has(m.messageId)) continue;
     const p = match(m.counterparts);
     if (!p) {
       if (m.dir === "in") unknown.push(m);

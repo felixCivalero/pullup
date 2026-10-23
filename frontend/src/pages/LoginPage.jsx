@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase.js";
+import { authLinkError, supabase } from "../lib/supabase.js";
 import { isOwnerEmail, useSession } from "../lib/owner.js";
 
 /* /login — not linked from anywhere. Email → six-digit code → /admin.
@@ -71,6 +71,7 @@ export function LoginPage() {
       {step === "email" ? (
         <form onSubmit={sendCode}>
           <h1>Logga in</h1>
+          {authLinkError && <p className="lg-sub">Länken i mejlet är redan använd eller har gått ut. Be om en ny kod.</p>}
           <input
             type="email"
             autoComplete="email"

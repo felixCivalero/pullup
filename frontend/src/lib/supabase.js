@@ -30,6 +30,28 @@ async function authLock(name, acquireTimeout, fn) {
   }
 }
 
+// The login mail's link and its code are the same one-time token, so a link
+// that was already used (or the code typed instead) comes back to /admin as
+// #error=…&error_description=…. On that URL supabase-js deletes whatever
+// session the browser already has — the signed-in default browser, where mail
+// links open, ended up on /login every time. Take the error off the URL before
+// the client reads it; a signed-in browser stays signed in, and /login says
+// the link was spent.
+function takeAuthLinkError() {
+  if (typeof window === "undefined") return null;
+  const url = new URL(window.location.href);
+  const hash = new URLSearchParams(url.hash.slice(1));
+  const from = hash.has("error_description") ? hash : url.searchParams.has("error_description") ? url.searchParams : null;
+  if (!from || hash.has("access_token")) return null;
+  const message = from.get("error_description");
+  ["error", "error_code", "error_description", "sb"].forEach((k) => from.delete(k));
+  if (from === hash) url.hash = hash.toString();
+  window.history.replaceState(window.history.state, "", url.pathname + url.search + (url.hash.length > 1 ? url.hash : ""));
+  return message;
+}
+
+export const authLinkError = takeAuthLinkError();
+
 // Create Supabase client with auth enabled
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

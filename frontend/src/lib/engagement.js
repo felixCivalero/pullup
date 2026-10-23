@@ -57,10 +57,11 @@ function tick() {
   if (s) pending.s[s] = (pending.s[s] || 0) + 1;
 }
 
-// Queue what's new since the last send for the current page.
-function send() {
+// Queue what's new since the last send for the current page. On a route
+// change the new page has already rendered, so don't measure it as the old.
+function send({ measure = true } = {}) {
   if (!page || !pending) return;
-  measureDepth();
+  if (measure) measureDepth();
   if (pending.active === 0 && depth === sentDepth) return;
   track("engagement", { page, active: pending.active, depth, s: pending.s });
   sentDepth = depth;
@@ -146,7 +147,7 @@ export function initEngagement() {
 // The route changed: close the books on the old page, start the new one.
 export function setEngagementPage(path) {
   if (path === page) return;
-  send();
+  send({ measure: false });
   page = path;
   depth = 0;
   sentDepth = 0;

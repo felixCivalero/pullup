@@ -60,7 +60,9 @@ export function SalesPage() {
 
   const plan = data?.plan;
   const t = data?.totals;
-  const maxDay = Math.max(plan?.perDay || 1, ...(plan?.series || []).map((d) => d.sent));
+  // A full bar is the day's goal; anything sent past it shows as a +N bonus
+  // above the bar, so one big day doesn't make every other day look short.
+  const maxDay = plan?.perDay || 1;
   const maxStage = Math.max(1, ...(data?.stages || []).filter((s) => FUNNEL.includes(s.stage)).map((s) => s.count));
   const stageCount = (s) => data?.stages.find((x) => x.stage === s)?.count || 0;
   const waiting = data ? data.toAnswer.length + data.followUps.length + data.due.length : 0;
@@ -143,9 +145,11 @@ export function SalesPage() {
                     <div
                       key={d.date}
                       className={`sl-col${d.future ? " is-future" : ""}${d.date === data.today ? " is-today" : ""}`}
-                      title={`${dayLabel(d.date)}: ${d.sent} skickade`}
+                      title={`${dayLabel(d.date)}: ${d.sent} skickade${d.sent > plan.perDay ? ` (+${d.sent - plan.perDay} bonus)` : ""}`}
                     >
-                      <div className={`sl-bar${d.sent >= plan.perDay ? " is-hit" : ""}`} style={{ height: d.future ? "100%" : `${(d.sent / maxDay) * 100}%` }} />
+                      <div className={`sl-bar${d.sent >= plan.perDay ? " is-hit" : ""}`} style={{ height: d.future ? "100%" : `${(Math.min(d.sent, maxDay) / maxDay) * 100}%` }}>
+                        {!d.future && d.sent > plan.perDay && <span className="sl-bonus">+{d.sent - plan.perDay}</span>}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -308,7 +312,8 @@ const SALES_CSS = `
   .sl-chart { position: relative; margin-top: 24px; height: 140px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid rgba(0,0,0,0.12); }
   .sl-target { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(0,0,0,0.35); pointer-events: none; }
   .sl-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
-  .sl-bar { width: 100%; min-height: 1px; border-radius: 3px 3px 0 0; background: #f1a37e; }
+  .sl-bar { position: relative; width: 100%; min-height: 1px; border-radius: 3px 3px 0 0; background: #f1a37e; }
+  .sl-bonus { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 3px; font-size: 11px; font-weight: 700; color: #1f7a3a; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .sl-bar.is-hit { background: #D9480F; }
   .sl-col.is-future .sl-bar { background: none; }
   .sl-col.is-today { outline: 1px solid rgba(0,0,0,0.25); outline-offset: 1px; border-radius: 3px; }

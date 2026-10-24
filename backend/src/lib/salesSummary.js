@@ -75,6 +75,9 @@ function prospectOf(o) {
     deadline: toDay(o.Deadline), // a job ad's last day: reach them before they hire
     source: text(o.List),
     notes: text(o.Notes),
+    // Which pitch the row belongs to: Felix as marketer, or the free PullUp
+    // event platform. Blank = Marketing, the list it started as.
+    track: text(o.Track) === "Event" ? "Event" : "Marketing",
   };
 }
 
@@ -83,8 +86,8 @@ export const CLIENT_STAGES = new Set(["Won"]);
 
 export const parseProspects = (prospectRows) => rowsToObjects(prospectRows).map(prospectOf).filter((p) => p.company);
 
-export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today }) {
-  const prospects = parseProspects(prospectRows);
+export function summarizeSales({ prospectRows, logRows = [], overviewRows = [], today, track = "Marketing" }) {
+  const prospects = parseProspects(prospectRows).filter((p) => p.track === track);
   const goal = readGoal(overviewRows);
 
   const stageCounts = Object.fromEntries(STAGES.map((s) => [s, 0]));

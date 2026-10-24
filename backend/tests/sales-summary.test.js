@@ -89,5 +89,12 @@ const met = summarizeSales({
 });
 assert(met.meetings.map((p) => p.id).join() === "P-401,P-400", "booked meetings are listed, soonest first");
 
+const tracks = summarizeSales({
+  prospectRows: [[...HEADER, "Track"], [...row({ ID: "P-500", Company: "Agency", Email: "a@agency.se" }), ""], [...row({ ID: "P-501", Company: "Jazzklubb", Email: "j@jazz.se" }), "Event"]],
+  overviewRows,
+  today: "2026-10-28",
+});
+assert(tracks.totals.prospects === 1 && tracks.queue[0].id === "P-500", "event-platform rows stay out of the marketing pipeline");
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall sales-summary tests passed");

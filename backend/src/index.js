@@ -29,6 +29,7 @@ import { registerEventRoutes } from "./routes/events.js";
 import { registerAdminEventRoutes } from "./routes/adminEvents.js";
 import { registerAdminMailRoutes, mailImageBodyParser } from "./routes/adminMail.js";
 import { registerAdminEventMediaRoutes } from "./routes/adminEventMedia.js";
+import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -82,6 +83,7 @@ registerEventRoutes(app);
 registerAdminEventRoutes(app);
 registerAdminMailRoutes(app);
 registerAdminEventMediaRoutes(app);
+registerAdminArchiRoutes(app);
 
 // Old platform links (/v/ verify links, /share/ cards, deeper /e/ paths)
 // still reach the API through nginx. Send people to the front page instead

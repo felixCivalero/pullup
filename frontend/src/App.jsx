@@ -29,6 +29,7 @@ const PeoplePage = lazyPage(() => import("./pages/admin/PeoplePage"), "PeoplePag
 const MailPage = lazyPage(() => import("./pages/admin/MailPage"), "MailPage");
 const EventCreatePage = lazyPage(() => import("./pages/admin/EventEditorPage"), "EventCreatePage");
 const EventEditorPage = lazyPage(() => import("./pages/admin/EventEditorPage"), "EventEditorPage");
+const ArchiPage = lazyPage(() => import("./pages/admin/ArchiPage"), "ArchiPage");
 
 function App() {
   return (
@@ -58,6 +59,7 @@ function App() {
           <Route path="/admin/events/:id/edit" element={<EventEditorPage />} />
           <Route path="/admin/people" element={<PeoplePage />} />
           <Route path="/admin/mail" element={<MailPage />} />
+          <Route path="/admin/archi" element={<ArchiPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -4,6 +4,7 @@
 // request, the booklet link on the case pages and the site's own visit
 // analytics. Private: /admin/* (statistics, Stockholm scraper, content
 // timeline, sales pipeline from the Google Sheet, clients), Felix only (requireOwner).
+// Stripe: /stripe/email-credits, bought sends (routes/adminEmailCredits.js).
 //
 // The old PullUp platform (events, rooms, messaging, MCP …) lives on the
 // `pullup-app` branch.
@@ -30,6 +31,7 @@ import { registerAdminEventRoutes } from "./routes/adminEvents.js";
 import { registerAdminMailRoutes, mailImageBodyParser } from "./routes/adminMail.js";
 import { registerAdminEventMediaRoutes } from "./routes/adminEventMedia.js";
 import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
+import { registerEmailCreditRoutes, emailCreditsWebhookParser } from "./routes/adminEmailCredits.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -63,6 +65,8 @@ app.use(
 // The mail module's image upload sends a data URL (≤ 2 MB image); it gets a
 // bigger limit than every other route, parsed before the global one.
 app.use("/admin/mail/images", mailImageBodyParser);
+// Stripe's webhook is verified against the raw bytes.
+app.use(...emailCreditsWebhookParser);
 app.use(express.json({ limit: "1mb" }));
 
 // Liveness — the deploy gate and post-deploy check poll this.
@@ -84,6 +88,7 @@ registerAdminEventRoutes(app);
 registerAdminMailRoutes(app);
 registerAdminEventMediaRoutes(app);
 registerAdminArchiRoutes(app);
+registerEmailCreditRoutes(app);
 
 // Old platform links (/v/ verify links, /share/ cards, deeper /e/ paths)
 // still reach the API through nginx. Send people to the front page instead

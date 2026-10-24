@@ -4,6 +4,8 @@ import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { CreditsLine, CreditsPaywall } from "../../components/admin/EmailCredits.jsx";
+import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
 /* /admin/events/:id — one event: fill it in and publish (your own events),
@@ -165,6 +167,12 @@ function Compose({ ev }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
   const [confirm, setConfirm] = useState(false);
+  const [paywall, setPaywall] = useState(false);
+  const credits = useEmailCredits();
+
+  useEffect(() => {
+    if (credits.paid) setNote({ ok: true, text: `Köpet är klart. Du har ${credits.paid.balance.toLocaleString("sv-SE")} utskick.` });
+  }, [credits.paid]);
 
   const aud = audience === "consent"
     ? { type: "consent" }
@@ -186,7 +194,13 @@ function Compose({ ev }) {
     try {
       const res = await authenticatedFetch("/admin/sends", { method: "POST", body: JSON.stringify({ audience: aud, subject, body, eventId: ev.id, test }) });
       const out = await res.json();
+      if (res.status === 402) {
+        credits.setBalance(out.balance);
+        setPaywall(true);
+        return;
+      }
       if (!res.ok) throw new Error(out.error);
+      if (out.balance != null) credits.setBalance(out.balance);
       setNote({ ok: true, text: test ? `Testmejlet skickat till ${out.to}.` : `Skickas nu till ${out.queued} personer.` });
       if (!test) { setSubject(""); setBody(""); }
     } catch {
@@ -215,9 +229,11 @@ function Compose({ ev }) {
       <label className="ea-field">Meddelande<textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} placeholder={"Hej!\n\nTomma rader blir nya stycken. Länkar blir klickbara."} /></label>
       <div className="ed-actions">
         <button type="button" className="ea-btn" disabled={busy || !ready} onClick={() => send(true)}>Skicka test till mig</button>
-        <button type="button" className="ea-btn is-dark" disabled={busy || !ready || !count} onClick={() => setConfirm(true)}><Send size={15} /> Skicka till {count ?? "…"}</button>
+        <button type="button" className="ea-btn is-dark" disabled={busy || !ready || !count} onClick={() => (credits.balance != null && count > credits.balance ? setPaywall(true) : setConfirm(true))}><Send size={15} /> Skicka till {count ?? "…"}</button>
       </div>
+      <CreditsLine balance={credits.balance} needed={count} onBuy={() => setPaywall(true)} />
       {note && <p className={note.ok ? "ea-ok" : "ea-error"}>{note.text}</p>}
+      <CreditsPaywall open={paywall} needed={count} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
       {confirm && (
         <div className="ea-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setConfirm(false)}>
           <div className="ea-modal">

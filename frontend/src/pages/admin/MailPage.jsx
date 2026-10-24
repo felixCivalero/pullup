@@ -8,6 +8,8 @@ import ConfirmSendDialog from "../../components/crm/ConfirmSendDialog";
 import CrmSegment from "../../components/crm/CrmSegment";
 import { colors } from "../../components/crm/mailColors.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { CreditsLine, CreditsPaywall } from "../../components/admin/EmailCredits.jsx";
+import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
 
 /* /admin/mail — the mail module, restored as it was in the old app's CRM
    composer (removed 2026-06-02, b34e7b50): a Segment tab and a Design tab on
@@ -95,6 +97,12 @@ function MailComposer() {
     search: "",
   });
   const [total, setTotal] = useState(null);
+  // Mail to a list is paid: one send per recipient from the bought balance.
+  const credits = useEmailCredits();
+  const [paywall, setPaywall] = useState(false);
+  useEffect(() => {
+    if (credits.paid) showToast(`Purchase complete: ${credits.paid.balance.toLocaleString("sv-SE")} sends in your balance.`, "success");
+  }, [credits.paid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Composer — two templates kept apart so switching doesn't lose either.
   const [selectedTemplate, setSelectedTemplate] = useState(initialEventId ? "event" : "");
@@ -197,6 +205,7 @@ function MailComposer() {
     if (!total) { showToast("No recipients in this segment.", "error"); setActiveTab("segment"); return; }
     const err = check();
     if (err) { showToast(err, "error"); setActiveTab("email"); return; }
+    if (credits.balance != null && total > credits.balance) { setPaywall(true); return; }
     setSendStage("confirm");
     setSendingStats({ totalRecipients: total, totalSent: 0, totalFailed: 0 });
     setSendingErrorMessage("");
@@ -225,6 +234,13 @@ function MailComposer() {
     try {
       const res = await authenticatedFetch("/admin/sends", { method: "POST", body: JSON.stringify(payload()) });
       const out = await res.json();
+      if (res.status === 402) {
+        credits.setBalance(out.balance);
+        setIsConfirmSendOpen(false);
+        setPaywall(true);
+        return;
+      }
+      if (out.balance != null) credits.setBalance(out.balance);
       if (!res.ok) throw new Error(out.detail === "no_recipients" ? "No recipients in this segment." : "Failed to start sending");
       setSendingStats((s) => ({ ...s, totalRecipients: out.queued }));
       for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -320,6 +336,7 @@ function MailComposer() {
           </div>
 
           <div className="ml-foot">
+            <div style={{ marginRight: "auto", alignSelf: "center" }}><CreditsLine balance={credits.balance} needed={total} onBuy={() => setPaywall(true)} /></div>
             <button type="button" className="ml-btn" onClick={handleTest} disabled={testing}>{testing ? "Sending…" : "Send test to me"}</button>
             <button type="button" className="ml-btn is-send" onClick={handleSendClick} disabled={!total}>Send to {total ?? "…"} →</button>
           </div>
@@ -357,6 +374,7 @@ function MailComposer() {
         onClose={() => setIsConfirmSendOpen(false)}
         onConfirmSend={handleConfirmSend}
       />
+      <CreditsPaywall open={paywall} needed={total} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
     </>
   );
 }

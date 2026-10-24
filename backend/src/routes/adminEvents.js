@@ -1,7 +1,7 @@
 // The admin side of the event platform (owner only): every event on PullUp,
 // create/edit, the guest list, the CRM of everyone across all events, and
-// mail to a list. Sending has no paywall yet — that comes with going live
-// (Stripe → PullUp pays Resend). See lib/eventPlatform.js.
+// mail to a list. Mail to a list is paid: each recipient takes one send from
+// the host's bought balance (lib/emailCredits.js). See lib/eventPlatform.js.
 import crypto from "crypto";
 import { requireOwner } from "../middleware/requireOwner.js";
 import { supabase } from "../supabase.js";
@@ -10,6 +10,7 @@ import { selectAllPaged } from "../lib/selectAllPaged.js";
 import { EVENT_IMAGE_BUCKET, EVENT_HOST_ID, cleanSections, eventText, imageUrl, makeSlug, sectionsFor, summarizePeople, pickAudience } from "../lib/eventPlatform.js";
 import { loadEventMedia } from "./adminEventMedia.js";
 import { broadcastEmail } from "../lib/eventEmails.js";
+import { creditBalance, refundCredits, reserveCredits } from "../lib/emailCredits.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { apiBase, eventUrl } from "./events.js";
 
@@ -20,7 +21,7 @@ const EVENT_COLUMNS =
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
-const STATUS = { not_found: 404, invalid: 400, empty: 400 };
+const STATUS = { not_found: 404, invalid: 400, empty: 400, credits: 402 };
 
 function handle(fn, okStatus = 200) {
   return [
@@ -29,7 +30,10 @@ function handle(fn, okStatus = 200) {
       try {
         const out = await fn(req, res);
         if (res.headersSent) return undefined;
-        if (out?.error) return res.status(STATUS[out.error] || 500).json({ error: out.error, ...(out.detail ? { detail: out.detail } : {}) });
+        if (out?.error) {
+          const { error, ...rest } = out;
+          return res.status(STATUS[error] || 500).json({ error, ...rest });
+        }
         return res.status(okStatus).json(out);
       } catch (err) {
         console.error(`[admin/events] ${req.method} ${req.path}:`, err?.message);
@@ -176,6 +180,7 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
     if (i + 100 < recipients.length) await new Promise((r) => setTimeout(r, 600));
   }
   console.log(`[admin/events] send ${tag}: ${sent} sent, ${failed} failed`);
+  return { sent, failed };
 }
 
 export function registerAdminEventRoutes(app) {
@@ -356,8 +361,14 @@ export function registerAdminEventRoutes(app) {
     const tokens = new Map(people.map((p) => [p.id, p.marketing_unsubscribe_token]));
     const recipients = pickAudience({ audience, people, rsvps, pullups }).map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
     if (!recipients.length) return { error: "empty", detail: "no_recipients" };
-    deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag }).catch((err) => console.error("[admin/events] send failed:", err?.message));
-    return { ok: true, queued: recipients.length, tag };
+    // Paid: one send per recipient, taken before anything goes out. Mails the
+    // provider refuses come back to the balance.
+    const left = await reserveCredits(HOST_ID, recipients.length, tag);
+    if (left == null) return { error: "credits", needed: recipients.length, balance: await creditBalance(HOST_ID) };
+    deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag })
+      .then(({ failed }) => refundCredits(HOST_ID, failed, tag))
+      .catch((err) => console.error("[admin/events] send failed:", err?.message));
+    return { ok: true, queued: recipients.length, tag, balance: left };
   }, 202));
 
   // Earlier sends from here, newest first.

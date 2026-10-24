@@ -157,8 +157,9 @@ export const PlannerCanvas = forwardRef(function PlannerCanvas({ storageKey, cli
       setSize({ w, h });
       if (!inited.current && w > 0) {
         inited.current = true;
+        // Opens on today in the middle; a saved zoom and height are kept.
         setState((s) => {
-          if (s.viewport?._init) return s;
+          if (s.viewport?._init) return { ...s, viewport: { ...s.viewport, panX: w / 2 } };
           const scale = clamp(w / (62 * PX_PER_DAY), MIN_SCALE, MAX_SCALE);
           return { ...s, viewport: { scale, panX: w / 2, panY: h / 2, _init: true } };
         });

@@ -1,6 +1,6 @@
 import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import TokenizedInput from "../TokenizedInput";
-import { colors } from "../../../theme/colors.js";
+import { colors } from "../mailColors.js";
 
 const DEFAULT_ALIGN = "left";
 

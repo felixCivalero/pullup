@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { Upload, Image as ImageIcon, X, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
 import ImagePickerModal from "../ImagePickerModal";
 import { authenticatedFetch } from "../../../lib/api.js";
-import { colors } from "../../../theme/colors.js";
+import { colors } from "../mailColors.js";
 
 const DEFAULT_WIDTH = 100;
 const DEFAULT_ALIGN = "center";

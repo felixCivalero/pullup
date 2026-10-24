@@ -1,6 +1,6 @@
 import { AlignLeft, AlignCenter, AlignRight, Globe } from "lucide-react";
 import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud, FaYoutube } from "react-icons/fa";
-import { colors } from "../../../theme/colors.js";
+import { colors } from "../mailColors.js";
 
 const DEFAULT_ALIGN = "center";
 

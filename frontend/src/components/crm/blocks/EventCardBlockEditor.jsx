@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, MapPin, Music2, Trash2, Search, Check, Pencil, X, User, LayoutPanelTop, Columns2, LayoutList } from "lucide-react";
 import { authenticatedFetch } from "../../../lib/api.js";
 import { DateRangePicker } from "../../DateRangePicker.jsx";
-import { colors } from "../../../theme/colors.js";
+import { colors } from "../mailColors.js";
 
 function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());

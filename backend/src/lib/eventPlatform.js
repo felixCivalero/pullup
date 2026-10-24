@@ -95,11 +95,14 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
         createdAt: p.created_at,
         source: p.acquisition_channel || p.import_source || (evs.length ? "event" : ""),
         consent: !!p.marketing_consent && !p.marketing_unsubscribed_at && !p.do_not_contact,
+        // Can be mailed at all (an address, not unsubscribed, not blocked).
+        contactable: !!p.email && !p.marketing_unsubscribed_at && !p.do_not_contact,
         events: evs.length,
         attended: evs.filter((e) => e.pulledUp).length,
         lastEventAt: evs[0]?.startsAt || null,
         lastEventTitle: evs[0]?.title || null,
         eventIds: evs.map((e) => e.eventId),
+        cameIds: evs.filter((e) => e.pulledUp).map((e) => e.eventId),
       };
     })
     // People who came to events first (latest event first), then everyone
@@ -110,8 +113,11 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
 // Who a send goes to. Never: no address, anonymized, do-not-contact, or
 // unsubscribed. "event" = everyone signed up to that event (they asked to come
 // — mail about it is part of the event); "consent" = everyone who said yes to
-// hearing about future events.
-export function pickAudience({ audience, people, rsvps }) {
+// hearing about future events; "crm" = the mail module's segment: people
+// signed up to any of `eventIds` (or who `came` to them), optionally narrowed
+// to those who want invitations and by a `search`. Without events it is
+// always consent-only — a list of strangers to the event needs their yes.
+export function pickAudience({ audience, people, rsvps, pullups = [] }) {
   const ok = (p) => p && p.email && !p.anonymized_at && !p.do_not_contact && !p.marketing_unsubscribed_at;
   const seen = new Set();
   const out = [];
@@ -131,6 +137,28 @@ export function pickAudience({ audience, people, rsvps }) {
     }
   } else if (audience?.type === "consent") {
     for (const p of people) if (ok(p) && p.marketing_consent) add(p, "consent");
+  } else if (audience?.type === "crm") {
+    const eventIds = new Set(Array.isArray(audience.eventIds) ? audience.eventIds : []);
+    const consentOnly = !!audience.consentOnly || eventIds.size === 0;
+    const needle = String(audience.search || "").trim().toLowerCase();
+    const came = new Set(pullups.map((p) => `${p.event_id}:${p.person_id}`));
+    const signed = new Map(); // person → { any, came } within the chosen events (all events if none)
+    for (const r of rsvps) {
+      if (r.status === "cancelled" || (eventIds.size && !eventIds.has(r.event_id))) continue;
+      const s = signed.get(r.person_id) || { any: false, came: false };
+      s.any = true;
+      if (r.pulled_up || came.has(`${r.event_id}:${r.person_id}`)) s.came = true;
+      signed.set(r.person_id, s);
+    }
+    for (const p of people) {
+      if (!ok(p)) continue;
+      if (consentOnly && !p.marketing_consent) continue;
+      const s = signed.get(p.id);
+      if (eventIds.size && !s?.any) continue;
+      if (audience.came && !s?.came) continue;
+      if (needle && !`${p.name || ""} ${p.email}`.toLowerCase().includes(needle)) continue;
+      add(p, consentOnly ? "consent" : "event_guest");
+    }
   }
   return out;
 }

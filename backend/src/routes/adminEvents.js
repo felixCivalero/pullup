@@ -274,8 +274,8 @@ export function registerAdminEventRoutes(app) {
 
   // How many a send would reach, before sending.
   app.post("/admin/sends/preview", ...handle(async (req) => {
-    const [people, rsvps] = await Promise.all([loadPeople(), loadRsvps()]);
-    const recipients = pickAudience({ audience: req.body?.audience, people, rsvps });
+    const [people, rsvps, pullups] = await Promise.all([loadPeople(), loadRsvps(), loadPullups()]);
+    const recipients = pickAudience({ audience: req.body?.audience, people, rsvps, pullups });
     return { count: recipients.length, sample: recipients.slice(0, 5).map((r) => r.name || r.email) };
   }));
 
@@ -321,9 +321,9 @@ export function registerAdminEventRoutes(app) {
       await deliver({ recipients: [{ personId: null, email: to, name: "Felix", basis: "test", token: "test" }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test` });
       return { ok: true, test: true, to };
     }
-    const [people, rsvps] = await Promise.all([loadPeople(), loadRsvps()]);
+    const [people, rsvps, pullups] = await Promise.all([loadPeople(), loadRsvps(), loadPullups()]);
     const tokens = new Map(people.map((p) => [p.id, p.marketing_unsubscribe_token]));
-    const recipients = pickAudience({ audience, people, rsvps }).map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
+    const recipients = pickAudience({ audience, people, rsvps, pullups }).map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
     if (!recipients.length) return { error: "empty", detail: "no_recipients" };
     deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag }).catch((err) => console.error("[admin/events] send failed:", err?.message));
     return { ok: true, queued: recipients.length, tag };

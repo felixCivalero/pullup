@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cloud, Globe } from "lucide-react";
 import { applyTokens, buildPreviewContext, parseInlineSegments } from "../../lib/emailTokens";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 // Match the backend renderer's SOCIAL_ICONS paths byte-for-byte so the
 // canvas previews exactly what recipients receive. Filled brand marks

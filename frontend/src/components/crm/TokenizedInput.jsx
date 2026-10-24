@@ -6,7 +6,7 @@
 
 import { useRef, useState } from "react";
 import { TOKENS, tokensToLabels, labelsToTokens, isAllowedUrl } from "../../lib/emailTokens";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 export default function TokenizedInput({
   value,

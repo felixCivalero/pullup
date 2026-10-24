@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
   const [gallery, setGallery] = useState([]);

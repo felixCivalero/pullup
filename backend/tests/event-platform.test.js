@@ -75,6 +75,16 @@ assert(toConsent.map((r) => r.personId).join() === "p1" && toConsent[0].basis ==
 assert(pickAudience({ audience: { type: "event", eventId: "a" }, people, rsvps }).find((r) => r.personId === "p4").email === "cia@x.se", "addresses lower-cased");
 assert(pickAudience({ audience: { type: "event", eventId: "b", status: "waitlist" }, people, rsvps }).length === 0, "status filter (the waitlister is unsubscribed)");
 
+// The mail module's CRM segment
+const crmAud = (a) => pickAudience({ audience: { type: "crm", ...a }, people, rsvps, pullups: [{ event_id: "b", person_id: "p1" }] }).map((r) => r.personId).join();
+assert(crmAud({}) === "p1", "crm segment without events: consent only");
+assert(crmAud({ eventIds: ["a"] }) === "p1,p4", "crm segment with an event: its guests, consent not required");
+assert(crmAud({ eventIds: ["a"], consentOnly: true }) === "p1", "…narrowed to those who want invitations");
+assert(crmAud({ eventIds: ["b"], came: true }) === "p1", "came: rsvps.pulled_up or the pullups table");
+assert(crmAud({ eventIds: ["a"], search: "cia" }) === "p4", "search by name or email");
+assert(pickAudience({ audience: { type: "crm", eventIds: ["a"] }, people, rsvps })[1].basis === "event_guest", "basis: event guest when not consent-only");
+assert(crm.find((r) => r.id === "p1").cameIds.join() === "b,a" && crm.find((r) => r.id === "p2").contactable === false, "crm rows: events came to, contactable");
+
 // Person patch on sign-up
 assert(JSON.stringify(personPatch(null, { name: "Ny", consent: true, now: "T" })) === JSON.stringify({ name: "Ny", marketing_consent: true, marketing_consent_at: "T" }), "new person: name and consent");
 assert(Object.keys(personPatch({ name: "Old", marketing_consent: true }, { name: "New", consent: false })).length === 0, "known person: name kept, a no never removes a yes");

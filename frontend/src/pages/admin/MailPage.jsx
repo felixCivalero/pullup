@@ -5,27 +5,22 @@ import { useToast } from "../../components/Toast";
 import EmailPanel from "../../components/crm/EmailPanel";
 import EmailCanvas from "../../components/crm/EmailCanvas";
 import ConfirmSendDialog from "../../components/crm/ConfirmSendDialog";
-import { colors } from "../../theme/colors.js";
+import CrmSegment from "../../components/crm/CrmSegment";
+import { colors } from "../../components/crm/mailColors.js";
 import { AdminShell } from "./AdminShell.jsx";
 
 /* /admin/mail — the mail module, restored as it was in the old app's CRM
    composer (removed 2026-06-02, b34e7b50): a Segment tab and a Design tab on
    the left (templates: event invitation, follow-up; blocks edited in place —
    text, image, button, event cards, socials), the email exactly as it lands
-   on the right (light/dark). What changed: Segment picks from the event
-   platform's audiences (an event's guests, or everyone who said yes to
-   invitations), sending goes through POST /admin/sends (unsubscribe link,
+   on the right (light/dark). What changed: Segment is the event platform's CRM loaded in place
+   (components/crm/CrmSegment.jsx), sending goes through POST /admin/sends (unsubscribe link,
    logged), and there are no saved drafts or scheduling (their tables are
    gone). ?event=<id> opens the event invitation for that event. */
 
 const TABS = [
   { id: "segment", label: "Segment" },
   { id: "email", label: "Design" },
-];
-const AUDIENCES = [
-  ["attending", "Signed up"],
-  ["waitlist", "Waitlist"],
-  ["all", "Signed up + waitlist"],
 ];
 const HTTP_RE = /^https?:\/\//i;
 
@@ -92,12 +87,14 @@ function MailComposer() {
   const [hoveredKey, setHoveredKey] = useState(null);
   const [events, setEvents] = useState([]);
 
-  // Segment
-  const [audType, setAudType] = useState(initialEventId ? "event" : "consent");
-  const [audEventId, setAudEventId] = useState(initialEventId);
-  const [audStatus, setAudStatus] = useState("attending");
+  // Segment — the CRM, filtered (components/crm/CrmSegment.jsx).
+  const [segment, setSegment] = useState({
+    eventIds: initialEventId ? [initialEventId] : [],
+    came: false,
+    consentOnly: false,
+    search: "",
+  });
   const [total, setTotal] = useState(null);
-  const [sample, setSample] = useState([]);
 
   // Composer — two templates kept apart so switching doesn't lose either.
   const [selectedTemplate, setSelectedTemplate] = useState(initialEventId ? "event" : "");
@@ -158,20 +155,21 @@ function MailComposer() {
     setEventBlocks(buildDefaultEventBlocks(selectedEvent));
   }, [selectedEventId, selectedTemplate, selectedEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const audience = audType === "consent"
-    ? { type: "consent" }
-    : { type: "event", eventId: audEventId, ...(audStatus === "all" ? {} : { status: audStatus }) };
+  const audience = { type: "crm", ...segment };
+  const audienceKey = JSON.stringify(segment);
 
+  // The server's count for this segment (debounced while typing a search).
   useEffect(() => {
-    if (audType === "event" && !audEventId) { setTotal(0); setSample([]); return undefined; }
     let alive = true;
     setTotal(null);
-    authenticatedFetch("/admin/sends/preview", { method: "POST", body: JSON.stringify({ audience }) })
-      .then((r) => r.json())
-      .then((d) => { if (alive) { setTotal(d.count ?? 0); setSample(d.sample || []); } })
-      .catch(() => alive && setTotal(0));
-    return () => { alive = false; };
-  }, [audType, audEventId, audStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => {
+      authenticatedFetch("/admin/sends/preview", { method: "POST", body: JSON.stringify({ audience }) })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => alive && setTotal(d.count ?? 0))
+        .catch(() => alive && setTotal(0));
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [audienceKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isFollowup = selectedTemplate === "followup";
   const active = isFollowup
@@ -252,7 +250,6 @@ function MailComposer() {
     }
   }
 
-  const eventsForSegment = [...events].sort((a, b) => (b.startsAt || "").localeCompare(a.startsAt || ""));
 
   return (
     <>
@@ -260,15 +257,7 @@ function MailComposer() {
         .ml-split { height: 100%; display: flex; min-height: 0; background: ${colors.background}; }
         .ml-rail { width: 440px; min-width: 440px; display: flex; flex-direction: column; border-right: 1px solid ${colors.border}; background: ${colors.surface}; min-height: 0; }
         .ml-canvas { flex: 1; min-width: 0; padding: 24px; overflow: auto; display: flex; flex-direction: column; background: ${colors.surfaceMuted}; }
-        .ml-field { display: grid; gap: 6px; margin-bottom: 14px; }
-        .ml-field > span { font-size: 11px; color: ${colors.textSubtle}; text-transform: uppercase; letter-spacing: 0.04em; }
         .ml-input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid ${colors.border}; background: #fff; color: ${colors.text}; font: inherit; font-size: 14px; box-sizing: border-box; }
-        .ml-seg { display: flex; gap: 6px; flex-wrap: wrap; }
-        .ml-seg button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; border: 1px solid ${colors.border}; background: #fff; color: ${colors.text}; cursor: pointer; }
-        .ml-seg button.is-on { background: #0a0a0a; border-color: #0a0a0a; color: #fff; }
-        .ml-count { padding: 14px; border-radius: 12px; border: 1px solid ${colors.border}; background: #fff; }
-        .ml-count b { font-size: 26px; letter-spacing: -0.02em; display: block; }
-        .ml-count span { font-size: 12.5px; color: ${colors.textSubtle}; }
         .ml-foot { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid ${colors.border}; background: ${colors.surface}; }
         .ml-btn { padding: 10px 16px; border-radius: 999px; border: 1px solid ${colors.borderStrong}; background: #fff; color: ${colors.text}; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
         .ml-btn.is-send { border: none; background: ${colors.accent}; color: #fff; box-shadow: ${colors.accentShadow}; }
@@ -298,45 +287,7 @@ function MailComposer() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-            {activeTab === "segment" && (
-              <>
-                <label className="ml-field">
-                  <span>Audience</span>
-                  <div className="ml-seg">
-                    <button type="button" className={audType === "event" ? "is-on" : ""} onClick={() => setAudType("event")}>An event's guests</button>
-                    <button type="button" className={audType === "consent" ? "is-on" : ""} onClick={() => setAudType("consent")}>Everyone who wants invitations</button>
-                  </div>
-                </label>
-                {audType === "event" && (
-                  <>
-                    <label className="ml-field">
-                      <span>Event</span>
-                      <select className="ml-input" value={audEventId} onChange={(e) => setAudEventId(e.target.value)}>
-                        <option value="">— choose an event —</option>
-                        {eventsForSegment.map((e) => (
-                          <option key={e.id} value={e.id}>{e.title}{e.startsAt ? ` · ${new Date(e.startsAt).toLocaleDateString("sv-SE")}` : ""}{e.attending ? ` (${e.attending})` : ""}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="ml-field">
-                      <span>Who</span>
-                      <div className="ml-seg">
-                        {AUDIENCES.map(([k, l]) => (
-                          <button key={k} type="button" className={audStatus === k ? "is-on" : ""} onClick={() => setAudStatus(k)}>{l}</button>
-                        ))}
-                      </div>
-                    </label>
-                  </>
-                )}
-                <div className="ml-count">
-                  <b>{total == null ? "…" : total}</b>
-                  <span>{total === 1 ? "recipient" : "recipients"}{sample.length ? ` · ${sample.join(", ")}${total > sample.length ? " …" : ""}` : ""}</span>
-                </div>
-                <p style={{ fontSize: 12, color: colors.textSubtle, lineHeight: 1.5, margin: "12px 0 0" }}>
-                  People who unsubscribed are never included. Every mail carries an unsubscribe link.
-                </p>
-              </>
-            )}
+            {activeTab === "segment" && <CrmSegment segment={segment} setSegment={setSegment} total={total} />}
             {activeTab === "email" && (
               <EmailPanel
                 events={events}

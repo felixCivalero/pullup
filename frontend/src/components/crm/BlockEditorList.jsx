@@ -4,7 +4,7 @@ import ImageBlockEditor from "./blocks/ImageBlockEditor";
 import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
 import SocialsBlockEditor from "./blocks/SocialsBlockEditor";
 import EventCardBlockEditor from "./blocks/EventCardBlockEditor";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 const TYPE_LABEL = {
   text: "Text",

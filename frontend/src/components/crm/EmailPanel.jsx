@@ -4,7 +4,7 @@
 // actual email preview lives in <EmailCanvas /> on the right.
 
 import FollowUpComposer from "./FollowUpComposer";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 export default function EmailPanel({
   events,

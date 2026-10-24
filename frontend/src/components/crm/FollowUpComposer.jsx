@@ -7,7 +7,7 @@ import BlockEditorList from "./BlockEditorList";
 import TokenizedInput from "./TokenizedInput";
 import Section from "./Section";
 import { availableTokens } from "../../lib/emailTokens";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 export default function FollowUpComposer({
   events,

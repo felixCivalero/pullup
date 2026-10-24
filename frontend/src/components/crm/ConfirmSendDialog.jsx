@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { applyTokens, buildPreviewContext } from "../../lib/emailTokens";
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 // datetime-local wants "YYYY-MM-DDTHH:MM" in LOCAL time (no offset). Build it
 // from the local field getters so the min attr and the value round-trip in the

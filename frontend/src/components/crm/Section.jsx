@@ -3,7 +3,7 @@
 // template/event/subject/preview, "content" (surface) for what the
 // recipient actually reads (greeting, blocks, signoff).
 
-import { colors } from "../../theme/colors.js";
+import { colors } from "./mailColors.js";
 
 const VARIANTS = {
   setup: {

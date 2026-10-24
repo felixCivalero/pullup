@@ -1,0 +1,317 @@
+import { useState } from "react";
+import { FaInstagram, FaSpotify, FaTiktok, FaSoundcloud } from "react-icons/fa";
+import { formatEventTime } from "./lib/dateUtils.js";
+import { formatLocationShort, getGoogleMapsUrl, formatCoordinates } from "./lib/urlUtils";
+import { ProductDelivery } from "./ProductDelivery.jsx";
+
+// Each embed helper PARSES the URL and only emits an iframe src whose host
+// is one we explicitly trust. The previous string.includes() / replace()
+// versions matched `https://attacker.com/spotify.com/x` and dutifully built
+// an iframe pointing at attacker.com. Return null on anything unrecognised so
+// the caller can refuse to render.
+
+function parseHttpsUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+function hostMatches(host, suffixes) {
+  return suffixes.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+function getSpotifyEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["spotify.com"])) return null;
+  // Spotify URL paths look like /track/<id>, /album/<id>, /playlist/<id>,
+  // /episode/<id>, /show/<id>. The embed form just prefixes /embed/ before
+  // the type segment. Reconstruct from the trusted host instead of replacing
+  // text inside the user-supplied string.
+  return `https://open.spotify.com/embed${u.pathname}`;
+}
+
+function getAppleMusicEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["music.apple.com"])) return null;
+  return `https://embed.music.apple.com${u.pathname}${u.search}`;
+}
+
+function getSoundCloudEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u || !hostMatches(u.hostname, ["soundcloud.com"])) return null;
+  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(u.href)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true`;
+}
+
+function getYouTubeEmbedUrl(url) {
+  const u = parseHttpsUrl(url);
+  if (!u) return null;
+  let videoId = null;
+  if (u.hostname === "youtu.be") {
+    videoId = u.pathname.slice(1);
+  } else if (hostMatches(u.hostname, ["youtube.com", "youtube-nocookie.com"])) {
+    if (u.pathname.startsWith("/embed/")) {
+      videoId = u.pathname.split("/embed/")[1];
+    } else {
+      videoId = u.searchParams.get("v");
+    }
+  }
+  // Strict id check — letters, digits, dash, underscore only (YouTube's
+  // alphabet). Prevents path traversal back into another provider's URL.
+  if (!videoId || !/^[A-Za-z0-9_-]{6,32}$/.test(videoId)) return null;
+  return `https://www.youtube.com/embed/${videoId}`;
+}
+
+// The exact lat/lng pair, shown beside the location label when the host turns on
+// "show coordinates" (for spots an address can't pin precisely). Monospace, with
+// a copy button — clicks stop propagation so it never triggers the editor's
+// click-to-edit on the surrounding section.
+function CoordCopy({ lat, lng, color }) {
+  const [copied, setCopied] = useState(false);
+  const text = formatCoordinates(lat, lng);
+  if (!text) return null;
+  const onCopy = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — the text is still visible to copy by hand */
+    }
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
+      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", color, opacity: 0.55, letterSpacing: "0.02em" }}>{text}</span>
+      <button
+        type="button"
+        onClick={onCopy}
+        style={{ background: "transparent", border: `1px solid ${color}`, color, opacity: 0.5, borderRadius: "6px", fontSize: "9.5px", fontWeight: 700, padding: "1px 7px", cursor: "pointer", lineHeight: 1.7, textTransform: "uppercase", letterSpacing: "0.05em" }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+function formatDate(startsAt, timezone) {
+  if (!startsAt) return "";
+  const d = new Date(startsAt);
+  const tzOpt = timezone ? { timeZone: timezone } : {};
+  const day = d.toLocaleDateString("en-US", { weekday: "short", ...tzOpt });
+  const dateNum = d.toLocaleDateString("en-US", { day: "numeric", ...tzOpt });
+  const month = d.toLocaleDateString("en-US", { month: "short", ...tzOpt }).toLowerCase();
+  const eventTime = formatEventTime(d, timezone);
+  return `${day} ${dateNum} ${month}${eventTime ? `, ${eventTime}` : ""}`;
+}
+
+export function EventPageContent({
+  title,
+  description,
+  location,
+  locationLat = null,
+  locationLng = null,
+  showCoordinates = false,
+  startsAt,
+  timezone,
+  sections = [],
+  hoveredSection = null,
+  hideLocation = false,
+  hideDate = false,
+  revealHint = null,
+  dateRevealHint = null,
+  // Editor-only: when provided, each section becomes click-to-edit — point at
+  // the block on the preview and onEditSection(index) opens its editor. Absent
+  // on the live public page, so nothing here changes for guests.
+  onEditSection = null,
+  // Product pages (kind='product'): the sanitized delivery summary + the buyer's
+  // rsvpId (from ?purchase=). Drives the delivery/locked-content block below.
+  productDelivery = null,
+  purchaseRsvpId = null,
+}) {
+  const editable = typeof onEditSection === "function";
+  const [editHover, setEditHover] = useState(null);
+  const formattedDate = hideDate ? null : formatDate(startsAt, timezone);
+  const locationTba = revealHint || "Location revealed later";
+  const dateTba = dateRevealHint || "Date TBA";
+
+  // Render the location text as a tappable Google Maps link (exact pin when we
+  // have coords, address search otherwise). In editor mode the whole section is
+  // a click-to-edit target, so we keep it plain text there — an anchor would
+  // hijack the click and navigate away from the editor.
+  const locationNode = (style) => {
+    const mapsUrl = !editable ? getGoogleMapsUrl(location, locationLat, locationLng) : null;
+    if (!mapsUrl) return <span style={style}>{formatLocationShort(location)}</span>;
+    return (
+      <a
+        href={mapsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        style={{ ...style, color: style.color, textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}
+      >
+        {formatLocationShort(location)}
+      </a>
+    );
+  };
+
+  // Fallback: no sections defined, show legacy layout
+  if (!sections || sections.length === 0) {
+    return (
+      <>
+        {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
+        {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{locationNode({ color: "#fff" })}</div>}
+        {showCoordinates && !hideLocation && locationLat != null && locationLng != null && <div style={{ marginBottom: "4px" }}><CoordCopy lat={locationLat} lng={locationLng} color="#fff" /></div>}
+        {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
+        {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
+        {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
+        {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
+        {!editable && (productDelivery || purchaseRsvpId) && (
+          <ProductDelivery productDelivery={productDelivery} purchaseRsvpId={purchaseRsvpId} />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {sections.map((section, i) => {
+        const isHovered = hoveredSection === i;
+        // Brand-design removed: sections wear the standard dark theme (white
+        // text, inherited font). Defaults below resolve to the page look.
+        const sFamily = undefined;
+        const sColor = null;
+        const editLit = editable && editHover === i;
+        return (
+        <div
+          key={i}
+          data-section-index={i}
+          onClick={editable ? (e) => { e.stopPropagation(); onEditSection(i); } : undefined}
+          onMouseEnter={editable ? () => setEditHover(i) : undefined}
+          onMouseLeave={editable ? () => setEditHover(null) : undefined}
+          style={{
+          position: "relative",
+          cursor: editable ? "pointer" : undefined,
+          marginBottom: i === sections.length - 1 ? 0 : section.type === "location" ? "4px" : "16px",
+          borderRadius: "4px",
+          outline: (isHovered || editLit) ? `1px solid ${editLit ? "#ffffff" : "rgba(255, 255, 255, 0.35)"}` : "1px solid transparent",
+          outlineOffset: "4px",
+          transition: "outline-color 0.15s ease",
+        }}>
+          {editLit && (
+            <span style={{ position: "absolute", top: -10, right: -2, zIndex: 5, fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#0a0a0a", background: "#ffffff", padding: "2px 7px", borderRadius: "999px", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}>
+              Edit
+            </span>
+          )}
+          {section.type === "title" ? (
+            title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: sColor || "#fff", fontFamily: sFamily, margin: 0 }}>{title}</h1> : null
+
+          ) : section.type === "location" ? (
+            hideLocation
+              ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
+              : (location || (showCoordinates && locationLat != null && locationLng != null)) ? (
+                  <>
+                    {location && <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "#fff" })}</div>}
+                    {showCoordinates && locationLat != null && locationLng != null && <CoordCopy lat={locationLat} lng={locationLng} color={sColor || "#fff"} />}
+                  </>
+                ) : null
+
+          ) : section.type === "datetime" ? (
+            hideDate
+              ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#a3e635", fontFamily: sFamily, opacity: 0.5, fontStyle: "italic" }}>{dateTba}</div>
+              : formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#a3e635", fontFamily: sFamily }}>{formattedDate}</div> : null
+
+          ) : section.type === "spotify" && section.url ? (
+            (() => {
+              const embedUrl = getSpotifyEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={embedUrl.includes("/track/") ? "80" : "152"} frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
+
+          ) : section.type === "applemusic" && section.url ? (
+            (() => {
+              const embedUrl = getAppleMusicEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={embedUrl.includes("/song/") || embedUrl.includes("?i=") ? "175" : "450"} frameBorder="0" allow="autoplay *; encrypted-media *; fullscreen *" loading="lazy" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
+
+          ) : section.type === "soundcloud" && section.url ? (
+            (() => {
+              const embedUrl = getSoundCloudEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" height={section.url.includes("/sets/") ? "300" : "166"} frameBorder="0" allow="autoplay" loading="lazy" style={{ borderRadius: "12px", border: "none" }} />
+              ) : null;
+            })()
+
+          ) : section.type === "youtube" && section.url ? (
+            (() => {
+              const embedUrl = getYouTubeEmbedUrl(section.url);
+              return embedUrl ? (
+                <iframe src={embedUrl} width="100%" style={{ aspectRatio: "16/9", borderRadius: "12px", border: "none" }} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen loading="lazy" />
+              ) : null;
+            })()
+
+          ) : section.type === "socials" ? (
+            <div style={{ display: "flex", gap: "14px" }}>
+              {section.instagram && <a href={section.instagram} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaInstagram size={18} /></a>}
+              {section.spotify && <a href={section.spotify} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSpotify size={18} /></a>}
+              {section.tiktok && <a href={section.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaTiktok size={18} /></a>}
+              {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
+            </div>
+
+          ) : section.type === "hostedby" && section.name ? (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "14px",
+              padding: "14px 16px", borderRadius: "8px",
+              background: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              fontFamily: sFamily,
+            }}>
+              {section.logo && (
+                <img src={section.logo} alt="" style={{
+                  width: "40px", height: "40px", borderRadius: "6px",
+                  objectFit: "contain", padding: "4px", background: "rgba(255,255,255,0.04)",
+                  flexShrink: 0,
+                }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: sColor || "rgba(255,255,255,0.35)", opacity: sColor ? 0.6 : 1, marginBottom: "2px" }}>Hosted by</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#fff" }}>{section.name}</div>
+                {(section.email || section.website) && (
+                  <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                    {section.email && (
+                      <a href={`mailto:${section.email}`} style={{ fontSize: "12px", color: sColor || "rgba(255,255,255,0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
+                        {section.email}
+                      </a>
+                    )}
+                    {section.website && (
+                      <a href={section.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: sColor || "rgba(255,255,255,0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
+                        {section.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          ) : (
+            <>
+              {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: sColor || "#fff", fontFamily: sFamily, margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}
+              {section.text && <p style={{ fontSize: "15px", lineHeight: "1.6", color: sColor || "#fff", fontFamily: sFamily, opacity: 0.8, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{section.text}</p>}
+            </>
+          )}
+        </div>
+        );
+      })}
+      {!editable && (productDelivery || purchaseRsvpId) && (
+        <ProductDelivery productDelivery={productDelivery} purchaseRsvpId={purchaseRsvpId} />
+      )}
+    </>
+  );
+}

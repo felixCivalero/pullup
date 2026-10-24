@@ -7,15 +7,16 @@ import { requireOwner } from "../middleware/requireOwner.js";
 import { supabase } from "../supabase.js";
 import { sendEmail } from "../email/index.js";
 import { selectAllPaged } from "../lib/selectAllPaged.js";
-import { EVENT_IMAGE_BUCKET, eventText, imageUrl, makeSlug, sectionsFor, summarizePeople, pickAudience } from "../lib/eventPlatform.js";
+import { EVENT_IMAGE_BUCKET, EVENT_HOST_ID, cleanSections, eventText, imageUrl, makeSlug, sectionsFor, summarizePeople, pickAudience } from "../lib/eventPlatform.js";
+import { loadEventMedia } from "./adminEventMedia.js";
 import { broadcastEmail } from "../lib/eventEmails.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { apiBase, eventUrl } from "./events.js";
 
-// New events belong to Felix's host account from the old app (36 events there).
-const HOST_ID = process.env.EVENT_HOST_ID || "f3394b03-c5a0-4e8a-b001-8ae2175c85ff";
+export const HOST_ID = EVENT_HOST_ID;
 const EVENT_COLUMNS =
-  "id, host_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at";
+  "id, host_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
+  "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
@@ -64,6 +65,18 @@ function adminShape(ev, counts = {}, hosts = new Map()) {
     attending: counts.attending || 0,
     waitlist: counts.waitlist || 0,
     pulledUp: counts.pulledUp || 0,
+    // The page's design (the editor reads and writes these).
+    sections: Array.isArray(ev.sections) ? ev.sections : [],
+    mediaSettings: ev.media_settings || {},
+    titleSettings: ev.title_settings || {},
+    hideLocation: !!ev.hide_location,
+    hideDate: !!ev.hide_date,
+    revealHint: ev.reveal_hint || "",
+    dateRevealHint: ev.date_reveal_hint || "",
+    signupSettings: ev.signup_settings || {},
+    showCoordinates: !!ev.show_coordinates,
+    locationLat: ev.location_lat ?? null,
+    locationLng: ev.location_lng ?? null,
   };
 }
 
@@ -88,6 +101,24 @@ function eventPatch(body) {
     patch.cover_image_url = body.imagePath || null;
   }
   if (body.status === "PUBLISHED" || body.status === "DRAFT") patch.status = body.status;
+  // The design, from the editor. A sections write also refreshes the plain
+  // description (mails, the CRM and share previews read that).
+  if (Array.isArray(body.sections)) {
+    patch.sections = cleanSections(body.sections);
+    if (typeof body.text !== "string") patch.description = eventText({ description: "", sections: patch.sections }).slice(0, 8000);
+  }
+  if (body.mediaSettings && typeof body.mediaSettings === "object" && JSON.stringify(body.mediaSettings).length < 4000) patch.media_settings = body.mediaSettings;
+  if (body.titleSettings && typeof body.titleSettings === "object" && JSON.stringify(body.titleSettings).length < 2000) patch.title_settings = body.titleSettings;
+  if (body.signupSettings && typeof body.signupSettings === "object") {
+    const s = body.signupSettings;
+    patch.signup_settings = { hidden: !!s.hidden, label: typeof s.label === "string" ? s.label.slice(0, 80) : "", cta: typeof s.cta === "string" ? s.cta.slice(0, 40) : "" };
+  }
+  for (const [k, col] of [["hideLocation", "hide_location"], ["hideDate", "hide_date"], ["showCoordinates", "show_coordinates"]]) {
+    if (typeof body[k] === "boolean") patch[col] = body[k];
+  }
+  for (const [k, col] of [["revealHint", "reveal_hint"], ["dateRevealHint", "date_reveal_hint"]]) {
+    if (typeof body[k] === "string") patch[col] = body[k].slice(0, 80);
+  }
   return patch;
 }
 
@@ -224,7 +255,7 @@ export function registerAdminEventRoutes(app) {
       if (g.status === "waitlist") counts.waitlist += 1;
       if (g.pulledUp) counts.pulledUp += 1;
     }
-    return { event: adminShape(ev, counts), guests };
+    return { event: adminShape(ev, counts), guests, media: await loadEventMedia(ev.id) };
   }));
 
   app.patch("/admin/events/:id", ...handle(async (req) => {

@@ -1,6 +1,6 @@
 // The slim event platform's pure parts: calendar, CRM rows, audiences, mails.
 import { icsFor, googleCalendarUrl, eventEnd } from "../src/lib/eventCalendar.js";
-import { eventText, imageUrl, makeSlug, sectionsFor, formatWhen, isOpenForSignup, summarizePeople, pickAudience, personPatch } from "../src/lib/eventPlatform.js";
+import { eventText, imageUrl, makeSlug, sectionsFor, formatWhen, isOpenForSignup, summarizePeople, pickAudience, personPatch, cleanSections } from "../src/lib/eventPlatform.js";
 import { confirmationEmail, broadcastEmail } from "../src/lib/eventEmails.js";
 
 let failures = 0;
@@ -38,6 +38,21 @@ assert(/^slapp-for-jul-[a-z2-9]{4}$/.test(makeSlug("Släpp för jul!")), "slug: 
 assert(sectionsFor("Hej").at(-1).text === "Hej" && sectionsFor("").length === 3, "sections the old editor reads");
 assert(formatWhen(ev) === "lördag 7 november 2026, 19:00", "when, in the event's own time zone");
 assert(isOpenForSignup(ev, Date.parse("2026-11-01")) && !isOpenForSignup(ev, Date.parse("2026-11-08")) && !isOpenForSignup({ ...ev, status: "DRAFT" }, 0), "sign-up open only while published and not over");
+
+// Sections from the editor
+const cs = cleanSections([
+  { type: "text", title: "Om", text: "Hej", extra: "x" },
+  { type: "spotify", url: "javascript:alert(1)" },
+  { type: "youtube", url: "https://youtu.be/abc" },
+  { type: "hostedby", name: "Felix", logo: "data:text/html;base64,PHNjcmlwdD4=", website: "https://pullup.se" },
+  { type: "evil" },
+  "nope",
+]);
+assert(cs.slice(0, 3).map((b) => b.type).join() === "datetime,location,title", "the title, place and time blocks are always there");
+assert(!cs.some((b) => b.type === "evil") && cs.find((b) => b.type === "text").extra === undefined, "unknown types and fields dropped");
+assert(cs.find((b) => b.type === "spotify").url === "" && cs.find((b) => b.type === "youtube").url === "https://youtu.be/abc", "only http(s) links survive");
+assert(cs.find((b) => b.type === "hostedby").logo === "" && cs.find((b) => b.type === "hostedby").website === "https://pullup.se", "hosted-by logo must be an image data URL");
+assert(cleanSections("x") === null && cleanSections(Array(60).fill({ type: "text", text: "a" })).length === 43, "not an array → null; at most 40 blocks (+ the three fixed)");
 
 // CRM
 const events = [

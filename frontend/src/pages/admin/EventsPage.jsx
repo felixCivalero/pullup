@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { fromZonedInput, formatEventWhen } from "../../lib/zonedTime.js";
+import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
 /* /admin/events — every event on PullUp (yours and everyone's from the old
-   app), newest first, with sign-ups. Create a new one here; it opens straight
-   in its own page (/admin/events/:id) to fill in and publish. */
+   app), newest first, with sign-ups. "Nytt event" starts the basics wizard
+   (/admin/events/new), which opens the page editor. */
 
 const FILTERS = [
   ["mine", "Mina"],
@@ -21,7 +21,6 @@ export function EventsPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState("mine");
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -32,7 +31,7 @@ export function EventsPage() {
     return () => { alive = false; };
   }, []);
 
-  const now = Date.now();
+  const [now] = useState(() => Date.now());
   const isPast = (e) => new Date(e.endsAt || e.startsAt).getTime() < now;
   const lists = useMemo(() => {
     const all = data || [];
@@ -54,7 +53,7 @@ export function EventsPage() {
             <h1>Event</h1>
             {data && <p className="ea-muted">{data.length} event på PullUp · {totals.guests} anmälda · {totals.came} kom</p>}
           </div>
-          <button type="button" className="ea-btn is-dark" onClick={() => setCreating(true)}><Plus size={16} /> Nytt event</button>
+          <button type="button" className="ea-btn is-dark" onClick={() => navigate("/admin/events/new")}><Plus size={16} /> Nytt event</button>
         </div>
 
         {error && <p className="ea-error">Kunde inte hämta eventen.</p>}
@@ -95,45 +94,7 @@ export function EventsPage() {
           </>
         )}
       </div>
-      {creating && <CreateEvent onClose={() => setCreating(false)} onCreated={(id) => navigate(`/admin/events/${id}`)} />}
     </AdminShell>
-  );
-}
-
-function CreateEvent({ onClose, onCreated }) {
-  const [title, setTitle] = useState("");
-  const [start, setStart] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!title.trim() || !start) return;
-    setBusy(true);
-    setError("");
-    try {
-      const res = await authenticatedFetch("/admin/events", { method: "POST", body: JSON.stringify({ title, startsAt: fromZonedInput(start) }) });
-      const out = await res.json();
-      if (!res.ok) throw new Error(out.error);
-      onCreated(out.event.id);
-    } catch {
-      setError("Kunde inte skapa eventet.");
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="ea-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="ea-modal" onSubmit={submit}>
-        <h2>Nytt event</h2>
-        <label className="ea-field">Namn<input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Release party" /></label>
-        <label className="ea-field">Startar (svensk tid)<input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-        <p className="ea-muted" style={{ margin: 0 }}>Det skapas som utkast. Du fyller i resten och publicerar på nästa sida.</p>
-        {error && <p className="ea-error">{error}</p>}
-        <div className="ea-modal-actions">
-          <button type="button" className="ea-btn" onClick={onClose}>Avbryt</button>
-          <button type="submit" className="ea-btn is-dark" disabled={busy || !title.trim() || !start}>{busy ? "Skapar…" : "Skapa"}</button>
-        </div>
-      </form>
-    </div>
   );
 }
 

@@ -6,6 +6,41 @@
 
 export const EVENT_IMAGE_BUCKET = "event-images";
 
+// New events belong to Felix's host account from the old app.
+export const EVENT_HOST_ID = process.env.EVENT_HOST_ID || "f3394b03-c5a0-4e8a-b001-8ae2175c85ff";
+
+// The page's content blocks, as the editor writes them (the old app's
+// section types). Anything else is dropped; text is clipped, links must be
+// http(s), the hosted-by logo is a small data-URL image.
+const SECTION_TYPES = new Set(["title", "location", "datetime", "text", "spotify", "applemusic", "soundcloud", "youtube", "socials", "hostedby"]);
+const URL_FIELDS = ["url", "instagram", "spotify", "tiktok", "soundcloud", "website"];
+const httpUrl = (v) => (typeof v === "string" && /^https?:\/\/\S+$/i.test(v.trim()) ? v.trim().slice(0, 600) : "");
+const clipText = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+
+export function cleanSections(input) {
+  if (!Array.isArray(input)) return null;
+  const out = [];
+  for (const s of input.slice(0, 40)) {
+    if (!s || typeof s !== "object" || !SECTION_TYPES.has(s.type)) continue;
+    const b = { type: s.type };
+    if (s.type === "text") {
+      b.title = clipText(s.title, 200);
+      b.text = clipText(s.text, 8000);
+    } else if (s.type === "hostedby") {
+      b.name = clipText(s.name, 120);
+      b.email = clipText(s.email, 200);
+      b.website = httpUrl(s.website);
+      b.logo = typeof s.logo === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(s.logo) && s.logo.length < 300000 ? s.logo : "";
+    } else if (s.type !== "title" && s.type !== "location" && s.type !== "datetime") {
+      for (const k of URL_FIELDS) if (k in s) b[k] = httpUrl(s[k]);
+    }
+    out.push(b);
+  }
+  // The page always has its title, place and time blocks.
+  for (const t of ["title", "location", "datetime"]) if (!out.some((b) => b.type === t)) out.unshift({ type: t });
+  return out;
+}
+
 // Events the old app wrote keep their copy in `sections` (typed blocks) and
 // leave `description` empty; new ones write both. Read either.
 export function eventText(ev) {
@@ -40,7 +75,7 @@ export function makeSlug(title, rand = Math.random) {
   return `${base}-${tail}`;
 }
 
-// The sections the old editor expects, so an event made here still opens there.
+// The default blocks for a new event (the old editor's shape).
 export function sectionsFor(description) {
   return [
     { type: "title" },

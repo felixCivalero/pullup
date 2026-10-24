@@ -11,9 +11,11 @@ import { isValidEmail, normalizeEmail } from "../lib/emailAddress.js";
 import { eventText, imageUrl, formatWhen, isOpenForSignup, personPatch } from "../lib/eventPlatform.js";
 import { icsFor, googleCalendarUrl } from "../lib/eventCalendar.js";
 import { confirmationEmail } from "../lib/eventEmails.js";
+import { loadEventMedia } from "./adminEventMedia.js";
 
 const EVENT_COLUMNS =
-  "id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date";
+  "id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
+  "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 
 export const apiBase = () => process.env.PUBLIC_API_URL || (isDevelopment ? "http://localhost:3001" : `${getFrontendUrl()}/api`);
 export const eventUrl = (slug) => `${getFrontendUrl()}/e/${slug}`;
@@ -46,18 +48,32 @@ async function attendingCount(eventId) {
   return count || 0;
 }
 
-// What a guest sees — nothing about other guests.
-function publicShape(ev, attending) {
+// What a guest sees — nothing about other guests. The design fields are in
+// the shape the event page components read (components/event/*).
+function publicShape(ev, attending, media = []) {
   const spotsLeft = ev.total_capacity ? Math.max(0, ev.total_capacity - attending) : null;
+  const hidden = !!ev.hide_location;
   return {
     slug: ev.slug,
     title: ev.title,
     text: eventText(ev),
-    location: ev.hide_location ? null : ev.location,
+    location: hidden ? null : ev.location,
+    locationLat: hidden ? null : ev.location_lat ?? null,
+    locationLng: hidden ? null : ev.location_lng ?? null,
+    showCoordinates: !hidden && !!ev.show_coordinates,
     startsAt: ev.starts_at,
     endsAt: ev.ends_at,
     timezone: ev.timezone || "Europe/Stockholm",
     imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
+    media,
+    mediaSettings: ev.media_settings || {},
+    titleSettings: ev.title_settings || {},
+    sections: Array.isArray(ev.sections) ? ev.sections : [],
+    hideLocation: hidden,
+    hideDate: !!ev.hide_date,
+    revealHint: ev.reveal_hint || null,
+    dateRevealHint: ev.date_reveal_hint || null,
+    signupSettings: ev.signup_settings || {},
     open: isOpenForSignup(ev),
     full: spotsLeft === 0,
     spotsLeft,
@@ -106,7 +122,8 @@ export function registerEventRoutes(app) {
     try {
       const ev = await findEvent(req.params.slug);
       if (!ev) return res.status(404).json({ error: "not_found" });
-      return res.json({ event: publicShape(ev, await attendingCount(ev.id)), calendar: calendarLinks(ev) });
+      const [attending, media] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id)]);
+      return res.json({ event: publicShape(ev, attending, media), calendar: calendarLinks(ev) });
     } catch (err) {
       console.error("[events] get:", err?.message);
       return res.status(500).json({ error: "failed" });

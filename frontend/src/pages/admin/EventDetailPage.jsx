@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, ExternalLink, ImagePlus, Send } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { supabase } from "../../lib/supabase.js";
-import { fromZonedInput, toZonedInput, formatEventWhen } from "../../lib/zonedTime.js";
+import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
@@ -62,7 +61,7 @@ export function EventDetailPage() {
               <div><b>{ev.pulledUp}</b><span>kom</span></div>
               <div><b>{data.guests.filter((g) => g.consent).length}</b><span>vill ha inbjudningar</span></div>
             </div>
-            {ev.mine ? <EditEvent ev={ev} onSaved={load} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
+            {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
             <Guests guests={data.guests} ev={ev} onChange={load} />
             <Compose ev={ev} />
           </>
@@ -84,93 +83,18 @@ function ShareLink({ url, live }) {
   );
 }
 
-function EditEvent({ ev, onSaved }) {
-  const [f, setF] = useState(() => ({
-    title: ev.title || "",
-    start: toZonedInput(ev.startsAt, ev.timezone),
-    end: toZonedInput(ev.endsAt, ev.timezone),
-    location: ev.location || "",
-    text: ev.text || "",
-    capacity: ev.capacity || "",
-    imagePath: ev.imagePath,
-    imageUrl: ev.imageUrl,
-  }));
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef(null);
-  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
-
-  const save = async (status) => {
-    setBusy(true);
-    setNote(null);
-    try {
-      const body = {
-        title: f.title,
-        startsAt: fromZonedInput(f.start, ev.timezone),
-        endsAt: f.end ? fromZonedInput(f.end, ev.timezone) : null,
-        location: f.location,
-        text: f.text,
-        capacity: f.capacity === "" ? null : Number(f.capacity),
-        imagePath: f.imagePath || null,
-        ...(status ? { status } : {}),
-      };
-      const res = await authenticatedFetch(`/admin/events/${ev.id}`, { method: "PATCH", body: JSON.stringify(body) });
-      if (!res.ok) throw new Error();
-      setNote({ ok: true, text: status === "PUBLISHED" ? "Publicerat. Länken fungerar nu." : status === "DRAFT" ? "Avpublicerat." : "Sparat." });
-      onSaved();
-    } catch {
-      setNote({ ok: false, text: "Kunde inte spara." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const upload = async (file) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const res = await authenticatedFetch("/admin/events/upload-url", { method: "POST", body: JSON.stringify({ mimeType: file.type }) });
-      if (!res.ok) throw new Error();
-      const tok = await res.json();
-      const { error } = await supabase.storage.from(tok.bucket).uploadToSignedUrl(tok.path, tok.token, file);
-      if (error) throw error;
-      setF((x) => ({ ...x, imagePath: tok.path, imageUrl: tok.publicUrl }));
-      setNote({ ok: true, text: "Bilden är uppladdad. Spara för att använda den." });
-    } catch {
-      setNote({ ok: false, text: "Kunde inte ladda upp bilden." });
-    } finally {
-      setUploading(false);
-    }
-  };
-
+// The page itself is designed in the editor (/admin/events/:id/edit).
+function DesignCard({ ev }) {
   const live = ev.status === "PUBLISHED";
   return (
-    <section className="ed-edit">
-      <button type="button" className="ed-img" onClick={() => fileRef.current?.click()} disabled={uploading}>
-        {f.imageUrl ? <img src={f.imageUrl} alt="" /> : <span><ImagePlus size={22} /> Lägg till omslagsbild</span>}
-        {uploading && <i>Laddar upp…</i>}
-      </button>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => upload(e.target.files?.[0])} />
-      <div className="ed-form">
-        <label className="ea-field">Namn<input value={f.title} onChange={set("title")} /></label>
-        <div className="ea-row">
-          <label className="ea-field">Startar<input type="datetime-local" value={f.start} onChange={set("start")} /></label>
-          <label className="ea-field">Slutar (valfritt)<input type="datetime-local" value={f.end} onChange={set("end")} /></label>
-        </div>
-        <div className="ea-row">
-          <label className="ea-field">Plats<input value={f.location} onChange={set("location")} placeholder="Adress eller ställe" /></label>
-          <label className="ea-field">Max antal (valfritt)<input type="number" min="1" value={f.capacity} onChange={set("capacity")} placeholder="Obegränsat" /></label>
-        </div>
-        <label className="ea-field">Beskrivning<textarea rows={6} value={f.text} onChange={set("text")} placeholder="Vad händer, vem är det för, vad ska man ta med?" /></label>
-        <div className="ed-actions">
-          <span className={`ea-chip ${live ? "is-live" : "is-draft"}`}>{live ? "Publicerad" : "Utkast"}</span>
-          <button type="button" className="ea-btn" disabled={busy} onClick={() => save()}>Spara</button>
-          {live
-            ? <button type="button" className="ea-btn" disabled={busy} onClick={() => save("DRAFT")}>Avpublicera</button>
-            : <button type="button" className="ea-btn is-green" disabled={busy || !f.title || !f.start} onClick={() => save("PUBLISHED")}>Spara och publicera</button>}
-        </div>
-        {note && <p className={note.ok ? "ea-ok" : "ea-error"}>{note.text}</p>}
+    <section className="ed-design">
+      <Link to={`/admin/events/${ev.id}/edit`} className="ed-design-img">
+        {ev.imageUrl ? <img src={ev.imageUrl} alt="" /> : <span>Inget omslag än</span>}
+      </Link>
+      <div className="ed-design-body">
+        <span className={`ea-chip ${live ? "is-live" : "is-draft"}`}>{live ? "Publicerad" : "Utkast"}</span>
+        <p className="ea-muted">Omslag, bild, karusell eller video, innehållet och anmälan designar du i editorn, med sidan live bredvid.</p>
+        <Link to={`/admin/events/${ev.id}/edit`} className="ea-btn is-dark">Designa sidan</Link>
       </div>
     </section>
   );
@@ -320,13 +244,12 @@ const DETAIL_CSS = `
   .ed-stats b { font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .ed-stats span { font-size: 12.5px; color: #6e6e73; }
   @media (max-width: 620px) { .ed-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .ed-edit { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
-  @media (max-width: 760px) { .ed-edit { grid-template-columns: 1fr; } }
-  .ed-img { position: relative; font: inherit; width: 100%; aspect-ratio: 4 / 3; border: 1px dashed rgba(0,0,0,0.2); border-radius: 16px; background: #fafafa; overflow: hidden; cursor: pointer; padding: 0; color: #6e6e73; }
-  .ed-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ed-img span { display: grid; justify-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; }
-  .ed-img i { position: absolute; inset: auto 0 0 0; padding: 6px; background: rgba(0,0,0,0.55); color: #fff; font-style: normal; font-size: 12.5px; }
-  .ed-form { display: grid; gap: 12px; }
+  .ed-design { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: center; padding: 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; }
+  @media (max-width: 620px) { .ed-design { grid-template-columns: 1fr; } }
+  .ed-design-img { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #05040a; color: rgba(255,255,255,0.6); font-size: 13px; text-decoration: none; }
+  .ed-design-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ed-design-body { display: grid; gap: 10px; justify-items: start; }
+  .ed-design-body .ea-muted { margin: 0; }
   .ed-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .ed-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .ed-sec-head h2 { margin-bottom: 10px; }

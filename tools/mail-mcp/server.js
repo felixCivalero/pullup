@@ -19,8 +19,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
-import { batchGetValues, batchUpdateValues } from '../../backend/src/lib/googleSheets.js';
-import { planMailSync } from '../../backend/src/lib/salesMailSync.js';
+import { syncSalesMail } from '../../backend/src/lib/salesMailbox.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
@@ -146,57 +145,6 @@ async function compose({ to, cc, bcc, subject, text, reply, attachments = [] }) 
 }
 
 const replyContext = (client, ref) => (ref ? readMessage(client, ref.folder, ref.uid) : null);
-
-// ---------------------------------------------------------------- sheet
-
-const stockholmDay = (d) =>
-  new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-const colLetter = (i) => (i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26)));
-
-// Auto-replies: out-of-office, ticket receipts, "thanks for your application".
-const AUTO_SUBJECT = /^\s*(automatic reply|automatiskt svar|autosvar|auto[- ]?reply|autoreply|out of office|frånvaro|abwesend|fraværende|\[[^\]]*\]\s*förfrågan mottagen|vi har tagit emot|ärende mottaget|ticket received|we('|’)ve received)/i;
-const isAuto = (headers, subject) => {
-  const h = (headers || Buffer.alloc(0)).toString('utf8').toLowerCase();
-  return /auto-submitted:\s*auto-(replied|generated)/.test(h) || /x-autore(ply|spond)/.test(h) || /precedence:\s*(auto_reply|bulk|junk)/.test(h) || AUTO_SUBJECT.test(subject || '');
-};
-
-// Every message in INBOX and Sent since `since`, as the sync planner wants it,
-// plus the UIDs of unread auto-replies in INBOX (to mark read).
-async function recentMessages(client, since) {
-  const f = await folders(client);
-  const out = [];
-  const unreadAuto = [];
-  for (const [folder, dir] of [[f.inbox, 'in'], [f.sent, 'out']]) {
-    const lock = await client.getMailboxLock(folder);
-    try {
-      const uids = (await client.search({ since }, { uid: true })) || [];
-      if (!uids.length) continue;
-      for await (const msg of client.fetch(uids, { envelope: true, uid: true, internalDate: true, flags: true, headers: ['auto-submitted', 'x-autoreply', 'x-autorespond', 'precedence'] }, { uid: true })) {
-        const e = msg.envelope || {};
-        const from = bare(e.from);
-        const automated = from.some((a) => AUTOMATED.test(a));
-        // A "Re:" from a no-reply address is an auto-reply to something we sent.
-        const auto = dir === 'in' && (isAuto(msg.headers, e.subject) || (automated && /^\s*(re|sv|aw)\s*:/i.test(e.subject || '')));
-        if (auto && !msg.flags?.has?.('\\Seen')) unreadAuto.push(msg.uid);
-        if (dir === 'in' && (automated || from.includes(USER.toLowerCase()))) continue;
-        out.push({
-          dir,
-          date: stockholmDay(e.date || msg.internalDate || new Date()),
-          counterparts: dir === 'in' ? from : [...bare(e.to), ...bare(e.cc)],
-          subject: e.subject || '',
-          messageId: e.messageId || null,
-          from: addr(e.from),
-          auto,
-        });
-      }
-    } finally {
-      lock.release();
-    }
-  }
-  return { messages: out, unreadAuto, inbox: f.inbox };
-}
-
-const AUTOMATED = /(no-?reply|noreply|mailer-daemon|notifications?|newsletter|bounce|support@|info@one\.com)/i;
 
 // ---------------------------------------------------------------- server
 
@@ -352,54 +300,11 @@ server.registerTool(
       dry_run: z.boolean().optional(),
     },
   },
-  async ({ since_days = 30, dry_run = false }) =>
-    withImap(async (client) => {
-      if (!sheetReady()) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON / SALES_SHEET_ID missing (backend/.env)');
-      const since = new Date(Date.now() - since_days * 86400000);
-      const { messages, unreadAuto, inbox } = await recentMessages(client, since);
-      const [prospectRows, logRows] = await batchGetValues(SHEET, ['Prospects!A:X', 'Log!A:F']);
-      const plan = planMailSync({ prospectRows, logRows, messages });
-
-      if (!dry_run) {
-        const data = plan.updates.map((u) => ({ range: `Prospects!${colLetter(u.col)}${u.row}`, values: [[u.value]] }));
-        // Log rows go to exact cells, skipping C (Company is the tab's own formula).
-        let next = logRows.length + 1;
-        for (const [date, id, , type, subject, mid] of plan.logAppend) {
-          data.push({ range: `Log!A${next}:B${next}`, values: [[date, id]] });
-          data.push({ range: `Log!D${next}:F${next}`, values: [[type, subject, mid]] });
-          next += 1;
-        }
-        if (data.length) await batchUpdateValues(SHEET, data);
-        // Auto-replies don't need Felix: mark them read.
-        if (unreadAuto.length) {
-          const lock = await client.getMailboxLock(inbox);
-          try {
-            await client.messageFlagsAdd(unreadAuto, ['\\Seen'], { uid: true });
-          } finally {
-            lock.release();
-          }
-        }
-      }
-
-      const unknown = new Map();
-      for (const m of plan.unknownInbound) {
-        const key = m.counterparts[0];
-        const u = unknown.get(key) || { email: key, from: m.from, messages: 0, last_subject: '', last_at: '' };
-        u.messages += 1;
-        if (m.date >= u.last_at) Object.assign(u, { last_at: m.date, last_subject: m.subject });
-        unknown.set(key, u);
-      }
-      return json({
-        since: stockholmDay(since),
-        dry_run,
-        messages_seen: messages.length,
-        prospects_changed: plan.changes,
-        log_rows_added: plan.logAppend.length,
-        auto_replies_marked_read: dry_run ? 0 : unreadAuto.length,
-        unread_auto_replies: unreadAuto.length,
-        unknown_senders: [...unknown.values()].sort((a, b) => b.last_at.localeCompare(a.last_at)),
-      });
-    })
+  async ({ since_days = 30, dry_run = false }) => {
+    if (!sheetReady()) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON / SALES_SHEET_ID missing (backend/.env)');
+    if (!PASS) throw new Error('ONECOM_PASSWORD missing — add it to tools/mail-mcp/.env');
+    return json(await syncSalesMail({ sinceDays: since_days, dryRun: dry_run }));
+  }
 );
 
 server.registerTool(

@@ -3,7 +3,9 @@ import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
 
 /* /admin/sales — where sales stand today and what to do next. Everything is
-   read from the Google Sheet (the record; edit it there). The page answers:
+   read from the Google Sheet (the record; edit it there). Uppdatera first
+   records sent mail and replies from felix@pullup.se in the sheet, then
+   rereads it. The page answers:
    how many did I send today, am I on pace for the plan, who's next, and what
    is waiting on me. */
 const STAGE_SV = {
@@ -39,10 +41,33 @@ function pace(delta) {
   return "i fas";
 }
 
+// What the last Uppdatera found in the mailbox.
+function MailSyncNote({ mail }) {
+  if (mail.error === "mail_not_configured") return <p className="sl-muted">Mejlen är inte kopplade på servern (ONECOM_PASSWORD saknas).</p>;
+  if (mail.error) return <p className="sl-muted">Kunde inte läsa mejlen. Arket är läst ändå.</p>;
+  const moved = mail.prospects_changed.filter((c) => c.stage).length;
+  const parts = [
+    mail.log_rows_added ? `${mail.log_rows_added} nya mejl loggade` : "Inga nya mejl",
+    moved > 0 && `${moved} flyttade i tratten`,
+    mail.auto_replies_marked_read > 0 && `${mail.auto_replies_marked_read} autosvar markerade lästa`,
+  ].filter(Boolean);
+  return (
+    <div className="sl-mail">
+      <p className="sl-muted">{parts.join(" · ")}</p>
+      {mail.unknown_senders.length > 0 && (
+        <p className="sl-muted" title="Svarade men finns inte i arket">
+          Inte i arket: {mail.unknown_senders.map((u) => u.from || u.email).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SalesPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mail, setMail] = useState(null); // last mail sync: result or { error }
 
   const load = useCallback((fresh = false) =>
     authenticatedFetch(`/admin/sales${fresh ? "?fresh=1" : ""}`)
@@ -56,7 +81,14 @@ export function SalesPage() {
       .finally(() => setLoading(false)), []);
 
   useEffect(() => { load(); }, [load]);
-  const refresh = () => { setLoading(true); load(true); };
+  const refresh = async () => {
+    setLoading("mail");
+    const r = await authenticatedFetch("/admin/sales/sync-mail", { method: "POST" }).catch(() => null);
+    const body = r ? await r.json().catch(() => ({})) : {};
+    setMail(r?.ok ? body : { error: body.error || "mail_sync_failed" });
+    setLoading("sheet");
+    load(true);
+  };
 
   const plan = data?.plan;
   const t = data?.totals;
@@ -75,9 +107,10 @@ export function SalesPage() {
           <div>
             <h1>Sälj</h1>
             {data && <p className="sl-muted">Läst från arket {time(data.readAt)}</p>}
+            {mail && <MailSyncNote mail={mail} />}
           </div>
           <div className="sl-actions">
-            <button type="button" onClick={refresh} disabled={loading}>{loading ? "Läser…" : "Uppdatera"}</button>
+            <button type="button" onClick={refresh} disabled={loading}>{loading === "mail" ? "Läser mejl…" : loading ? "Läser arket…" : "Uppdatera"}</button>
             {data && <a href={data.sheetUrl} target="_blank" rel="noreferrer">Öppna arket ↗</a>}
           </div>
         </div>

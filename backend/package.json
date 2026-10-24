@@ -21,6 +21,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "helmet": "^8.2.0",
+    "imapflow": "^2.5.8",
     "resend": "^6.6.0"
   },
   "devDependencies": {

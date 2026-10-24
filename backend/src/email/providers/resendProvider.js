@@ -26,6 +26,7 @@ export async function sendEmailViaResend({
   text,
   replyTo = null,
   headers = null,
+  attachments = null,
 }) {
   const client = getResendClient();
 
@@ -42,6 +43,8 @@ export async function sendEmailViaResend({
   // Custom headers (List-Unsubscribe one-click, etc.) — Resend passes these
   // through verbatim to the outgoing message.
   if (headers && Object.keys(headers).length > 0) payload.headers = headers;
+  // [{ filename, content (base64 or Buffer), content_type }] — e.g. an .ics.
+  if (Array.isArray(attachments) && attachments.length) payload.attachments = attachments;
 
   const result = await client.emails.send(payload);
 

@@ -8,8 +8,8 @@
 import { SES_FROM_EMAIL } from "./config.js";
 import { sendEmailViaResend } from "./providers/resendProvider.js";
 
-export async function sendEmail({ from = SES_FROM_EMAIL, to, subject, html, text, replyTo = null }) {
-  const result = await sendEmailViaResend({ from, to, subject, html, text, replyTo });
+export async function sendEmail({ from = SES_FROM_EMAIL, to, subject, html, text, replyTo = null, headers = null, attachments = null }) {
+  const result = await sendEmailViaResend({ from, to, subject, html, text, replyTo, headers, attachments });
   // The Resend SDK reports failures in the result instead of throwing.
   if (result?.raw?.error) {
     throw new Error(result.raw.error.message || "resend_send_failed");

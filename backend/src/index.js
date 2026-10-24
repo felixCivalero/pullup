@@ -25,6 +25,8 @@ import { registerAdminPlannerRoutes } from "./routes/adminPlanner.js";
 import { registerAdminSalesRoutes } from "./routes/adminSales.js";
 import { registerAdminClientRoutes } from "./routes/adminClients.js";
 import { registerAdminProjectRoutes } from "./routes/adminProjects.js";
+import { registerEventRoutes } from "./routes/events.js";
+import { registerAdminEventRoutes } from "./routes/adminEvents.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -71,10 +73,12 @@ registerAdminPlannerRoutes(app);
 registerAdminSalesRoutes(app);
 registerAdminClientRoutes(app);
 registerAdminProjectRoutes(app);
+registerEventRoutes(app);
+registerAdminEventRoutes(app);
 
-// Old platform links (/e/:slug event pages, /v/ verify links, /share/ cards)
+// Old platform links (/v/ verify links, /share/ cards, deeper /e/ paths)
 // still reach the API through nginx. Send people to the front page instead
-// of a JSON 404.
+// of a JSON 404. (/e/:slug itself is the event share preview, routes/events.js.)
 app.get(["/e/{*rest}", "/v/{*rest}", "/share/{*rest}"], (req, res) => {
   res.redirect(302, `${getFrontendUrl()}/`);
 });

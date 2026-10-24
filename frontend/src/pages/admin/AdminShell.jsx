@@ -14,6 +14,8 @@ const NAV = [
   ["/admin", "Statistik"],
   ["/admin/sales", "Sälj"],
   ["/admin/projects", "Projekt"],
+  ["/admin/events", "Event"],
+  ["/admin/people", "CRM"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
@@ -68,7 +70,7 @@ export function AdminShell({ title, fill = false, children }) {
         <header className="ad-bar">
           <nav>
             {NAV.map(([to, label]) => (
-              <NavLink key={to} to={to} end className={({ isActive }) => (isActive ? "is-on" : undefined)}>
+              <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => (isActive ? "is-on" : undefined)}>
                 {label}
               </NavLink>
             ))}

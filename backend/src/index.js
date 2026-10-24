@@ -27,6 +27,7 @@ import { registerAdminClientRoutes } from "./routes/adminClients.js";
 import { registerAdminProjectRoutes } from "./routes/adminProjects.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerAdminEventRoutes } from "./routes/adminEvents.js";
+import { registerAdminMailRoutes, mailImageBodyParser } from "./routes/adminMail.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -57,6 +58,9 @@ app.use(
   }),
 );
 
+// The mail module's image upload sends a data URL (≤ 2 MB image); it gets a
+// bigger limit than every other route, parsed before the global one.
+app.use("/admin/mail/images", mailImageBodyParser);
 app.use(express.json({ limit: "1mb" }));
 
 // Liveness — the deploy gate and post-deploy check poll this.
@@ -75,6 +79,7 @@ registerAdminClientRoutes(app);
 registerAdminProjectRoutes(app);
 registerEventRoutes(app);
 registerAdminEventRoutes(app);
+registerAdminMailRoutes(app);
 
 // Old platform links (/v/ verify links, /share/ cards, deeper /e/ paths)
 // still reach the API through nginx. Send people to the front page instead

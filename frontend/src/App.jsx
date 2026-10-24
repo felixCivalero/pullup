@@ -26,6 +26,7 @@ const EventPage = lazyPage(() => import("./pages/EventPage"), "EventPage");
 const EventsPage = lazyPage(() => import("./pages/admin/EventsPage"), "EventsPage");
 const EventDetailPage = lazyPage(() => import("./pages/admin/EventDetailPage"), "EventDetailPage");
 const PeoplePage = lazyPage(() => import("./pages/admin/PeoplePage"), "PeoplePage");
+const MailPage = lazyPage(() => import("./pages/admin/MailPage"), "MailPage");
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
           <Route path="/admin/events" element={<EventsPage />} />
           <Route path="/admin/events/:id" element={<EventDetailPage />} />
           <Route path="/admin/people" element={<PeoplePage />} />
+          <Route path="/admin/mail" element={<MailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

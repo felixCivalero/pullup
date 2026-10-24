@@ -16,6 +16,7 @@ const NAV = [
   ["/admin/projects", "Projekt"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
+  ["/admin/mail", "Mejl"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];

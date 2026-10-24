@@ -9,6 +9,7 @@ import { sendEmail } from "../email/index.js";
 import { selectAllPaged } from "../lib/selectAllPaged.js";
 import { EVENT_IMAGE_BUCKET, eventText, imageUrl, makeSlug, sectionsFor, summarizePeople, pickAudience } from "../lib/eventPlatform.js";
 import { broadcastEmail } from "../lib/eventEmails.js";
+import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { apiBase, eventUrl } from "./events.js";
 
 // New events belong to Felix's host account from the old app (36 events there).
@@ -90,10 +91,11 @@ function eventPatch(body) {
   return patch;
 }
 
-// A send runs after the response: Resend's batch API, 100 per call, one call
-// every ~600 ms (under the default rate limit). Each mail is logged in
-// email_outbox under one campaign_tag.
-async function deliver({ recipients, subject, body, event, tag }) {
+// A send runs after the response: 100 mails at a time, a pause of ~600 ms
+// between chunks (under Resend's rate limit). Each mail is logged in
+// email_outbox under one campaign_tag. `compose(recipient, unsubscribeUrl)`
+// builds each mail ({ subject, html, text }).
+async function deliver({ recipients, subject, compose, logBody, from: fromOverride, tag }) {
   const unsub = new Map();
   const needToken = recipients.filter((r) => r.personId && !r.token);
   for (const r of needToken) {
@@ -101,7 +103,7 @@ async function deliver({ recipients, subject, body, event, tag }) {
     const { error } = await supabase.from("people").update({ marketing_unsubscribe_token: token }).eq("id", r.personId);
     if (!error) unsub.set(r.personId, token);
   }
-  const from = process.env.EVENT_FROM_EMAIL || '"PullUp" <no-reply@pullup.se>';
+  const from = fromOverride || process.env.EVENT_FROM_EMAIL || '"PullUp" <no-reply@pullup.se>';
   const replyTo = process.env.EVENT_REPLY_TO || "felix@pullup.se";
   let sent = 0;
   let failed = 0;
@@ -111,7 +113,7 @@ async function deliver({ recipients, subject, body, event, tag }) {
     await Promise.all(chunk.map(async (r) => {
       const token = r.token || unsub.get(r.personId);
       const unsubscribeUrl = token ? `${apiBase()}/unsubscribe/${token}` : `${apiBase()}/unsubscribe/none`;
-      const mail = broadcastEmail({ subject, body, unsubscribeUrl, event, eventUrl: event ? eventUrl(event.slug) : null });
+      const mail = compose(r, unsubscribeUrl);
       try {
         const out = await sendEmail({
           from,
@@ -121,19 +123,19 @@ async function deliver({ recipients, subject, body, event, tag }) {
           headers: token ? { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : null,
         });
         sent += 1;
-        rows.push({ to_email: r.email, person_id: r.personId, status: "sent", provider_message_id: out?.messageId || null, legal_basis: r.basis });
+        rows.push({ to_email: r.email, person_id: r.personId, subject: mail.subject, status: "sent", provider_message_id: out?.messageId || null, legal_basis: r.basis });
       } catch (err) {
         failed += 1;
-        rows.push({ to_email: r.email, person_id: r.personId, status: "failed", last_error_message: String(err?.message || "").slice(0, 300), legal_basis: r.basis });
+        rows.push({ to_email: r.email, person_id: r.personId, subject: mail.subject, status: "failed", last_error_message: String(err?.message || "").slice(0, 300), legal_basis: r.basis });
       }
     }));
     const now = new Date().toISOString();
     await supabase.from("email_outbox").insert(rows.map((row) => ({
-      ...row,
       provider: "resend",
       from_email: from,
       subject,
-      text_body: body,
+      ...row,
+      text_body: logBody,
       attempts: 1,
       category: "event_broadcast",
       campaign_tag: tag,
@@ -278,27 +280,52 @@ export function registerAdminEventRoutes(app) {
   }));
 
   // Send. `test: true` sends one copy to the owner only.
+  // Two kinds of mail: a plain message (`body`, from an event's page) or the
+  // mail module's blocks (`blocks` + previewText + fromName, /admin/mail).
   app.post("/admin/sends", ...handle(async (req) => {
-    const { audience, subject, body, eventId, test } = req.body || {};
+    const { audience, subject, body, blocks, previewText, fromName, eventId, test } = req.body || {};
     const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, 200) : "";
     const cleanBody = typeof body === "string" ? body.trim().slice(0, 20000) : "";
-    if (!cleanSubject || !cleanBody) return { error: "invalid", detail: "subject_body" };
+    const cleanBlocks = Array.isArray(blocks) ? blocks.slice(0, 60) : null;
+    if (!cleanSubject || (!cleanBody && !cleanBlocks?.length)) return { error: "invalid", detail: "subject_body" };
+    if (cleanBlocks && JSON.stringify(cleanBlocks).length > 200000) return { error: "invalid", detail: "too_large" };
     let event = null;
     if (eventId) {
       const { data } = await supabase.from("events").select(EVENT_COLUMNS).eq("id", eventId).maybeSingle();
       event = data || null;
     }
+    const tokenEvent = event ? { title: event.title, startsAt: event.starts_at } : null;
+    const name = typeof fromName === "string" ? fromName.replace(/["<>\r\n]/g, "").trim().slice(0, 60) : "";
+    const from = name ? `"${name}" <no-reply@pullup.se>` : undefined;
+    const templateContent = cleanBlocks ? { blocks: cleanBlocks, previewText: typeof previewText === "string" ? previewText.slice(0, 200) : "" } : null;
+    const compose = templateContent
+      ? (r, unsubscribeUrl) => {
+          const person = { name: r.name };
+          return {
+            subject: renderTemplateSubject(r.basis === "test" ? `[Test] ${cleanSubject}` : cleanSubject, { person, event: tokenEvent }),
+            html: renderFollowUpEmailTemplate({ templateContent, person, event: tokenEvent, unsubscribeUrl }),
+            text: renderTemplateText({ templateContent, person, event: tokenEvent, unsubscribeUrl }),
+          };
+        }
+      : (r, unsubscribeUrl) => broadcastEmail({
+          subject: r.basis === "test" ? `[Test] ${cleanSubject}` : cleanSubject,
+          body: cleanBody,
+          unsubscribeUrl,
+          event,
+          eventUrl: event ? eventUrl(event.slug) : null,
+        });
+    const logBody = cleanBody || renderTemplateText({ templateContent, person: { name: "" }, event: tokenEvent });
     const tag = `event_broadcast:${new Date().toISOString().slice(0, 16)}:${crypto.randomBytes(3).toString("hex")}`;
     if (test) {
       const to = req.user.email;
-      await deliver({ recipients: [{ personId: null, email: to, name: "", basis: "test", token: "test" }], subject: `[Test] ${cleanSubject}`, body: cleanBody, event, tag: `${tag}:test` });
+      await deliver({ recipients: [{ personId: null, email: to, name: "Felix", basis: "test", token: "test" }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test` });
       return { ok: true, test: true, to };
     }
     const [people, rsvps] = await Promise.all([loadPeople(), loadRsvps()]);
     const tokens = new Map(people.map((p) => [p.id, p.marketing_unsubscribe_token]));
     const recipients = pickAudience({ audience, people, rsvps }).map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
     if (!recipients.length) return { error: "empty", detail: "no_recipients" };
-    deliver({ recipients, subject: cleanSubject, body: cleanBody, event, tag }).catch((err) => console.error("[admin/events] send failed:", err?.message));
+    deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag }).catch((err) => console.error("[admin/events] send failed:", err?.message));
     return { ok: true, queued: recipients.length, tag };
   }, 202));
 

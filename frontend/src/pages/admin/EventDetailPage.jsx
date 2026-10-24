@@ -276,8 +276,11 @@ function Compose({ ev }) {
   const ready = subject.trim() && body.trim();
   return (
     <section className="ed-compose">
-      <h2>Mejla</h2>
-      <p className="ea-muted">Mejlet får eventets ruta med länk, och en avregistreringslänk. Den som avregistrerat sig får det aldrig.</p>
+      <div className="ed-sec-head">
+        <h2>Mejla</h2>
+        <Link className="ea-btn is-dark" to={`/admin/mail?event=${ev.id}`}>Designa mejl med mallar</Link>
+      </div>
+      <p className="ea-muted">Ett snabbt meddelande här, eller ett designat mejl med block i mejlmodulen. Båda får en avregistreringslänk, och den som avregistrerat sig får dem aldrig.</p>
       <label className="ea-field">Till
         <select value={audience} onChange={(e) => setAudience(e.target.value)}>
           {AUDIENCES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

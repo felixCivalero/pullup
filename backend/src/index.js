@@ -32,6 +32,7 @@ import { registerAdminMailRoutes, mailImageBodyParser } from "./routes/adminMail
 import { registerAdminEventMediaRoutes } from "./routes/adminEventMedia.js";
 import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
 import { registerEmailCreditRoutes, emailCreditsWebhookParser } from "./routes/adminEmailCredits.js";
+import { registerResendEventRoutes, resendEventsParser } from "./routes/resendEvents.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -67,6 +68,8 @@ app.use(
 app.use("/admin/mail/images", mailImageBodyParser);
 // Stripe's webhook is verified against the raw bytes.
 app.use(...emailCreditsWebhookParser);
+// So is Resend's (Svix).
+app.use(...resendEventsParser);
 app.use(express.json({ limit: "1mb" }));
 
 // Liveness — the deploy gate and post-deploy check poll this.
@@ -89,6 +92,7 @@ registerAdminMailRoutes(app);
 registerAdminEventMediaRoutes(app);
 registerAdminArchiRoutes(app);
 registerEmailCreditRoutes(app);
+registerResendEventRoutes(app);
 
 // Old platform links (/v/ verify links, /share/ cards, deeper /e/ paths)
 // still reach the API through nginx. Send people to the front page instead

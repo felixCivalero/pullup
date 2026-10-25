@@ -48,6 +48,9 @@ const loadEvents = () =>
 const loadRsvps = () => selectAllPaged(() => supabase.from("rsvps").select("id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in").order("created_at", { ascending: true }));
 const loadPeople = () => selectAllPaged(() => supabase.from("people").select(PEOPLE_COLUMNS).order("created_at", { ascending: true }));
 const loadPullups = () => selectAllPaged(() => supabase.from("pullups").select("event_id, person_id"));
+// Addresses that bounced for good or complained (routes/resendEvents.js).
+const loadSuppressed = async () =>
+  new Set((await selectAllPaged(() => supabase.from("email_suppressions").select("email"))).map((r) => r.email.trim().toLowerCase()));
 
 function adminShape(ev, counts = {}, hosts = new Map()) {
   return {
@@ -310,8 +313,8 @@ export function registerAdminEventRoutes(app) {
 
   // How many a send would reach, before sending.
   app.post("/admin/sends/preview", ...handle(async (req) => {
-    const [people, rsvps, pullups] = await Promise.all([loadPeople(), loadRsvps(), loadPullups()]);
-    const recipients = pickAudience({ audience: req.body?.audience, people, rsvps, pullups });
+    const [people, rsvps, pullups, suppressed] = await Promise.all([loadPeople(), loadRsvps(), loadPullups(), loadSuppressed()]);
+    const recipients = pickAudience({ audience: req.body?.audience, people, rsvps, pullups }).filter((r) => !suppressed.has(r.email));
     return { count: recipients.length, sample: recipients.slice(0, 5).map((r) => r.name || r.email) };
   }));
 
@@ -357,9 +360,11 @@ export function registerAdminEventRoutes(app) {
       await deliver({ recipients: [{ personId: null, email: to, name: "Felix", basis: "test", token: "test" }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test` });
       return { ok: true, test: true, to };
     }
-    const [people, rsvps, pullups] = await Promise.all([loadPeople(), loadRsvps(), loadPullups()]);
+    const [people, rsvps, pullups, suppressed] = await Promise.all([loadPeople(), loadRsvps(), loadPullups(), loadSuppressed()]);
     const tokens = new Map(people.map((p) => [p.id, p.marketing_unsubscribe_token]));
-    const recipients = pickAudience({ audience, people, rsvps, pullups }).map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
+    const recipients = pickAudience({ audience, people, rsvps, pullups })
+      .filter((r) => !suppressed.has(r.email))
+      .map((r) => ({ ...r, token: tokens.get(r.personId) || null }));
     if (!recipients.length) return { error: "empty", detail: "no_recipients" };
     // Paid: one send per recipient, taken before anything goes out. Mails the
     // provider refuses come back to the balance.

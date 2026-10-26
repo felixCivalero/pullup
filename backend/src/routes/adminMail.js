@@ -1,4 +1,5 @@
-// The mail module's helpers (owner only), restored with the composer
+// The mail module's helpers (any organiser, their own events; the Stockholm
+// "discover" events are the owner's), restored with the composer
 // (frontend components/crm/*, removed 2026-06-02 in b34e7b50):
 //   GET  /admin/mail/event-options?source=pullup|discover  events for the
 //        event-card block (PullUp events, or Stockholm events from the scraper)
@@ -7,19 +8,13 @@
 // Sending goes through POST /admin/sends (routes/adminEvents.js).
 import crypto from "crypto";
 import express from "express";
-import { requireOwner } from "../middleware/requireOwner.js";
+import { requireUser } from "../middleware/requireUser.js";
 import { supabase } from "../supabase.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
+import { sniffImage } from "../lib/imageTypes.js";
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-// Magic bytes, so a renamed file can't pass as an image.
-const SIGNATURES = [
-  { mime: "image/png", ext: "png", test: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 },
-  { mime: "image/jpeg", ext: "jpg", test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
-  { mime: "image/gif", ext: "gif", test: (b) => b.slice(0, 3).toString("ascii") === "GIF" },
-  { mime: "image/webp", ext: "webp", test: (b) => b.slice(0, 4).toString("ascii") === "RIFF" && b.slice(8, 12).toString("ascii") === "WEBP" },
-];
 
 // The upload carries the image as a data URL, bigger than the API's 1 MB
 // JSON limit; index.js mounts this parser for the path before the global one.
@@ -39,9 +34,9 @@ function fromSections(sections) {
 }
 
 export function registerAdminMailRoutes(app) {
-  app.get("/admin/mail/event-options", requireOwner, async (req, res) => {
+  app.get("/admin/mail/event-options", requireUser, async (req, res) => {
     try {
-      const source = req.query.source === "discover" ? "discover" : "pullup";
+      const source = req.query.source === "discover" && req.caller.isOwner ? "discover" : "pullup";
       const search = String(req.query.q || "").trim().toLowerCase();
       const matches = (title) => !search || String(title || "").toLowerCase().includes(search);
 
@@ -68,12 +63,12 @@ export function registerAdminMailRoutes(app) {
         });
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("events")
         .select("id, slug, title, cover_image_url, image_url, starts_at, location, spotify, admin_tags, host_id, sections, kind")
-        .or("kind.is.null,kind.eq.event")
-        .order("starts_at", { ascending: false })
-        .limit(300);
+        .or("kind.is.null,kind.eq.event");
+      if (!req.caller.isOwner) query = query.eq("host_id", req.caller.hostId);
+      const { data, error } = await query.order("starts_at", { ascending: false }).limit(300);
       if (error) throw error;
       const hostIds = [...new Set((data || []).map((e) => e.host_id).filter(Boolean))];
       const hosts = new Map();
@@ -105,13 +100,11 @@ export function registerAdminMailRoutes(app) {
     }
   });
 
-  app.get("/admin/mail/event-images", requireOwner, async (req, res) => {
+  app.get("/admin/mail/event-images", requireUser, async (req, res) => {
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("title, cover_image_url, image_url, starts_at")
-        .order("starts_at", { ascending: false })
-        .limit(300);
+      let query = supabase.from("events").select("title, cover_image_url, image_url, starts_at");
+      if (!req.caller.isOwner) query = query.eq("host_id", req.caller.hostId);
+      const { data, error } = await query.order("starts_at", { ascending: false }).limit(300);
       if (error) throw error;
       const seen = new Set();
       const items = [];
@@ -129,13 +122,13 @@ export function registerAdminMailRoutes(app) {
     }
   });
 
-  app.post("/admin/mail/images", requireOwner, async (req, res) => {
+  app.post("/admin/mail/images", requireUser, async (req, res) => {
     try {
       const m = /^data:([a-z/+.-]+);base64,(.+)$/i.exec(String(req.body?.imageData || ""));
       if (!m) return res.status(400).json({ error: "Image must be a PNG, JPEG, GIF or WebP." });
       const buffer = Buffer.from(m[2], "base64");
       if (buffer.length > MAX_IMAGE_BYTES) return res.status(400).json({ error: "Image must be under 2 MB." });
-      const kind = SIGNATURES.find((s) => s.test(buffer));
+      const kind = sniffImage(buffer);
       if (!kind) return res.status(400).json({ error: "Image must be a PNG, JPEG, GIF or WebP." });
       const path = `mail/${crypto.randomUUID()}.${kind.ext}`;
       const { error } = await supabase.storage.from(EVENT_IMAGE_BUCKET).upload(path, buffer, { contentType: kind.mime, upsert: false });

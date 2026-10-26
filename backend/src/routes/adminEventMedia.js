@@ -1,12 +1,12 @@
-// An event's cover media for the editor (owner only, own events): signed
+// An event's cover media for the editor (an organiser's own events): signed
 // upload URLs straight to Storage, the event_media rows (image / gif / video
 // with a thumbnail), delete, reorder, pick the cover. Ported from the old
 // app's routes/eventMedia.js (branch pullup-app). The first item is the
 // cover; events.cover_image_url/image_url follow it so lists, mails and share
 // previews show it.
-import { requireOwner } from "../middleware/requireOwner.js";
+import { requireUser } from "../middleware/requireUser.js";
 import { supabase } from "../supabase.js";
-import { EVENT_HOST_ID as HOST_ID, EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
+import { EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
 
 const EXT = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -15,15 +15,17 @@ const EXT = {
 const TYPES = new Set(["image", "gif", "video"]);
 const pub = (path) => imageUrl(path, process.env.SUPABASE_URL);
 
-// The event, if it's one of the owner's (other hosts' events are read-only).
-async function ownEvent(id) {
+// The event, if it's the caller's own (other hosts' events are read-only,
+// even for the owner).
+async function ownEvent(id, hostId) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id || ""))) return null;
   const { data, error } = await supabase.from("events").select("id, host_id").eq("id", id).maybeSingle();
   if (error) throw error;
-  return data && data.host_id === HOST_ID ? data : null;
+  return data && data.host_id === hostId ? data : null;
 }
 
 // Cover = the item marked is_cover; a video or gif shows its still frame.
-async function syncCover(eventId) {
+export async function syncCover(eventId) {
   const { data: rows } = await supabase
     .from("event_media")
     .select("id, media_type, storage_path, thumbnail_path, is_cover, position")
@@ -63,10 +65,10 @@ export async function loadEventMedia(eventId) {
 
 export function registerAdminEventMediaRoutes(app) {
   const guard = (fn) => [
-    requireOwner,
+    requireUser,
     async (req, res) => {
       try {
-        const ev = await ownEvent(req.params.eventId);
+        const ev = await ownEvent(req.params.eventId, req.caller.hostId);
         if (!ev) return res.status(404).json({ error: "not_found" });
         return await fn(req, res, ev);
       } catch (err) {

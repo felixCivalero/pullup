@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
-/* /admin/events — every event on PullUp (yours and everyone's from the old
-   app), newest first, with sign-ups. "Nytt event" starts the basics wizard
+/* /admin/events — your events (the owner sees every event on PullUp),
+   newest first, with sign-ups. "Nytt event" starts the basics wizard
    (/admin/events/new), which opens the page editor. */
 
 const FILTERS = [
@@ -22,14 +23,16 @@ export function EventsPage() {
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState("mine");
 
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     authenticatedFetch("/admin/events")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => alive && setData(d.events))
-      .catch(() => alive && setError(true));
-    return () => { alive = false; };
+      .then((d) => setData(d.events))
+      .catch(() => setError(true));
   }, []);
+  useEffect(() => { load(); }, [load]);
+  // An assistant in this browser created or changed an event: show it.
+  useAgentChanges(load);
+  usePageContext({ page: "admin-events" });
 
   const [now] = useState(() => Date.now());
   const isPast = (e) => new Date(e.endsAt || e.startsAt).getTime() < now;
@@ -51,7 +54,7 @@ export function EventsPage() {
         <div className="ea-head">
           <div>
             <h1>Event</h1>
-            {data && <p className="ea-muted">{data.length} event på PullUp · {totals.guests} anmälda · {totals.came} kom</p>}
+            {data && <p className="ea-muted">{data.length} event · {totals.guests} anmälda · {totals.came} kom</p>}
           </div>
           <button type="button" className="ea-btn is-dark" onClick={() => navigate("/admin/events/new")}><Plus size={16} /> Nytt event</button>
         </div>
@@ -62,7 +65,7 @@ export function EventsPage() {
         {data && (
           <>
             <div className="ea-tabs">
-              {FILTERS.map(([k, label]) => (
+              {FILTERS.filter(([k]) => k !== "all" || lists.all.length !== lists.mine.length).map(([k, label]) => (
                 <button key={k} type="button" className={filter === k ? "is-on" : ""} onClick={() => setFilter(k)}>
                   {label} <small>{lists[k].length}</small>
                 </button>

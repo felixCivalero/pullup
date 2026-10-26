@@ -1,34 +1,40 @@
 import { useEffect, useState } from "react";
-import { Navigate, NavLink } from "react-router-dom";
+import { Navigate, NavLink, useLocation } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { isOwnerEmail, useSession } from "../../lib/owner.js";
 import { ToastProvider } from "../../components/Toast.jsx";
 
-/* Every /admin page renders inside this: the owner gate + the top bar.
-   Entry is checked twice — the session's email here, and the server's own
-   owner check (/admin/me); a session the server refuses is signed out.
-   `fill` = the page takes the whole viewport under the bar (the timeline). */
+/* Every /admin page renders inside this: the sign-in gate + the top bar.
+   Any signed-in person is an organiser and gets their events, CRM, mail and
+   the assistants they've connected; the owner also gets his own pages
+   (marked owner below). The server confirms the session (/admin/me) once per
+   user; a session it refuses is signed out. `fill` = the page takes the whole
+   viewport under the bar (the timeline). */
 const NAV = [
-  ["/admin", "Statistik"],
-  ["/admin/sales", "Sälj"],
-  ["/admin/projects", "Projekt"],
+  ["/admin", "Statistik", "owner"],
+  ["/admin/sales", "Sälj", "owner"],
+  ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl"],
-  ["/admin/archi", "Archi"],
+  ["/admin/agents", "Agenter"],
+  ["/admin/archi", "Archi", "owner"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
+const OWNER_PATHS = ["/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
 // The server check runs once per signed-in user, not on every page switch.
 let verifiedUserId = null;
 
 export function AdminShell({ title, fill = false, children }) {
   const session = useSession();
+  const { pathname } = useLocation();
   const [server, setServer] = useState("checking"); // checking | ok | refused
-  const stranger = !!session && !isOwnerEmail(session.user?.email);
+  const owner = !!session && isOwnerEmail(session.user?.email);
   const verified = !!session && session.user?.id === verifiedUserId;
 
   useEffect(() => {
@@ -38,11 +44,7 @@ export function AdminShell({ title, fill = false, children }) {
   }, [title]);
 
   useEffect(() => {
-    if (stranger) supabase.auth.signOut();
-  }, [stranger]);
-
-  useEffect(() => {
-    if (!session || stranger || verified) return undefined;
+    if (!session || verified) return undefined;
     let alive = true;
     authenticatedFetch("/admin/me")
       .then((res) => {
@@ -57,13 +59,14 @@ export function AdminShell({ title, fill = false, children }) {
       })
       .catch(() => alive && setServer("ok"));
     return () => { alive = false; };
-  }, [session, stranger, verified]);
+  }, [session, verified]);
 
   // While the session and the server check resolve: say so, never a blank page.
   const waiting = <p style={{ font: "14px -apple-system, sans-serif", color: "#6e6e73", padding: 24, margin: 0 }}>Laddar…</p>;
   if (session === undefined) return waiting;
-  if (!session || stranger || server === "refused") return <Navigate to="/login" replace />;
+  if (!session || server === "refused") return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
   if (server === "checking" && !verified) return waiting;
+  if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
 
   return (
     <ToastProvider>
@@ -71,14 +74,14 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS}</style>
         <header className="ad-bar">
           <nav>
-            {NAV.map(([to, label]) => (
+            {NAV.filter(([, , only]) => owner || only !== "owner").map(([to, label]) => (
               <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => (isActive ? "is-on" : undefined)}>
                 {label}
               </NavLink>
             ))}
           </nav>
           <div className="ad-side">
-            <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>
+            {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
             <button type="button" onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
               <span className="ad-out-text">Logga ut</span>
               <LogOut className="ad-out-icon" size={17} />

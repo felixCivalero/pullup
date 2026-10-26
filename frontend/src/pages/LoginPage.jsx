@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { authLinkError, supabase } from "../lib/supabase.js";
-import { isOwnerEmail, useSession } from "../lib/owner.js";
+import { useEffect, useRef, useState } from "react";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { authLinkError } from "../lib/supabase.js";
+import { homeFor, safeNext, useSession } from "../lib/owner.js";
+import { linkFromHash, pendingLogin, requestCode, verifyCode, verifyLink } from "../lib/deviceLogin.js";
 
-/* /login — not linked from anywhere. Email → six-digit code → /admin.
-   Only the owner's address gets a code; any other address sees the same
-   "check your inbox" step, so the page never says who has access. */
+/* /login — sign in, or make an account (the first sign-in does). Email → a
+   six-digit code (or the link in the same mail) that works only in this
+   browser: see lib/deviceLogin.js. `?next=/path` returns there afterwards
+   (the /connect page uses it). */
+
 export function LoginPage() {
   const session = useSession();
   const navigate = useNavigate();
-  const [step, setStep] = useState("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [params] = useSearchParams();
+  const next = safeNext(params.get("next"));
 
   useEffect(() => {
     const prev = document.title;
@@ -21,25 +21,50 @@ export function LoginPage() {
     return () => { document.title = prev; };
   }, []);
 
-  if (session && isOwnerEmail(session.user?.email)) return <Navigate to="/admin" replace />;
+  if (session) return <Navigate to={next || homeFor(session.user?.email)} replace />;
+  return (
+    <main className="lg">
+      <style>{LOGIN_CSS}</style>
+      <LoginForm onDone={(user) => navigate(next || homeFor(user?.email), { replace: true })} />
+    </main>
+  );
+}
+
+// The two steps, on their own: the login page and /connect both use it.
+export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Samma steg skapar ditt konto." }) {
+  const pending = useRef(pendingLogin()).current;
+  const link = useRef(linkFromHash()).current;
+  const [step, setStep] = useState(link ? "link" : pending ? "code" : "email");
+  const [email, setEmail] = useState(pending?.email || "");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(authLinkError ? "Länken i mejlet är redan använd eller har gått ut. Be om en ny kod." : "");
+
+  // Opened from the mail's link: sign in if this is the browser that asked.
+  useEffect(() => {
+    if (!link) return undefined;
+    let alive = true;
+    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    verifyLink(link)
+      .then((user) => alive && onDone(user))
+      .catch((err) => {
+        if (!alive) return;
+        setError(err.message);
+        setStep(pendingLogin() ? "code" : "email");
+      });
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendCode(e) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
-      if (isOwnerEmail(email)) {
-        const { error: err } = await supabase.auth.signInWithOtp({
-          email: email.trim().toLowerCase(),
-          // The mail's link signs in straight onto /admin of the site the code
-          // was asked from (pullup.se or localhost), not the front page.
-          options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/admin` },
-        });
-        if (err) throw err;
-      }
+      await requestCode(email);
+      setCode("");
       setStep("code");
-    } catch {
-      setError("Det gick inte att skicka koden. Försök igen.");
+    } catch (err) {
+      setError(err.message);
     } finally {
       setBusy(false);
     }
@@ -50,61 +75,54 @@ export function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      if (!isOwnerEmail(email)) throw new Error("no access");
-      const { error: err } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: code.trim(),
-        type: "email",
-      });
-      if (err) throw err;
-      navigate("/admin", { replace: true });
-    } catch {
-      setError("Fel eller utgången kod.");
+      onDone(await verifyCode(code));
+    } catch (err) {
+      setError(err.message);
+      if (["expired", "used", "locked", "replaced", "other_device"].includes(err.code)) setStep("email");
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <main className="lg">
-      <style>{LOGIN_CSS}</style>
-      {step === "email" ? (
-        <form onSubmit={sendCode}>
-          <h1>Logga in</h1>
-          {authLinkError && <p className="lg-sub">Länken i mejlet är redan använd eller har gått ut. Be om en ny kod.</p>}
-          <input
-            type="email"
-            autoComplete="email"
-            placeholder="E-post"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-          />
-          <button type="submit" disabled={busy || !email}>{busy ? "Skickar…" : "Skicka kod"}</button>
-          {error && <p className="lg-err">{error}</p>}
-        </form>
-      ) : (
-        <form onSubmit={verify}>
-          <h1>Kolla din inkorg</h1>
-          <p className="lg-sub">Har adressen åtkomst har en kod skickats till {email.trim()}.</p>
-          <input
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="Kod"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            required
-            autoFocus
-          />
-          <button type="submit" disabled={busy || code.length < 6}>{busy ? "Loggar in…" : "Logga in"}</button>
-          {error && <p className="lg-err">{error}</p>}
-          <button type="button" className="lg-back" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
-            Byt adress
-          </button>
-        </form>
-      )}
-    </main>
+  if (step === "link") return <p className="lg-sub">Loggar in…</p>;
+
+  return step === "email" ? (
+    <form onSubmit={sendCode}>
+      <h1>{title}</h1>
+      <p className="lg-sub">{subtitle}</p>
+      <input
+        type="email"
+        name="email"
+        autoComplete="email"
+        placeholder="E-post"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        autoFocus
+      />
+      <button type="submit" disabled={busy || !email}>{busy ? "Skickar…" : "Skicka kod"}</button>
+      {error && <p className="lg-err">{error}</p>}
+    </form>
+  ) : (
+    <form onSubmit={verify}>
+      <h1>Kolla din inkorg</h1>
+      <p className="lg-sub">Vi skickade en kod till {email.trim()}. Den fungerar bara i den här webbläsaren, i 15 minuter.</p>
+      <input
+        name="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        placeholder="Kod"
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        required
+        autoFocus
+      />
+      <button type="submit" disabled={busy || code.length < 6}>{busy ? "Loggar in…" : "Logga in"}</button>
+      {error && <p className="lg-err">{error}</p>}
+      <button type="button" className="lg-back" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
+        Byt adress
+      </button>
+    </form>
   );
 }
 
@@ -119,6 +137,6 @@ export const LOGIN_CSS = `
   .lg input:focus { border-color: #000; }
   .lg button[type="submit"] { font: inherit; font-size: 15px; font-weight: 600; padding: 13px 16px; border: 0; border-radius: 999px; background: #000; color: #fff; cursor: pointer; }
   .lg button[type="submit"]:disabled { opacity: 0.4; cursor: default; }
-  .lg-err { margin: 0; font-size: 14px; color: #D9480F; }
+  .lg-err { margin: 0; font-size: 14px; line-height: 1.45; color: #D9480F; }
   .lg-back { font: inherit; font-size: 14px; background: none; border: 0; color: #6e6e73; cursor: pointer; justify-self: start; padding: 0; }
 `;

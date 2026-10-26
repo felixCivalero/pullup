@@ -16,15 +16,19 @@ export async function syncClients(prospectRows) {
   return listClients();
 }
 
+// The pipeline as Sälj shows it: today's queue, follow-ups, meetings, pace.
+export async function salesOverview({ fresh = false } = {}) {
+  const sheet = await readSalesSheet({ fresh });
+  await syncClients(sheet.prospectRows);
+  return { ...summarizeSales({ ...sheet, today: stockholmToday() }), readAt: sheet.readAt, sheetUrl: salesSheetUrl() };
+}
+
 export function registerAdminSalesRoutes(app) {
   // GET /admin/sales[?fresh=1] — cached a minute; fresh=1 rereads the sheet.
   app.get("/admin/sales", requireOwner, async (req, res) => {
     if (!salesSheetConfigured()) return res.status(503).json({ error: "not_configured" });
     try {
-      const sheet = await readSalesSheet({ fresh: req.query.fresh === "1" });
-      await syncClients(sheet.prospectRows);
-      const summary = summarizeSales({ ...sheet, today: stockholmToday() });
-      return res.json({ ...summary, readAt: sheet.readAt, sheetUrl: salesSheetUrl() });
+      return res.json(await salesOverview({ fresh: req.query.fresh === "1" }));
     } catch (err) {
       console.error("[admin/sales] error:", err?.message);
       return res.status(502).json({ error: "sheet_unavailable" });

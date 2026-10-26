@@ -32,4 +32,9 @@ function getBackendUrlFromReq(req) {
   const host = req.get("host");
   return `${proto}://${host}`;
 }
-export { nodeEnv, isDevelopment, getFrontendUrl, getBackendUrlFromReq };
+// The API as the outside world reaches it (links in mail: unsubscribe, .ics).
+const apiBase = () => process.env.PUBLIC_API_URL || (isDevelopment ? "http://localhost:3001" : `${getFrontendUrl()}/api`);
+// A guest's event page.
+const eventUrl = (slug) => `${getFrontendUrl()}/e/${slug}`;
+
+export { nodeEnv, isDevelopment, getFrontendUrl, getBackendUrlFromReq, apiBase, eventUrl };

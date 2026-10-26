@@ -5,6 +5,7 @@ import { EventPreview } from "../components/event/EventPreview.jsx";
 import { DesktopEventLayout } from "../components/event/DesktopEventLayout.jsx";
 import { SignupForm } from "../components/event/SignupForm.jsx";
 import { DESKTOP_MIN_WIDTH, pageProps } from "../components/event/pageProps.js";
+import { usePageContext } from "../lib/pageContext.js";
 
 /* /e/:slug — an event as its host designed it in the editor (cover media,
    content blocks, sign-up), on the old app's page components: full-screen
@@ -13,6 +14,7 @@ import { DESKTOP_MIN_WIDTH, pageProps } from "../components/event/pageProps.js";
    from the backend's /e/:slug. */
 export function EventPage() {
   const { slug } = useParams();
+  usePageContext({ page: "event", eventSlug: slug, hint: "Use get_event and rsvp_to_event with this eventSlug." });
   const [data, setData] = useState(null);
   const [missing, setMissing] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= DESKTOP_MIN_WIDTH);

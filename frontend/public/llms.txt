@@ -1,0 +1,28 @@
+# PullUp
+
+> PullUp (pullup.se) is a free event platform: event pages, sign-ups with confirmation mail and calendar invites, a guest list and CRM, and mail to your guests (paid per recipient). It is also the site of Felix Civalero, who runs content and community for brands.
+
+An AI assistant can do on PullUp exactly what its person can do on the site — nothing more.
+
+## Connect an assistant
+
+- Remote MCP (Streamable HTTP): https://mcp.pullup.se — OAuth 2.1 with dynamic client registration and PKCE. The person signs in and approves the assistant once at pullup.se/connect, and can disconnect it under Agenter (pullup.se/admin/agents).
+- Without an account: https://pullup.se/api/mcp/public — about PullUp, look at an event, sign up to it, ask Felix for a meeting.
+- In the browser: pullup.se registers the same actions with WebMCP (document.modelContext), plus sign_in / sign_in_with_code / sign_out and current_page.
+
+## What it can do
+
+Anyone: about_pullup, get_event, rsvp_to_event, request_meeting.
+Signed in (an organiser, their own events): whoami, list_my_events, get_my_event, create_event, update_event, publish_event, set_event_cover, update_guest, list_people, preview_mail, send_mail, list_sent_mail, get_mail_credits, buy_mail_credits.
+
+## Rules
+
+- New events are drafts; publish when the person asks.
+- Times are wall-clock times in the event's time zone (default Europe/Stockholm).
+- Mail to a list costs one credit per recipient: preview first, send a test, send only text the person approved. Packs: 5 000 mails 99 kr, 25 000 449 kr, 100 000 1 490 kr (excl. VAT); buy_mail_credits returns a payment link for the person.
+- Sign-in mail codes and links work only in the browser that asked for them.
+
+## Pages
+
+- [Felix Civalero — work](https://pullup.se/): case studies and how to work with Felix
+- [Sign in](https://pullup.se/login): email code, the first sign-in creates the account

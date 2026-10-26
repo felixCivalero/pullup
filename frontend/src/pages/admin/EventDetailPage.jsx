@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
 import { CreditsLine, CreditsPaywall } from "../../components/admin/EmailCredits.jsx";
 import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
@@ -39,6 +40,8 @@ export function EventDetailPage() {
       .catch(() => setError(true));
   }, [id]);
   useEffect(() => { load(); }, [load]);
+  useAgentChanges(load);
+  usePageContext({ page: "admin-event", eventId: id });
 
   const ev = data?.event;
   return (

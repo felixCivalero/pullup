@@ -9,6 +9,7 @@ import { logger } from "../logger.js";
 import { sendEmail } from "../email/index.js";
 import { normalizeEmail, isValidEmail } from "../lib/emailAddress.js";
 import { recordWebsiteLead, salesSheetConfigured } from "../lib/salesSheet.js";
+import { ActionError, statusFor } from "../lib/actionError.js";
 
 const INBOX = process.env.AGENCY_REQUESTS_TO || "felix@pullup.se";
 const POWERS = {
@@ -121,10 +122,74 @@ function requestEmail(r, received) {
         ${row("Read the site in", { en: "English", sv: "Swedish", sw: "Swahili" }[m.siteLang] || m.siteLang)}
         ${row("Language", m.language)}
         ${row("Browser", m.userAgent)}
+        ${row("Sent by", m.via ? `An AI assistant (${m.via})` : "")}
       </table>
       <p style="font-size:12px;color:rgba(0,0,0,0.4);margin:22px 0 0;">Request ${esc(r.id)}</p>
     </div>
   </body></html>`;
+}
+
+// Store a request, mail it to Felix and put it in the sales sheet. The site's
+// form and an assistant (actions/public.js, request_meeting) both land here.
+// `context` = where it came from: { country, userAgent, via }.
+export async function submitAgencyRequest(body, context = {}) {
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) throw new ActionError("invalid", "A valid email address is needed.", { detail: "invalid_email" });
+  const name = clip(body.name, 120);
+  if (!name) throw new ActionError("invalid", "A name is needed.", { detail: "missing_name" });
+  const description = clip(body.description, 4000);
+  if (!description || description.length < 10) throw new ActionError("invalid", "Say a little about what you need (at least 10 characters).", { detail: "missing_description" });
+
+  const powers = Array.isArray(body.powers)
+    ? [...new Set(body.powers.map(String))].filter((id) => POWERS[id])
+    : [];
+  const meta = {
+    ...cleanMeta(body.meta),
+    country: clip(context.country, 8),
+    userAgent: clip(context.userAgent, 300),
+    ...(context.via ? { via: clip(context.via, 40) } : {}),
+  };
+  const record = {
+    name,
+    email,
+    company: clip(body.company, 160),
+    description,
+    preferred_time: clip(body.preferredTime, 200),
+    timezone: clip(body.timezone, 80),
+    powers,
+    monthly_total: isFull(powers)
+      ? FULL_SERVICE.price
+      : BASE_MONTHLY + powers.reduce((a, id) => a + powerPrice(id, powers.length), 0),
+    source: clip(body.source, 80),
+    meta,
+  };
+
+  const { data, error } = await supabase.from("agency_requests").insert(record).select("id, created_at").single();
+  if (error || !data) {
+    logger?.error?.("[agency-request] insert failed", { error: error?.message });
+    throw new ActionError("failed", "The request couldn't be saved. Try again.", { detail: "save_failed" });
+  }
+
+  const received = stockholmTime(new Date(data.created_at));
+  const subjectPowers = isFull(powers)
+    ? ` — ${FULL_SERVICE.name}`
+    : powers.length ? ` — ${powers.map((id) => POWERS[id].name).join(" + ")}` : "";
+  sendEmail({
+    to: INBOX,
+    subject: `Request: ${name}${record.company ? ` (${record.company})` : ""}${subjectPowers}${context.via ? ` [via ${context.via}]` : ""}`,
+    html: requestEmail({ ...record, id: data.id }, received),
+    idempotencyKey: `agency-request:${data.id}`,
+  }).catch((err) => logger?.error?.("[agency-request] email failed", { id: data.id, error: err?.message }));
+
+  // Into the sales pipeline: a new Priority 0 row, or the existing one moved
+  // to Replied. Never blocks or fails the request.
+  if (salesSheetConfigured()) {
+    const plan = isFull(powers) ? FULL_SERVICE.name : ["Core engine", ...powers.map((id) => POWERS[id].name)].join(" + ");
+    recordWebsiteLead({ name, email, company: record.company, description, preferredTime: record.preferred_time, plan })
+      .then((prospectId) => supabase.from("agency_requests").update({ prospect_id: prospectId }).eq("id", data.id))
+      .catch((err) => logger?.error?.("[agency-request] sheet failed", { id: data.id, error: err?.message }));
+  }
+  return { id: data.id, createdAt: data.created_at };
 }
 
 export function registerAgencyRequestRoutes(app) {
@@ -134,65 +199,10 @@ export function registerAgencyRequestRoutes(app) {
       const body = req.body || {};
       // Honeypot: real people never fill the hidden field.
       if (clip(body.website, 200)) return res.json({ ok: true });
-
-      const email = normalizeEmail(body.email);
-      if (!isValidEmail(email)) return res.status(400).json({ ok: false, error: "invalid_email" });
-      const name = clip(body.name, 120);
-      if (!name) return res.status(400).json({ ok: false, error: "missing_name" });
-      const description = clip(body.description, 4000);
-      if (!description || description.length < 10) return res.status(400).json({ ok: false, error: "missing_description" });
-
-      const powers = Array.isArray(body.powers)
-        ? [...new Set(body.powers.map(String))].filter((id) => POWERS[id])
-        : [];
-      const meta = {
-        ...cleanMeta(body.meta),
-        country: clip(req.get("cf-ipcountry"), 8),
-        userAgent: clip(req.get("user-agent"), 300),
-      };
-      const record = {
-        name,
-        email,
-        company: clip(body.company, 160),
-        description,
-        preferred_time: clip(body.preferredTime, 200),
-        timezone: clip(body.timezone, 80),
-        powers,
-        monthly_total: isFull(powers)
-          ? FULL_SERVICE.price
-          : BASE_MONTHLY + powers.reduce((a, id) => a + powerPrice(id, powers.length), 0),
-        source: clip(body.source, 80),
-        meta,
-      };
-
-      const { data, error } = await supabase.from("agency_requests").insert(record).select("id, created_at").single();
-      if (error || !data) {
-        logger?.error?.("[agency-request] insert failed", { error: error?.message });
-        return res.status(500).json({ ok: false, error: "save_failed" });
-      }
-
-      const received = stockholmTime(new Date(data.created_at));
-      const subjectPowers = isFull(powers)
-        ? ` — ${FULL_SERVICE.name}`
-        : powers.length ? ` — ${powers.map((id) => POWERS[id].name).join(" + ")}` : "";
-      sendEmail({
-        to: INBOX,
-        subject: `Request: ${name}${record.company ? ` (${record.company})` : ""}${subjectPowers}`,
-        html: requestEmail({ ...record, id: data.id }, received),
-        idempotencyKey: `agency-request:${data.id}`,
-      }).catch((err) => logger?.error?.("[agency-request] email failed", { id: data.id, error: err?.message }));
-
-      // Into the sales pipeline: a new Priority 0 row, or the existing one moved
-      // to Replied. Never blocks or fails the request.
-      if (salesSheetConfigured()) {
-        const plan = isFull(powers) ? FULL_SERVICE.name : ["Core engine", ...powers.map((id) => POWERS[id].name)].join(" + ");
-        recordWebsiteLead({ name, email, company: record.company, description, preferredTime: record.preferred_time, plan })
-          .then((prospectId) => supabase.from("agency_requests").update({ prospect_id: prospectId }).eq("id", data.id))
-          .catch((err) => logger?.error?.("[agency-request] sheet failed", { id: data.id, error: err?.message }));
-      }
-
-      return res.json({ ok: true, id: data.id });
+      const { id } = await submitAgencyRequest(body, { country: req.get("cf-ipcountry"), userAgent: req.get("user-agent") });
+      return res.json({ ok: true, id });
     } catch (err) {
+      if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ ok: false, error: err.extra.detail || err.code });
       logger?.error?.("[agency-request] error", { error: err?.message });
       return res.status(500).json({ ok: false, error: "failed" });
     }

@@ -96,6 +96,19 @@ async function stripe(path, { method = "GET", body } = {}) {
 }
 
 export const createCheckout = (params) => stripe("checkout/sessions", { method: "POST", body: params });
+
+// A Checkout page for one pack, for this host; the person pays there.
+export async function checkoutUrl({ hostId, email, pack, frontendUrl, returnPath }) {
+  const session = await createCheckout(checkoutParams({
+    pack,
+    hostId,
+    email,
+    frontendUrl,
+    returnPath,
+    taxRateId: process.env.STRIPE_VAT_TAX_RATE_ID || null,
+  }));
+  return session.url;
+}
 export const getCheckout = (id) => stripe(`checkout/sessions/${encodeURIComponent(id)}`);
 
 export async function creditBalance(hostId) {

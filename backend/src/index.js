@@ -1,13 +1,16 @@
 // backend/src/index.js
 //
-// The API behind pullup.se — Felix's site. Public: the "Jobba med mig"
-// request, the booklet link on the case pages and the site's own visit
-// analytics. Private: /admin/* (statistics, Stockholm scraper, content
-// timeline, sales pipeline from the Google Sheet, clients), Felix only (requireOwner).
+// The API behind pullup.se — Felix's site and the PullUp event platform.
+// Public: the "Jobba med mig" request, event pages and sign-ups, the booklet
+// link, the site's own visit analytics. Signed in (any organiser, their own
+// events — routes/auth.js): /admin/events, people, mail, agents. Owner only
+// (requireOwner): statistics, sales, projects, Stockholm scraper.
 // Stripe: /stripe/email-credits, bought sends (routes/adminEmailCredits.js).
 //
-// The old PullUp platform (events, rooms, messaging, MCP …) lives on the
-// `pullup-app` branch.
+// Assistants can do everything a person can (actions/): remote MCP on /mcp
+// with OAuth (/oauth/*, /.well-known/*), WebMCP in the browser via /actions.
+//
+// The old PullUp platform (rooms, messaging …) lives on the `pullup-app` branch.
 import express from "express";
 import crypto from "crypto";
 import cors from "cors";
@@ -33,6 +36,11 @@ import { registerAdminEventMediaRoutes } from "./routes/adminEventMedia.js";
 import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
 import { registerEmailCreditRoutes, emailCreditsWebhookParser } from "./routes/adminEmailCredits.js";
 import { registerResendEventRoutes, resendEventsParser } from "./routes/resendEvents.js";
+import { registerAuthRoutes } from "./routes/auth.js";
+import { registerOauthRoutes } from "./routes/oauth.js";
+import { registerMcpRoutes } from "./routes/mcp.js";
+import { registerActionRoutes } from "./routes/actions.js";
+import { registerAgentRoutes } from "./routes/agents.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
 
@@ -53,15 +61,26 @@ app.use(
 if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGIN) {
   throw new Error("CORS_ORIGIN must be set in production. Example: CORS_ORIGIN=https://pullup.se,https://www.pullup.se");
 }
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(",")
-      : ["http://localhost:3000", "http://localhost:5173", "http://localhost:5199"],
-    credentials: true,
-    optionsSuccessStatus: 200,
-  }),
-);
+const siteCors = cors({
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",")
+    : ["http://localhost:3000", "http://localhost:5173", "http://localhost:5199"],
+  credentials: true,
+  optionsSuccessStatus: 200,
+});
+// Assistants call the MCP server and its OAuth endpoints from anywhere (some
+// from a browser). No cookies are involved — tokens travel in headers — so
+// any origin may call them.
+const agentCors = cors({
+  origin: true,
+  credentials: false,
+  allowedHeaders: ["authorization", "content-type", "mcp-protocol-version", "mcp-session-id", "last-event-id"],
+  exposedHeaders: ["mcp-session-id", "www-authenticate"],
+  maxAge: 86400,
+});
+const isAgentPath = (p) => p === "/mcp" || p.startsWith("/mcp/") || p.startsWith("/.well-known/")
+  || ["/oauth/register", "/oauth/token", "/oauth/revoke"].includes(p);
+app.use((req, res, next) => (isAgentPath(req.path) ? agentCors : siteCors)(req, res, next));
 
 // The mail module's image upload sends a data URL (≤ 2 MB image); it gets a
 // bigger limit than every other route, parsed before the global one.
@@ -79,7 +98,14 @@ registerAgencyRequestRoutes(app);
 registerDeckDownloadRoutes(app);
 registerTrackBatchRoutes(app);
 
-// ── Admin (Felix only) ──────────────────────────────────────────────
+// ── Accounts and assistants ─────────────────────────────────────────
+registerAuthRoutes(app);
+registerOauthRoutes(app);
+registerMcpRoutes(app);
+registerActionRoutes(app);
+registerAgentRoutes(app);
+
+// ── Admin: organisers (their own events) and the owner ──────────────
 registerAdminRoutes(app);
 registerAdminStockholmRoutes(app);
 registerAdminPlannerRoutes(app);

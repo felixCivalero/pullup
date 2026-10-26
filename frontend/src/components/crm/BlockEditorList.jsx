@@ -5,6 +5,7 @@ import ButtonBlockEditor from "./blocks/ButtonBlockEditor";
 import SocialsBlockEditor from "./blocks/SocialsBlockEditor";
 import EventCardBlockEditor from "./blocks/EventCardBlockEditor";
 import { colors } from "./mailColors.js";
+import { isOwnerEmail, useSession } from "../../lib/owner.js";
 
 const TYPE_LABEL = {
   text: "Text",
@@ -75,7 +76,9 @@ export default function BlockEditorList({
     onChange([...blocks, blanks[type]]);
   }
 
-  const visibleAddItems = hideAdminBlocks
+  // "Discover event" reads the owner's Stockholm scraper: organisers don't get it.
+  const session = useSession();
+  const visibleAddItems = hideAdminBlocks || !isOwnerEmail(session?.user?.email)
     ? ADD_ITEMS.filter((item) => !item.adminOnly)
     : ADD_ITEMS;
 

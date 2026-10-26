@@ -9,6 +9,12 @@ import { initErrorReporting } from "./lib/errorReporting.js";
 
 initErrorReporting();
 
+// WebMCP: an assistant in this browser gets PullUp's actions as tools
+// (lib/webmcp.js). Only loaded where the browser has the API.
+if (document.modelContext || navigator.modelContext) {
+  import("./lib/webmcp.js").then((m) => m.startWebMcp());
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>

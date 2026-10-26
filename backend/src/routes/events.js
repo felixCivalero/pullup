@@ -6,24 +6,21 @@
 //   GET|POST /unsubscribe/:token     stop mail from PullUp (POST = one-click)
 import { supabase } from "../supabase.js";
 import { sendEmail } from "../email/index.js";
-import { getFrontendUrl, isDevelopment } from "../lib/urls.js";
+import { apiBase, eventUrl, getFrontendUrl } from "../lib/urls.js";
 import { isValidEmail, normalizeEmail } from "../lib/emailAddress.js";
 import { eventText, imageUrl, formatWhen, isOpenForSignup, personPatch } from "../lib/eventPlatform.js";
 import { icsFor, googleCalendarUrl } from "../lib/eventCalendar.js";
 import { confirmationEmail } from "../lib/eventEmails.js";
 import { loadEventMedia } from "./adminEventMedia.js";
+import { ActionError, statusFor } from "../lib/actionError.js";
 
 const EVENT_COLUMNS =
   "id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
   "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 
-export const apiBase = () => process.env.PUBLIC_API_URL || (isDevelopment ? "http://localhost:3001" : `${getFrontendUrl()}/api`);
-export const eventUrl = (slug) => `${getFrontendUrl()}/e/${slug}`;
-
 // Per-IP throttle on sign-ups: 20 an hour is plenty for a human.
 const hits = new Map();
-function limited(req) {
-  const ip = req.ip || "unknown";
+export function limited(ip = "unknown") {
   const now = Date.now();
   for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
   const entry = hits.get(ip) || { count: 0, resetAt: now + 3600000 };
@@ -117,14 +114,83 @@ async function upsertPerson({ email, name, consent }) {
   return created.id;
 }
 
+// The event page's data — what any guest (or their assistant) can see.
+export async function getPublicEvent(slug) {
+  const ev = await findEvent(slug);
+  if (!ev) throw new ActionError("not_found", "No published event at that address.");
+  const [attending, media] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id)]);
+  return { event: publicShape(ev, attending, media), calendar: calendarLinks(ev) };
+}
+
+// Sign up: the person (found by email, or new) + the sign-up + the
+// confirmation mail with the calendar file. Full → waitlist. Signing up twice
+// gives the same answer and no second mail. `visitId` ties it to the visit.
+export async function rsvpToEvent(slug, body = {}) {
+  const email = normalizeEmail(body.email);
+  const name = clip(body.name, 120);
+  if (!name) throw new ActionError("invalid", "A name is needed to sign up.", { detail: "missing_name" });
+  if (!isValidEmail(email)) throw new ActionError("invalid", "A valid email address is needed to sign up.", { detail: "invalid_email" });
+
+  const ev = await findEvent(slug);
+  if (!ev) throw new ActionError("not_found", "No published event at that address.");
+  if (!isOpenForSignup(ev)) throw new ActionError("conflict", "Sign-up for this event is closed.", { detail: "closed" });
+
+  const personId = await upsertPerson({ email, name, consent: body.consent === true });
+
+  const { data: existing, error: exErr } = await supabase.from("rsvps").select("id, status").eq("event_id", ev.id).eq("person_id", personId).maybeSingle();
+  if (exErr) throw exErr;
+  if (existing && existing.status !== "cancelled") {
+    return { ok: true, already: true, status: existing.status, calendar: calendarLinks(ev) };
+  }
+
+  const full = ev.total_capacity ? (await attendingCount(ev.id)) >= ev.total_capacity : false;
+  const status = full ? "waitlist" : "attending";
+  const row = {
+    event_id: ev.id,
+    person_id: personId,
+    slug: ev.slug,
+    status,
+    booking_status: full ? "WAITLIST" : "CONFIRMED",
+    plus_ones: 0,
+    party_size: 1,
+    total_guests: 1,
+    marketing_opt_in: body.consent === true,
+    visitor_id: clip(body.visitId, 128) || null,
+  };
+  const write = existing
+    ? supabase.from("rsvps").update(row).eq("id", existing.id).select("id").single()
+    : supabase.from("rsvps").insert(row).select("id").single();
+  const { error: wErr } = await write;
+  if (wErr) throw wErr;
+
+  const calendar = calendarLinks(ev);
+  const mail = confirmationEmail({
+    event: ev,
+    name,
+    status,
+    eventUrl: eventUrl(ev.slug),
+    googleUrl: calendar.google,
+    icsUrl: calendar.ics,
+    imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
+  });
+  sendEmail({
+    to: email,
+    ...mail,
+    replyTo: process.env.EVENT_REPLY_TO || "felix@pullup.se",
+    attachments: status === "attending"
+      ? [{ filename: "event.ics", content: Buffer.from(icsFor({ ...ev, text: eventText(ev) }, { url: eventUrl(ev.slug) })).toString("base64"), content_type: "text/calendar" }]
+      : undefined,
+  }).catch((err) => console.error("[events] confirmation mail failed:", err?.message));
+
+  return { ok: true, status, calendar };
+}
+
 export function registerEventRoutes(app) {
   app.get("/events/:slug", async (req, res) => {
     try {
-      const ev = await findEvent(req.params.slug);
-      if (!ev) return res.status(404).json({ error: "not_found" });
-      const [attending, media] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id)]);
-      return res.json({ event: publicShape(ev, attending, media), calendar: calendarLinks(ev) });
+      return res.json(await getPublicEvent(req.params.slug));
     } catch (err) {
+      if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.code });
       console.error("[events] get:", err?.message);
       return res.status(500).json({ error: "failed" });
     }
@@ -132,68 +198,12 @@ export function registerEventRoutes(app) {
 
   app.post("/events/:slug/rsvp", async (req, res) => {
     try {
-      if (limited(req)) return res.status(429).json({ error: "rate_limited" });
+      if (limited(req.ip)) return res.status(429).json({ error: "rate_limited" });
       const body = req.body || {};
       if (clip(body.website, 200)) return res.json({ ok: true, status: "attending" }); // honeypot
-      const email = normalizeEmail(body.email);
-      const name = clip(body.name, 120);
-      if (!name) return res.status(400).json({ error: "missing_name" });
-      if (!isValidEmail(email)) return res.status(400).json({ error: "invalid_email" });
-
-      const ev = await findEvent(req.params.slug);
-      if (!ev) return res.status(404).json({ error: "not_found" });
-      if (!isOpenForSignup(ev)) return res.status(409).json({ error: "closed" });
-
-      const personId = await upsertPerson({ email, name, consent: body.consent === true });
-
-      // Already signed up: same answer again, no second mail.
-      const { data: existing, error: exErr } = await supabase.from("rsvps").select("id, status").eq("event_id", ev.id).eq("person_id", personId).maybeSingle();
-      if (exErr) throw exErr;
-      if (existing && existing.status !== "cancelled") {
-        return res.json({ ok: true, already: true, status: existing.status, calendar: calendarLinks(ev) });
-      }
-
-      const full = ev.total_capacity ? (await attendingCount(ev.id)) >= ev.total_capacity : false;
-      const status = full ? "waitlist" : "attending";
-      const row = {
-        event_id: ev.id,
-        person_id: personId,
-        slug: ev.slug,
-        status,
-        booking_status: full ? "WAITLIST" : "CONFIRMED",
-        plus_ones: 0,
-        party_size: 1,
-        total_guests: 1,
-        marketing_opt_in: body.consent === true,
-        visitor_id: clip(body.visitId, 128) || null,
-      };
-      const write = existing
-        ? supabase.from("rsvps").update(row).eq("id", existing.id).select("id").single()
-        : supabase.from("rsvps").insert(row).select("id").single();
-      const { error: wErr } = await write;
-      if (wErr) throw wErr;
-
-      const calendar = calendarLinks(ev);
-      const mail = confirmationEmail({
-        event: ev,
-        name,
-        status,
-        eventUrl: eventUrl(ev.slug),
-        googleUrl: calendar.google,
-        icsUrl: calendar.ics,
-        imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
-      });
-      sendEmail({
-        to: email,
-        ...mail,
-        replyTo: process.env.EVENT_REPLY_TO || "felix@pullup.se",
-        attachments: status === "attending"
-          ? [{ filename: "event.ics", content: Buffer.from(icsFor({ ...ev, text: eventText(ev) }, { url: eventUrl(ev.slug) })).toString("base64"), content_type: "text/calendar" }]
-          : undefined,
-      }).catch((err) => console.error("[events] confirmation mail failed:", err?.message));
-
-      return res.json({ ok: true, status, calendar });
+      return res.json(await rsvpToEvent(req.params.slug, body));
     } catch (err) {
+      if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.extra.detail || err.code });
       console.error("[events] rsvp:", err?.message);
       return res.status(500).json({ error: "failed" });
     }

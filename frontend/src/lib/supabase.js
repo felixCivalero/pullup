@@ -52,12 +52,15 @@ function takeAuthLinkError() {
 
 export const authLinkError = takeAuthLinkError();
 
-// Create Supabase client with auth enabled
+// Create Supabase client with auth enabled. Sign-in itself goes through our
+// own browser-bound flow (lib/deviceLogin.js); PKCE is set so that any link
+// Supabase itself ever mails can only be redeemed by the browser that asked.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     lock: authLock,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true, // For OAuth redirects
+    detectSessionInUrl: true,
+    flowType: "pkce",
   },
 });

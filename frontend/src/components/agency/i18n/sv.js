@@ -1319,8 +1319,8 @@ export const SV = {
   "I build brands.": "Jag bygger varumärken.",
   "I build brands. Growth that lasts.": "Jag bygger varumärken. Tillväxt som håller.",
   "Your brand grows every week.": "Ditt varumärke växer varje vecka.",
-  "Building brands is what I do.": "Att bygga varumärken är det jag gör.",
-  "Today I build brands — for companies, creators and artists. A clear direction, content that sounds like them and growth you can measure.": "I dag bygger jag varumärken – för företag, kreatörer och artister. En tydlig riktning, innehåll som låter som dem och tillväxt som går att mäta.",
-  "Creators and artists are already brands.": "Kreatörer och artister är redan varumärken.",
-  "I help them build it — with the same structure I use for companies.": "Jag hjälper dem att bygga det – med samma struktur som för företag.",
+  "I love building brands.": "Jag älskar att bygga varumärken.",
+  "All of it taught me how to build something that lasts. Today I do it for companies, creators and artists — with a clear direction, content that sounds like them and growth you can see.": "Allt det har lärt mig hur man bygger något som håller. I dag gör jag det för företag, kreatörer och artister – med en tydlig riktning, innehåll som låter som dem och tillväxt du kan se.",
+  "As a creator or artist, you're already a brand.": "Som kreatör eller artist är du redan ett varumärke.",
+  "I help you build it, step by step — just as I do with companies.": "Jag hjälper dig att bygga det, steg för steg – precis som jag gör med företag.",
 };

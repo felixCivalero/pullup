@@ -21,7 +21,7 @@ import { useT } from "../components/agency/i18n.js";
 // people behind brands" (Felix 2026-10-26: the people he mails didn't get it).
 const BIO = [
   "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
-  "Today I build brands — for companies, creators and artists. A clear direction, content that sounds like them and growth you can measure.",
+  "All of it taught me how to build something that lasts. Today I do it for companies, creators and artists — with a clear direction, content that sounds like them and growth you can see.",
 ];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -115,7 +115,7 @@ export function FelixContent() {
       <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
-          <Reveal><h2 className="fl-h2">{t("Building brands is what I do.")}</h2></Reveal>
+          <Reveal><h2 className="fl-h2">{t("I love building brands.")}</h2></Reveal>
           <div className="fl-bio">
             {BIO.map((para, i) => (
               <Reveal key={i} delay={0.05 * i}><p>{t(para)}</p></Reveal>
@@ -123,8 +123,8 @@ export function FelixContent() {
           </div>
           <Reveal>
             <blockquote className="fl-quote">
-              <p>{t("Creators and artists are already brands.")}</p>
-              <footer>{t("I help them build it — with the same structure I use for companies.")}</footer>
+              <p>{t("As a creator or artist, you're already a brand.")}</p>
+              <footer>{t("I help you build it, step by step — just as I do with companies.")}</footer>
             </blockquote>
           </Reveal>
         </div>

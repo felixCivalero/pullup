@@ -118,20 +118,20 @@ export function FelixContent() {
           <Reveal delay={0.05}>
             <p className="fl-p">{t("Behind every brand is the tech that carries it. I write the code myself — so it's built for you, not squeezed into a template.")}</p>
           </Reveal>
-          <ul className="fl-tech">
+          <div className="fl-tech">
             {TECH.map((item, i) => {
               const [Icon, h, b] = item;
               return (
                 <Reveal key={h} delay={0.03 * (i % 3)}>
-                  <li>
+                  <div className="fl-tech-b">
                     <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
                     <h3>{t(h)}</h3>
                     <p>{t(b)}</p>
-                  </li>
+                  </div>
                 </Reveal>
               );
             })}
-          </ul>
+          </div>
         </div>
       </section>
 
@@ -239,8 +239,9 @@ export const FELIX_CSS = `
   .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
 
   /* tech blocks */
-  .fl-tech { list-style: none; margin: clamp(32px, 4vw, 56px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
-  .fl-tech li { height: 100%; box-sizing: border-box; padding: clamp(20px, 2.2vw, 28px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; }
+  .fl-tech { margin: clamp(32px, 4vw, 56px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+  .fl-tech > div { height: 100%; }
+  .fl-tech-b { height: 100%; box-sizing: border-box; padding: clamp(20px, 2.2vw, 28px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; }
   .fl-tech svg { color: var(--accent); }
   .fl-tech h3 { margin-top: 14px; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
   .fl-tech p { margin-top: 6px; font-size: 15px; line-height: 1.5; color: #555; }

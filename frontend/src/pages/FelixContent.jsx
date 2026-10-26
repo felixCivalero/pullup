@@ -119,15 +119,18 @@ export function FelixContent() {
             <p className="fl-p">{t("Behind every brand is the tech that carries it. I write the code myself — so it's built for you, not squeezed into a template.")}</p>
           </Reveal>
           <ul className="fl-tech">
-            {TECH.map(([Icon, h, b], i) => (
-              <Reveal key={h} delay={0.03 * (i % 3)}>
-                <li>
-                  <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-                  <h3>{t(h)}</h3>
-                  <p>{t(b)}</p>
-                </li>
-              </Reveal>
-            ))}
+            {TECH.map((item, i) => {
+              const [Icon, h, b] = item;
+              return (
+                <Reveal key={h} delay={0.03 * (i % 3)}>
+                  <li>
+                    <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
+                    <h3>{t(h)}</h3>
+                    <p>{t(b)}</p>
+                  </li>
+                </Reveal>
+              );
+            })}
           </ul>
         </div>
       </section>

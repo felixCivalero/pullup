@@ -122,10 +122,15 @@ function pagesPlugin() {
       ];
 
       const { createServer } = await import("vite");
+      // Its own cacheDir: in the shared node_modules/.vite this production-mode
+      // server pre-bundled React's production build into the cache the dev
+      // server reads — every local build left :5173 blank with "jsxDEV is not
+      // a function" (2026-10-26).
       const server = await createServer({
         configFile: false,
         root: projectRoot,
         mode: "production",
+        cacheDir: "node_modules/.vite-prerender",
         plugins: [react()],
         server: { middlewareMode: true, hmr: false },
         appType: "custom",

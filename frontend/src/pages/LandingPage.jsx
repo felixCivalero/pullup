@@ -13,7 +13,7 @@ import { useT } from "../components/agency/i18n.js";
    cases, what clients say, who he is, his network, the one offer. This file adds
    /login's auth modal on top. */
 
-const TITLE = "I develop the people behind brands. Growth that lasts.";
+const TITLE = "I build brands. Growth that lasts.";
 
 /* ─── component ─── */
 export function LandingPage() {

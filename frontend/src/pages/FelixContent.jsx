@@ -16,10 +16,12 @@ import { useT } from "../components/agency/i18n.js";
 
 // The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
 // 31st Light Battalion at Karlsborg, naprapath, seven years of marketing). Don't embellish: no
-// sport name, no "licensed", no invented details.
+// sport name, no "licensed", no invented details. The site talks about
+// building brands — for companies, creators and artists — not about "the
+// people behind brands" (Felix 2026-10-26: the people he mails didn't get it).
 const BIO = [
   "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
-  "The common thread is people: how they perform, recover and grow. Today I do the same with brands — I find the person behind it and help them show up as who they actually are.",
+  "Today I build brands — for companies, creators and artists. A clear direction, content that sounds like them and growth you can measure.",
 ];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -38,10 +40,10 @@ export function FelixContent() {
           <div className="fl-hero-text">
             <p className="fl-me fl-rise" style={{ "--d": "0.05s" }}>
               <img src="/felix.jpg" alt="" decoding="async" />
-              <span><b>Felix Civalero Stolpe</b>{t("For founders, brands and creators")}</span>
+              <span><b>Felix Civalero Stolpe</b>{t("For companies, creators and artists")}</span>
             </p>
-            <p className="fl-k fl-rise" style={{ "--d": "0.05s" }}>{t("For founders, brands and creators")}</p>
-            <h1 className="fl-h1 fl-rise" style={{ "--d": "0.15s" }}>{t("I develop the people behind brands.")}</h1>
+            <p className="fl-k fl-rise" style={{ "--d": "0.05s" }}>{t("For companies, creators and artists")}</p>
+            <h1 className="fl-h1 fl-rise" style={{ "--d": "0.15s" }}>{t("I build brands.")}</h1>
             <p className="fl-slogan fl-rise" style={{ "--d": "0.35s" }}>{t("Growth that lasts.")}</p>
             <div className="fl-ctas fl-rise" style={{ "--d": "0.55s" }}>
               <button type="button" className="fl-btn" onClick={() => work("hero")}>{t("Work with me")}</button>
@@ -85,7 +87,7 @@ export function FelixContent() {
       <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="4">
         <div className="fl-wrap">
           <p className="fl-label">{t("How I work")}</p>
-          <Reveal><h2 className="fl-h2">{t("You grow every week. Your brand grows with you.")}</h2></Reveal>
+          <Reveal><h2 className="fl-h2">{t("Your brand grows every week.")}</h2></Reveal>
           <Reveal delay={0.05}>
             <p className="fl-p">{t("First a clear direction. Then 30 minutes with me every week, where your voice becomes content. Everything is measured, and what works gets scaled.")}</p>
           </Reveal>
@@ -113,7 +115,7 @@ export function FelixContent() {
       <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
-          <Reveal><h2 className="fl-h2">{t("Developing people is my passion.")}</h2></Reveal>
+          <Reveal><h2 className="fl-h2">{t("Building brands is what I do.")}</h2></Reveal>
           <div className="fl-bio">
             {BIO.map((para, i) => (
               <Reveal key={i} delay={0.05 * i}><p>{t(para)}</p></Reveal>
@@ -121,8 +123,8 @@ export function FelixContent() {
           </div>
           <Reveal>
             <blockquote className="fl-quote">
-              <p>{t("The genuine creative expression no one can copy is you.")}</p>
-              <footer>{t("You just need help channelling it. A brand is the same thing — at the level of a group.")}</footer>
+              <p>{t("Creators and artists are already brands.")}</p>
+              <footer>{t("I help them build it — with the same structure I use for companies.")}</footer>
             </blockquote>
           </Reveal>
         </div>

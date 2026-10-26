@@ -185,19 +185,12 @@ export function CaseStack({ head }) {
   );
 }
 
-// The order and emphasis for this page (Felix 2026-10-26), and Kaijas
-// led by its people — artists, team and guests — not the room.
+// The order for this page (Felix 2026-10-26). Every card leads with its own
+// numbers — no "the brand was the people" edits.
 const ORDER = ["bkm", "stiga", "way-out-west", "li-karlsen", "kaijas", "adam-flambo"];
-const MIX_EDIT = {
-  kaijas: {
-    score: ["Artists. Team. Guests.", "the brand was the people — never the room"],
-    gained: "The artists, the team and the guests became the brand — and the reason people kept coming back.",
-  },
-};
 const STORIES = ORDER.map((slug) => SERIES.find((c) => c.slug === slug))
   .filter(Boolean)
-  .concat(SERIES.filter((c) => !ORDER.includes(c.slug)))
-  .map((c) => ({ ...c, ...MIX_EDIT[c.slug] }));
+  .concat(SERIES.filter((c) => !ORDER.includes(c.slug)));
 
 
 

@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, LayoutDashboard, Mail, Monitor, Plug, Server, ShieldCheck, ShoppingCart, Workflow } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
@@ -24,19 +24,26 @@ const BIO = [
   "All of it taught me how to build something that lasts. Today I do it for companies, creators and artists — with a clear direction, content that sounds like them and growth you can see.",
 ];
 
-// What Felix builds himself, shown as blocks before the offer (Felix
-// 2026-10-26). Only what he has actually built — no languages or tools he
-// hasn't shipped.
-const TECH = [
-  [ShoppingCart, "E-commerce", "Webshops, checkout and payments — built and connected end to end."],
-  [Monitor, "Frontend", "Fast sites and apps in JavaScript and React — what your customers see."],
-  [Server, "Backend", "Servers, APIs and databases in Node and Postgres — what keeps it all running."],
-  [Bot, "AI infrastructure", "AI agents and assistants connected to your own systems and data."],
-  [Workflow, "Data flows", "Data that moves between your tools on its own — no copying by hand."],
-  [Mail, "CRM and email", "Your own customer register and email sends, with every open and click tracked."],
-  [LayoutDashboard, "Tracking and dashboards", "Every visit and every sale measured, in dashboards you actually read."],
-  [Plug, "Integrations", "Instagram, WhatsApp, Stripe and Google — connected to everything else."],
-  [ShieldCheck, "Hosting and security", "Servers, domains and email delivery set up properly and kept secure."],
+// The tech, before the offer (Felix 2026-10-26): what he actually knows, then
+// what he has built with it — concrete, not "AI" talk anyone can claim. Every
+// tool is in a stack he has shipped (pullup, kazikazi, growhouse repos).
+const SKILLS = [
+  ["Languages", "JavaScript, TypeScript, SQL, GraphQL"],
+  ["Frontend", "React, React Native / Expo, Astro, Vite, Three.js"],
+  ["Backend", "Node.js, Express, Fastify, REST and GraphQL APIs, queues and cron jobs"],
+  ["Databases", "PostgreSQL / Supabase, MongoDB, Redis"],
+  ["Payments and APIs", "Stripe, M-Pesa, Shopify, Meta (Instagram, WhatsApp), Google"],
+  ["Hosting", "AWS, nginx, Cloudflare, Sentry, App Store and Google Play builds"],
+];
+
+// What he built. Kaijas and Growhouse in Felix's words (no Kaijas code on this
+// machine, so no stack line for it); KaziKazi from its repo (TestFlight, not
+// the App Store yet — never say "in the App Store").
+const BUILT = [
+  ["Kaijas Musiksalong", "Booking and seating", "A custom booking and table-seating system, with a CRM connected to the till."],
+  ["Growhouse", "Tracking", "A tracking pixel that follows purchases back to organic Instagram posts.", "Node.js · GraphQL · MongoDB · Shopify"],
+  ["KaziKazi", "App for iOS and Android", "Daily work and errands in Kenya — M-Pesa payments, real-time chat, calls and maps.", "TypeScript · React Native · Fastify · Supabase"],
+  ["PullUp", "Event platform", "The platform this site runs on — events, sign-ups, CRM and email with tracking.", "React · Node.js · PostgreSQL"],
 ];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -110,27 +117,33 @@ export function FelixContent() {
         </div>
       </section>
 
-      {/* the tech — what Felix builds himself */}
+      {/* the tech — what Felix knows, then what he built */}
       <section id="tech" className="fl-sec fl-rule" data-pc-section="tech" data-pc-order="5">
         <div className="fl-wrap">
           <p className="fl-label">{t("Tech")}</p>
-          <Reveal><h2 className="fl-h2">{t("I build the tech myself.")}</h2></Reveal>
+          <Reveal><h2 className="fl-h2">{t("What I actually know.")}</h2></Reveal>
           <Reveal delay={0.05}>
-            <p className="fl-p">{t("Behind every brand is the tech that carries it. I write the code myself — so it's built for you, not squeezed into a template.")}</p>
+            <p className="fl-p">{t("I write the code myself — sites, apps, backends and the data between them.")}</p>
           </Reveal>
-          <div className="fl-tech">
-            {TECH.map((item, i) => {
-              const [Icon, h, b] = item;
-              return (
-                <Reveal key={h} delay={0.03 * (i % 3)}>
-                  <div className="fl-tech-b">
-                    <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-                    <h3>{t(h)}</h3>
-                    <p>{t(b)}</p>
-                  </div>
-                </Reveal>
-              );
-            })}
+          <Reveal>
+            <dl className="fl-skills">
+              {SKILLS.map(([k, v]) => (
+                <div key={k}><dt>{t(k)}</dt><dd>{t(v)}</dd></div>
+              ))}
+            </dl>
+          </Reveal>
+          <p className="fl-label fl-built-l">{t("What I've built")}</p>
+          <div className="fl-built">
+            {BUILT.map(([name, kind, line, stack], i) => (
+              <Reveal key={name} delay={0.04 * (i % 2)}>
+                <div className="fl-built-b">
+                  <p className="fl-built-k">{t(kind)}</p>
+                  <h3>{name}</h3>
+                  <p>{t(line)}</p>
+                  {stack && <p className="fl-built-s">{stack}</p>}
+                </div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
@@ -238,13 +251,20 @@ export const FELIX_CSS = `
   /* how it runs */
   .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
 
-  /* tech blocks */
-  .fl-tech { margin: clamp(32px, 4vw, 56px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
-  .fl-tech > div { height: 100%; }
-  .fl-tech-b { height: 100%; box-sizing: border-box; padding: clamp(20px, 2.2vw, 28px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; }
-  .fl-tech svg { color: var(--accent); }
-  .fl-tech h3 { margin-top: 14px; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
-  .fl-tech p { margin-top: 6px; font-size: 15px; line-height: 1.5; color: #555; }
+  /* tech: skills, then what he built */
+  .fl-skills { margin: clamp(32px, 4vw, 48px) 0 0; border-top: 1px solid var(--rule); }
+  .fl-skills div { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 8px 24px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .fl-skills dt { font-size: 15px; font-weight: 600; }
+  .fl-skills dd { margin: 0; font-size: 16px; line-height: 1.5; color: #444; }
+  @media (max-width: 640px) { .fl-skills div { grid-template-columns: 1fr; gap: 4px; } }
+  .fl-built-l { margin-top: clamp(48px, 6vw, 72px); }
+  .fl-built { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+  .fl-built > div { height: 100%; }
+  .fl-built-b { height: 100%; box-sizing: border-box; padding: clamp(22px, 2.4vw, 32px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; display: flex; flex-direction: column; }
+  .fl-built-b .fl-built-k { margin-top: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .fl-built-b h3 { margin-top: 8px; font-size: clamp(22px, 2vw, 28px); font-weight: 700; letter-spacing: -0.03em; }
+  .fl-built-b p { margin-top: 8px; font-size: 16px; line-height: 1.5; color: #444; }
+  .fl-built-b .fl-built-s { margin-top: auto; padding-top: 18px; font-size: 13px; color: var(--grey); }
 
   /* offer */
   .fl-offer { background: var(--ink); color: #fff; padding: clamp(96px, 13vw, 168px) 0; }

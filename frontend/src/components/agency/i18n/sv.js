@@ -1313,4 +1313,5 @@ export const SV = {
   "15 of 30": "15 av 30",
   "passed 10,000 views": "passerade 10 000 visningar",
   "STIGA: 28 million views in seven months": "STIGA: 28 miljoner visningar på sju månader",
+  "The cover photo on the overview card is from Wikimedia Commons, used under the licence below.": "Omslagsbilden på översiktskortet kommer från Wikimedia Commons och används under licensen nedan.",
 };

@@ -230,10 +230,13 @@ const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "E
 export const storyCountWord = WORDS[SERIES.length] || String(SERIES.length);
 export const storyCount = String(SERIES.length).padStart(2, "0");
 
-// A photo per story, for pages that show the stories as images. Week-Li has
-// none until Li sends the photos she wants, and BKM's freediving photos are
-// gone with the freediving story (Felix 2026-10-21).
+// A photo per story, for pages that show the stories as images. Stock photos
+// for the cards instead of colour blocks (Felix 2026-10-26) — never Li
+// herself, never freediving; credited on each case page.
 export const COVERS = {
+  bkm: "/stories/bkm/park-yoga.webp",
+  "li-karlsen": "/stories/li-karlsen/ring-light.webp",
+  "way-out-west": "/stories/way-out-west/entrance.webp",
   kaijas: "/stories/kaijas/crowd.webp",
   stiga: "/stories/stiga/arena.webp",
   "adam-flambo": "/stories/adam-hero.webp",

@@ -5,7 +5,8 @@ import { WOW_CLIPS } from "../../../components/agency/agencyData.js";
    TikTok, on site all three days. Facts: 30 TikToks in three days; views as
    TikTok showed them on 2026-10-26 (WOW_CLIPS), 617,966 in all — say
    "600,000+"; the most-watched at 100K; 15 of 30 passed 10,000. The mix is
-   read off the clips' own on-screen captions. No photographs. */
+   read off the clips' own on-screen captions. No photographs on the page;
+   the overview card has a stock cover (COVERS), credited below. */
 
 const sek = (v) => v.toLocaleString("sv-SE");
 
@@ -55,5 +56,9 @@ export default {
       body: "The festival on TikTok while it was happening. The same idea as every story here: live it in public, and people follow.",
       node: <Outcome facts={[["600,000+", "views"], ["100K", "on the most-watched"], ["15 of 30", "passed 10,000 views"]]} link={["STIGA: 28 million views in seven months", "stiga"]} />,
     },
+  ],
+  creditNote: "The cover photo on the overview card is from Wikimedia Commons, used under the licence below.",
+  credits: [
+    ["Way out west-entrance", "Fluff", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:Way_out_west-entrance.jpg"],
   ],
 };

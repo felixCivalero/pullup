@@ -8,7 +8,8 @@ import { Flow, Outcome, Rhythm, Steps } from "../../../components/agency/story/S
    exact figure); founder Tolga Duran (always the one founder — Felix 2026-10-21); pace up to two edited pieces a week +
    a production day about monthly; sales and subscriptions growing
    exponentially (words only). No freediving and no quote from Li (her wish,
-   2026-10-19) — Li's own format has its own story, Week-Li. No photographs. */
+   2026-10-19) — Li's own format has its own story, Week-Li. No photographs on the
+   page; the overview card has a stock cover (COVERS), credited below. */
 
 export default {
   slug: "bkm",
@@ -81,5 +82,9 @@ export default {
       body: "Built side by side, week after week. Sales and subscriptions grew exponentially alongside — the journey was the marketing. Li's own format for BKM, Week-Li, is a story of its own.",
       node: <Outcome link={["Week-Li: BKM's format with Li", "li-karlsen"]} />,
     },
+  ],
+  creditNote: "The cover photo on the overview card is from Wikimedia Commons, used under the licence below.",
+  credits: [
+    ["Yoga at Your Park", "Mary O'Neill / NPS", "Public domain", "https://commons.wikimedia.org/wiki/File:Yoga_at_Your_Park_(f7f2960d-c205-496f-bf97-77f884b43779).jpg"],
   ],
 };

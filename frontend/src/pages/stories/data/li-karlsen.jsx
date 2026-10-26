@@ -9,7 +9,8 @@ import { REEL_BEATS } from "../../../components/agency/agencyData.js";
    Facts: one reel went from 8 hours to 30 minutes; 30-minute sprints; reels
    of 1–1.5 minutes; five beats (Hook, Introduction, Build-up, Climax, CTA).
    The narrowing widths and the edit loop are illustrative and say so.
-   No quote until Li sends her own words. */
+   No quote until Li sends her own words. The overview card has a stock cover
+   (a ring light, never Li — COVERS), credited below. */
 
 const ALL = Array.from({ length: 16 }, (_, i) => i);
 
@@ -69,5 +70,9 @@ export default {
         <Outcome link={["BKM's whole story", "bkm"]} />
       ),
     },
+  ],
+  creditNote: "The cover photo on the overview card is from Wikimedia Commons, used under the licence below.",
+  credits: [
+    ["Ring light in Torp shopping mall, Uddevalla", "W.carter", "CC BY-SA 4.0", "https://commons.wikimedia.org/wiki/File:Ring_light_in_Torp_shopping_mall,_Uddevalla.jpg"],
   ],
 };

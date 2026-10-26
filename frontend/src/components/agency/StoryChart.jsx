@@ -124,7 +124,26 @@ function Ahead({ months, note }) {
   );
 }
 
-const CHARTS = { time: Time, grow: Grow, channels: Channels, path: Path, walks: Walks, ahead: Ahead };
+// Every clip as one thin column, highest first — no labels, the shape is the point.
+function Clips({ rows, note }) {
+  const t = useT();
+  const max = Math.max(...rows.map((r) => r[1]));
+  return (
+    <figure className="sc">
+      <figcaption className="sc-cap">{t("Views per TikTok, all {n}", { n: rows.length })}</figcaption>
+      <div className="sc-cols is-bare">
+        {rows.map(([k, v], i) => (
+          <div key={`${k}-${i}`} className="sc-col is-hot">
+            <span className="sc-col-bar" style={{ "--h": v / max, "--i": i * 0.3 }} />
+          </div>
+        ))}
+      </div>
+      {note && <p className="sc-note">{t(note)}</p>}
+    </figure>
+  );
+}
+
+const CHARTS = { time: Time, grow: Grow, channels: Channels, path: Path, walks: Walks, ahead: Ahead, clips: Clips };
 
 export function StoryChart({ chart }) {
   const C = chart && CHARTS[chart.type];
@@ -161,6 +180,8 @@ export const STORY_CHART_CSS = `
   }
   .sc-cols .sc-col-bar { height: max(4px, calc(var(--h, 0) * (100% - 44px))); }
   .sc-col-bar.is-stub { height: 4px; }
+  .sc-cols.is-bare { gap: 2px; border-bottom: 1px solid #e4e4e1; }
+  .sc-cols.is-bare .sc-col-bar { height: max(3px, calc(var(--h, 0) * 100%)); border-radius: 3px 3px 0 0; }
   .sc-col.is-hot .sc-col-bar { background: var(--sc); }
   .sc-col-v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .sc-grow .sc-col-v { font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -0.03em; order: -1; }

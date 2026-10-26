@@ -171,6 +171,7 @@ export const STORY_CSS = `
   .sy-col-bar { width: 100%; max-width: 44px; background: var(--sy-a); border-radius: 4px 4px 0 0; transition: height 0.9s cubic-bezier(0.16,1,0.3,1); }
   .sy-col.is-hover .sy-col-bar { background: var(--sy-ai); }
   .sy-col-v { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--sy-ink-2); }
+  .sy-cols.is-bare { gap: 3px; border-bottom: 1px solid rgba(255,255,255,0.18); }
   .sy-col-l { font-size: 11px; color: var(--sy-ink-3); white-space: nowrap; border-top: 1px solid rgba(255,255,255,0.18); width: 100%; text-align: center; padding-top: 6px; }
 
   /* Li's edit desk on paper */

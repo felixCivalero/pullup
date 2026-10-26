@@ -185,9 +185,9 @@ export function CaseStack({ head }) {
   );
 }
 
-// The order and emphasis for this page: STIGA right after BKM, and Kaijas
+// The order and emphasis for this page (Felix 2026-10-26), and Kaijas
 // led by its people — artists, team and guests — not the room.
-const ORDER = ["li-karlsen", "bkm", "stiga", "kaijas", "adam-flambo"];
+const ORDER = ["bkm", "stiga", "way-out-west", "li-karlsen", "kaijas", "adam-flambo"];
 const MIX_EDIT = {
   kaijas: {
     score: ["Artists. Team. Guests.", "the brand was the people — never the room"],

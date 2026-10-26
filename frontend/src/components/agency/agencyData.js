@@ -68,11 +68,87 @@ export const STIGA_ROWS = [
   { channel: "YouTube", views: 1100000, interactions: 13200, followers: 1200 },
 ];
 
+// Way Out West 2025 — every TikTok Felix filmed and edited over the three
+// festival days, views as TikTok showed them (screenshots, 2026-10-26),
+// highest first. Captions only where the clip carries one on screen.
+export const WOW_CLIPS = [
+  ["“U gotta slap to elevate the taste”", 100000], ["TikTok", 88900], ["TikTok", 50600], ["POV: doors open in less than 16h", 45200],
+  ["TikTok", 43600], ["TikTok", 30400], ["5 food vendors not to miss at WOW 2025", 28900], ["TikTok", 28600],
+  ["TikTok", 28300], ["TikTok", 26600], ["TikTok", 18700], ["TikTok", 12400], ["Azalea just woke up", 11800],
+  ["Outfit check 2025", 11000], ["TikTok", 10700], ["Aura farmer lvl", 9167], ["The welcoming choir sings the clouds away", 8304],
+  ["The feeling when that last bajamaja is ✅", 7369], ["The speakers at Dungen", 6923], ["KNEECAP at Way Out West 2025", 6632],
+  ["Have you found the 3 hidden bars?", 5907], ["TikTok", 5565], ["POV: when the artist makes sure you're fed before the show", 4868],
+  ["TikTok", 4699], ["TikTok", 4569], ["TikTok", 4424], ["Meet DJ Rawel and…", 4304], ["TikTok", 4151], ["TikTok", 2911], ["TikTok", 2473],
+];
+
 // The case registry — order here = order everywhere (landing, footer, the
 // rail on every case page, "next story"). `series: false` would keep a page
 // live without numbering it. Every claim: Felix's brief; STIGA traces to the
-// Growhouse report (1 Dec 2024 – 30 Jun 2025); Adam Flambo to his rooms.
+// Growhouse report (1 Dec 2024 – 30 Jun 2025); Way Out West to the TikTok
+// views (WOW_CLIPS); Adam Flambo to his rooms. Order: Felix 2026-10-26.
 export const CASES = [
+  {
+    slug: "bkm",
+    client: "BKM",
+    name: "BKM Health",
+    kicker: "Brand · Health",
+    color: "#B7791F",
+    // Never call the followers organic — not all of them were (Felix 2026-10-21).
+    title: "One red thread, from vision to every post.",
+    // Tolga is THE founder in everything we write (Felix 2026-10-21).
+    who: "Tolga Duran, BKM's founder, with a vision and no audience.",
+    gained: "A vision and a strategy, built together, that every sprint, event and story followed.",
+    brand: "10,000+ followers in one year, several million views across channels — and sales and subscriptions growing exponentially.",
+    score: ["10,000+", "followers in one year, from zero"],
+    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "Sales and subscriptions: growing exponentially" },
+    spine: {
+      start: "Tolga Duran, BKM's founder, with a vision and no audience.",
+      did: "Vision and strategy as one red thread, worked out together — and kept moving by 30-minute sprints.",
+      made: "A community post the same day as every event, and a flow that let the ambassadors tell deep stories.",
+      result: "10,000+ followers in one year and several million views across channels — with sales and subscriptions growing exponentially.",
+    },
+    stats: [["10,000+", "followers in one year"], ["Millions", "of views across channels"], ["Exponential", "growth in sales and subscriptions", true]],
+  },
+  {
+    slug: "stiga",
+    client: "STIGA",
+    name: "STIGA Table Tennis",
+    kicker: "Brand · Sport",
+    color: "#2563EB",
+    title: "28 million views in seven months.",
+    who: "A global sports brand with decades of history — and talent already in the building.",
+    gained: "In-house talents became faces fans follow, each with a persona and a story.",
+    brand: "28.1M views and +32,000 followers in seven months.",
+    score: ["28.1M", "views in seven months"],
+    chart: { type: "channels" },
+    spine: {
+      start: "A global sports brand with decades of history.",
+      did: "Introduced in-house talents and built personas and stories around them.",
+      made: "Short-form video and posts in the sport's own voice, on four channels.",
+      result: "28.1M views and +32,000 followers in seven months.",
+    },
+    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
+  },
+  {
+    slug: "way-out-west",
+    client: "Way Out West",
+    name: "Way Out West",
+    kicker: "Festival · TikTok",
+    color: "#15803D",
+    title: "30 TikToks in three days.",
+    who: "Way Out West: three days of music in Slottsskogen, Gothenburg — and a TikTok to keep up with it.",
+    gained: "The whole festival on TikTok while it happened — the shows, the people and the places in between.",
+    brand: "600,000+ views across 30 TikToks, the most-watched at 100,000.",
+    score: ["600,000+", "views on 30 TikToks"],
+    chart: { type: "clips", rows: WOW_CLIPS, note: "Half of them passed 10,000 views" },
+    spine: {
+      start: "Way Out West: three days of music in Slottsskogen, Gothenburg — and a TikTok to keep up with it.",
+      did: "Filming and editing for the festival's TikTok, on site all three days.",
+      made: "30 TikToks in three days — the shows, outfits, food, hidden bars and the moments before the doors open.",
+      result: "600,000+ views across 30 TikToks — the most-watched reached 100,000.",
+    },
+    stats: [["30", "TikToks"], ["3 days", "on site"], ["600,000+", "views"], ["100K", "on the most-watched", true]],
+  },
   {
     slug: "li-karlsen",
     client: "Week-Li",
@@ -97,28 +173,6 @@ export const CASES = [
     reel: true,
   },
   {
-    slug: "bkm",
-    client: "BKM",
-    name: "BKM Health",
-    kicker: "Brand · Health",
-    color: "#B7791F",
-    // Never call the followers organic — not all of them were (Felix 2026-10-21).
-    title: "One red thread, from vision to every post.",
-    // Tolga is THE founder in everything we write (Felix 2026-10-21).
-    who: "Tolga Duran, BKM's founder, with a vision and no audience.",
-    gained: "A vision and a strategy, built together, that every sprint, event and story followed.",
-    brand: "10,000+ followers in one year, several million views across channels — and sales and subscriptions growing exponentially.",
-    score: ["10,000+", "followers in one year, from zero"],
-    chart: { type: "grow", from: ["0", "followers at the start"], to: ["10,000+", "followers now"], note: "Sales and subscriptions: growing exponentially" },
-    spine: {
-      start: "Tolga Duran, BKM's founder, with a vision and no audience.",
-      did: "Vision and strategy as one red thread, worked out together — and kept moving by 30-minute sprints.",
-      made: "A community post the same day as every event, and a flow that let the ambassadors tell deep stories.",
-      result: "10,000+ followers in one year and several million views across channels — with sales and subscriptions growing exponentially.",
-    },
-    stats: [["10,000+", "followers in one year"], ["Millions", "of views across channels"], ["Exponential", "growth in sales and subscriptions", true]],
-  },
-  {
     slug: "kaijas",
     client: "Kaijas",
     name: "Kaijas Musiksalong",
@@ -137,26 +191,6 @@ export const CASES = [
       result: "Booked three months in advance.",
     },
     stats: [["3 months", "booked in advance"], ["4 nights", "of live music a week"], ["10,000+", "Instagram followers", true]],
-  },
-  {
-    slug: "stiga",
-    client: "STIGA",
-    name: "STIGA Table Tennis",
-    kicker: "Brand · Sport",
-    color: "#2563EB",
-    title: "28 million views in seven months.",
-    who: "A global sports brand with decades of history — and talent already in the building.",
-    gained: "In-house talents became faces fans follow, each with a persona and a story.",
-    brand: "28.1M views and +32,000 followers in seven months.",
-    score: ["28.1M", "views in seven months"],
-    chart: { type: "channels" },
-    spine: {
-      start: "A global sports brand with decades of history.",
-      did: "Introduced in-house talents and built personas and stories around them.",
-      made: "Short-form video and posts in the sport's own voice, on four channels.",
-      result: "28.1M views and +32,000 followers in seven months.",
-    },
-    stats: [["28.1M", "views"], ["+32,000", "followers"], ["335,000", "interactions"], ["7 months", "Dec 2024 – Jun 2025"]],
   },
   {
     slug: "adam-flambo",

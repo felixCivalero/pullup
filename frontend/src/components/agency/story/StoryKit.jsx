@@ -406,24 +406,26 @@ export function ChannelBars({ rows, metrics, source }) {
   );
 }
 
-/* Ordered columns (events in sequence), one series, hover for the value. */
-export function Columns({ rows, unit, source, aria }) {
+/* Ordered columns (events in sequence), one series, hover for the value.
+   `bare` drops the per-column value and label — for many thin columns, read
+   by hover; `fmt` formats the hovered value. */
+export function Columns({ rows, unit, source, aria, bare = false, fmt = (v) => v }) {
   const t = useT();
   const [hover, setHover] = useState(null);
   const [ref, seen] = useSeen();
   const max = Math.max(...rows.map((r) => r[1]));
   return (
     <div className={`sy-cols-wrap${seen ? " is-on" : ""}`} ref={ref}>
-      <div className="sy-cols" role="img" aria-label={t(aria)} onMouseLeave={() => setHover(null)}>
+      <div className={`sy-cols${bare ? " is-bare" : ""}`} role="img" aria-label={t(aria)} onMouseLeave={() => setHover(null)}>
         {rows.map(([l, v], i) => (
           <div key={l} className={`sy-col${hover === i ? " is-hover" : ""}`} onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)}>
-            <span className="sy-col-v">{v}</span>
-            <span className="sy-col-bar" style={{ height: seen ? `${(v / max) * 100}%` : 0, transitionDelay: `${i * 0.05}s` }} />
-            <span className="sy-col-l">{l}</span>
+            {!bare && <span className="sy-col-v">{v}</span>}
+            <span className="sy-col-bar" style={{ height: seen ? `${(v / max) * 100}%` : 0, transitionDelay: `${i * (bare ? 0.025 : 0.05)}s` }} />
+            {!bare && <span className="sy-col-l">{l}</span>}
           </div>
         ))}
       </div>
-      <p className="sy-source">{hover != null ? `${rows[hover][0]} · ${rows[hover][1]} ${t(unit)}` : t(source)}</p>
+      <p className="sy-source">{hover != null ? `${t(rows[hover][0])} · ${fmt(rows[hover][1])} ${t(unit)}` : t(source)}</p>
     </div>
   );
 }

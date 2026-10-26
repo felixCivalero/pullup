@@ -7,7 +7,7 @@ import { translate } from "./i18n.js";
    case-share plugin in vite.config.js (dist/work/<slug>.html) and by
    scripts/case-og-images.mjs (public/og/case-<slug>.jpg). Bump OG_VERSION
    when the images change, to get past Facebook's cache. */
-export const OG_VERSION = 1;
+export const OG_VERSION = 2;
 export const SITE = "https://pullup.se";
 
 const sv = (s) => translate("sv", s);

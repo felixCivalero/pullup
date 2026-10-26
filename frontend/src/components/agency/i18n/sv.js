@@ -7,6 +7,7 @@ export const SV = {
   "Log in": "Logga in",
   "Build with us": "Bygg med oss",
   "Canvas": "Canvas",
+  "PullUp – free event pages": "PullUp – gratis eventsidor",
   "Privacy": "Integritet",
   "Terms": "Villkor",
   "Cookies": "Cookies",

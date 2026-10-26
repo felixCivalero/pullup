@@ -2,20 +2,22 @@
 //   GET  /events/:slug               the event page's data
 //   POST /events/:slug/rsvp          sign up → person + rsvp + confirmation mail
 //   GET  /events/:slug/calendar.ics  add to Apple Calendar / Outlook
-//   GET  /e/:slug                    share previews (nginx sends crawlers here)
+//   GET  /e/:slug                    the page as HTML for previews, search and AI crawlers
+//   GET  /sitemap-events.xml         published events, for search engines
 //   GET|POST /unsubscribe/:token     stop mail from PullUp (POST = one-click)
 import { supabase } from "../supabase.js";
 import { sendEmail } from "../email/index.js";
 import { apiBase, eventUrl, getFrontendUrl } from "../lib/urls.js";
 import { isValidEmail, normalizeEmail } from "../lib/emailAddress.js";
-import { eventText, imageUrl, formatWhen, isOpenForSignup, personPatch } from "../lib/eventPlatform.js";
+import { eventText, imageUrl, isOpenForSignup, personPatch } from "../lib/eventPlatform.js";
 import { icsFor, googleCalendarUrl } from "../lib/eventCalendar.js";
 import { confirmationEmail } from "../lib/eventEmails.js";
+import { crawlerEventHtml } from "../lib/eventPage.js";
 import { loadEventMedia } from "./adminEventMedia.js";
 import { ActionError, statusFor } from "../lib/actionError.js";
 
 const EVENT_COLUMNS =
-  "id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
+  "id, host_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
   "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 
 // Per-IP throttle on sign-ups: 20 an hour is plenty for a human.
@@ -222,27 +224,50 @@ export function registerEventRoutes(app) {
     }
   });
 
-  // Share previews: nginx routes crawlers on /e/ here; people get the SPA.
+  // Link previews, search engines and AI crawlers: nginx sends them here
+  // (by user agent); people get the app. See lib/eventPage.js.
   app.get("/e/:slug", async (req, res) => {
     try {
       const ev = await findEvent(req.params.slug);
-      const url = eventUrl(req.params.slug);
       if (!ev) return res.redirect(302, getFrontendUrl());
-      const title = ev.title;
-      const desc = [formatWhen(ev), ev.hide_location ? "" : ev.location].filter(Boolean).join(" · ");
-      const img = imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL);
+      const [attending, host] = await Promise.all([
+        ev.total_capacity ? attendingCount(ev.id) : Promise.resolve(0),
+        supabase.from("profiles").select("name, brand").eq("id", ev.host_id).maybeSingle().then(({ data }) => data),
+      ]);
       res.set("Content-Type", "text/html; charset=utf-8");
-      return res.send(`<!doctype html><html lang="sv"><head><meta charset="utf-8">
-<title>${esc(title)}</title>
-<meta name="description" content="${esc(desc)}">
-<meta property="og:type" content="website"><meta property="og:url" content="${esc(url)}">
-<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}">
-${img ? `<meta property="og:image" content="${esc(img)}"><meta name="twitter:image" content="${esc(img)}">` : ""}
-<meta name="twitter:card" content="${img ? "summary_large_image" : "summary"}">
-<meta http-equiv="refresh" content="0;url=${esc(url)}"></head><body><a href="${esc(url)}">${esc(title)}</a></body></html>`);
+      res.set("Cache-Control", "public, max-age=300");
+      return res.send(crawlerEventHtml(ev, {
+        url: eventUrl(ev.slug),
+        imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
+        hostName: host?.brand || host?.name || null,
+        full: !!ev.total_capacity && attending >= ev.total_capacity,
+        productUrl: `${getFrontendUrl()}/pullup`,
+      }));
     } catch (err) {
-      console.error("[events] og:", err?.message);
+      console.error("[events] crawler page:", err?.message);
       return res.redirect(302, getFrontendUrl());
+    }
+  });
+
+  // Every published event, past ones too — for search engines (robots.txt points here).
+  app.get("/sitemap-events.xml", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .select("slug, updated_at, starts_at, ends_at")
+        .eq("status", "PUBLISHED")
+        .or("kind.is.null,kind.eq.event")
+        .eq("visibility", "public")
+        .order("starts_at", { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      const urls = (data || []).map((e) => `<url><loc>${esc(eventUrl(e.slug))}</loc>${e.updated_at ? `<lastmod>${new Date(e.updated_at).toISOString().slice(0, 10)}</lastmod>` : ""}</url>`);
+      res.set("Content-Type", "application/xml; charset=utf-8");
+      res.set("Cache-Control", "public, max-age=3600");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join("")}</urlset>`);
+    } catch (err) {
+      console.error("[events] sitemap:", err?.message);
+      return res.status(500).send("");
     }
   });
 

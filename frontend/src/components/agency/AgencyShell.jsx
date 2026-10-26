@@ -177,6 +177,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             ))}
           </nav>
           <nav aria-label="Legal">
+            <a href="/pullup">{t("PullUp – free event pages")}</a>
             <a href="/privacy">{t("Privacy")}</a>
             <a href="/terms">{t("Terms")}</a>
             <a href="/cookies">{t("Cookies")}</a>

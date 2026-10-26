@@ -18,14 +18,16 @@ import { useT } from "./i18n.js";
 function CountUp({ text }) {
   const t = useT();
   const ref = useRef(null);
-  const [k, setK] = useState(() =>
-    typeof IntersectionObserver === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 1 : 0,
-  );
+  // The real number first — the page arrives pre-rendered with it (and that
+  // is what crawlers read) — then back to 0 only while it's out of sight, so
+  // it counts up when it scrolls into view.
+  const [k, setK] = useState(1);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return undefined;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    let raf = null;
+    if (el.getBoundingClientRect().top < window.innerHeight) return undefined;
+    let raf = requestAnimationFrame(() => setK(0)); // out of sight: wind back
     const obs = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting) return;
       obs.disconnect();

@@ -32,4 +32,49 @@ Allow: /
 User-agent: TelegramBot
 Allow: /
 
+# AI assistants and the search engines behind them: welcome. PullUp wants
+# to be found by them (and has an MCP server for them: see /llms.txt).
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
 Sitemap: https://pullup.se/sitemap.xml
+Sitemap: https://pullup.se/api/sitemap-events.xml

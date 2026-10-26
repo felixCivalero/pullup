@@ -97,16 +97,32 @@ export function validateBatch(body, { now = Date.now() } = {}) {
   return { rows, dropped };
 }
 
+// AI assistants that send people here, by the host they link from (or tag
+// in utm_source — ChatGPT adds utm_source=chatgpt.com). One name each, so
+// Statistik shows how much traffic the AIs send.
+const AI_SOURCES = [
+  [/(^|\.)(chatgpt\.com|chat\.openai\.com|openai\.com)$/, "chatgpt"],
+  [/(^|\.)perplexity\.ai$/, "perplexity"],
+  [/(^|\.)claude\.ai$/, "claude"],
+  [/(^|\.)gemini\.google\.com$|(^|\.)bard\.google\.com$/, "gemini"],
+  [/(^|\.)copilot\.microsoft\.com$/, "copilot"],
+  [/(^|\.)(chat\.)?mistral\.ai$/, "mistral"],
+  [/(^|\.)you\.com$/, "you.com"],
+];
+export const aiSource = (host) => AI_SOURCES.find(([re]) => re.test(String(host || "").toLowerCase()))?.[1] || null;
+
 // Same referrer→source mapping the legacy /t/pageview used, extended with
 // UTM precedence: an explicit utm_source always beats referrer sniffing.
 export function deriveSource(referrer, utm) {
   if (utm && typeof utm.utm_source === "string" && utm.utm_source.trim()) {
     const s = utm.utm_source.trim().toLowerCase().slice(0, 64);
-    return s === "ig" ? "instagram" : s; // Instagram's own short form
+    return aiSource(s) || (s === "ig" ? "instagram" : s); // Instagram's own short form
   }
   if (!referrer) return "direct";
   try {
     const host = new URL(referrer).hostname.replace("www.", "");
+    const ai = aiSource(host);
+    if (ai) return ai;
     if (host.includes("instagram")) return "instagram";
     if (host.includes("facebook") || host.includes("fb.")) return "facebook";
     if (host.includes("twitter") || host.includes("x.com")) return "twitter";

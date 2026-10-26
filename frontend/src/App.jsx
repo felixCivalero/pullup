@@ -14,6 +14,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
    Everything else goes to the front page. The old PullUp platform lives on
    the `pullup-app` branch. */
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
+const ProductPage = lazyPage(() => import("./pages/ProductPage"), "ProductPage");
 const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
 const PrivacyPage = lazyPage(() => import("./pages/LegalPages"), "PrivacyPage");
 const TermsPage = lazyPage(() => import("./pages/LegalPages"), "TermsPage");
@@ -44,6 +45,8 @@ function App() {
           {/* The link in outreach mail: lands on the cases, counted as "mejl". */}
           <Route path="/case" element={<Navigate to="/?ref=mejl#stories" replace />} />
           <Route path="/stories/adam-flambo" element={<Navigate to="/work/adam-flambo" replace />} />
+          {/* The event platform's own page (free event pages; your AI can run it). */}
+          <Route path="/pullup" element={<ProductPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/cookies" element={<CookiesPage />} />

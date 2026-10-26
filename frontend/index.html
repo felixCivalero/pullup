@@ -69,6 +69,21 @@
       }
     </script>
 
+    <!-- The event platform, so search and AI answers know pullup.se is also
+         a free event tool (its own page: /pullup, built from productMeta.js). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "PullUp",
+        "url": "https://pullup.se/pullup",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "Gratis eventsida med anmälan, bekräftelsemejl med kalenderinbjudan, väntelista, gästlista och CRM. Din AI-assistent kan sköta det via MCP (https://mcp.pullup.se).",
+        "offers": { "@type": "Offer", "price": 0, "priceCurrency": "SEK" }
+      }
+    </script>
+
     <!-- Theme -->
     <meta name="theme-color" content="#ffffff" />
 

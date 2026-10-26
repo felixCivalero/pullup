@@ -6,10 +6,13 @@ import { formatWhen } from "./eventPlatform.js";
 const esc = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+// Every guest who gets a confirmation sees where free event pages come from.
+const MADE_WITH = 'Skickat via <a href="https://pullup.se/pullup" style="color:#8a8a8e;">PullUp</a> – gratis eventsidor med anmälan.';
+
 const shell = (inner, footer = "") => `<!doctype html><html><body style="margin:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0a0a0a;">
   <div style="max-width:560px;margin:0 auto;padding:32px 22px;">
     ${inner}
-    <p style="margin:36px 0 0;padding-top:16px;border-top:1px solid #eeeeee;font-size:12px;line-height:1.5;color:#8a8a8e;">${footer || "Skickat via PullUp"}</p>
+    <p style="margin:36px 0 0;padding-top:16px;border-top:1px solid #eeeeee;font-size:12px;line-height:1.5;color:#8a8a8e;">${footer || MADE_WITH}</p>
   </div>
 </body></html>`;
 
@@ -45,6 +48,8 @@ export function confirmationEmail({ event, name, status, eventUrl, googleUrl, ic
     "",
     ...(waitlist ? [] : [`Google Kalender: ${googleUrl}`, `Apple / Outlook: ${icsUrl}`]),
     `Se eventet: ${eventUrl}`,
+    "",
+    "Skickat via PullUp – gratis eventsidor med anmälan: https://pullup.se/pullup",
   ].join("\n");
   return { subject, html, text };
 }

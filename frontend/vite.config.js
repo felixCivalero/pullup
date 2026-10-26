@@ -43,45 +43,110 @@ function envGuardPlugin() {
   };
 }
 
-// Each case gets its own copy of index.html with its own share tags
-// (dist/work/<slug>.html; nginx serves it for /work/<slug> via `$uri.html`).
-// Link previews don't run JS, so without this every shared case showed the
-// front page's first-person card. Text + images: src/components/agency/caseShare.js.
-function caseSharePlugin() {
+const attr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+// Swap the share/SEO tags of a copy of index.html. Every tag must exist —
+// a renamed tag fails the build instead of shipping the front page's card.
+function withMeta(base, m) {
+  const set = (html, re, value) => {
+    if (!re.test(html)) throw new Error(`[pullup-pages] index.html is missing ${re}`);
+    return html.replace(re, (_, pre) => `${pre}${attr(value)}"`);
+  };
+  let html = base.replace(/<title>[^<]*<\/title>/, `<title>${attr(m.title)}</title>`);
+  html = set(html, /(<meta name="title" content=")[^"]*"/, m.title);
+  html = set(html, /(<meta name="description" content=")[^"]*"/, m.description);
+  html = set(html, /(<link rel="canonical" href=")[^"]*"/, m.url);
+  html = set(html, /(<meta property="og:url" content=")[^"]*"/, m.url);
+  html = set(html, /(<meta property="og:type" content=")[^"]*"/, m.type || "website");
+  html = set(html, /(<meta property="og:title" content=")[^"]*"/, m.title);
+  html = set(html, /(<meta property="og:description" content=")[^"]*"/, m.description);
+  html = set(html, /(<meta name="twitter:title" content=")[^"]*"/, m.title);
+  html = set(html, /(<meta name="twitter:description" content=")[^"]*"/, m.description);
+  if (m.image) {
+    html = set(html, /(<meta property="og:image" content=")[^"]*"/, m.image);
+    html = set(html, /(<meta property="og:image:secure_url" content=")[^"]*"/, m.image);
+    html = set(html, /(<meta property="og:image:alt" content=")[^"]*"/, m.alt);
+    html = set(html, /(<meta name="twitter:image" content=")[^"]*"/, m.image);
+    html = set(html, /(<meta name="twitter:image:alt" content=")[^"]*"/, m.alt);
+  }
+  if (m.jsonLd) {
+    // Replace the site's own structured data with the page's.
+    html = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/g, "");
+    const ld = m.jsonLd.map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, "\\u003c")}</script>`).join("\n    ");
+    html = html.replace("</head>", `    ${ld}\n  </head>`);
+  }
+  return html;
+}
+
+// The public pages, built as real HTML files (nginx serves /x from x.html
+// via `$uri.html`):
+//  1. Each case and /pullup get their own share tags — link previews don't
+//     run JS, so without this every shared link showed the front page's card.
+//  2. The pages are pre-rendered into them (src/entry-prerender.jsx), so
+//     search engines and AI crawlers read the content, not an empty <div>.
+//  3. app.html stays the bare shell: nginx falls back to it for every app
+//     route (/admin, /e/…), so those never flash the front page.
+// A page that fails to render ships as the bare shell, with a warning.
+function pagesPlugin() {
   let outDir = null;
+  let projectRoot = null;
   return {
-    name: "pullup-case-share",
+    name: "pullup-pages",
     apply: "build",
     configResolved(cfg) {
+      projectRoot = cfg.root;
       outDir = resolve(cfg.root, cfg.build.outDir);
     },
     async closeBundle() {
       const { CASE_SHARES } = await import("./src/components/agency/caseShare.js");
+      const product = await import("./src/pages/productMeta.js");
       const root = outDir;
-      const base = readFileSync(join(root, "index.html"), "utf8");
-      const attr = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      const shell = readFileSync(join(root, "index.html"), "utf8");
+      writeFileSync(join(root, "app.html"), shell);
+
+      const pages = [
+        { route: "/", file: "index.html", html: shell },
+        {
+          route: "/pullup",
+          file: "pullup.html",
+          html: withMeta(shell, {
+            title: product.PRODUCT_TITLE, description: product.PRODUCT_DESCRIPTION, url: product.PRODUCT_URL, jsonLd: product.productJsonLd(),
+          }),
+        },
+        ...CASE_SHARES.map((c) => ({
+          route: `/work/${c.slug}`,
+          file: `work/${c.slug}.html`,
+          html: withMeta(shell, { title: c.pageTitle, description: c.description, url: c.url, type: "article", image: c.image, alt: c.alt }),
+        })),
+        ...["privacy", "terms", "cookies"].map((p) => ({ route: `/${p}`, file: `${p}.html`, html: shell })),
+      ];
+
+      const { createServer } = await import("vite");
+      const server = await createServer({
+        configFile: false,
+        root: projectRoot,
+        mode: "production",
+        plugins: [react()],
+        server: { middlewareMode: true, hmr: false },
+        appType: "custom",
+        logLevel: "error",
+      });
       mkdirSync(join(root, "work"), { recursive: true });
-      for (const c of CASE_SHARES) {
-        const set = (html, re, value) => {
-          if (!re.test(html)) throw new Error(`[pullup-case-share] index.html is missing ${re}`);
-          return html.replace(re, (_, pre) => `${pre}${attr(value)}"`);
-        };
-        let html = base.replace(/<title>[^<]*<\/title>/, `<title>${attr(c.pageTitle)}</title>`);
-        html = set(html, /(<meta name="title" content=")[^"]*"/, c.pageTitle);
-        html = set(html, /(<meta name="description" content=")[^"]*"/, c.description);
-        html = set(html, /(<link rel="canonical" href=")[^"]*"/, c.url);
-        html = set(html, /(<meta property="og:url" content=")[^"]*"/, c.url);
-        html = set(html, /(<meta property="og:type" content=")[^"]*"/, "article");
-        html = set(html, /(<meta property="og:title" content=")[^"]*"/, c.pageTitle);
-        html = set(html, /(<meta property="og:description" content=")[^"]*"/, c.description);
-        html = set(html, /(<meta property="og:image" content=")[^"]*"/, c.image);
-        html = set(html, /(<meta property="og:image:secure_url" content=")[^"]*"/, c.image);
-        html = set(html, /(<meta property="og:image:alt" content=")[^"]*"/, c.alt);
-        html = set(html, /(<meta name="twitter:title" content=")[^"]*"/, c.pageTitle);
-        html = set(html, /(<meta name="twitter:description" content=")[^"]*"/, c.description);
-        html = set(html, /(<meta name="twitter:image" content=")[^"]*"/, c.image);
-        html = set(html, /(<meta name="twitter:image:alt" content=")[^"]*"/, c.alt);
-        writeFileSync(join(root, "work", `${c.slug}.html`), html);
+      try {
+        const { render } = await server.ssrLoadModule("/src/entry-prerender.jsx");
+        for (const page of pages) {
+          let html = page.html;
+          try {
+            const body = await render(page.route);
+            if (!html.includes('<div id="root"></div>')) throw new Error("no empty #root in index.html");
+            html = html.replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+          } catch (err) {
+            console.warn(`[pullup-pages] ${page.route} not pre-rendered: ${err.message}`);
+          }
+          writeFileSync(join(root, page.file), html);
+        }
+      } finally {
+        await server.close();
       }
     },
   };
@@ -89,7 +154,7 @@ function caseSharePlugin() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [envGuardPlugin(), react(), caseSharePlugin()],
+  plugins: [envGuardPlugin(), react(), pagesPlugin()],
   build: {
     rollupOptions: {
       output: {

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "se.pullup/pullup",
+  "title": "PullUp",
+  "description": "Free event pages with RSVP, calendar invites, waitlist, guest list, CRM and email to guests.",
+  "version": "2.0.0",
+  "websiteUrl": "https://pullup.se/pullup",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.pullup.se"
+    }
+  ]
+}

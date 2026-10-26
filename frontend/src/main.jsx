@@ -15,10 +15,17 @@ if (document.modelContext || navigator.modelContext) {
   import("./lib/webmcp.js").then((m) => m.startWebMcp());
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const root = document.getElementById("root");
+const app = (
   <React.StrictMode>
     <BrowserRouter>
       <App />
     </BrowserRouter>
   </React.StrictMode>
 );
+// Public pages arrive pre-rendered (vite.config.js, pagesPlugin): take over
+// that HTML instead of drawing it again. A difference (another language
+// saved in this browser) just re-renders that part. App routes get the bare
+// shell (app.html) and render from scratch.
+if (root.hasChildNodes()) ReactDOM.hydrateRoot(root, app, { onRecoverableError: () => {} });
+else ReactDOM.createRoot(root).render(app);

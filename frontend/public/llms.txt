@@ -24,5 +24,6 @@ Signed in (an organiser, their own events): whoami, list_my_events, get_my_event
 
 ## Pages
 
+- [PullUp – free event pages](https://pullup.se/pullup): what it does, price, how to connect an AI, FAQ
 - [Felix Civalero — work](https://pullup.se/): case studies and how to work with Felix
 - [Sign in](https://pullup.se/login): email code, the first sign-in creates the account

@@ -10,7 +10,7 @@ import { MailLink } from "../components/agency/MailLink.jsx";
    statistics → lib/track.js (stores nothing), browser storage → i18n.js (language),
    lib/lazyPage.js (chunk reload) and the Supabase login. */
 
-const UPDATED = { sv: "Senast uppdaterad 19 oktober 2026", en: "Last updated 19 October 2026" };
+const UPDATED = { sv: "Senast uppdaterad 26 oktober 2026", en: "Last updated 26 October 2026" };
 const Mail = () => <MailLink />;
 
 function Legal({ title, children }) {
@@ -61,11 +61,21 @@ export function PrivacyPage() {
               <li><strong>Felrapporter:</strong> om sidan kraschar skickas en rapport om felet, webbläsaren och sidan.</li>
             </ul>
 
+            <h2>PullUp – eventsidor och konton</h2>
+            <ul>
+              <li><strong>Ditt konto:</strong> din e-post. Varje gång du ber om en inloggningskod sparas också webbläsare och system (till exempel ”Chrome på macOS”), land, IP-adress och tid – för att skydda kontot, begränsa missbruk och visa i mejlet var inloggningen begärdes. Det sparas i 30 dagar.</li>
+              <li><strong>Dina event och gäster:</strong> det du lägger upp, och de som anmäler sig till dina event. För dina gästers uppgifter är du som arrangör ansvarig; PullUp lagrar dem och skickar mejl för din räkning.</li>
+              <li><strong>När du anmäler dig till ett event:</strong> namn, e-post, om du vill höra om fler event och om du kom. Arrangören ser dem. Du får ett bekräftelsemejl, och mejl till en lista innehåller alltid en avregistreringslänk.</li>
+              <li><strong>AI-assistenter:</strong> kopplar du en assistent sparas vilken det är och vad den gjort (vilken åtgärd, när och om det gick), i 180 dagar, så att du kan se det under Agenter. Du kan koppla från den när du vill.</li>
+              <li><strong>Köp av mejlkrediter</strong> sker hos Stripe. Jag får aldrig dina kortuppgifter.</li>
+            </ul>
+
             <h2>Varför</h2>
             <ul>
               <li>För att svara på det du bett om – din förfrågan eller bookleten. Det är steg inför ett eventuellt samarbete, eller mitt berättigade intresse av att svara dig.</li>
               <li>Statistik, loggar och felrapporter: mitt berättigade intresse av att förstå hur sajten används, göra den bättre och hålla den igång.</li>
               <li>Skickar du en förfrågan kopplas den till besöket den kom från, så att jag ser vad du läste innan du hörde av dig. Det är mitt berättigade intresse av att förstå vad som får folk att höra av sig.</li>
+              <li>Konto, event, anmälningar och mejl: för att tjänsten du använder ska fungera (avtal). Inloggningsuppgifter och assistenternas logg: mitt berättigade intresse av att hålla konton säkra.</li>
             </ul>
             <p>Jag säljer aldrig dina uppgifter, lämnar inte ut dem för någon annans marknadsföring och lägger inte till dig i något nyhetsbrev.</p>
 
@@ -75,6 +85,7 @@ export function PrivacyPage() {
               <li><strong>Amazon Web Services</strong> – servern. EU (Stockholm).</li>
               <li><strong>Cloudflare</strong> – nätverket framför sajten.</li>
               <li><strong>Resend</strong> – skickar mejlen.</li>
+              <li><strong>Stripe</strong> – tar betalt för mejlkrediter.</li>
               <li><strong>Sentry</strong> – tar emot felrapporter.</li>
               <li><strong>Google Fonts</strong> – typsnittet laddas från Google, så din IP-adress når Google när sidan öppnas.</li>
             </ul>
@@ -103,11 +114,21 @@ export function PrivacyPage() {
               <li><strong>Error reports:</strong> if the page crashes, a report about the error, the browser and the page is sent.</li>
             </ul>
 
+            <h2>PullUp – event pages and accounts</h2>
+            <ul>
+              <li><strong>Your account:</strong> your email. Each time you ask for a sign-in code, the browser and system (for example “Chrome on macOS”), country, IP address and time are stored too – to protect the account, limit abuse and show in the email where the sign-in was requested. Kept for 30 days.</li>
+              <li><strong>Your events and guests:</strong> what you publish, and the people who sign up to your events. As the organiser you are responsible for your guests' data; PullUp stores it and sends email on your behalf.</li>
+              <li><strong>When you sign up to an event:</strong> your name, email, whether you want to hear about more events and whether you came. The organiser sees them. You get a confirmation email, and email to a list always carries an unsubscribe link.</li>
+              <li><strong>AI assistants:</strong> if you connect an assistant, which one it is and what it did (which action, when and whether it worked) is kept for 180 days, so you can see it under Agents. You can disconnect it whenever you like.</li>
+              <li><strong>Buying mail credits</strong> happens at Stripe. I never get your card details.</li>
+            </ul>
+
             <h2>Why</h2>
             <ul>
               <li>To answer what you asked for – your request or the booklet. That is a step before a possible engagement, or my legitimate interest in replying to you.</li>
               <li>Statistics, logs and error reports: my legitimate interest in understanding how the site is used, improving it and keeping it running.</li>
               <li>If you send a request, it is linked to the visit it came from, so I can see what you read before getting in touch. That is my legitimate interest in understanding what makes people reach out.</li>
+              <li>Account, events, sign-ups and email: to make the service you use work (contract). Sign-in details and the assistants' log: my legitimate interest in keeping accounts secure.</li>
             </ul>
             <p>I never sell your data, never hand it to anyone else for their marketing and never add you to a newsletter.</p>
 
@@ -117,6 +138,7 @@ export function PrivacyPage() {
               <li><strong>Amazon Web Services</strong> – the server. EU (Stockholm).</li>
               <li><strong>Cloudflare</strong> – the network in front of the site.</li>
               <li><strong>Resend</strong> – sends the emails.</li>
+              <li><strong>Stripe</strong> – takes payment for mail credits.</li>
               <li><strong>Sentry</strong> – receives error reports.</li>
               <li><strong>Google Fonts</strong> – the typeface loads from Google, so your IP address reaches Google when the page opens.</li>
             </ul>
@@ -155,6 +177,9 @@ export function TermsPage() {
             <h2>Erbjudandet</h2>
             <p>Priset och upplägget på sajten beskriver hur jag jobbar. Ett samarbete börjar först när vi har kommit överens skriftligt, och då är det vårt avtal som gäller – även för pengarna-tillbaka-garantin.</p>
 
+            <h2>PullUp, eventplattformen</h2>
+            <p>Du får använda PullUp gratis för dina event. Du ansvarar för det du lägger upp och för att du har rätt att mejla dem du mejlar – de som anmält sig till ditt event, eller som sagt ja till att höra mer. Mejl till många betalas med mejlkrediter i förväg; de går aldrig ut, och mejl som inte kan levereras får du tillbaka krediten för. Kopplar du en AI-assistent agerar den för dig, med dina rättigheter, och det den gör räknas som gjort av dig. Event eller konton som används för spam, bedrägeri eller olagligt innehåll kan tas bort.</p>
+
             <h2>Ansvar</h2>
             <p>Jag gör mitt bästa för att allt på sajten ska stämma och fungera, men kan inte lova att den alltid gör det. Jag ansvarar inte för sajter jag länkar till.</p>
 
@@ -174,6 +199,9 @@ export function TermsPage() {
 
             <h2>The offer</h2>
             <p>The price and setup on the site describe how I work. An engagement only starts once we've agreed in writing, and then our agreement is what applies – including the money-back guarantee.</p>
+
+            <h2>PullUp, the event platform</h2>
+            <p>You may use PullUp for free for your events. You are responsible for what you publish and for having the right to email the people you email – those who signed up to your event, or said yes to hearing more. Email to many people is paid for with mail credits in advance; they never expire, and you get the credit back for email that can't be delivered. If you connect an AI assistant, it acts for you, with your rights, and what it does counts as done by you. Events or accounts used for spam, fraud or illegal content may be removed.</p>
 
             <h2>Liability</h2>
             <p>I do my best to make everything on the site accurate and working, but can't promise it always is. I'm not responsible for sites I link to.</p>
@@ -198,7 +226,7 @@ export function CookiesPage() {
             <ul>
               <li><strong>Språkval</strong> – bara om du byter språk, så att sajten minns det (localStorage).</li>
               <li><strong>Omladdning efter uppdatering</strong> – en teknisk markering under besöket om sidan behövt laddas om efter att jag publicerat en ny version (sessionStorage).</li>
-              <li><strong>Inloggning</strong> – bara för mig, när jag loggar in.</li>
+              <li><strong>Inloggning</strong> – när du loggar in sparas inloggningen (localStorage). Medan du väntar på koden sparas också en slumpad hemlighet som gör att koden och länken i mejlet bara fungerar i just den här webbläsaren; den tas bort när du loggat in.</li>
             </ul>
             <p>Du kan rensa allt detta när du vill i webbläsarens inställningar. Sajten fungerar som vanligt ändå. Mer om hur uppgifterna används finns i <Link to="/privacy">integritetspolicyn</Link>.</p>
           </>
@@ -209,7 +237,7 @@ export function CookiesPage() {
             <ul>
               <li><strong>Language</strong> – only if you switch language, so the site remembers it (localStorage).</li>
               <li><strong>Reload after an update</strong> – a technical marker during your visit if the page had to reload after I published a new version (sessionStorage).</li>
-              <li><strong>Login</strong> – only for me, when I log in.</li>
+              <li><strong>Sign-in</strong> – when you sign in, the session is stored (localStorage). While you wait for the code, a random secret is stored too, so the code and the link in the email only work in this browser; it is removed once you're signed in.</li>
             </ul>
             <p>You can clear all of it whenever you like in your browser settings. The site works just the same. More on how the data is used in the <Link to="/privacy">privacy policy</Link>.</p>
           </>

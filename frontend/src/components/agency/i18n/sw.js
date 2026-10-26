@@ -7,6 +7,7 @@ export const SW = {
   "Log in": "Ingia",
   "Build with us": "Jenga nasi",
   "Canvas": "Canvas",
+  "PullUp – free event pages": "PullUp – kurasa za matukio bila malipo",
   "Privacy": "Faragha",
   "Terms": "Masharti",
   "Cookies": "Vidakuzi",

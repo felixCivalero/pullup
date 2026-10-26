@@ -12,6 +12,7 @@ const SECTION_LABELS = {
   words: "Intro",
   stories: "Case",
   how: "Så jobbar jag",
+  tech: "Teknik",
   offer: "Erbjudandet",
   about: "Om mig",
   deck: "Booklet",

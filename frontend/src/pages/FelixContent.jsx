@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Bot, LayoutDashboard, Mail, Monitor, Plug, Server, ShieldCheck, ShoppingCart, Workflow } from "lucide-react";
 import { trackEvent } from "../lib/analytics.js";
 import { Reveal } from "../components/agency/Reveal.jsx";
 import { LogoBand } from "../components/agency/landingParts.jsx";
@@ -11,7 +11,7 @@ import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
    (small cards) → the cases (horizontal rail) → how the work runs (the 12-week picture with the weekly
-   30-minute sprint) → the one offer → a short bio.
+   30-minute sprint) → the tech he builds (blocks) → the one offer → a short bio.
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 // The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
@@ -22,6 +22,21 @@ import { useT } from "../components/agency/i18n.js";
 const BIO = [
   "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
   "All of it taught me how to build something that lasts. Today I do it for companies, creators and artists — with a clear direction, content that sounds like them and growth you can see.",
+];
+
+// What Felix builds himself, shown as blocks before the offer (Felix
+// 2026-10-26). Only what he has actually built — no languages or tools he
+// hasn't shipped.
+const TECH = [
+  [ShoppingCart, "E-commerce", "Webshops, checkout and payments — built and connected end to end."],
+  [Monitor, "Frontend", "Fast sites and apps in JavaScript and React — what your customers see."],
+  [Server, "Backend", "Servers, APIs and databases in Node and Postgres — what keeps it all running."],
+  [Bot, "AI infrastructure", "AI agents and assistants connected to your own systems and data."],
+  [Workflow, "Data flows", "Data that moves between your tools on its own — no copying by hand."],
+  [Mail, "CRM and email", "Your own customer register and email sends, with every open and click tracked."],
+  [LayoutDashboard, "Tracking and dashboards", "Every visit and every sale measured, in dashboards you actually read."],
+  [Plug, "Integrations", "Instagram, WhatsApp, Stripe and Google — connected to everything else."],
+  [ShieldCheck, "Hosting and security", "Servers, domains and email delivery set up properly and kept secure."],
 ];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -95,8 +110,30 @@ export function FelixContent() {
         </div>
       </section>
 
+      {/* the tech — what Felix builds himself */}
+      <section id="tech" className="fl-sec fl-rule" data-pc-section="tech" data-pc-order="5">
+        <div className="fl-wrap">
+          <p className="fl-label">{t("Tech")}</p>
+          <Reveal><h2 className="fl-h2">{t("I build the tech myself.")}</h2></Reveal>
+          <Reveal delay={0.05}>
+            <p className="fl-p">{t("Behind every brand is the tech that carries it. I write the code myself — so it's built for you, not squeezed into a template.")}</p>
+          </Reveal>
+          <ul className="fl-tech">
+            {TECH.map(([Icon, h, b], i) => (
+              <Reveal key={h} delay={0.03 * (i % 3)}>
+                <li>
+                  <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
+                  <h3>{t(h)}</h3>
+                  <p>{t(b)}</p>
+                </li>
+              </Reveal>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       {/* the offer */}
-      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="5">
+      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
         <div className="fl-wrap">
           <p className="fl-label">{t("The offer")}</p>
           <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
@@ -112,7 +149,7 @@ export function FelixContent() {
         </div>
       </section>
       {/* about */}
-      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="6">
+      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="7">
         <div className="fl-wrap">
           <p className="fl-label">{t("About me")}</p>
           <Reveal><h2 className="fl-h2">{t("I love building brands.")}</h2></Reveal>
@@ -197,6 +234,13 @@ export const FELIX_CSS = `
 
   /* how it runs */
   .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
+
+  /* tech blocks */
+  .fl-tech { list-style: none; margin: clamp(32px, 4vw, 56px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+  .fl-tech li { height: 100%; box-sizing: border-box; padding: clamp(20px, 2.2vw, 28px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; }
+  .fl-tech svg { color: var(--accent); }
+  .fl-tech h3 { margin-top: 14px; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+  .fl-tech p { margin-top: 6px; font-size: 15px; line-height: 1.5; color: #555; }
 
   /* offer */
   .fl-offer { background: var(--ink); color: #fff; padding: clamp(96px, 13vw, 168px) 0; }

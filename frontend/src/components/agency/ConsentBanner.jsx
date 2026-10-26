@@ -24,7 +24,7 @@ export function ConsentBanner() {
   return (
     <div className="cb" role="dialog" aria-live="polite" aria-label={t("Cookies")}>
       <style>{CB_CSS}</style>
-      <p className="cb-h">{t("May I count you as a visitor?")}</p>
+      <p className="cb-h">{t("Allow cookie?")}</p>
       <p className="cb-p">
         {t("One cookie that only counts how many different people visit. Nothing else.")}{" "}
         <a href="/cookies">{t("Read more")}</a>

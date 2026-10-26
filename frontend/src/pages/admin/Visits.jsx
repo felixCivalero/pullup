@@ -1,6 +1,40 @@
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { CASES } from "../../components/agency/agencyData.js";
+import { translate } from "../../components/agency/i18n.js";
+
+// The sections each page has LIVE, in page order — Statistik lists only these,
+// as "Sektion N – namn", so sections from older versions of the page never
+// show up (Felix 2026-10-26). The front page is listed here (keep in step
+// with FelixContent.jsx); each case page is read from its own story data.
+const HOME_LAYOUT = [
+  ["hero", "Toppen"],
+  ["words", "Vad de säger"],
+  ["stories", "Case"],
+  ["tech", "Tekniska kunskaper och produkter"],
+  ["how", "Så jobbar jag"],
+  ["offer", "Erbjudandet"],
+];
+const STORIES = import.meta.glob("../stories/data/*.jsx", { eager: true, import: "default" });
+const sv = (x) => (x ? translate("sv", x) : "");
+function caseLayout(story) {
+  const blocks = story.blocks
+    .filter((b) => b.section)
+    .sort((a, b) => a.order - b.order)
+    .map((b) => [b.section, sv(b.k || b.chapter?.[1] || b.label) || b.section]);
+  return [
+    ["case_hero", "Toppen"],
+    ["spine", "Caset i fyra steg"],
+    ...blocks,
+    ["next_case", "Nästa case"],
+    ["all_stories", "Alla case"],
+    ["offer", "Erbjudandet"],
+  ];
+}
+const LAYOUTS = {
+  "/": HOME_LAYOUT,
+  ...Object.fromEntries(Object.values(STORIES).map((st) => [`/work/${st.slug}`, caseLayout(st)])),
+};
 
 /* Statistik's reading half: the funnel, where the time goes per page and
    section, and every visit as a journey you can open (GET /admin/visits,
@@ -9,10 +43,10 @@ import { CASES } from "../../components/agency/agencyData.js";
 
 const SECTION_LABELS = {
   hero: "Toppen",
-  words: "Intro",
+  words: "Vad de säger",
   stories: "Case",
   how: "Så jobbar jag",
-  tech: "Teknik",
+  tech: "Tekniska kunskaper och produkter",
   offer: "Erbjudandet",
   about: "Om mig",
   deck: "Booklet",
@@ -71,6 +105,16 @@ export function Visits({ days }) {
 
   const base = data.funnel[0]?.count || 0;
   const pageRow = data.pages.find((p) => p.page === page) || data.pages[0];
+  // The live sections in order, each with its numbers (zero if nobody got
+  // there yet). A page without a known layout shows what was measured.
+  const layout = pageRow && LAYOUTS[pageRow.page];
+  const rows = !pageRow ? [] : layout
+    ? layout.map(([id, label], i) => ({
+        key: id,
+        name: `Sektion ${i + 1} – ${label}`,
+        ...(pageRow.sections.find((x) => x.section === id) || { reached: 0, visits: 0, readers: 0, medianSecs: 0 }),
+      }))
+    : pageRow.sections.map((x) => ({ key: x.section, name: sectionLabel(x.section), ...x }));
   const list = data.visits.filter((v) => filter === "all" || v[filter]);
 
   return (
@@ -89,7 +133,7 @@ export function Visits({ days }) {
       </ol>
 
       <h2>Var tiden läggs</h2>
-      <p className="st-muted">Per sektion: hur många av sidans besök som kom dit, och hur länge de som läste stannade (median, aktiv tid).</p>
+      <p className="st-muted">Sidans sektioner i ordning, som de ser ut nu. Nådde = andel av besöken sedan sektionen fanns som kom dit. Läste = besök med lästid där, median = hur länge de stannade (aktiv tid).</p>
       {data.pages.length > 1 && (
         <div className="vs-tabs">
           {data.pages.map((p) => (
@@ -103,12 +147,12 @@ export function Visits({ days }) {
         <table className="st-table vs-sections">
           <thead><tr><th>Sektion</th><th>Nådde</th><th>Läste</th><th>Median</th></tr></thead>
           <tbody>
-            {pageRow.sections.map((s) => (
-              <tr key={s.section}>
-                <td>{sectionLabel(s.section)}</td>
+            {rows.map((s) => (
+              <tr key={s.key}>
+                <td>{s.name}</td>
                 <td>
-                  <span className="vs-reach"><i style={{ width: `${pctOf(s.reached, pageRow.visits)}%` }} /></span>
-                  {pctOf(s.reached, pageRow.visits)} %
+                  <span className="vs-reach"><i style={{ width: `${pctOf(s.reached, s.visits)}%` }} /></span>
+                  {s.visits ? `${pctOf(s.reached, s.visits)} %` : "–"}
                 </td>
                 <td>{s.readers || "–"}</td>
                 <td>{secs(s.medianSecs)}</td>

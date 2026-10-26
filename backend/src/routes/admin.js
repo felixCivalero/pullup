@@ -3,6 +3,11 @@ import { requireOwner } from "../middleware/requireOwner.js";
 import { requireUser } from "../middleware/requireUser.js";
 import { supabase } from "../supabase.js";
 import { summarizeVisits, visitTimeline } from "../lib/visitJourneys.js";
+import { uniqueVisitors } from "../lib/uniqueVisitors.js";
+
+// The stats cookie (opt-in, frontend lib/consent.js) went live this day; before
+// it no visitor was kept, so unique visitors are counted from here on.
+const UNIQUES_SINCE = "2026-10-26T00:00:00+02:00";
 
 const TZ = "Europe/Stockholm";
 const dayKey = (iso) => new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
@@ -31,7 +36,7 @@ export async function siteStats(days = 30) {
   const since = new Date(Date.now() - days * 86400000);
   since.setUTCHours(0, 0, 0, 0);
 
-  const [events, requests, leads] = await Promise.all([
+  const [events, requests, leads, uniqueRows] = await Promise.all([
     selectAll(() =>
       supabase
         .from("analytics_events")
@@ -53,6 +58,17 @@ export async function siteStats(days = 30) {
       .select("id, created_at, name, email, company, description, preferred_time, source, visit_id:meta->>visitId")
       .order("created_at", { ascending: false })
       .limit(50),
+    // All of it since the cookie went live, not just the period: the running
+    // total counts everyone ever counted.
+    selectAll(() =>
+      supabase
+        .from("analytics_events")
+        .select("visitor_id, session_id, occurred_at, event_name, props")
+        .in("event_name", ["page_view", "consent"])
+        .neq("source", "localhost")
+        .gte("occurred_at", UNIQUES_SINCE)
+        .order("occurred_at", { ascending: true }),
+    ),
   ]);
   if (leads.error) throw leads.error;
 
@@ -89,9 +105,14 @@ export async function siteStats(days = 30) {
   const sources = [...bySource.values()].sort((a, b) => b.views - a.views || b.clicks - a.clicks);
   const pages = [...byPage].map(([page, views]) => ({ page, views })).sort((a, b) => b.views - a.views);
 
-  const series = [...byDay.values()];
+  // Unique visitors (only those who said yes to the stats cookie): new per
+  // day and the running total since the cookie went live.
+  const uniques = uniqueVisitors(uniqueRows, [...byDay.keys()], dayKey);
+  const series = [...byDay.values()].map((d, i) => ({ ...d, ...uniques.series[i] }));
   const totals = series.reduce((t, d) => ({ views: t.views + d.views, clicks: t.clicks + d.clicks, requests: t.requests + d.requests }), { views: 0, clicks: 0, requests: 0 });
-  return { days, series, totals, sources, pages, leads: leads.data || [] };
+  totals.uniques = uniques.total;
+  totals.uniquesInPeriod = uniques.inPeriod;
+  return { days, series, totals, consent: uniques.consent, uniquesSince: UNIQUES_SINCE.slice(0, 10), sources, pages, leads: leads.data || [] };
 }
 
 export function registerAdminRoutes(app) {

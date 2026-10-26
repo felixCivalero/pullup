@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { getConsent, onConsentChange, setConsent } from "../lib/consent.js";
 import { Link } from "react-router-dom";
 import { useLang } from "../components/agency/i18n.js";
 import { LangSwitch } from "../components/agency/LangSwitch.jsx";
@@ -7,7 +8,8 @@ import { MailLink } from "../components/agency/MailLink.jsx";
 /* /privacy, /terms, /cookies — what this site actually does with data, in
    Swedish and English (Swahili reads the English). Keep these in step with
    the code: forms → backend/src/routes/{agencyRequests,deckDownloads}.js,
-   statistics → lib/track.js (stores nothing), browser storage → i18n.js (language),
+   statistics → lib/track.js + lib/consent.js (the one opt-in counter),
+   browser storage → i18n.js (language),
    lib/lazyPage.js (chunk reload) and the Supabase login. */
 
 const UPDATED = { sv: "Senast uppdaterad 26 oktober 2026", en: "Last updated 26 October 2026" };
@@ -56,7 +58,8 @@ export function PrivacyPage() {
             <ul>
               <li><strong>När du hör av dig</strong> via ”Jobba med mig”: namn, e-post och det du skriver i formuläret. Med följer var du kom ifrån – sidan du skickade från, länken som tog dig hit (referrer), eventuella kampanjparametrar (UTM), språk, skärmstorlek, mobil eller dator och när besöket började.</li>
               <li><strong>När du ber om bookleten:</strong> e-post, och namn och företag om du fyller i dem.</li>
-              <li><strong>Besöksstatistik:</strong> vilka sidor du ser, hur långt ner du läser och hur länge du läser varje del, vad du klickar på, att du kopierar text (inte vad), vilka fält i formuläret du fyller i (inte vad du skriver), referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Inget sparas i din webbläsare, och statistiken innehåller inte namn, e-post eller IP-adress – den kan inte känna igen dig nästa gång du kommer tillbaka. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
+              <li><strong>Besöksstatistik:</strong> vilka sidor du ser, hur långt ner du läser och hur länge du läser varje del, vad du klickar på, att du kopierar text (inte vad), vilka fält i formuläret du fyller i (inte vad du skriver), referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Statistiken innehåller inte namn, e-post eller IP-adress.</li>
+              <li><strong>Unika besökare – bara om du säger ja:</strong> slår du på statistik-kakan sparas ett slumpat id i din webbläsare, så att jag kan räkna hur många olika personer som besöker sajten över tid. Säger du nej, eller inte svarar, sparas ingenting och du känns inte igen nästa gång. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
               <li><strong>Tekniska loggar:</strong> servern loggar IP-adress och webbläsare för drift och säkerhet.</li>
               <li><strong>Felrapporter:</strong> om sidan kraschar skickas en rapport om felet, webbläsaren och sidan.</li>
             </ul>
@@ -74,6 +77,7 @@ export function PrivacyPage() {
             <ul>
               <li>För att svara på det du bett om – din förfrågan eller bookleten. Det är steg inför ett eventuellt samarbete, eller mitt berättigade intresse av att svara dig.</li>
               <li>Statistik, loggar och felrapporter: mitt berättigade intresse av att förstå hur sajten används, göra den bättre och hålla den igång.</li>
+              <li>Räkningen av unika besökare: ditt samtycke. Du kan ändra dig när du vill på <Link to="/cookies">cookiesidan</Link>.</li>
               <li>Skickar du en förfrågan kopplas den till besöket den kom från, så att jag ser vad du läste innan du hörde av dig. Det är mitt berättigade intresse av att förstå vad som får folk att höra av sig.</li>
               <li>Konto, event, anmälningar och mejl: för att tjänsten du använder ska fungera (avtal). Inloggningsuppgifter och assistenternas logg: mitt berättigade intresse av att hålla konton säkra.</li>
             </ul>
@@ -92,7 +96,7 @@ export function PrivacyPage() {
             <p>Några av dem kan behandla uppgifter utanför EU, främst i USA. Det sker med EU:s standardavtalsklausuler eller motsvarande skydd.</p>
 
             <h2>Hur länge</h2>
-            <p>Förfrågningar och booklet-uppgifter sparar jag så länge de behövs för vår kontakt. Ber du mig radera dem gör jag det. Statistiken går inte att koppla till dig som person.</p>
+            <p>Förfrågningar och booklet-uppgifter sparar jag så länge de behövs för vår kontakt. Ber du mig radera dem gör jag det. Statistiken går inte att koppla till dig som person. Id:t för unika besökare finns kvar i din webbläsare tills du stänger av statistik-kakan eller rensar webbläsaren.</p>
 
             <h2>Dina rättigheter</h2>
             <p>Du kan be om att få se, rätta eller radera dina uppgifter, invända mot hur de används, begränsa behandlingen eller få ut dem i ett format du kan ta med dig. Mejla <Mail /> så svarar jag inom en månad. Är du inte nöjd kan du vända dig till Integritetsskyddsmyndigheten (IMY).</p>
@@ -109,7 +113,8 @@ export function PrivacyPage() {
             <ul>
               <li><strong>When you get in touch</strong> through “Work with me”: your name, email and what you write in the form. It comes with where you came from – the page you sent it from, the link that brought you here (referrer), any campaign parameters (UTM), language, screen size, phone or computer and when the visit started.</li>
               <li><strong>When you ask for the booklet:</strong> your email, plus your name and company if you fill them in.</li>
-              <li><strong>Visit statistics:</strong> which pages you view, how far down and for how long you read each part, what you click, that you copied text (not what), which form fields you fill in (not what you type), referrer, UTM and phone or computer, under a random ID that only exists while the page is open. Nothing is stored in your browser, and the statistics hold no names, emails or IP addresses – they can't recognise you the next time you visit. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
+              <li><strong>Visit statistics:</strong> which pages you view, how far down and for how long you read each part, what you click, that you copied text (not what), which form fields you fill in (not what you type), referrer, UTM and phone or computer, under a random ID that only exists while the page is open. The statistics hold no names, emails or IP addresses.</li>
+              <li><strong>Unique visitors – only if you say yes:</strong> if you switch on the stats cookie, a random ID is stored in your browser so I can count how many different people visit the site over time. If you say no, or don't answer, nothing is stored and you're not recognised next time. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
               <li><strong>Technical logs:</strong> the server logs IP address and browser for operations and security.</li>
               <li><strong>Error reports:</strong> if the page crashes, a report about the error, the browser and the page is sent.</li>
             </ul>
@@ -127,6 +132,7 @@ export function PrivacyPage() {
             <ul>
               <li>To answer what you asked for – your request or the booklet. That is a step before a possible engagement, or my legitimate interest in replying to you.</li>
               <li>Statistics, logs and error reports: my legitimate interest in understanding how the site is used, improving it and keeping it running.</li>
+              <li>Counting unique visitors: your consent. You can change your mind any time on the <Link to="/cookies">cookies page</Link>.</li>
               <li>If you send a request, it is linked to the visit it came from, so I can see what you read before getting in touch. That is my legitimate interest in understanding what makes people reach out.</li>
               <li>Account, events, sign-ups and email: to make the service you use work (contract). Sign-in details and the assistants' log: my legitimate interest in keeping accounts secure.</li>
             </ul>
@@ -145,7 +151,7 @@ export function PrivacyPage() {
             <p>Some of them may process data outside the EU, mainly in the US. That happens under the EU's standard contractual clauses or equivalent safeguards.</p>
 
             <h2>How long</h2>
-            <p>I keep requests and booklet details for as long as our contact needs them. If you ask me to delete them, I will. The statistics can't be tied to you as a person.</p>
+            <p>I keep requests and booklet details for as long as our contact needs them. If you ask me to delete them, I will. The statistics can't be tied to you as a person. The unique-visitor ID stays in your browser until you switch the stats cookie off or clear your browser.</p>
 
             <h2>Your rights</h2>
             <p>You can ask to see, correct or delete your data, object to how it's used, restrict the processing or get it in a format you can take with you. Email <Mail /> and I'll answer within a month. If you're not satisfied, you can turn to the Swedish Authority for Privacy Protection (IMY).</p>
@@ -216,14 +222,32 @@ export function TermsPage() {
 }
 
 /* ─── Cookies ─── */
+// The same Av / På as the banner, so the choice can be changed any time.
+function StatsSwitch({ lang }) {
+  const [choice, setChoice] = useState(getConsent);
+  useEffect(() => onConsentChange(setChoice), []);
+  const sv = lang === "sv";
+  return (
+    <div className="lp-switch">
+      <span>{sv ? "Statistik-kakan" : "The stats cookie"}</span>
+      <div className="lp-seg" role="group" aria-label={sv ? "Statistik-kakan" : "The stats cookie"}>
+        <button type="button" aria-pressed={choice === "off"} onClick={() => setConsent(false)}>{sv ? "Av" : "Off"}</button>
+        <button type="button" aria-pressed={choice === "on"} onClick={() => setConsent(true)}>{sv ? "På" : "On"}</button>
+      </div>
+    </div>
+  );
+}
 export function CookiesPage() {
   return (
     <Legal title={{ sv: "Cookies och lagring", en: "Cookies and storage" }}>
       {{
         sv: (
           <>
-            <p>Sajten sätter inga cookies och sparar ingenting i din webbläsare för statistik eller spårning. Det enda som kan sparas är sådant du själv valt eller som sajten behöver för att fungera:</p>
+            <p>Sajten har en enda kaka du väljer själv, och sparar annars bara det den behöver för att fungera.</p>
+            <StatsSwitch lang="sv" />
             <ul>
+              <li><strong>Statistik-kakan</strong> – bara om du slår på den: ett slumpat id som räknar hur många olika personer som besöker sajten. Inget annat kopplas till det, och det tas bort när du stänger av den (localStorage).</li>
+              <li><strong>Ditt val</strong> – att du svarat av eller på, så att frågan inte kommer tillbaka (localStorage).</li>
               <li><strong>Språkval</strong> – bara om du byter språk, så att sajten minns det (localStorage).</li>
               <li><strong>Omladdning efter uppdatering</strong> – en teknisk markering under besöket om sidan behövt laddas om efter att jag publicerat en ny version (sessionStorage).</li>
               <li><strong>Inloggning</strong> – när du loggar in sparas inloggningen (localStorage). Medan du väntar på koden sparas också en slumpad hemlighet som gör att koden och länken i mejlet bara fungerar i just den här webbläsaren; den tas bort när du loggat in.</li>
@@ -233,8 +257,11 @@ export function CookiesPage() {
         ),
         en: (
           <>
-            <p>The site sets no cookies and stores nothing in your browser for statistics or tracking. The only things that can be stored are ones you chose yourself or that the site needs to work:</p>
+            <p>The site has one cookie you choose yourself, and otherwise stores only what it needs to work.</p>
+            <StatsSwitch lang="en" />
             <ul>
+              <li><strong>The stats cookie</strong> – only if you switch it on: a random ID that counts how many different people visit the site. Nothing else is linked to it, and it is removed when you switch it off (localStorage).</li>
+              <li><strong>Your choice</strong> – that you answered off or on, so the question doesn't come back (localStorage).</li>
               <li><strong>Language</strong> – only if you switch language, so the site remembers it (localStorage).</li>
               <li><strong>Reload after an update</strong> – a technical marker during your visit if the page had to reload after I published a new version (sessionStorage).</li>
               <li><strong>Sign-in</strong> – when you sign in, the session is stored (localStorage). While you wait for the code, a random secret is stored too, so the code and the link in the email only work in this browser; it is removed once you're signed in.</li>
@@ -273,6 +300,10 @@ const LEGAL_CSS = `
     .lp-foot { row-gap: 0; }
     .lp-foot a { display: inline-flex; align-items: center; min-height: 44px; }
   }
+  .lp-switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 20px; padding: 14px 16px; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .lp-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 12px; background: #efeff0; min-width: 140px; }
+  .lp-seg button { font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border: 0; border-radius: 9px; background: transparent; color: #6e6e73; cursor: pointer; }
+  .lp-seg button[aria-pressed="true"] { background: #fff; color: #0a0a0a; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
   /* the language pill from the site nav */
   .pc-lang { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: 999px;
     border: 1px solid rgba(0,0,0,0.18); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; cursor: pointer; }

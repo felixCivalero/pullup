@@ -8,6 +8,7 @@ import { AGENCY_CSS } from "./agencyCss.js";
 import { SERIES, casePath } from "./agencyData.js";
 import { MailLink } from "./MailLink.jsx";
 import { RequestDialog } from "./RequestDialog.jsx";
+import { ConsentBanner } from "./ConsentBanner.jsx";
 import { openRequest, rememberArrival } from "./request.js";
 import { LangSwitch } from "./LangSwitch.jsx";
 import { useT } from "./i18n.js";
@@ -184,6 +185,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           </nav>
         </footer>
         <RequestDialog />
+        <ConsentBanner />
       </div>
       {cursor && <EyesCursor hidden={hideCursor} />}
     </div>

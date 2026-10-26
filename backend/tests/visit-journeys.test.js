@@ -77,5 +77,22 @@ assert(kinds.includes("click") && kinds.includes("open") && kinds[kinds.length -
 assert(!kinds.includes("engagement"), "reading time lives in the summary, not as steps");
 assert(t.summary?.request?.name === "Anna" && t.summary.active === 90, "timeline carries the summary");
 
+// A section added later is measured only against the visits since it appeared.
+{
+  const at = (session, day, event_name, props = {}) => ({ session_id: session, event_name, props, occurred_at: `2026-10-${day}T10:00:00.000Z`, source: "direct", device_type: "mobile" });
+  const evs = [
+    at("o1", 20, "page_view", { page: "landing" }), at("o1", 20, "section_view", { page: "/", section: "hero", order: 1 }),
+    at("o2", 21, "page_view", { page: "landing" }), at("o2", 21, "section_view", { page: "/", section: "hero", order: 1 }),
+    at("n1", 26, "page_view", { page: "landing" }), at("n1", 26, "section_view", { page: "/", section: "hero", order: 1 }), at("n1", 26, "section_view", { page: "/", section: "tech", order: 4 }),
+    at("n2", 27, "page_view", { page: "landing" }), at("n2", 27, "section_view", { page: "/", section: "hero", order: 1 }),
+  ];
+  const { pages } = summarizeVisits({ events: evs, requests: [] });
+  const home = pages.find((p) => p.page === "/");
+  const hero = home.sections.find((x) => x.section === "hero");
+  const tech = home.sections.find((x) => x.section === "tech");
+  assert(hero.visits === 4 && hero.reached === 4, "hero: measured against all 4 visits");
+  assert(tech.visits === 2 && tech.reached === 1, "tech (new): measured against the 2 visits since it appeared, not 4");
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall visit-journeys tests passed");

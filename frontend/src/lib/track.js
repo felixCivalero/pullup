@@ -1,4 +1,5 @@
-// The analytics SDK — batched, exactly-once, and stateless on the device.
+// The analytics SDK — batched, exactly-once, and stateless on the device
+// unless the visitor says yes to being counted (lib/consent.js).
 //
 // Every event gets a client-minted UUID and a timestamp, queues in memory,
 // and flushes to POST /t/batch on a 5s timer / 20-event high-water mark /
@@ -6,14 +7,16 @@
 // closing). The server upserts on the event UUID, so a retried batch can never
 // double-count.
 //
-// Nothing is written to the visitor's browser (no cookies, no localStorage):
-// the visitor/session id is random per page load and lives only in memory, so
-// no consent is needed under LEK 9:28 / ePrivacy. The price: no returning-
-// visitor counts. A batch that fails is dropped, never stored for later.
+// The visit (session_id) is a random id per page load, in memory only — that
+// needs no consent under LEK 9:28 / ePrivacy. The visitor (visitor_id) is the
+// same id, unless the visitor switched on the stats cookie: then it's the id
+// kept in their browser, so Statistik can count unique visitors over time.
+// A batch that fails is dropped, never stored for later.
 //
 // Tracking must never break a page: every entry point swallows.
 
 import { API_BASE } from "./env.js";
+import { getConsentedVisitorId } from "./consent.js";
 
 // Keys earlier versions stored on the device — cleared on load.
 const OLD_KEYS = ["pullup_visitor_id", "pullup_session", "pullup_track_retry"];
@@ -71,7 +74,7 @@ function getContext() {
 function buildPayload(events) {
   const ctx = getContext();
   return {
-    visitorId: getVisitorId(),
+    visitorId: getConsentedVisitorId() || getVisitorId(),
     sessionId: getVisitorId(),
     deviceType: ctx.deviceType,
     referrer: ctx.referrer,

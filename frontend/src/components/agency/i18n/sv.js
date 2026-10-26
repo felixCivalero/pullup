@@ -1338,4 +1338,10 @@ export const SV = {
   "The platform this site runs on — events, sign-ups, CRM and email with tracking.": "Plattformen den här sajten kör på – event, anmälningar, CRM och mejl med spårning.",
   "A drawn seating plan: a stage and twelve tables, seven of them booked": "En ritad bordsplacering: en scen och tolv bord, sju av dem bokade",
   "Stage": "Scen",
+  // The cookie question (ConsentBanner, 2026-10-26)
+  "May I count you as a visitor?": "Får jag räkna dig som besökare?",
+  "One cookie that only counts how many different people visit. Nothing else.": "En kaka som bara räknar hur många olika personer som besöker sajten. Inget annat.",
+  "Read more": "Läs mer",
+  "Off": "Av",
+  "On": "På",
 };

@@ -28,6 +28,7 @@ export const TRACKED_EVENTS = new Set([
   "request_field",        // { field } — first touch of a form field per opening (never the value)
   "request_close",        // { fields, secs } — form closed without sending
   "request_error",        // { error } — the form refused or failed
+  "consent",              // { on } — the stats-cookie answer; a yes carries the kept visitor id (lib/consent.js)
 ]);
 
 const MAX_EVENTS_PER_BATCH = 50;

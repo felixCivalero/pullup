@@ -139,11 +139,15 @@ export function summarizeVisits({ events, requests = [] }) {
   }));
 
   // Per page, per section: how many visits got there, and how long the ones
-  // who read it stayed (median, so one tab left open doesn't skew it).
+  // who read it stayed (median, so one tab left open doesn't skew it). A
+  // section's share counts only the visits that started after it first showed
+  // up — a section added today isn't measured against last week's visits.
   const pagesByPath = new Map();
+  const startsByPath = new Map(); // path → [visit start, …]
   for (const [, list] of groupBySession(events)) {
     const viewed = new Set(list.filter((e) => e.event_name === "page_view").map((e) => pagePath(e.props?.page)));
     if (!viewed.size) continue;
+    const start = list[0].occurred_at;
     const reached = new Map(); // path → Map(section → order)
     const secs = new Map(); // path → Map(section → seconds)
     for (const e of list) {
@@ -162,10 +166,13 @@ export function summarizeVisits({ events, requests = [] }) {
       if (!pagesByPath.has(path)) pagesByPath.set(path, { page: path, visits: 0, sections: new Map() });
       const pg = pagesByPath.get(path);
       pg.visits += 1;
+      if (!startsByPath.has(path)) startsByPath.set(path, []);
+      startsByPath.get(path).push(start);
       const names = new Set([...(reached.get(path)?.keys() || []), ...(secs.get(path)?.keys() || [])]);
       for (const s of names) {
-        if (!pg.sections.has(s)) pg.sections.set(s, { section: s, order: 0, reached: 0, times: [] });
+        if (!pg.sections.has(s)) pg.sections.set(s, { section: s, order: 0, reached: 0, times: [], since: start });
         const row = pg.sections.get(s);
+        if (start < row.since) row.since = start;
         row.order = Math.max(row.order, reached.get(path)?.get(s) || 0);
         row.reached += 1;
         const n = secs.get(path)?.get(s) || 0;
@@ -178,7 +185,11 @@ export function summarizeVisits({ events, requests = [] }) {
       page: pg.page,
       visits: pg.visits,
       sections: [...pg.sections.values()]
-        .map(({ section, order, reached, times }) => ({ section, order, reached, readers: times.length, medianSecs: median(times), totalSecs: times.reduce((a, b) => a + b, 0) }))
+        .map(({ section, order, reached, times, since }) => ({
+          section, order, reached, since,
+          visits: (startsByPath.get(pg.page) || []).filter((t) => t >= since).length,
+          readers: times.length, medianSecs: median(times), totalSecs: times.reduce((a, b) => a + b, 0),
+        }))
         .sort((a, b) => a.order - b.order || b.reached - a.reached),
     }))
     .sort((a, b) => b.visits - a.visits);

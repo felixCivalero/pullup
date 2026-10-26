@@ -11,9 +11,10 @@ import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
-   (small cards) → the cases (horizontal rail) → how the work runs (the 12-week picture with the weekly
-   30-minute sprint) → his tech skills and the products he built → the one
-   offer, last (Felix 2026-10-26: no bio — the offer ends the page).
+   (small cards) → the cases (horizontal rail) → his tech skills and the
+   products he built → how the work runs (the 12-week growth picture with the
+   weekly 30-minute sprint) → the one offer, last (Felix 2026-10-26: no bio —
+   the offer ends the page).
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -75,8 +76,11 @@ export function FelixContent() {
       </section>
 
 
+      {/* the tech — his skills, then the products he built */}
+      <TechSection />
+
       {/* how it runs — the 12-week picture */}
-      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="4">
+      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="5">
         <div className="fl-wrap">
           <p className="fl-label">{t("How I work")}</p>
           <Reveal><h2 className="fl-h2">{t("Your brand grows every week.")}</h2></Reveal>
@@ -86,9 +90,6 @@ export function FelixContent() {
           <div className="fl-engine"><EngineChart /></div>
         </div>
       </section>
-
-      {/* the tech — his skills, then the products he built */}
-      <TechSection />
 
       {/* the offer */}
       <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">

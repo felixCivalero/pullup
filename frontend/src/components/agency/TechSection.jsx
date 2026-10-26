@@ -76,7 +76,7 @@ function Visual({ kind }) {
 export function TechSection() {
   const t = useT();
   return (
-    <section id="tech" className="fl-sec fl-rule tx" data-pc-section="tech" data-pc-order="5">
+    <section id="tech" className="fl-sec fl-rule tx" data-pc-section="tech" data-pc-order="4">
       <div className="fl-wrap">
         <Reveal><h2 className="fl-h2">{t("My technical skills")}</h2></Reveal>
       </div>

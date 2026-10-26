@@ -6,45 +6,15 @@ import { CaseStack } from "../components/agency/CaseStack.jsx";
 import { MailLink } from "../components/agency/MailLink.jsx";
 import { Testimonials } from "../components/agency/Testimonials.jsx";
 import { EngineChart } from "../components/agency/EngineChart.jsx";
+import { TechSection, TECH_CSS } from "../components/agency/TechSection.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
    (small cards) → the cases (horizontal rail) → how the work runs (the 12-week picture with the weekly
-   30-minute sprint) → the tech he builds (blocks) → the one offer → a short bio.
+   30-minute sprint) → his tech skills and the products he built → the one
+   offer, last (Felix 2026-10-26: no bio — the offer ends the page).
    Minimal on purpose: one idea per section, short lines, no decoration. */
-
-// The bio: who Felix has been — his facts only (freestyle pro, Ranger in the
-// 31st Light Battalion at Karlsborg, naprapath, seven years of marketing). Don't embellish: no
-// sport name, no "licensed", no invented details. The site talks about
-// building brands — for companies, creators and artists — not about "the
-// people behind brands" (Felix 2026-10-26: the people he mails didn't get it).
-const BIO = [
-  "I've lived a few lives already. Pro freestyler. Ranger in the 31st Light Battalion in Karlsborg. Four years of study to become a naprapath, over three years treating patients — and then seven years of marketing.",
-  "All of it taught me how to build something that lasts. Today I do it for companies, creators and artists — with a clear direction, content that sounds like them and growth you can see.",
-];
-
-// The tech, before the offer (Felix 2026-10-26): what he actually knows, then
-// what he has built with it — concrete, not "AI" talk anyone can claim. Every
-// tool is in a stack he has shipped (pullup, kazikazi, growhouse repos).
-const SKILLS = [
-  ["Languages", "JavaScript, TypeScript, SQL, GraphQL"],
-  ["Frontend", "React, React Native / Expo, Astro, Vite, Three.js"],
-  ["Backend", "Node.js, Express, Fastify, REST and GraphQL APIs, queues and cron jobs"],
-  ["Databases", "PostgreSQL / Supabase, MongoDB, Redis"],
-  ["Payments and APIs", "Stripe, M-Pesa, Shopify, Meta (Instagram, WhatsApp), Google"],
-  ["Hosting", "AWS, nginx, Cloudflare, Sentry, App Store and Google Play builds"],
-];
-
-// What he built. Kaijas and Growhouse in Felix's words (no Kaijas code on this
-// machine, so no stack line for it); KaziKazi from its repo (TestFlight, not
-// the App Store yet — never say "in the App Store").
-const BUILT = [
-  ["Kaijas Musiksalong", "Booking and seating", "A custom booking and table-seating system, with a CRM connected to the till."],
-  ["Growhouse", "Tracking", "A tracking pixel that follows purchases back to organic Instagram posts.", "Node.js · GraphQL · MongoDB · Shopify"],
-  ["KaziKazi", "App for iOS and Android", "Daily work and errands in Kenya — M-Pesa payments, real-time chat, calls and maps.", "TypeScript · React Native · Fastify · Supabase"],
-  ["PullUp", "Event platform", "The platform this site runs on — events, sign-ups, CRM and email with tracking.", "React · Node.js · PostgreSQL"],
-];
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 const work = (location) => {
@@ -117,36 +87,8 @@ export function FelixContent() {
         </div>
       </section>
 
-      {/* the tech — what Felix knows, then what he built */}
-      <section id="tech" className="fl-sec fl-rule" data-pc-section="tech" data-pc-order="5">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("Tech")}</p>
-          <Reveal><h2 className="fl-h2">{t("What I actually know.")}</h2></Reveal>
-          <Reveal delay={0.05}>
-            <p className="fl-p">{t("I write the code myself — sites, apps, backends and the data between them.")}</p>
-          </Reveal>
-          <Reveal>
-            <dl className="fl-skills">
-              {SKILLS.map(([k, v]) => (
-                <div key={k}><dt>{t(k)}</dt><dd>{t(v)}</dd></div>
-              ))}
-            </dl>
-          </Reveal>
-          <p className="fl-label fl-built-l">{t("What I've built")}</p>
-          <div className="fl-built">
-            {BUILT.map(([name, kind, line, stack], i) => (
-              <Reveal key={name} delay={0.04 * (i % 2)}>
-                <div className="fl-built-b">
-                  <p className="fl-built-k">{t(kind)}</p>
-                  <h3>{name}</h3>
-                  <p>{t(line)}</p>
-                  {stack && <p className="fl-built-s">{stack}</p>}
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* the tech — his skills, then the products he built */}
+      <TechSection />
 
       {/* the offer */}
       <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
@@ -164,29 +106,12 @@ export function FelixContent() {
           </Reveal>
         </div>
       </section>
-      {/* about */}
-      <section id="about" className="fl-sec" data-pc-section="about" data-pc-order="7">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("About me")}</p>
-          <Reveal><h2 className="fl-h2">{t("I love building brands.")}</h2></Reveal>
-          <div className="fl-bio">
-            {BIO.map((para, i) => (
-              <Reveal key={i} delay={0.05 * i}><p>{t(para)}</p></Reveal>
-            ))}
-          </div>
-          <Reveal>
-            <blockquote className="fl-quote">
-              <p>{t("As a creator or artist, you're already a brand.")}</p>
-              <footer>{t("I help you build it, step by step — just as I do with companies.")}</footer>
-            </blockquote>
-          </Reveal>
-        </div>
-      </section>
     </div>
   );
 }
 
 export const FELIX_CSS = `
+  ${TECH_CSS}
   .fl { --ink: #0a0a0a; --grey: #6e6e73; --rule: rgba(0,0,0,0.1); --accent: #D9480F; background: #fff; color: var(--ink); }
   .fl-wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(16px, 5vw, 56px); }
   .fl-sec { padding: clamp(88px, 12vw, 160px) 0; }
@@ -232,15 +157,6 @@ export const FELIX_CSS = `
   @keyframes fl-rise { to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .fl-rise { animation: none; opacity: 1; transform: none; } }
 
-  /* about */
-  .fl-bio { margin-top: clamp(28px, 3.4vw, 44px); max-width: 680px; display: grid; gap: 18px; }
-  .fl-bio p { font-size: clamp(18px, 1.6vw, 22px); line-height: 1.5; color: #2a2a2e; letter-spacing: -0.01em; }
-  .fl-bio > :first-child p { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.3; font-weight: 600; color: var(--ink); letter-spacing: -0.025em; }
-  .fl-quote { margin: clamp(48px, 6vw, 80px) 0 0; padding: 0; max-width: 820px; }
-  .fl-quote p { font-size: clamp(28px, 3.4vw, 48px); font-weight: 700; line-height: 1.08; letter-spacing: -0.04em; }
-  .fl-quote p::before { content: "“"; color: var(--accent); }
-  .fl-quote footer { margin-top: 16px; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.5; color: #444; max-width: 46ch; }
-
 
   /* testimonials under the logos, then the case rail */
   .fl-words { padding: clamp(40px, 6vw, 72px) 0 0; }
@@ -250,21 +166,6 @@ export const FELIX_CSS = `
 
   /* how it runs */
   .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
-
-  /* tech: skills, then what he built */
-  .fl-skills { margin: clamp(32px, 4vw, 48px) 0 0; border-top: 1px solid var(--rule); }
-  .fl-skills div { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 8px 24px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
-  .fl-skills dt { font-size: 15px; font-weight: 600; }
-  .fl-skills dd { margin: 0; font-size: 16px; line-height: 1.5; color: #444; }
-  @media (max-width: 640px) { .fl-skills div { grid-template-columns: 1fr; gap: 4px; } }
-  .fl-built-l { margin-top: clamp(48px, 6vw, 72px); }
-  .fl-built { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; }
-  .fl-built > div { height: 100%; }
-  .fl-built-b { height: 100%; box-sizing: border-box; padding: clamp(22px, 2.4vw, 32px); border: 1px solid var(--rule); border-radius: 18px; background: #fafaf9; display: flex; flex-direction: column; }
-  .fl-built-b .fl-built-k { margin-top: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
-  .fl-built-b h3 { margin-top: 8px; font-size: clamp(22px, 2vw, 28px); font-weight: 700; letter-spacing: -0.03em; }
-  .fl-built-b p { margin-top: 8px; font-size: 16px; line-height: 1.5; color: #444; }
-  .fl-built-b .fl-built-s { margin-top: auto; padding-top: 18px; font-size: 13px; color: var(--grey); }
 
   /* offer */
   .fl-offer { background: var(--ink); color: #fff; padding: clamp(96px, 13vw, 168px) 0; }

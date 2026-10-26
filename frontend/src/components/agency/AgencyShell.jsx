@@ -20,7 +20,6 @@ import { useT } from "./i18n.js";
 const NAV = [
   ["stories", "Cases"],
   ["offer", "Offer"],
-  ["about", "About me", "pc-nav-wide"],
 ];
 
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {

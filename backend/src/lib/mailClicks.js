@@ -72,7 +72,10 @@ export function summarizeMailClicks({ prospects, events }) {
     const link = viaLink.has(v.id);
     if (link) o.clicks += 1;
     else o.returned = true; // came back without the link: recognised by the cookie
-    o.visits.push({ id: v.id, start: v.start, viaLink: link, active: v.active, pages: v.pages, offer: v.offer, sent: v.sent });
+    // Mail filters open links in a browser of their own the moment a mail
+    // lands: one page, the first section, no clicks. A person scrolls on.
+    const glance = v.sections <= 1 && v.clicks === 0 && v.pages.length <= 1;
+    o.visits.push({ id: v.id, start: v.start, viaLink: link, active: v.active, pages: v.pages, offer: v.offer, sent: v.sent, glance });
     o.active += v.active;
     o.offer ||= v.offer;
     o.opened ||= v.opened;
@@ -85,7 +88,7 @@ export function summarizeMailClicks({ prospects, events }) {
   return [...out.values()]
     .map((o) => {
       o.visits.sort((a, b) => b.start.localeCompare(a.start));
-      return { ...o, cookie: !!o.cookie, pages: [...o.pages], first: o.visits[o.visits.length - 1].start, last: o.visits[0].start };
+      return { ...o, cookie: !!o.cookie, glanceOnly: o.visits.every((v) => v.glance), pages: [...o.pages], first: o.visits[o.visits.length - 1].start, last: o.visits[0].start };
     })
     .sort((a, b) => b.last.localeCompare(a.last));
 }

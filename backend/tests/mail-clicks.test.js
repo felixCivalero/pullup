@@ -22,6 +22,7 @@ const prospects = [
 const events = [
   // P-1 clicks without the cookie: one visit, nothing after.
   ev("s1", "s1", "27T09:00:00Z", "page_view", { page: "landing" }, "abc234"),
+  ev("s1", "s1", "27T09:00:10Z", "section_view", { page: "/", section: "hero", order: 1 }, "abc234"),
   ev("s1", "s1", "27T09:01:00Z", "engagement", { page: "/", active: 40, depth: 60, s: { hero: 40 } }, "abc234"),
   // P-2 clicks, says yes to the cookie, then comes back a day later without the link.
   ev("s2", "s2", "27T10:00:00Z", "page_view", { page: "landing" }, "xyz789"),
@@ -29,6 +30,7 @@ const events = [
   ev("s2", "v2", "27T10:01:00Z", "engagement", { page: "/", active: 20, depth: 30, s: {} }, "xyz789"),
   ev("s3", "v2", "28T08:00:00Z", "page_view", { page: "case_stiga" }),
   ev("s3", "v2", "28T08:02:00Z", "engagement", { page: "/work/stiga", active: 90, depth: 80, s: {} }),
+  ev("s3", "v2", "28T08:02:30Z", "section_view", { page: "/", section: "cases", order: 3 }),
   ev("s3", "v2", "28T08:03:00Z", "section_view", { page: "/", section: "offer", order: 5 }),
   // Somebody else, a code nobody has.
   ev("s4", "s4", "27T11:00:00Z", "page_view", { page: "landing" }, "nope00"),
@@ -44,6 +46,8 @@ assert(boliden.id === "P-2" && orkla.id === "P-1", "latest visit first");
 assert(boliden.clicks === 1 && boliden.visits.length === 2 && boliden.returned && boliden.cookie, "the cookie ties the return visit to Boliden");
 assert(boliden.active === 110 && boliden.offer && boliden.pages.includes("/work/stiga"), "time, offer and pages add up across visits");
 assert(orkla.clicks === 1 && !orkla.returned && !orkla.cookie && orkla.active === 40, "no cookie: just the click visit");
+
+assert(!boliden.glanceOnly && orkla.glanceOnly, "one page, one section, no clicks = only a glance (or a mail filter)");
 
 const taken = new Set(["aaaaaa"]);
 let n = 0;

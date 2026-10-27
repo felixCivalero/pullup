@@ -13,16 +13,9 @@ import { openRequest, rememberArrival } from "./request.js";
 import { LangSwitch } from "./LangSwitch.jsx";
 import { useT } from "./i18n.js";
 
-/* The frame every agency page sits in: tone-aware nav (Services · Booklet · Cases), the
+/* The frame every agency page sits in: tone-aware nav (name · language · Work with me), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
    footer with every case linked. Pages pass their own CSS via `css`. */
-// The nav follows the landing page, in order — each link lands on its section
-// (from other pages via /#id). Narrow screens keep Results + Offer.
-const NAV = [
-  ["stories", "Cases"],
-  ["offer", "Offer"],
-];
-
 export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -113,12 +106,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
     else navigate("/");
   };
-  // Same-page sections scroll in place; from other pages, land on them.
-  const goSection = (id, location) => {
-    trackEvent("cta_click", { location });
-    if (onHome) document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else navigate(`/#${id}`);
-  };
 
   return (
     <div className="agency-root">
@@ -132,16 +119,6 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             Felix<span> Civalero Stolpe</span>
           </button>
           <div className="pc-nav-actions">
-            {NAV.map(([id, label, cls]) => (
-              <button
-                key={id}
-                type="button"
-                className={`pc-nav-link${cls ? ` ${cls}` : ""}`}
-                onClick={() => goSection(id, `nav_${id}`)}
-              >
-                {t(label)}
-              </button>
-            ))}
             <LangSwitch />
             <button
               type="button"

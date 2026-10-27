@@ -37,6 +37,13 @@ export function AdminShell({ title, fill = false, children }) {
   const owner = !!session && isOwnerEmail(session.user?.email);
   const verified = !!session && session.user?.id === verifiedUserId;
 
+  // Felix's own browser: his clicks on the links in his outreach mail must
+  // not show up in Sälj as a prospect's visit (lib/track.js reads this).
+  useEffect(() => {
+    if (!owner) return;
+    try { localStorage.setItem("pullup.self", "1"); } catch { /* storage blocked */ }
+  }, [owner]);
+
   useEffect(() => {
     const prev = document.title;
     document.title = `${title} — Admin`;

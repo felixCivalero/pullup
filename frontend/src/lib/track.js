@@ -49,6 +49,11 @@ export function getVisitorId() {
 // visits used to show up in Statistik as "localhost".
 const LIVE = typeof window !== "undefined" && /(^|\.)pullup\.se$/.test(window.location.hostname);
 
+// Set by the admin (AdminShell) in Felix's own browser.
+function isSelf() {
+  try { return localStorage.getItem("pullup.self") === "1"; } catch { return false; }
+}
+
 function getContext() {
   if (context) return context;
   let utm = null;
@@ -64,7 +69,7 @@ function getContext() {
     // ?m=<code> is the link in Felix's outreach mail: one code per prospect
     // (backend lib/mailClicks.js), so Sälj sees who clicked.
     const m = params.get("m");
-    if (m && /^[a-z0-9]{4,12}$/.test(m)) utm = { ...utm, utm_source: "mejl", utm_content: m };
+    if (m && /^[a-z0-9]{4,12}$/.test(m) && !isSelf()) utm = { ...utm, utm_source: "mejl", utm_content: m };
   } catch { /* no utm */ }
   context = {
     referrer: (typeof document !== "undefined" && document.referrer) || null,

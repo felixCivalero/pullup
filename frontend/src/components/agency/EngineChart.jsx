@@ -100,7 +100,6 @@ export function EngineChart() {
       </div>
 
       <div className="en-foot">
-        <span className="en-trust">{t("Month 1 · money back if you're not happy — then commit to continue")}</span>
         <span className="en-note">{t("Illustrative — not a forecast.")}</span>
       </div>
     </Reveal>

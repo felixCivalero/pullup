@@ -1,21 +1,19 @@
-import { ArrowUpRight, Check } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { trackEvent } from "../../lib/analytics.js";
-import { OFFER } from "./agencyData.js";
-import { useLocalized, useT } from "./i18n.js";
+import { useT } from "./i18n.js";
 import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
-// The one offer — 30,000 SEK a month, everything included. Landing (after What
-// you get) and the end of every case page.
+// The end of every case page: no price (Felix 2026-10-27 — every brand needs
+// its own deal), just the way into a 20-minute meeting.
 export function AgencyOffer({
   id,
   chapter, // [n, label] — renders the landing chapter opener
   source = "landing",
   heading = "Your brand could be the next story.",
-  sub = "We take on a few brands and creators at a time. Your daily work and your vision are already the best material you have — we turn them into content that grows.",
+  sub = "No ready-made package. Every brand is different, so we start with a quick meeting and see if there's something we can grow together.",
 }) {
   const t = useT();
-  const offer = useLocalized(OFFER);
   return (
     <section
       id={id}
@@ -38,46 +36,17 @@ export function AgencyOffer({
           <p className="pc-close-sub">{t(sub)}</p>
         </Reveal>
         <Reveal delay={0.12}>
-          <div className="pc-offer pc-offer-one">
-            <div className="pc-offer-main">
-              <p className="pc-offer-name">{offer.label}</p>
-              <p className="pc-offer-price">
-                {offer.price}
-                <span>{offer.cadence}</span>
-              </p>
-              <p className="pc-offer-body">{offer.line}</p>
-              <dl className="pc-offer-terms">
-                {offer.terms.map(([k, v]) => (
-                  <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>{v}</dd>
-                  </div>
-                ))}
-              </dl>
-              <button
-                type="button"
-                className="pc-btn pc-offer-cta"
-                onClick={() => {
-                  trackEvent("cta_click", { location: "offer", source });
-                  openRequest({ source: `offer_${source}` });
-                }}
-              >
-                {offer.cta}
-                <ArrowUpRight size={18} strokeWidth={1.75} />
-              </button>
-            </div>
-            <div className="pc-offer-inc">
-              <p className="pc-offer-inc-k">{t("What's included")}</p>
-              <ul>
-                {offer.includes.map((x) => (
-                  <li key={x}>
-                    <Check size={18} strokeWidth={2.25} />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="pc-btn pc-offer-cta"
+            onClick={() => {
+              trackEvent("cta_click", { location: "offer", source });
+              openRequest({ source: `offer_${source}` });
+            }}
+          >
+            {t("Book a meeting")}
+            <ArrowUpRight size={18} strokeWidth={1.75} />
+          </button>
         </Reveal>
       </div>
     </section>

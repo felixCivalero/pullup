@@ -13,7 +13,7 @@ const HOME_LAYOUT = [
   ["stories", "Case"],
   ["tech", "Tekniska kunskaper och produkter"],
   ["how", "Så jobbar jag"],
-  ["offer", "Erbjudandet"],
+  ["offer", "Boka möte"],
 ];
 const STORIES = import.meta.glob("../stories/data/*.jsx", { eager: true, import: "default" });
 const sv = (x) => (x ? translate("sv", x) : "");
@@ -28,7 +28,7 @@ function caseLayout(story) {
     ...blocks,
     ["next_case", "Nästa case"],
     ["all_stories", "Alla case"],
-    ["offer", "Erbjudandet"],
+    ["offer", "Boka möte"],
   ];
 }
 const LAYOUTS = {
@@ -47,7 +47,7 @@ const SECTION_LABELS = {
   stories: "Case",
   how: "Så jobbar jag",
   tech: "Tekniska kunskaper och produkter",
-  offer: "Erbjudandet",
+  offer: "Boka möte",
   about: "Om mig",
   deck: "Booklet",
   all_stories: "Alla case",

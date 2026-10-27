@@ -56,7 +56,7 @@ function MailClicks({ clicks }) {
               <b>{c.company}{c.person ? <span className="sl-person"> · {c.person}</span> : null}</b>
               <span className="sl-tag">
                 {c.sent && <em className="is-hot">skickade förfrågan</em>}
-                {!c.sent && c.offer && <em className="is-hot">såg erbjudandet</em>}
+                {!c.sent && c.offer && <em className="is-hot">nådde boka möte</em>}
                 {c.cookie && <em title="Sa ja till cookien: senare besök känns igen">känns igen</em>}
                 {c.glanceOnly && <em title="En sida, första sektionen, inga klick. Mejlfilter öppnar länkar så när mejlet kommer fram.">bara öppnad, kan vara spamfilter</em>}
               </span>

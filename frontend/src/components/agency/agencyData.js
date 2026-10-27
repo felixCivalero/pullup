@@ -21,36 +21,6 @@ export const MESSAGE = {
 export const mailto = (subject) =>
   `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
 
-// THE offer — the only one, and it includes everything (strategy, content,
-// growth, CRM, tracking, dashboards, apps); scope follows the client's need and
-// direction, not a price list. No tiers, no add-ons. The first month is
-// money-back: paid, and refunded in full if the client isn't happy. After it,
-// the client commits to continue (longer commitments cost less — no tier
-// numbers published) or leaves with their money back.
-// Priced in SEK in every language.
-export const BASE_MONTHLY = 30000;
-export const OFFER = {
-  label: "One offer",
-  price: "30,000 SEK",
-  cadence: "/ month",
-  line: "Every tool is included. Content is scoped together — quality over volume.",
-  includes: [
-    "Brand strategy and direction",
-    "The 30-minute sprint, every week — direction and scripts for your content",
-    "Editing and production, scoped together — made by you, your team or us",
-    "Growth on every channel — Instagram, TikTok, YouTube, Facebook",
-    "Community, events and CRM on PullUp",
-    "Tracking and dashboards — every piece measured",
-    "Your own apps and tools, built when you need them",
-  ],
-  terms: [
-    ["First month", "Full scope, 30,000 SEK. Not happy? You get your money back."],
-    ["Content", "Scoped together, never unlimited. For BKM that meant up to two edited pieces a week and a production day about once a month."],
-    ["After that", "Like it? Commit and we keep building. The longer the commitment, the lower the monthly rate."],
-  ],
-  cta: "Work with me",
-};
-
 // The one story frame. Every case — card, case page, booklet — answers the
 // same four questions in the same order, so a reader can follow all of them.
 export const SPINE = [

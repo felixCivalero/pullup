@@ -3,7 +3,7 @@ import { ArrowRight, Check, X } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { trackEvent } from "../../lib/analytics.js";
 import { track } from "../../lib/track.js";
-import { CONTACT, OFFER } from "./agencyData.js";
+import { CONTACT } from "./agencyData.js";
 import { requestMeta } from "./request.js";
 import { useT } from "./i18n.js";
 
@@ -142,10 +142,6 @@ export function RequestDialog() {
           <form onSubmit={submit} onInput={onFieldTouch} onClick={onFieldTouch} noValidate>
             <p className="rq-k">{t("Start a conversation")}</p>
             <h2 id="rq-title" className="rq-h">{t("Tell me who you are and where you want to go.")}</h2>
-            <p className="rq-offer">
-              <b>{t(OFFER.label)} · {t(OFFER.price)} {t(OFFER.cadence)}</b>
-              {t("First month: full scope. Not happy? Money back.")}
-            </p>
 
             <div className="rq-row">
               <label className="rq-field" data-field="name">

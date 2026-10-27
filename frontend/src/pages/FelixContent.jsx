@@ -13,8 +13,9 @@ import { useT } from "../components/agency/i18n.js";
 /* The front page: Felix, in first person. Hero + logos → what clients say
    (small cards) → the cases (horizontal rail) → his tech skills and the
    products he built → how the work runs (the 12-week growth picture with the
-   weekly 30-minute sprint) → the one offer, last (Felix 2026-10-26: no bio —
-   the offer ends the page).
+   weekly 30-minute sprint) → book a meeting, last (Felix 2026-10-26: no bio;
+   2026-10-27: no price on the site — every brand needs its own deal, so the
+   page ends in a 20-minute meeting, like the outreach mail).
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -44,7 +45,6 @@ export function FelixContent() {
                 {t("See the cases")} <ArrowRight size={16} strokeWidth={1.75} />
               </button>
             </div>
-            <p className="fl-fine fl-rise" style={{ "--d": "0.7s" }}>{t("30,000 SEK a month. Not happy after the first month? Money back.")}</p>
           </div>
           <div className="fl-hero-photo fl-rise" style={{ "--d": "0.25s" }}>
             <img src="/felix.jpg" alt="Felix Civalero Stolpe" decoding="async" />
@@ -91,17 +91,17 @@ export function FelixContent() {
         </div>
       </section>
 
-      {/* the offer */}
+      {/* book a meeting — the section keeps id "offer" so Statistik's history lines up */}
       <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
         <div className="fl-wrap">
-          <p className="fl-label">{t("The offer")}</p>
-          <Reveal><h2 className="fl-h2">{t("30,000 SEK a month.")}</h2></Reveal>
+          <p className="fl-label">{t("Next step")}</p>
+          <Reveal><h2 className="fl-h2">{t("Let's take 20 minutes.")}</h2></Reveal>
           <Reveal delay={0.05}>
-            <p className="fl-p">{t("Strategy, content, growth — and the tech behind it, built by me. No tiers, no add-ons. Not happy after the first month? You get your money back.")}</p>
+            <p className="fl-p">{t("No ready-made package. Every brand is different, so we start with a quick meeting and see if there's something we can grow together.")}</p>
           </Reveal>
           <Reveal delay={0.1}>
             <div className="fl-ctas">
-              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Work with me")}</button>
+              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Book a meeting")}</button>
               <MailLink className="fl-link fl-link-light" />
             </div>
           </Reveal>

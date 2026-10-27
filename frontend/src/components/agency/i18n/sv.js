@@ -1082,6 +1082,10 @@ export const SV = {
   "You just need help channelling it. A brand is the same thing — at the level of a group.": "Du behöver bara hjälp att kanalisera det. Med varumärken är det samma sak – på gruppnivå.",
   // Front page — Felix, first person (2026-10-19).
   "Work with me": "Jobba med mig",
+  "Book a meeting": "Boka ett möte",
+  "Next step": "Nästa steg",
+  "Let's take 20 minutes.": "Vi tar 20 minuter.",
+  "No ready-made package. Every brand is different, so we start with a quick meeting and see if there's something we can grow together.": "Inget färdigt paket. Varje varumärke är olika, så vi börjar med ett snabbt möte och ser om det finns något vi kan växa tillsammans.",
   "About me": "Om mig",
   "I develop the people behind brands.": "Jag utvecklar människorna bakom varumärken.",
   "I develop the people behind brands. Growth that lasts.": "Jag utvecklar människorna bakom varumärken. Tillväxt som håller.",

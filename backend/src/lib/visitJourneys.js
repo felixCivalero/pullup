@@ -22,7 +22,7 @@ export function pagePath(p) {
 const FUNNEL = [
   ["visits", "Besök"],
   ["read", "Läste vidare"], // past the first screen, or 15 s of reading
-  ["offer", "Såg erbjudandet"],
+  ["offer", "Nådde boka möte"],
   ["opened", "Öppnade formuläret"],
   ["started", "Började fylla i"],
   ["sent", "Skickade"],

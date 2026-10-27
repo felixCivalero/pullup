@@ -3,6 +3,7 @@
 // a website request becomes (or updates) a prospect row.
 import { appendValues, batchGetValues, batchUpdateValues, sheetsConfigured } from "./googleSheets.js";
 import { stockholmToday } from "./salesSummary.js";
+import { MAIL_LINK_HEADER, mailLink, newLinkCode } from "./mailClicks.js";
 
 const CACHE_MS = 60_000;
 let cache = null; // { at, raw }
@@ -71,4 +72,33 @@ export async function recordWebsiteLead({ name, email, company, description, pre
   await appendValues(sheetId, "Prospects!A:Z", [header.map((h) => (h === "ID" ? asText(values[h]) : values[h] ?? ""))]);
   cache = null;
   return id;
+}
+
+// The pullup.se link for outreach mail to these prospects: each gets its own
+// code in the "Mail link" column, made once and reused. Returns
+// { "P-573": "https://pullup.se/?m=k3x9qa", … }.
+export async function ensureMailLinks(ids) {
+  const sheetId = process.env.SALES_SHEET_ID;
+  const [rows] = await batchGetValues(sheetId, ["Prospects!A:Z"]);
+  const header = rows[0] || [];
+  const idCol = header.indexOf("ID");
+  const linkCol = header.indexOf(MAIL_LINK_HEADER);
+  if (idCol < 0 || linkCol < 0) throw new Error(`Prospects needs an "ID" and a "${MAIL_LINK_HEADER}" column`);
+  const taken = new Set(rows.slice(1).map((r) => String(r[linkCol] || "").trim()).filter(Boolean));
+  const out = {};
+  const writes = [];
+  for (const id of ids) {
+    const at = rows.findIndex((r, i) => i > 0 && String(r[idCol] || "").trim() === id);
+    if (at < 0) throw new Error(`No prospect ${id} in the sheet`);
+    let code = String(rows[at][linkCol] || "").trim();
+    if (!code) {
+      code = newLinkCode(taken);
+      taken.add(code);
+      writes.push({ range: `Prospects!${colLetter(linkCol)}${at + 1}`, values: [[code]] });
+    }
+    out[id] = mailLink(code);
+  }
+  if (writes.length) await batchUpdateValues(sheetId, writes);
+  cache = null;
+  return out;
 }

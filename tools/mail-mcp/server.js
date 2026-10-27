@@ -20,6 +20,7 @@ import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import { syncSalesMail } from '../../backend/src/lib/salesMailbox.js';
+import { ensureMailLinks } from '../../backend/src/lib/salesSheet.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
@@ -130,7 +131,7 @@ const baseSubject = (s) => (s || '').replace(/^\s*((re|sv|vs|fw|fwd|aw)\s*:\s*)+
 
 // Build the RFC822 message once, so what we send, what lands in Sent and
 // what we log all share the same Message-ID.
-async function compose({ to, cc, bcc, subject, text, reply, attachments = [] }) {
+async function compose({ to, cc, bcc, subject, text, html, reply, attachments = [] }) {
   const messageId = `<${randomUUID()}@pullup.se>`;
   const headers = {};
   let subj = subject;
@@ -139,9 +140,24 @@ async function compose({ to, cc, bcc, subject, text, reply, attachments = [] }) 
     headers.References = [...reply.references, reply.message_id].filter(Boolean).join(' ');
     if (!subj) subj = /^\s*(re|sv)\s*:/i.test(reply.subject) ? reply.subject : `Re: ${reply.subject}`;
   }
-  const mail = new MailComposer({ from: FROM, to, cc, bcc, subject: subj, text, messageId, headers, attachments });
+  const mail = new MailComposer({ from: FROM, to, cc, bcc, subject: subj, text, html, messageId, headers, attachments });
   const raw = await mail.compile().build();
   return { raw, messageId, subject: subj };
+}
+
+// [[pullup.se]] in a body → a link to the prospect's own pullup.se URL (the
+// code lets Sälj see who clicked, backend lib/mailClicks.js). The HTML part
+// shows only the words; the plain-text part spells out the URL.
+const LINK = /\[\[([^\]]+)\]\]/g;
+const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+async function withProspectLink(text, prospectId) {
+  if (!text.match(LINK)) return { text };
+  if (!prospectId) throw new Error('[[…]] links need prospect_id');
+  const url = (await ensureMailLinks([prospectId]))[prospectId];
+  const html = `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5">${escapeHtml(text)
+    .replace(LINK, (_, words) => `<a href="${url}">${words}</a>`)
+    .replace(/\n/g, '<br>')}</div>`;
+  return { text: text.replace(LINK, (_, words) => `${words} (${url})`), html, link: url };
 }
 
 const replyContext = (client, ref) => (ref ? readMessage(client, ref.folder, ref.uid) : null);
@@ -235,11 +251,12 @@ server.registerTool(
   'mail_draft',
   {
     description:
-      "Save a draft in felix@pullup.se's Drafts folder at one.com. Felix reviews and sends it from mail.one.com (or his phone). This is the default way to write mail. Felix's CV (PDF) is attached unless attach_cv is false. `replaces` removes an earlier draft (by its message_id) so a corrected draft doesn't leave a duplicate.",
+      "Save a draft in felix@pullup.se's Drafts folder at one.com. Write [[pullup.se]] (with prospect_id) to link the site with the prospect's own tracked code. Felix reviews and sends it from mail.one.com (or his phone). This is the default way to write mail. Felix's CV (PDF) is attached unless attach_cv is false. `replaces` removes an earlier draft (by its message_id) so a corrected draft doesn't leave a duplicate.",
     inputSchema: {
       ...outgoing,
       attach_cv: z.boolean().optional().describe('Attach CV_Felix_Civalero_Stolpe.pdf (default true)'),
       replaces: z.string().optional().describe('message_id of an earlier draft to delete'),
+      prospect_id: z.string().optional().describe('Sheet ID (P-573). Required when the text links with [[pullup.se]]: the words become a link carrying this prospect\'s own code'),
     },
   },
   async (a) =>
@@ -248,7 +265,8 @@ server.registerTool(
       const reply = await replyContext(client, a.reply_to);
       if (!a.subject && !reply) throw new Error('subject is required for a new message');
       const attachments = a.attach_cv === false ? [] : [CV];
-      const { raw, messageId, subject } = await compose({ ...a, reply, attachments });
+      const body = await withProspectLink(a.text, a.prospect_id);
+      const { raw, messageId, subject } = await compose({ ...a, ...body, reply, attachments });
       await client.append(f.drafts, raw, ['\\Draft', '\\Seen']);
       let replaced = 0;
       if (a.replaces) {
@@ -263,7 +281,7 @@ server.registerTool(
           lock.release();
         }
       }
-      return json({ saved_to: f.drafts, subject, message_id: messageId, cv_attached: attachments.length > 0, replaced });
+      return json({ saved_to: f.drafts, subject, message_id: messageId, cv_attached: attachments.length > 0, link: body.link || null, replaced });
     })
 );
 

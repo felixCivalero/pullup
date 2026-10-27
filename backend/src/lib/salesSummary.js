@@ -78,6 +78,9 @@ function prospectOf(o) {
     // Which pitch the row belongs to: Felix as marketer, or the free PullUp
     // event platform. Blank = Marketing, the list it started as.
     track: text(o.Track) === "Event" ? "Event" : "Marketing",
+    // The prospect's own code in the pullup.se link in outreach mail
+    // (lib/mailClicks.js), so Sälj sees who clicked.
+    linkCode: text(o["Mail link"]),
   };
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { Journey, VISITS_CSS, pathLabel, secs, when } from "./Visits.jsx";
 
 /* /admin/sales — where sales stand today and what to do next. Everything is
    read from the Google Sheet (the record; edit it there). Uppdatera first
@@ -33,6 +34,49 @@ function closes(deadline, today) {
   if (n <= 0) return "stänger idag";
   if (n === 1) return "stänger imorgon";
   return n <= 14 ? `stänger om ${n} d` : `stänger ${dayLabel(deadline)}`;
+}
+
+// Prospects who opened pullup.se from their own link in an outreach mail.
+// With the cookie on, their later visits count too.
+function MailClicks({ clicks }) {
+  const [open, setOpen] = useState(null); // visit id
+  if (!clicks) return null;
+  return (
+    <section className="sl-clicks">
+      <h2>Klickade på länken{clicks.length ? ` (${clicks.length})` : ""}</h2>
+      <p className="sl-muted">
+        {clicks.length
+          ? "Varmast just nu: de har sett sidan. Ring eller följ upp medan de minns dig."
+          : "Ingen har klickat än. Länken pullup.se i mejlen bär en egen kod per mottagare."}
+      </p>
+      <ul className="sl-list">
+        {clicks.map((c) => (
+          <li key={c.id}>
+            <div className="sl-row-top">
+              <b>{c.company}{c.person ? <span className="sl-person"> · {c.person}</span> : null}</b>
+              <span className="sl-tag">
+                {c.sent && <em className="is-hot">skickade förfrågan</em>}
+                {!c.sent && c.offer && <em className="is-hot">såg erbjudandet</em>}
+                {c.cookie && <em title="Sa ja till cookien: senare besök känns igen">känns igen</em>}
+              </span>
+            </div>
+            <span>
+              senast {when(c.last)} · {c.visits.length} besök · {secs(c.active)} läst
+              {c.pages.length ? ` · ${c.pages.map(pathLabel).join(", ")}` : ""}
+            </span>
+            <div className="sl-visits">
+              {c.visits.map((v) => (
+                <button key={v.id} type="button" className={open === v.id ? "is-open" : ""} onClick={() => setOpen(open === v.id ? null : v.id)}>
+                  {when(v.start)}{v.viaLink ? "" : " · kom tillbaka"}
+                </button>
+              ))}
+            </div>
+            {c.visits.some((v) => v.id === open) && <Journey id={open} />}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function pace(delta) {
@@ -68,6 +112,14 @@ export function SalesPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mail, setMail] = useState(null); // last mail sync: result or { error }
+  const [clicks, setClicks] = useState(null);
+
+  const loadClicks = useCallback(() =>
+    authenticatedFetch("/admin/sales/clicks")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setClicks(d.clicks))
+      .catch(() => setClicks(null)), []);
+  useEffect(() => { loadClicks(); }, [loadClicks]);
 
   const load = useCallback((fresh = false) =>
     authenticatedFetch(`/admin/sales${fresh ? "?fresh=1" : ""}`)
@@ -88,6 +140,7 @@ export function SalesPage() {
     setMail(r?.ok ? body : { error: body.error || "mail_sync_failed" });
     setLoading("sheet");
     load(true);
+    loadClicks();
   };
 
   const plan = data?.plan;
@@ -101,7 +154,7 @@ export function SalesPage() {
 
   return (
     <AdminShell title="Sälj">
-      <style>{SALES_CSS}</style>
+      <style>{SALES_CSS + VISITS_CSS}</style>
       <div className="sl">
         <div className="sl-head">
           <div>
@@ -189,6 +242,8 @@ export function SalesPage() {
                 <div className="sl-axis"><span>{dayLabel(plan.start)}</span><span>Mål {plan.perDay} / dag</span><span>{dayLabel(plan.end)}</span></div>
               </>
             )}
+
+            <MailClicks clicks={clicks} />
 
             <div className="sl-grid">
               <section>
@@ -368,6 +423,12 @@ const SALES_CSS = `
   .sl-list li span { color: #6e6e73; font-size: 13px; }
   .sl-list li.is-late span { color: #D9480F; font-weight: 600; }
   .sl-meetings { margin-bottom: 28px; }
+  .sl-clicks .sl-row-top b { font-size: 14px; }
+  .sl-person { font-weight: 500; color: #3a3a3e; }
+  .sl-tag em.is-hot { color: #1f7a3a; }
+  .sl-visits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .sl-visits button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.12); background: #fff; color: #3a3a3e; cursor: pointer; }
+  .sl-visits button.is-open { background: #0a0a0a; color: #fff; border-color: #0a0a0a; }
   .sl-funnel { display: grid; gap: 8px; margin-top: 12px; }
   .sl-step { display: grid; grid-template-columns: 120px minmax(0, 1fr) 48px; gap: 12px; align-items: center; font-size: 14px; }
   .sl-step > i { display: block; height: 14px; border-radius: 4px; background: #f2f2f2; overflow: hidden; }

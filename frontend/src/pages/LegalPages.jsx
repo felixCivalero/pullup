@@ -12,7 +12,7 @@ import { MailLink } from "../components/agency/MailLink.jsx";
    browser storage → i18n.js (language),
    lib/lazyPage.js (chunk reload) and the Supabase login. */
 
-const UPDATED = { sv: "Senast uppdaterad 26 oktober 2026", en: "Last updated 26 October 2026" };
+const UPDATED = { sv: "Senast uppdaterad 27 oktober 2026", en: "Last updated 27 October 2026" };
 const Mail = () => <MailLink />;
 
 function Legal({ title, children }) {
@@ -59,6 +59,7 @@ export function PrivacyPage() {
               <li><strong>När du hör av dig</strong> via ”Jobba med mig”: namn, e-post och det du skriver i formuläret. Med följer var du kom ifrån – sidan du skickade från, länken som tog dig hit (referrer), eventuella kampanjparametrar (UTM), språk, skärmstorlek, mobil eller dator och när besöket började.</li>
               <li><strong>När du ber om bookleten:</strong> e-post, och namn och företag om du fyller i dem.</li>
               <li><strong>Besöksstatistik:</strong> vilka sidor du ser, hur långt ner du läser och hur länge du läser varje del, vad du klickar på, att du kopierar text (inte vad), vilka fält i formuläret du fyller i (inte vad du skriver), referrer, UTM och mobil eller dator, under ett slumpat id som bara finns medan sidan är öppen. Statistiken innehåller inte namn, e-post eller IP-adress.</li>
+              <li><strong>Om du kommer via ett mejl från mig:</strong> länken i mejlen jag skickar kan bära en kod för just dig, så att jag ser att du öppnade sajten och vad du läste under det besöket. Har du också slagit på statistik-kakan ser jag dina senare besök också.</li>
               <li><strong>Unika besökare – bara om du säger ja:</strong> slår du på statistik-kakan sparas ett slumpat id i din webbläsare, så att jag kan räkna hur många olika personer som besöker sajten över tid. Säger du nej, eller inte svarar, sparas ingenting och du känns inte igen nästa gång. Jag använder inte Google Analytics, Meta-pixel eller några annonsspårare.</li>
               <li><strong>Tekniska loggar:</strong> servern loggar IP-adress och webbläsare för drift och säkerhet.</li>
               <li><strong>Felrapporter:</strong> om sidan kraschar skickas en rapport om felet, webbläsaren och sidan.</li>
@@ -79,6 +80,7 @@ export function PrivacyPage() {
               <li>Statistik, loggar och felrapporter: mitt berättigade intresse av att förstå hur sajten används, göra den bättre och hålla den igång.</li>
               <li>Räkningen av unika besökare: ditt samtycke. Du kan ändra dig när du vill på <Link to="/cookies">cookiesidan</Link>.</li>
               <li>Skickar du en förfrågan kopplas den till besöket den kom från, så att jag ser vad du läste innan du hörde av dig. Det är mitt berättigade intresse av att förstå vad som får folk att höra av sig.</li>
+              <li>Koden i länken i mina mejl: mitt berättigade intresse av att veta om det jag skickat blivit läst, så att jag följer upp rätt personer och låter bli de andra. Senare besök kopplas bara till dig om du sagt ja till statistik-kakan.</li>
               <li>Konto, event, anmälningar och mejl: för att tjänsten du använder ska fungera (avtal). Inloggningsuppgifter och assistenternas logg: mitt berättigade intresse av att hålla konton säkra.</li>
             </ul>
             <p>Jag säljer aldrig dina uppgifter, lämnar inte ut dem för någon annans marknadsföring och lägger inte till dig i något nyhetsbrev.</p>
@@ -96,7 +98,7 @@ export function PrivacyPage() {
             <p>Några av dem kan behandla uppgifter utanför EU, främst i USA. Det sker med EU:s standardavtalsklausuler eller motsvarande skydd.</p>
 
             <h2>Hur länge</h2>
-            <p>Förfrågningar och booklet-uppgifter sparar jag så länge de behövs för vår kontakt. Ber du mig radera dem gör jag det. Statistiken går inte att koppla till dig som person. Id:t för unika besökare finns kvar i din webbläsare tills du stänger av statistik-kakan eller rensar webbläsaren.</p>
+            <p>Förfrågningar och booklet-uppgifter sparar jag så länge de behövs för vår kontakt. Ber du mig radera dem gör jag det. Statistiken går inte att koppla till dig som person, utom besök som kommer från en länk i ett mejl jag skickat dig; ber du mig radera dem gör jag det. Id:t för unika besökare finns kvar i din webbläsare tills du stänger av statistik-kakan eller rensar webbläsaren.</p>
 
             <h2>Dina rättigheter</h2>
             <p>Du kan be om att få se, rätta eller radera dina uppgifter, invända mot hur de används, begränsa behandlingen eller få ut dem i ett format du kan ta med dig. Mejla <Mail /> så svarar jag inom en månad. Är du inte nöjd kan du vända dig till Integritetsskyddsmyndigheten (IMY).</p>
@@ -114,6 +116,7 @@ export function PrivacyPage() {
               <li><strong>When you get in touch</strong> through “Work with me”: your name, email and what you write in the form. It comes with where you came from – the page you sent it from, the link that brought you here (referrer), any campaign parameters (UTM), language, screen size, phone or computer and when the visit started.</li>
               <li><strong>When you ask for the booklet:</strong> your email, plus your name and company if you fill them in.</li>
               <li><strong>Visit statistics:</strong> which pages you view, how far down and for how long you read each part, what you click, that you copied text (not what), which form fields you fill in (not what you type), referrer, UTM and phone or computer, under a random ID that only exists while the page is open. The statistics hold no names, emails or IP addresses.</li>
+              <li><strong>If you come from an email I sent you:</strong> the link in my emails can carry a code for you personally, so I can see that you opened the site and what you read during that visit. If you have also switched the stats cookie on, I see your later visits too.</li>
               <li><strong>Unique visitors – only if you say yes:</strong> if you switch on the stats cookie, a random ID is stored in your browser so I can count how many different people visit the site over time. If you say no, or don't answer, nothing is stored and you're not recognised next time. I don't use Google Analytics, a Meta pixel or any ad trackers.</li>
               <li><strong>Technical logs:</strong> the server logs IP address and browser for operations and security.</li>
               <li><strong>Error reports:</strong> if the page crashes, a report about the error, the browser and the page is sent.</li>
@@ -134,6 +137,7 @@ export function PrivacyPage() {
               <li>Statistics, logs and error reports: my legitimate interest in understanding how the site is used, improving it and keeping it running.</li>
               <li>Counting unique visitors: your consent. You can change your mind any time on the <Link to="/cookies">cookies page</Link>.</li>
               <li>If you send a request, it is linked to the visit it came from, so I can see what you read before getting in touch. That is my legitimate interest in understanding what makes people reach out.</li>
+              <li>The code in the link in my emails: my legitimate interest in knowing whether what I sent was read, so I follow up with the right people and leave the others alone. Later visits are only linked to you if you said yes to the stats cookie.</li>
               <li>Account, events, sign-ups and email: to make the service you use work (contract). Sign-in details and the assistants' log: my legitimate interest in keeping accounts secure.</li>
             </ul>
             <p>I never sell your data, never hand it to anyone else for their marketing and never add you to a newsletter.</p>
@@ -151,7 +155,7 @@ export function PrivacyPage() {
             <p>Some of them may process data outside the EU, mainly in the US. That happens under the EU's standard contractual clauses or equivalent safeguards.</p>
 
             <h2>How long</h2>
-            <p>I keep requests and booklet details for as long as our contact needs them. If you ask me to delete them, I will. The statistics can't be tied to you as a person. The unique-visitor ID stays in your browser until you switch the stats cookie off or clear your browser.</p>
+            <p>I keep requests and booklet details for as long as our contact needs them. If you ask me to delete them, I will. The statistics can't be tied to you as a person, except visits that come from a link in an email I sent you; if you ask me to delete them, I will. The unique-visitor ID stays in your browser until you switch the stats cookie off or clear your browser.</p>
 
             <h2>Your rights</h2>
             <p>You can ask to see, correct or delete your data, object to how it's used, restrict the processing or get it in a format you can take with you. Email <Mail /> and I'll answer within a month. If you're not satisfied, you can turn to the Swedish Authority for Privacy Protection (IMY).</p>
@@ -246,7 +250,7 @@ export function CookiesPage() {
             <p>Sajten har en enda kaka du väljer själv, och sparar annars bara det den behöver för att fungera.</p>
             <StatsSwitch lang="sv" />
             <ul>
-              <li><strong>Statistik-kakan</strong> – bara om du slår på den: ett slumpat id som räknar hur många olika personer som besöker sajten. Inget annat kopplas till det, och det tas bort när du stänger av den (localStorage).</li>
+              <li><strong>Statistik-kakan</strong> – bara om du slår på den: ett slumpat id som räknar hur många olika personer som besöker sajten. Kom du hit via en länk i ett mejl från mig kopplas dina senare besök till det mejlet. Inget annat kopplas till det, och det tas bort när du stänger av den (localStorage).</li>
               <li><strong>Ditt val</strong> – att du svarat av eller på, så att frågan inte kommer tillbaka (localStorage).</li>
               <li><strong>Språkval</strong> – bara om du byter språk, så att sajten minns det (localStorage).</li>
               <li><strong>Omladdning efter uppdatering</strong> – en teknisk markering under besöket om sidan behövt laddas om efter att jag publicerat en ny version (sessionStorage).</li>
@@ -260,7 +264,7 @@ export function CookiesPage() {
             <p>The site has one cookie you choose yourself, and otherwise stores only what it needs to work.</p>
             <StatsSwitch lang="en" />
             <ul>
-              <li><strong>The stats cookie</strong> – only if you switch it on: a random ID that counts how many different people visit the site. Nothing else is linked to it, and it is removed when you switch it off (localStorage).</li>
+              <li><strong>The stats cookie</strong> – only if you switch it on: a random ID that counts how many different people visit the site. If you came here through a link in an email from me, your later visits are linked to that email. Nothing else is linked to it, and it is removed when you switch it off (localStorage).</li>
               <li><strong>Your choice</strong> – that you answered off or on, so the question doesn't come back (localStorage).</li>
               <li><strong>Language</strong> – only if you switch language, so the site remembers it (localStorage).</li>
               <li><strong>Reload after an update</strong> – a technical marker during your visit if the page had to reload after I published a new version (sessionStorage).</li>

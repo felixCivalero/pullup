@@ -64,14 +64,14 @@ export const pathLabel = (p) => (p === "/" ? "Startsidan" : CASE_NAMES[p] ? `Cas
 const FIELDS = { name: "namn", email: "e-post", company: "företag", description: "beskrivning", when: "tid" };
 const SOURCES = { direct: "Direkt", mejl: "Mejl", instagram: "Instagram", facebook: "Facebook", linkedin: "LinkedIn", google: "Google", pullup: "pullup.se" };
 
-const secs = (n) => {
+export const secs = (n) => {
   if (!n) return "–";
   const m = Math.floor(n / 60);
   const s = n % 60;
   return m ? `${m}:${String(s).padStart(2, "0")}` : `${s} s`;
 };
 const clock = (iso) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-const when = (iso) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+export const when = (iso) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const pctOf = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 const FILTERS = [

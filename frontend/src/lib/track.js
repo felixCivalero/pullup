@@ -61,6 +61,10 @@ function getContext() {
     // ?ref=mejl is the short form we put in links (pullup.se/case → ?ref=mejl).
     const ref = params.get("ref");
     if (ref && !utm?.utm_source) { utm = utm || {}; utm.utm_source = ref; }
+    // ?m=<code> is the link in Felix's outreach mail: one code per prospect
+    // (backend lib/mailClicks.js), so Sälj sees who clicked.
+    const m = params.get("m");
+    if (m && /^[a-z0-9]{4,12}$/.test(m)) utm = { ...utm, utm_source: "mejl", utm_content: m };
   } catch { /* no utm */ }
   context = {
     referrer: (typeof document !== "undefined" && document.referrer) || null,
@@ -151,6 +155,16 @@ export function initTracking() {
   if (lifecycleWired || typeof window === "undefined") return;
   lifecycleWired = true;
   clearOldStorage();
+  // Read the link's code into this visit, then take it out of the address
+  // bar: a copied or shared URL must not carry someone else's code.
+  getContext();
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("m")) {
+      url.searchParams.delete("m");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+  } catch { /* keep the URL as it is */ }
   const onHide = () => flush({ beacon: true });
   window.addEventListener("pagehide", onHide);
   document.addEventListener("visibilitychange", () => {

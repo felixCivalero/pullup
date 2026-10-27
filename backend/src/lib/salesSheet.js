@@ -12,7 +12,7 @@ export const salesSheetUrl = () => `https://docs.google.com/spreadsheets/d/${pro
 
 export async function readSalesSheet({ fresh = false } = {}) {
   if (!cache || fresh || Date.now() - cache.at > CACHE_MS) {
-    const [prospectRows, logRows, overviewRows] = await batchGetValues(process.env.SALES_SHEET_ID, ["Prospects!A:X", "Log!A:E", "Overview!A1:B40"]);
+    const [prospectRows, logRows, overviewRows] = await batchGetValues(process.env.SALES_SHEET_ID, ["Prospects!A:Z", "Log!A:E", "Overview!A1:B40"]);
     cache = { at: Date.now(), raw: { prospectRows, logRows, overviewRows } };
   }
   return { ...cache.raw, readAt: new Date(cache.at).toISOString() };
@@ -26,7 +26,7 @@ const asText = (v) => (v ? `'${v}` : "");
 // a new row. Returns the prospect ID.
 export async function recordWebsiteLead({ name, email, company, description, preferredTime, plan }) {
   const sheetId = process.env.SALES_SHEET_ID;
-  const [rows] = await batchGetValues(sheetId, ["Prospects!A:X"]);
+  const [rows] = await batchGetValues(sheetId, ["Prospects!A:Z"]);
   const header = rows[0] || [];
   const col = (h) => header.indexOf(h);
   const today = stockholmToday();
@@ -68,7 +68,7 @@ export async function recordWebsiteLead({ name, email, company, description, pre
     "Next step date": today,
     Notes: note,
   };
-  await appendValues(sheetId, "Prospects!A:X", [header.map((h) => (h === "ID" ? asText(values[h]) : values[h] ?? ""))]);
+  await appendValues(sheetId, "Prospects!A:Z", [header.map((h) => (h === "ID" ? asText(values[h]) : values[h] ?? ""))]);
   cache = null;
   return id;
 }

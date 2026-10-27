@@ -87,7 +87,7 @@ async function run({ sinceDays, dryRun }) {
   return withImap(async (client) => {
     const since = new Date(Date.now() - sinceDays * 86400000);
     const { messages, unreadAuto } = await recentMessages(client, since);
-    const [prospectRows, logRows] = await batchGetValues(sheetId, ["Prospects!A:X", "Log!A:F"]);
+    const [prospectRows, logRows] = await batchGetValues(sheetId, ["Prospects!A:Z", "Log!A:F"]);
     const plan = planMailSync({ prospectRows, logRows, messages });
 
     if (!dryRun) {

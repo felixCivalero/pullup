@@ -11,7 +11,7 @@ export function AgencyOffer({
   chapter, // [n, label] — renders the landing chapter opener
   source = "landing",
   heading = "Your brand could be the next story.",
-  sub = "Every brand has its own starting point and its own goals. Get in touch and we'll take it from there.",
+  sub = "Every brand has its own starting point and its own goals. Let's meet and see if there's a chance to grow together.",
 }) {
   const t = useT();
   return (

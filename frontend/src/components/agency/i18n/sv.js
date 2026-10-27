@@ -1085,7 +1085,7 @@ export const SV = {
   "Get in touch": "Hör av dig",
   "Next step": "Nästa steg",
   "Tell me where you are.": "Berätta var ni står.",
-  "Every brand has its own starting point and its own goals. Get in touch and we'll take it from there.": "Varje varumärke har sitt eget läge och sina egna mål. Hör av dig, så tar vi det därifrån.",
+  "Every brand has its own starting point and its own goals. Let's meet and see if there's a chance to grow together.": "Varje varumärke har sitt eget läge och sina egna mål. Låt oss ta ett möte så ser vi ifall det finns möjlighet att växa tillsammans.",
   "About me": "Om mig",
   "I develop the people behind brands.": "Jag utvecklar människorna bakom varumärken.",
   "I develop the people behind brands. Growth that lasts.": "Jag utvecklar människorna bakom varumärken. Tillväxt som håller.",

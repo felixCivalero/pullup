@@ -83,7 +83,7 @@ export function FelixContent() {
           <p className="fl-label">{t("Next step")}</p>
           <Reveal><h2 className="fl-h2">{t("Tell me where you are.")}</h2></Reveal>
           <Reveal delay={0.05}>
-            <p className="fl-p">{t("Every brand has its own starting point and its own goals. Get in touch and we'll take it from there.")}</p>
+            <p className="fl-p">{t("Every brand has its own starting point and its own goals. Let's meet and see if there's a chance to grow together.")}</p>
           </Reveal>
           <Reveal delay={0.1}>
             <div className="fl-ctas">

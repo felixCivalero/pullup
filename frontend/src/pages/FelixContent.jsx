@@ -5,17 +5,15 @@ import { LogoBand } from "../components/agency/landingParts.jsx";
 import { CaseStack } from "../components/agency/CaseStack.jsx";
 import { MailLink } from "../components/agency/MailLink.jsx";
 import { Testimonials } from "../components/agency/Testimonials.jsx";
-import { EngineChart } from "../components/agency/EngineChart.jsx";
 import { TechSection, TECH_CSS } from "../components/agency/TechSection.jsx";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 
 /* The front page: Felix, in first person. Hero + logos → what clients say
    (small cards) → the cases (horizontal rail) → his tech skills and the
-   products he built → how the work runs (the 12-week growth picture with the
-   weekly 30-minute sprint) → book a meeting, last (Felix 2026-10-26: no bio;
-   2026-10-27: no price on the site — every brand needs its own deal, so the
-   page ends in a 20-minute meeting, like the outreach mail).
+   products he built → get in touch, last (Felix 2026-10-26: no bio;
+   2026-10-27: no price and no fixed 12-week plan — every brand needs its own
+   deal; the ending stays general so it never echoes the outreach mail).
    Minimal on purpose: one idea per section, short lines, no decoration. */
 
 const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -79,29 +77,17 @@ export function FelixContent() {
       {/* the tech — his skills, then the products he built */}
       <TechSection />
 
-      {/* how it runs — the 12-week picture */}
-      <section id="how" className="fl-sec fl-rule" data-pc-section="how" data-pc-order="5">
-        <div className="fl-wrap">
-          <p className="fl-label">{t("How I work")}</p>
-          <Reveal><h2 className="fl-h2">{t("Your brand grows every week.")}</h2></Reveal>
-          <Reveal delay={0.05}>
-            <p className="fl-p">{t("First a clear direction. Then 30 minutes with me every week, where your voice becomes content. Everything is measured, and what works gets scaled.")}</p>
-          </Reveal>
-          <div className="fl-engine"><EngineChart /></div>
-        </div>
-      </section>
-
-      {/* book a meeting — the section keeps id "offer" so Statistik's history lines up */}
-      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="6">
+      {/* get in touch — the section keeps id "offer" so Statistik's history lines up */}
+      <section id="offer" className="fl-offer" data-pc-tone="dark" data-pc-section="offer" data-pc-order="5">
         <div className="fl-wrap">
           <p className="fl-label">{t("Next step")}</p>
-          <Reveal><h2 className="fl-h2">{t("Let's take 20 minutes.")}</h2></Reveal>
+          <Reveal><h2 className="fl-h2">{t("Tell me where you are.")}</h2></Reveal>
           <Reveal delay={0.05}>
-            <p className="fl-p">{t("No ready-made package. Every brand is different, so we start with a quick meeting and see if there's something we can grow together.")}</p>
+            <p className="fl-p">{t("Every brand has its own starting point and its own goals. Get in touch and we'll take it from there.")}</p>
           </Reveal>
           <Reveal delay={0.1}>
             <div className="fl-ctas">
-              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Book a meeting")}</button>
+              <button type="button" className="fl-btn fl-btn-light" onClick={() => work("offer")}>{t("Get in touch")}</button>
               <MailLink className="fl-link fl-link-light" />
             </div>
           </Reveal>
@@ -166,7 +152,6 @@ export const FELIX_CSS = `
   .fl-cases-sec .fl-h2 { max-width: none; }
 
   /* how it runs */
-  .fl-engine { margin-top: clamp(32px, 4vw, 56px); }
 
   /* offer */
   .fl-offer { background: var(--ink); color: #fff; padding: clamp(96px, 13vw, 168px) 0; }

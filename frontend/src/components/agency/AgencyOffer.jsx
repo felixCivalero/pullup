@@ -5,13 +5,13 @@ import { openRequest } from "./request.js";
 import { Reveal } from "./Reveal.jsx";
 
 // The end of every case page: no price (Felix 2026-10-27 — every brand needs
-// its own deal), just the way into a 20-minute meeting.
+// its own deal), just the way to get in touch.
 export function AgencyOffer({
   id,
   chapter, // [n, label] — renders the landing chapter opener
   source = "landing",
   heading = "Your brand could be the next story.",
-  sub = "No ready-made package. Every brand is different, so we start with a quick meeting and see if there's something we can grow together.",
+  sub = "Every brand has its own starting point and its own goals. Get in touch and we'll take it from there.",
 }) {
   const t = useT();
   return (
@@ -44,7 +44,7 @@ export function AgencyOffer({
               openRequest({ source: `offer_${source}` });
             }}
           >
-            {t("Book a meeting")}
+            {t("Get in touch")}
             <ArrowUpRight size={18} strokeWidth={1.75} />
           </button>
         </Reveal>

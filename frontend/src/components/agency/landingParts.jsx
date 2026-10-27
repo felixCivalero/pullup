@@ -1,6 +1,5 @@
 import { useT } from "./i18n.js";
 import { STORY_CHART_CSS } from "./StoryChart.jsx";
-import { ENGINE_CSS } from "./EngineChart.jsx";
 import { TOOLKIT_CSS } from "./Toolkit.jsx";
 
 /* Pieces of the front page shared by its sections: the brand band, the
@@ -192,7 +191,6 @@ ${STORY_CHART_CSS}
   /* ─── how we work ─── */
   .hw-h2 { max-width: 16ch; }
   .hw-lede { max-width: 60ch; }
-${ENGINE_CSS}
 ${TOOLKIT_CSS}
 
   /* ─── phone ─── */

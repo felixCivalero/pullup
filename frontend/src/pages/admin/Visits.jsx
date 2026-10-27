@@ -12,7 +12,6 @@ const HOME_LAYOUT = [
   ["words", "Vad de säger"],
   ["stories", "Case"],
   ["tech", "Tekniska kunskaper och produkter"],
-  ["how", "Så jobbar jag"],
   ["offer", "Boka möte"],
 ];
 const STORIES = import.meta.glob("../stories/data/*.jsx", { eager: true, import: "default" });

@@ -2,9 +2,9 @@
 // backend/src/services/followUpTemplateService.js — keep in sync.
 
 export const TOKENS = [
-  { key: "first_name", label: "First name", scope: "person" },
-  { key: "event_title", label: "Event title", scope: "event" },
-  { key: "event_date", label: "Event date", scope: "event" },
+  { key: "first_name", label: "Förnamn", scope: "person" },
+  { key: "event_title", label: "Eventets namn", scope: "event" },
+  { key: "event_date", label: "Eventets datum", scope: "event" },
 ];
 
 // Returns the token list filtered to what the current composer state can
@@ -43,7 +43,7 @@ function formatEventDate(starts_at) {
   if (!starts_at) return "";
   const d = new Date(starts_at);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString("sv-SE", { month: "short", day: "numeric", timeZone: "Europe/Stockholm" });
 }
 
 // Build the substitution context used in the live preview. Uses the current

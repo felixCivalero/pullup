@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { followBrand, useCurrentBrand } from "../../lib/brand.js";
+import { BrandKicker } from "../../components/admin/ByBrand.jsx";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
@@ -36,7 +38,10 @@ export function EventDetailPage() {
   const load = useCallback(() => {
     authenticatedFetch(`/admin/events/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        followBrand(d?.event?.brandId);
+      })
       .catch(() => setError(true));
   }, [id]);
   useEffect(() => { load(); }, [load]);
@@ -55,6 +60,7 @@ export function EventDetailPage() {
           <>
             <div className="ea-head">
               <div>
+                <BrandKicker />
                 <h1>{ev.title || "Utan titel"}</h1>
                 <p className="ea-muted ed-when">{formatEventWhen(ev.startsAt, ev.endsAt, ev.timezone, { year: true })}{ev.location ? ` · ${ev.location}` : ""}</p>
               </div>
@@ -163,6 +169,7 @@ function Guests({ guests, ev, onChange }) {
 }
 
 function Compose({ ev }) {
+  const brand = useCurrentBrand();
   const [audience, setAudience] = useState("attending");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -241,7 +248,7 @@ function Compose({ ev }) {
         <div className="ea-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setConfirm(false)}>
           <div className="ea-modal">
             <h2>Skicka till {count} personer?</h2>
-            <p className="ea-muted" style={{ margin: 0 }}>”{subject}” går ut direkt och går inte att ångra.</p>
+            <p className="ea-muted" style={{ margin: 0 }}>{brand ? <>Skickas som <b>{brand.name}</b>. </> : null}”{subject}” går ut direkt och går inte att ångra.</p>
             <div className="ea-modal-actions">
               <button type="button" className="ea-btn" onClick={() => setConfirm(false)}>Avbryt</button>
               <button type="button" className="ea-btn is-dark" disabled={busy} onClick={() => send(false)}>{busy ? "Skickar…" : "Skicka"}</button>

@@ -9,24 +9,24 @@ import { isOwnerEmail, useSession } from "../../lib/owner.js";
 
 const TYPE_LABEL = {
   text: "Text",
-  image: "Image",
-  button: "Button",
-  socials: "Socials",
-  pullup_event: "PullUp event",
-  discover_event: "Discover event",
+  image: "Bild",
+  button: "Knapp",
+  socials: "Sociala medier",
+  pullup_event: "Event",
+  discover_event: "Stockholm-event",
 };
 
 const ADD_ITEMS = [
   { type: "text", icon: Type, label: "Text" },
-  { type: "image", icon: ImageIcon, label: "Image" },
+  { type: "image", icon: ImageIcon, label: "Bild" },
   { type: "logo", icon: Aperture, label: "Logo" },
-  { type: "button", icon: MousePointerClick, label: "Button" },
-  { type: "socials", icon: AtSign, label: "Socials" },
+  { type: "button", icon: MousePointerClick, label: "Knapp" },
+  { type: "socials", icon: AtSign, label: "Sociala medier" },
   // Admin-only embeds — surface even on the host CRM since hosts can pick
   // their own events too. (Discover is admin-data, but admins co-host the
   // host CRM in practice; the picker simply won't show non-public data.)
-  { type: "pullup_event", icon: Calendar, label: "PullUp event", adminOnly: false },
-  { type: "discover_event", icon: Compass, label: "Discover event", adminOnly: true },
+  { type: "pullup_event", icon: Calendar, label: "Event", adminOnly: false },
+  { type: "discover_event", icon: Compass, label: "Stockholm-event", adminOnly: true },
 ];
 
 export default function BlockEditorList({
@@ -66,7 +66,7 @@ export default function BlockEditorList({
       // visible in the preview the moment admin clicks Add. They can edit
       // both fields right after — much better than staring at a blank
       // canvas wondering if the button was added.
-      button: { type: "button", text: "View event", url: "https://pullup.se", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
+      button: { type: "button", text: "Till eventet", url: "https://pullup.se", caption: null, size: 100, align: "center", bgColor: "#d4af37" },
       socials: { type: "socials", links: [], align: "center" },
       // Empty event-card blocks open the picker on first edit — title is
       // empty so the editor renders the dashed "Pick an event" prompt.
@@ -113,14 +113,14 @@ export default function BlockEditorList({
                   disabled={idx === 0}
                   onClick={() => moveBlock(idx, -1)}
                   style={chevronStyle(idx === 0)}
-                  aria-label="Move up"
+                  aria-label="Flytta upp"
                 >&#9650;</button>
                 <button
                   type="button"
                   disabled={idx === blocks.length - 1}
                   onClick={() => moveBlock(idx, 1)}
                   style={chevronStyle(idx === blocks.length - 1)}
-                  aria-label="Move down"
+                  aria-label="Flytta ner"
                 >&#9660;</button>
               </div>
               <span style={typeLabelStyle}>{blockType}</span>
@@ -128,7 +128,7 @@ export default function BlockEditorList({
               <button
                 type="button"
                 onClick={() => removeBlock(idx)}
-                aria-label="Remove block"
+                aria-label="Ta bort block"
                 style={removeStyle}
               >×</button>
             </div>
@@ -145,7 +145,7 @@ export default function BlockEditorList({
       })}
       {/* Add-block tray — mirrors the "Add section" UI in CreateEventPage */}
       <div style={addTrayStyle}>
-        <div style={addTrayTitleStyle}>Add section</div>
+        <div style={addTrayTitleStyle}>Lägg till block</div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleAddItems.length}, 1fr)`, gap: 2 }}>
           {visibleAddItems.map((item) => {
             const Icon = item.icon;

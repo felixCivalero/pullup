@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
+import { BrandKicker } from "../../components/admin/ByBrand.jsx";
 import { AdminShell } from "./AdminShell.jsx";
 import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
@@ -53,6 +54,7 @@ export function EventsPage() {
       <div className="ea">
         <div className="ea-head">
           <div>
+            <BrandKicker />
             <h1>Event</h1>
             {data && <p className="ea-muted">{data.length} event · {totals.guests} anmälda · {totals.came} kom</p>}
           </div>

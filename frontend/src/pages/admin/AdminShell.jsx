@@ -4,7 +4,7 @@ import { LogOut } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { isOwnerEmail, useSession } from "../../lib/owner.js";
-import { setCurrentBrandId, useBrandId } from "../../lib/brand.js";
+import { BrandContext, setCurrentBrandId, useBrandId } from "../../lib/brand.js";
 import { ToastProvider } from "../../components/Toast.jsx";
 import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
 import { Onboarding } from "../../components/admin/Onboarding.jsx";
@@ -99,6 +99,7 @@ export function AdminShell({ title, fill = false, children }) {
   if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
   const brands = me?.brands || [];
   const starting = !!me && !owner && brands.length === 0;
+  const current = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
 
   return (
     <ToastProvider>
@@ -113,9 +114,9 @@ export function AdminShell({ title, fill = false, children }) {
             ))}
           </nav>
           <div className="ad-side">
-            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} />}
+            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} />}
             {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
-            <button type="button" onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
+            <button type="button" className={brands.length > 0 ? "ad-out has-menu" : "ad-out"} onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
               <span className="ad-out-text">Logga ut</span>
               <LogOut className="ad-out-icon" size={17} />
             </button>
@@ -124,8 +125,10 @@ export function AdminShell({ title, fill = false, children }) {
         {starting ? (
           <main className="ad-main"><Onboarding email={session.user?.email} onDone={loadMe} /></main>
         ) : (
-          // A new brand picked: the page is drawn again for it.
-          <main className="ad-main" key={brandId || "brand"}>{children}</main>
+          // Pages that show one brand's things redraw when it changes (App.jsx, ByBrand).
+          <main className="ad-main">
+            <BrandContext.Provider value={current}>{children}</BrandContext.Provider>
+          </main>
         )}
       </div>
     </ToastProvider>
@@ -156,6 +159,8 @@ const ADMIN_CSS = `
     .ad-side { gap: 8px; }
     .ad-out-text { display: none; }
     .ad-out-icon { display: block; }
+    .ad-out.has-menu { display: none; }
+    .ad-bar nav a { font-size: 13.5px; padding: 7px 9px; }
   }
   .ad-fill .ad-main { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; overflow: hidden; }
 `;

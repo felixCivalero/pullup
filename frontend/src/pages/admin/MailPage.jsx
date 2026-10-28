@@ -22,7 +22,7 @@ import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
    gone). ?event=<id> opens the event invitation for that event. */
 
 const TABS = [
-  { id: "segment", label: "Segment" },
+  { id: "segment", label: "Mottagare" },
   { id: "email", label: "Design" },
 ];
 const HTTP_RE = /^https?:\/\//i;
@@ -41,18 +41,18 @@ function buildDefaultEventBlocks(event) {
   if (event.startsAt) {
     const d = new Date(event.startsAt);
     if (!isNaN(d.getTime())) {
-      meta.push(d.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+      meta.push(d.toLocaleString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: event.timezone || "Europe/Stockholm" }));
     }
   }
   if (event.location) meta.push(event.location);
   if (meta.length) blocks.push({ type: "text", style: "paragraph", text: meta.join(" · ") });
   if (event.description) blocks.push({ type: "text", style: "paragraph", text: event.description.trim() });
-  if (event.url) blocks.push({ type: "button", text: "View event", url: event.url, caption: null, size: 100, align: "center", bgColor: "#d4af37" });
+  if (event.url) blocks.push({ type: "button", text: "Till eventet", url: event.url, caption: null, size: 100, align: "center", bgColor: "#d4af37" });
   return blocks;
 }
 
 function defaultGreetingBlock() {
-  return { type: "text", style: "paragraph", text: "Hi {{first_name}},", align: "left" };
+  return { type: "text", style: "paragraph", text: "Hej {{first_name}},", align: "left" };
 }
 
 // Pre-flight block validation matching the backend rules.
@@ -62,13 +62,13 @@ function validateBlocksClient(blocks) {
     const b = blocks[i];
     if (!b || typeof b !== "object") continue;
     const pos = `Block ${i + 1}`;
-    if (b.type === "image" && b.url && !HTTP_RE.test(b.url)) return `${pos} (image): URL must start with http:// or https://`;
+    if (b.type === "image" && b.url && !HTTP_RE.test(b.url)) return `${pos} (bild): länken måste börja med http:// eller https://`;
     if (b.type === "button") {
-      if (!b.text || !b.text.trim()) return `${pos} (button): text is required`;
-      if (!b.url || !HTTP_RE.test(b.url)) return `${pos} (button): URL must start with http:// or https://`;
+      if (!b.text || !b.text.trim()) return `${pos} (knapp): knappen behöver en text`;
+      if (!b.url || !HTTP_RE.test(b.url)) return `${pos} (knapp): länken måste börja med http:// eller https://`;
     }
     if (b.type === "socials" && Array.isArray(b.links)) {
-      for (const l of b.links) if (l && l.url && !HTTP_RE.test(l.url)) return `${pos} (socials): links must start with http:// or https://`;
+      for (const l of b.links) if (l && l.url && !HTTP_RE.test(l.url)) return `${pos} (sociala medier): länkarna måste börja med http:// eller https://`;
     }
   }
   return null;
@@ -102,7 +102,7 @@ function MailComposer() {
   const credits = useEmailCredits();
   const [paywall, setPaywall] = useState(false);
   useEffect(() => {
-    if (credits.paid) showToast(`Purchase complete: ${credits.paid.balance.toLocaleString("sv-SE")} sends in your balance.`, "success");
+    if (credits.paid) showToast(`Klart! Du har ${credits.paid.balance.toLocaleString("sv-SE")} utskick på kontot.`, "success");
   }, [credits.paid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Composer — two templates kept apart so switching doesn't lose either.
@@ -162,7 +162,7 @@ function MailComposer() {
           attending: e.attending,
         })));
       })
-      .catch(() => alive && showToast("Failed to load events", "error"));
+      .catch(() => alive && showToast("Kunde inte hämta eventen", "error"));
     return () => { alive = false; };
   }, [showToast]);
 
@@ -172,7 +172,7 @@ function MailComposer() {
   // Picking an event for the invitation fills the blocks from it.
   useEffect(() => {
     if (selectedTemplate !== "event" || !selectedEvent) return;
-    setEventSubject(`You're invited to ${selectedEvent.title}.`);
+    setEventSubject(`Du är inbjuden: ${selectedEvent.title}`);
     setEventBlocks(buildDefaultEventBlocks(selectedEvent));
   }, [selectedEventId, selectedTemplate, selectedEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -198,9 +198,9 @@ function MailComposer() {
     : { eventId: selectedEventId, subject: eventSubject, previewText: eventPreviewText, blocks: eventBlocks, fromName: eventSender, event: selectedEvent };
 
   function check() {
-    if (!selectedTemplate) return "Pick a template first.";
-    if (!active.eventId) return isFollowup ? "Pick the event this follow-up is for." : "Choose an event for the email content.";
-    if (!active.subject.trim()) return "Subject is required.";
+    if (!selectedTemplate) return "Välj en mall först.";
+    if (!active.eventId) return isFollowup ? "Välj vilket event uppföljningen gäller." : "Välj ett event att bygga mejlet på.";
+    if (!active.subject.trim()) return "Mejlet behöver en ämnesrad.";
     if (!active.blocks.length) return "Add at least one block.";
     return validateBlocksClient(active.blocks);
   }
@@ -215,7 +215,7 @@ function MailComposer() {
   });
 
   function handleSendClick() {
-    if (!total) { showToast("No recipients in this segment.", "error"); setActiveTab("segment"); return; }
+    if (!total) { showToast("Ingen i urvalet kan få mejlet.", "error"); setActiveTab("segment"); return; }
     const err = check();
     if (err) { showToast(err, "error"); setActiveTab("email"); return; }
     if (credits.balance != null && total > credits.balance) { setPaywall(true); return; }
@@ -233,9 +233,9 @@ function MailComposer() {
       const res = await authenticatedFetch("/admin/sends", { method: "POST", body: JSON.stringify({ ...payload(), test: true }) });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error);
-      showToast(`Test sent to ${out.to}`, "success");
+      showToast(`Testmejl skickat till ${out.to}`, "success");
     } catch {
-      showToast("Failed to send test", "error");
+      showToast("Testmejlet gick inte iväg", "error");
     } finally {
       setTesting(false);
     }
@@ -254,7 +254,7 @@ function MailComposer() {
         return;
       }
       if (out.balance != null) credits.setBalance(out.balance);
-      if (!res.ok) throw new Error(out.detail === "no_recipients" ? "No recipients in this segment." : "Failed to start sending");
+      if (!res.ok) throw new Error(out.detail === "no_recipients" ? "Ingen i urvalet kan få mejlet." : "Utskicket kunde inte starta");
       setSendingStats((s) => ({ ...s, totalRecipients: out.queued }));
       for (let attempt = 0; attempt < 150; attempt += 1) {
         if (cancelledRef.current) return;
@@ -266,16 +266,16 @@ function MailComposer() {
         setSendingStats({ totalRecipients: out.queued, totalSent: row.sent, totalFailed: row.failed });
         if (row.sent + row.failed >= out.queued) {
           setSendStage(row.sent ? "success" : "error");
-          if (!row.sent) setSendingErrorMessage("The email provider reported a failure.");
+          if (!row.sent) setSendingErrorMessage("Mejltjänsten rapporterade ett fel.");
           return;
         }
       }
       setSendStage("error");
-      setSendingErrorMessage("Still sending — check back in a minute.");
+      setSendingErrorMessage("Skickar fortfarande – titta in igen om en minut.");
     } catch (e) {
       if (cancelledRef.current) return;
       setSendStage("error");
-      setSendingErrorMessage(e.message || "Unexpected error while sending.");
+      setSendingErrorMessage(e.message || "Något gick fel under utskicket.");
     }
   }
 
@@ -350,8 +350,8 @@ function MailComposer() {
 
           <div className="ml-foot">
             <div style={{ marginRight: "auto", alignSelf: "center" }}><CreditsLine balance={credits.balance} needed={total} onBuy={() => setPaywall(true)} /></div>
-            <button type="button" className="ml-btn" onClick={handleTest} disabled={testing}>{testing ? "Sending…" : "Send test to me"}</button>
-            <button type="button" className="ml-btn is-send" onClick={handleSendClick} disabled={!total}>Send to {total ?? "…"} →</button>
+            <button type="button" className="ml-btn" onClick={handleTest} disabled={testing}>{testing ? "Skickar…" : "Skicka test till mig"}</button>
+            <button type="button" className="ml-btn is-send" onClick={handleSendClick} disabled={!total}>Skicka till {total ?? "…"} →</button>
           </div>
         </aside>
 
@@ -386,6 +386,7 @@ function MailComposer() {
         blocks={active.blocks}
         onClose={() => setIsConfirmSendOpen(false)}
         onConfirmSend={handleConfirmSend}
+        senderName={active.fromName}
       />
       <CreditsPaywall open={paywall} needed={total} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
     </>

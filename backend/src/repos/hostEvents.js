@@ -17,7 +17,7 @@ import { broadcastEmail } from "../lib/eventEmails.js";
 import { creditBalance, refundCredits, reserveCredits } from "../lib/emailCredits.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { ensureHostProfile } from "../middleware/requireUser.js";
-import { brandNames, brandScope, currentBrand } from "../lib/brands.js";
+import { brandNames, brandScope, brandShape, currentBrand } from "../lib/brands.js";
 import { apiBase, eventUrl } from "../lib/urls.js";
 
 export const EVENT_COLUMNS =
@@ -301,17 +301,26 @@ function checkAudienceEvents(world, audience) {
   for (const id of ids) if (!own.has(id)) throw new ActionError("not_found", "No event with that id.", { detail: "eventId" });
 }
 
-export async function previewSend(caller, audience) {
-  const [world, suppressed] = await Promise.all([loadWorld(caller), loadSuppressed()]);
+// A mail to one event's guests is that event's brand's mail, whichever brand
+// the page had picked: the audience, the sender name and the log follow it.
+async function sendScope(caller, audience) {
+  if (caller.isOwner || audience?.type !== "event") return caller;
+  const ev = await eventFor(caller, audience.eventId);
+  return ev.brand_id ? { ...caller, requestedBrand: ev.brand_id, _brandScope: null } : caller;
+}
+
+export async function previewSend(callerIn, audience) {
+  const caller = await sendScope(callerIn, audience);
+  const [world, suppressed, { brand }] = await Promise.all([loadWorld(caller), loadSuppressed(), brandScope(caller)]);
   checkAudienceEvents(world, audience);
   const recipients = pickAudience({ audience, ...world }).filter((r) => !suppressed.has(r.email));
-  return { count: recipients.length, sample: recipients.slice(0, 5).map((r) => r.name || r.email) };
+  return { count: recipients.length, sample: recipients.slice(0, 5).map((r) => r.name || r.email), brand: brand ? brandShape(brand) : null };
 }
 
 // A send runs after the answer: 100 mails at a time, ~600 ms apart (under
 // Resend's rate limit). Each mail is logged in email_outbox under one
 // campaign_tag and the host. `compose(recipient, unsubscribeUrl)` builds it.
-async function deliver({ recipients, subject, compose, logBody, from: fromOverride, tag, hostId }) {
+async function deliver({ recipients, subject, compose, logBody, from: fromOverride, tag, hostId, brandId = null }) {
   const unsub = new Map();
   for (const r of recipients.filter((x) => x.personId && !x.token)) {
     const token = crypto.randomBytes(18).toString("base64url");
@@ -355,6 +364,7 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
       category: "event_broadcast",
       campaign_tag: tag,
       host_id: hostId,
+      brand_id: brandId,
       created_at: now,
       updated_at: now,
     }))).then(({ error }) => error && console.error("[events] outbox log failed:", error.message));
@@ -368,7 +378,9 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
 // out; mails the provider refuses come back to the balance. `test` sends one
 // copy to the caller only, free. Two kinds of mail: a plain message (`body`)
 // or the mail module's blocks (`blocks` + previewText + fromName).
-export async function sendMail(caller, input) {
+export async function sendMail(callerIn, input) {
+  const caller = await sendScope(callerIn, input?.audience);
+  const brandId = (await brandScope(caller)).brand?.id || null;
   const { audience, subject, body, blocks, previewText, fromName, eventId, test } = input || {};
   const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, 200) : "";
   const cleanBody = typeof body === "string" ? body.trim().slice(0, 20000) : "";
@@ -407,7 +419,7 @@ export async function sendMail(caller, input) {
   const replyTo = caller.isOwner ? undefined : caller.email;
 
   if (test) {
-    await deliver({ recipients: [{ personId: null, email: caller.email, name: "", basis: "test", token: "test", replyTo }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test`, hostId: caller.hostId });
+    await deliver({ recipients: [{ personId: null, email: caller.email, name: "", basis: "test", token: "test", replyTo }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test`, hostId: caller.hostId, brandId });
     return { ok: true, test: true, to: caller.email };
   }
   const [world, suppressed] = await Promise.all([loadWorld(caller), loadSuppressed()]);
@@ -422,18 +434,24 @@ export async function sendMail(caller, input) {
     const balance = await creditBalance(caller.hostId);
     throw new ActionError("payment_required", `This send needs ${recipients.length} mail credits and the balance is ${balance}. Buy a pack first.`, { needed: recipients.length, balance });
   }
-  deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag, hostId: caller.hostId })
+  deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag, hostId: caller.hostId, brandId })
     .then(({ failed }) => refundCredits(caller.hostId, failed, tag))
     .catch((err) => console.error("[events] send failed:", err?.message));
   return { ok: true, queued: recipients.length, tag, balance: left };
 }
 
-// Earlier sends, newest first. Before mig 148 sends had no host: those were
-// all the owner's.
+// Earlier sends, newest first — the brand's own (sends from before brands,
+// mig 150, count as the account's first brand). Before mig 148 sends had no
+// host: those were all the owner's.
 export async function listSends(caller) {
+  const { brands, brand } = await brandScope(caller);
+  const firstBrand = brand && brands[0]?.id === brand.id;
   const rows = await selectAllPaged(() => {
     const q = supabase.from("email_outbox").select("campaign_tag, subject, status, created_at").eq("category", "event_broadcast");
-    return (caller.isOwner ? q.or(`host_id.is.null,host_id.eq.${caller.hostId}`) : q.eq("host_id", caller.hostId)).order("created_at", { ascending: false });
+    if (caller.isOwner) return q.or(`host_id.is.null,host_id.eq.${caller.hostId}`).order("created_at", { ascending: false });
+    const mine = q.eq("host_id", caller.hostId);
+    const scoped = !brand ? mine.is("brand_id", null) : firstBrand ? mine.or(`brand_id.is.null,brand_id.eq.${brand.id}`) : mine.eq("brand_id", brand.id);
+    return scoped.order("created_at", { ascending: false });
   });
   const by = new Map();
   for (const r of rows) {

@@ -31,19 +31,19 @@ export default function TextBlockEditor({ block, onChange, tokens }) {
         onChange={(text) => onChange({ ...block, text })}
         tokens={tokens}
         enableLinks
-        placeholder={block.style === "heading" ? "Heading text…" : "Write a paragraph…"}
+        placeholder={block.style === "heading" ? "Rubrik…" : "Skriv ett stycke…"}
         style={{
           fontSize: block.style === "heading" ? "18px" : "14px",
           fontWeight: block.style === "heading" ? 700 : 400,
         }}
       />
       <div style={fieldGroupStyle}>
-        <div style={fieldLabelStyle}><span>Align</span></div>
+        <div style={fieldLabelStyle}><span>Placering</span></div>
         <div style={{ display: "flex", gap: 4 }}>
           {[
-            { v: "left", icon: AlignLeft, label: "Left" },
-            { v: "center", icon: AlignCenter, label: "Center" },
-            { v: "right", icon: AlignRight, label: "Right" },
+            { v: "left", icon: AlignLeft, label: "Vänster" },
+            { v: "center", icon: AlignCenter, label: "Mitten" },
+            { v: "right", icon: AlignRight, label: "Höger" },
           ].map((opt) => {
             const Icon = opt.icon;
             const active = align === opt.v;

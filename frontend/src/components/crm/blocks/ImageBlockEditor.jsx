@@ -29,11 +29,11 @@ export default function ImageBlockEditor({ block, onChange }) {
   async function handleFile(file) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setError("Pick an image file (PNG, JPG, GIF, WebP).");
+      setError("Välj en bildfil (PNG, JPG, GIF, WebP).");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setError("Image must be under 2 MB.");
+      setError("Bilden får vara högst 2 MB.");
       return;
     }
     setUploading(true);
@@ -52,7 +52,7 @@ export default function ImageBlockEditor({ block, onChange }) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Upload failed (${res.status})`);
+        throw new Error(body.error || `Uppladdningen misslyckades (${res.status})`);
       }
       const { url } = await res.json();
       onChange({ ...block, url, source: "upload" });
@@ -100,7 +100,7 @@ export default function ImageBlockEditor({ block, onChange }) {
           <button
             type="button"
             onClick={() => onChange({ ...block, url: "", source: null })}
-            title="Remove image"
+            title="Ta bort bild"
             style={removeBtnStyle}
           >
             <X size={14} />
@@ -127,12 +127,12 @@ export default function ImageBlockEditor({ block, onChange }) {
               {uploading ? <Spinner /> : dragActive ? <Upload size={22} /> : <ImageIcon size={22} />}
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>
-              {uploading ? "Uploading…" : dragActive ? "Drop to upload" : "Drag an image here"}
+              {uploading ? "Uploading…" : dragActive ? "Släpp för att ladda upp" : "Dra hit en bild"}
             </div>
             <div style={{ fontSize: 12, color: colors.textMuted }}>
-              or <span style={{ color: colors.accent, textDecoration: "underline" }}>click to choose</span> from your computer
+              or <span style={{ color: colors.accent, textDecoration: "underline" }}>klicka för att välja</span> from your computer
             </div>
-            <div style={{ fontSize: 11, color: colors.textFaded }}>PNG, JPG, GIF or WebP · up to 2 MB</div>
+            <div style={{ fontSize: 11, color: colors.textFaded }}>PNG, JPG, GIF eller WebP · högst 2 MB</div>
           </div>
         </div>
       )}
@@ -149,11 +149,11 @@ export default function ImageBlockEditor({ block, onChange }) {
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" onClick={() => setPickerOpen(true)} style={ghostBtnStyle}>
-          {block.url ? "Replace from gallery" : "Choose from your events"}
+          {block.url ? "Byt från galleriet" : "Välj från dina event"}
         </button>
         {block.source && (
           <span style={{ fontSize: 11, opacity: 0.55 }}>
-            ({block.source === "upload" ? "uploaded" : "from event"})
+            ({block.source === "upload" ? "uppladdad" : "från event"})
           </span>
         )}
       </div>
@@ -162,7 +162,7 @@ export default function ImageBlockEditor({ block, onChange }) {
         <>
           <div style={fieldGroupStyle}>
             <div style={fieldLabelStyle}>
-              <span>Size</span>
+              <span>Storlek</span>
               <span style={{ opacity: 0.6 }}>{block.width ?? DEFAULT_WIDTH}%</span>
             </div>
             <input
@@ -176,12 +176,12 @@ export default function ImageBlockEditor({ block, onChange }) {
             />
           </div>
           <div style={fieldGroupStyle}>
-            <div style={fieldLabelStyle}><span>Align</span></div>
+            <div style={fieldLabelStyle}><span>Placering</span></div>
             <div style={{ display: "flex", gap: 4 }}>
               {[
-                { v: "left", icon: AlignLeft, label: "Left" },
-                { v: "center", icon: AlignCenter, label: "Center" },
-                { v: "right", icon: AlignRight, label: "Right" },
+                { v: "left", icon: AlignLeft, label: "Vänster" },
+                { v: "center", icon: AlignCenter, label: "Mitten" },
+                { v: "right", icon: AlignRight, label: "Höger" },
               ].map((opt) => {
                 const Icon = opt.icon;
                 const active = (block.align ?? DEFAULT_ALIGN) === opt.v;
@@ -201,7 +201,7 @@ export default function ImageBlockEditor({ block, onChange }) {
           </div>
 
           <div style={fieldGroupStyle}>
-            <div style={fieldLabelStyle}><span>Crop</span></div>
+            <div style={fieldLabelStyle}><span>Beskärning</span></div>
             <div style={{ display: "flex", gap: 4 }}>
               {RATIO_OPTIONS.map((opt) => {
                 const active = (block.aspectRatio ?? DEFAULT_RATIO) === opt.v;
@@ -225,7 +225,7 @@ export default function ImageBlockEditor({ block, onChange }) {
         type="text"
         value={block.alt || ""}
         onChange={(e) => onChange({ ...block, alt: e.target.value })}
-        placeholder="Alt text (for accessibility)"
+        placeholder="Alt-text (för skärmläsare)"
         style={altInputStyle}
       />
 

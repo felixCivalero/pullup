@@ -4,6 +4,7 @@ import { compressImage, validateImageFile } from "../lib/imageUtils.js";
 import { formatReadableDateTime, formatRelativeTime } from "../lib/dateUtils.js";
 import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
 import { Toggle } from "./editorUi.jsx";
+import { useCurrentBrand } from "../../../lib/brand.js";
 
 /* The page body: reorderable content blocks (the old app's sections
    builder, branch pullup-app CreateEventPage step 2). Title, place and time
@@ -34,6 +35,8 @@ function youtubeId(url) {
 }
 
 export function SectionsPanel({ draft, update, hovered, setHovered }) {
+  // The organiser block starts with the brand the event belongs to.
+  const brand = useCurrentBrand();
   const sections = draft.sections || [];
   const setSections = (next) => update({ sections: next });
   const setAt = (i, patch) => setSections(sections.map((s, j) => (j === i ? { ...s, ...patch } : s)));
@@ -190,7 +193,7 @@ export function SectionsPanel({ draft, update, hovered, setHovered }) {
         <p>Lägg till sektion</p>
         <div className="ee-add-grid">
           {ADD.map((a) => (
-            <button key={a.data.type} type="button" onClick={() => { setSections([...sections, { ...a.data }]); setHovered(sections.length); }}>
+            <button key={a.data.type} type="button" onClick={() => { setSections([...sections, { ...a.data, ...(a.data.type === "hostedby" && brand ? { name: brand.name } : {}) }]); setHovered(sections.length); }}>
               <b>{a.icon}</b>
               <span>{a.label}</span>
             </button>

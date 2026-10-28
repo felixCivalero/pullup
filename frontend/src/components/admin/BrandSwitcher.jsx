@@ -7,7 +7,7 @@ import { setCurrentBrandId } from "../../lib/brand.js";
    (an agency, a company with several products): events, guests, CRM and mail
    follow the brand picked here; mail credits are the account's. Pick one,
    rename it, or add another. `onChange` reloads the account (AdminShell). */
-export function BrandSwitcher({ brands, current, onChange }) {
+export function BrandSwitcher({ brands, current, onChange, onSignOut }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState(null); // null | "new" | "rename"
   const [name, setName] = useState("");
@@ -89,6 +89,10 @@ export function BrandSwitcher({ brands, current, onChange }) {
                 <span>Nytt varumärke</span>
                 <Plus size={15} />
               </button>
+              {/* Phones: the bar has no room for its own sign-out, so it lives here. */}
+              {onSignOut && (
+                <button type="button" role="menuitem" className="bs-item bs-muted bs-phone" onClick={onSignOut}>Logga ut</button>
+              )}
             </>
           )}
         </div>
@@ -120,5 +124,9 @@ const CSS = `
   .ad-bar .bs-go:hover { color: #fff; }
   .ad-bar .bs-go:disabled { opacity: 0.4; }
   .bs-err { margin: 0; font-size: 13px; color: #D9480F; }
-  @media (max-width: 520px) { .ad-bar .bs-btn { max-width: 120px; padding: 7px 10px; } }
+  .ad-bar .bs-phone { display: none; }
+  @media (max-width: 520px) {
+    .ad-bar .bs-btn { max-width: 104px; padding: 6px 9px; font-size: 13px; }
+    .ad-bar .bs-phone { display: flex; }
+  }
 `;

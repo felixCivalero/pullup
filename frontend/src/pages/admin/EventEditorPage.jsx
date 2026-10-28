@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ClipboardList, ExternalLink, Image as ImageIcon, Monitor, Smartphone, Type } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { followBrand } from "../../lib/brand.js";
 import { useToast } from "../../components/Toast";
 import { AdminShell } from "./AdminShell.jsx";
 import { EventPreview } from "../../components/event/EventPreview.jsx";
@@ -86,7 +87,11 @@ function Editor() {
     let alive = true;
     authenticatedFetch(`/admin/events/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => alive && setDraft({ ...d.event, media: d.media || [] }))
+      .then((d) => {
+        if (!alive) return;
+        setDraft({ ...d.event, media: d.media || [] });
+        followBrand(d.event?.brandId);
+      })
       .catch(() => alive && setError(true));
     return () => { alive = false; };
   }, [id]);

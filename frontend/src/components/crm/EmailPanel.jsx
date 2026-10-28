@@ -37,21 +37,21 @@ export default function EmailPanel({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <Field label="Template">
+      <Field label="Mall">
         <select
           value={selectedTemplate}
           onChange={(e) => setSelectedTemplate(e.target.value)}
           style={inputStyle}
         >
-          <option value="">— select template —</option>
-          <option value="event">Event email template</option>
-          <option value="followup">Follow-up email</option>
+          <option value="">— välj mall —</option>
+          <option value="event">Inbjudan till event</option>
+          <option value="followup">Uppföljning efter event</option>
         </select>
       </Field>
 
       {!selectedTemplate && (
         <div style={{ padding: "12px 14px", borderRadius: 10, background: colors.surface, border: `1px solid ${colors.border}`, fontSize: 12, color: colors.textSubtle, lineHeight: 1.5 }}>
-          Pick a template above to start composing.
+          Välj en mall ovan för att börja.
         </div>
       )}
 
@@ -70,8 +70,8 @@ export default function EmailPanel({
           setBlocks={setEventBlocks}
           hoveredKey={hoveredKey}
           setHoveredKey={setHoveredKey}
-          eventGateLabel="Which event is this invitation for?"
-          eventGateHint="Pick the event so we can pre-fill the email with its image, title, date, location, and description. Edit and rearrange after."
+          eventGateLabel="Vilket event bjuder du in till?"
+          eventGateHint="Välj eventet så fylls mejlet i med bild, titel, datum, plats och beskrivning. Sen kan du ändra och flytta om."
         />
       )}
 

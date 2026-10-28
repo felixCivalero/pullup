@@ -13,7 +13,7 @@ function formatEventDate(starts_at) {
   if (!starts_at) return "";
   const d = new Date(starts_at);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString("sv-SE", { month: "short", day: "numeric", timeZone: "Europe/Stockholm" });
 }
 
 function buildTokenContext({ person, event }) {
@@ -156,7 +156,7 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
   // through the tracker (one-click unsubscribe needs a direct hop).
   const footer = unsubscribeUrl
     ? `<div class="pu-footer" style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(0,0,0,0.08);font-size:12px;text-align:center;line-height:1.6;color:rgba(12,10,18,0.55);">
-        <p style="margin:0;">You are receiving this email because you opted in via our site.<br>Want to change how you receive these emails?<br>You can <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">unsubscribe from this list</a>.</p>
+        <p style="margin:0;">Du får det här mejlet för att du har tackat ja till inbjudningar.<br>Vill du inte ha fler? <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">Avregistrera dig</a>.</p>
         <p style="margin:12px 0 0;">Pullup.se<br>Lorensbergsgatan 3b<br>117 33, Stockholm</p>
       </div>`
     : "";
@@ -263,13 +263,7 @@ function renderBlock(b, t) {
         if (ev.startsAt) {
           const d = new Date(ev.startsAt);
           if (!isNaN(d.getTime())) {
-            dateLine = d.toLocaleString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            });
+            dateLine = d.toLocaleString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" });
           }
         }
         const meta = [dateLine, ev.location]
@@ -282,7 +276,7 @@ function renderBlock(b, t) {
           : "";
 
         const hostedByHtml = safeHostedBy
-          ? `<div class="pu-event-host" style="font-size:12px;margin:0 0 8px;">Hosted by ${safeHostedBy}</div>`
+          ? `<div class="pu-event-host" style="font-size:12px;margin:0 0 8px;">Arrangör: ${safeHostedBy}</div>`
           : "";
 
         // Buttons row: View event CTA + Spotify button side-by-side.
@@ -291,7 +285,7 @@ function renderBlock(b, t) {
         // class so it inverts in dark mode (white-on-black inverted to
         // black-on-white) instead of disappearing into a dark body.
         const ctaHtml = safeUrl
-          ? `<a href="${safeUrl}" class="pu-event-cta" style="display:inline-block;padding:10px 20px;background:#0c0a12;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;vertical-align:middle;">View event →</a>`
+          ? `<a href="${safeUrl}" class="pu-event-cta" style="display:inline-block;padding:10px 20px;background:#0c0a12;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;vertical-align:middle;">Till eventet →</a>`
           : "";
 
         const spotifyBtn = safeSpotify
@@ -340,13 +334,7 @@ function fmtMetaLine(ev) {
   if (ev.startsAt) {
     const d = new Date(ev.startsAt);
     if (!isNaN(d.getTime())) {
-      dateLine = d.toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
+      dateLine = d.toLocaleString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" });
     }
   }
   return [dateLine, ev.location].filter(Boolean).map(escapeHtml).join(" · ");
@@ -388,7 +376,7 @@ function renderGrid2Card(ev) {
     <div style="padding:10px 12px 12px;">
       <div class="pu-heading" style="font-size:14px;font-weight:700;line-height:1.3;margin:0 0 3px;">${safeTitle}</div>
       ${meta ? `<div class="pu-event-meta" style="font-size:11px;margin:0 0 2px;">${meta}</div>` : ""}
-      ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:0;">Hosted by ${safeHostedBy}</div>` : ""}
+      ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:0;">Arrangör: ${safeHostedBy}</div>` : ""}
       ${buttons}
     </div>
   </div>`;
@@ -414,7 +402,7 @@ function renderListCard(ev) {
       <td valign="middle" style="padding:10px 14px;">
         <div class="pu-heading" style="font-size:14px;font-weight:700;line-height:1.3;margin:0 0 2px;">${safeTitle}</div>
         ${meta ? `<div class="pu-event-meta" style="font-size:11.5px;margin:0;">${meta}</div>` : ""}
-        ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:2px 0 0;">Hosted by ${safeHostedBy}</div>` : ""}
+        ${safeHostedBy ? `<div class="pu-event-host" style="font-size:11px;margin:2px 0 0;">Arrangör: ${safeHostedBy}</div>` : ""}
       </td>
       <td valign="middle" align="right" style="padding:10px 12px;white-space:nowrap;">
         ${ctaHtml}${spotifyBtn}
@@ -525,6 +513,6 @@ export function renderTemplateText({ templateContent, person, event, unsubscribe
       for (const ev of items) if (ev?.title) out.push([ev.title, /^https?:\/\//i.test(ev.url || "") ? ev.url : ""].filter(Boolean).join(" "));
     }
   }
-  if (unsubscribeUrl) out.push(`Unsubscribe: ${unsubscribeUrl}`);
+  if (unsubscribeUrl) out.push(`Avregistrera dig: ${unsubscribeUrl}`);
   return out.join("\n\n");
 }

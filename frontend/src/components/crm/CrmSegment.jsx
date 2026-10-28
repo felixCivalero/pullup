@@ -54,23 +54,23 @@ export default function CrmSegment({ segment, setSegment, total }) {
   const addEvent = (id) => id && !chosen.has(id) && set({ eventIds: [...segment.eventIds, id] });
   const removeEvent = (id) => set({ eventIds: segment.eventIds.filter((x) => x !== id) });
 
-  if (error) return <p style={{ color: colors.danger, fontSize: 13 }}>Couldn't load the CRM.</p>;
-  if (!data) return <p style={{ color: colors.textSubtle, fontSize: 13 }}>Loading the CRM…</p>;
+  if (error) return <p style={{ color: colors.danger, fontSize: 13 }}>Kunde inte hämta CRM:et.</p>;
+  if (!data) return <p style={{ color: colors.textSubtle, fontSize: 13 }}>Hämtar CRM:et…</p>;
 
   return (
     <div className="cs">
       <style>{CSS}</style>
       <label className="cs-search">
         <Search size={15} />
-        <input placeholder="Search name or email" value={segment.search} onChange={(e) => set({ search: e.target.value })} />
+        <input placeholder="Sök namn eller e-post" value={segment.search} onChange={(e) => set({ search: e.target.value })} />
       </label>
 
       <div className="cs-field">
-        <span>Events</span>
+        <span>Event</span>
         <select value="" onChange={(e) => addEvent(e.target.value)}>
-          <option value="">{segment.eventIds.length ? "+ Add another event" : "Everyone in the CRM — or pick events"}</option>
+          <option value="">{segment.eventIds.length ? "+ Lägg till ett event" : "Alla i CRM:et – eller välj event"}</option>
           {events.filter((e) => !chosen.has(e.id)).map((e) => (
-            <option key={e.id} value={e.id}>{e.title || "Untitled"}{e.startsAt ? ` · ${day(e.startsAt)}` : ""}</option>
+            <option key={e.id} value={e.id}>{e.title || "Utan titel"}{e.startsAt ? ` · ${day(e.startsAt)}` : ""}</option>
           ))}
         </select>
         {segment.eventIds.length > 0 && (
@@ -78,45 +78,45 @@ export default function CrmSegment({ segment, setSegment, total }) {
             {segment.eventIds.map((id) => (
               <span key={id} className="cs-chip">
                 {byId.get(id)?.title || "Event"}
-                <button type="button" onClick={() => removeEvent(id)} aria-label="Remove"><X size={13} /></button>
+                <button type="button" onClick={() => removeEvent(id)} aria-label="Ta bort"><X size={13} /></button>
               </span>
             ))}
           </div>
         )}
-        <p className="cs-hint">{segment.eventIds.length ? "People signed up to any of these." : "No event picked: everyone in the CRM who wants invitations."}</p>
+        <p className="cs-hint">{segment.eventIds.length ? "Alla som anmält sig till något av dessa." : "Inget event valt: alla i CRM:et som vill ha inbjudningar."}</p>
       </div>
 
       <div className="cs-toggles">
-        <button type="button" className={segment.came ? "is-on" : ""} onClick={() => set({ came: !segment.came })}>Only people who came</button>
+        <button type="button" className={segment.came ? "is-on" : ""} onClick={() => set({ came: !segment.came })}>Bara de som kom</button>
         <button
           type="button"
           className={consentOnly ? "is-on" : ""}
           disabled={consentForced}
-          title={consentForced ? "Always on without an event: mailing the CRM needs people's yes." : ""}
+          title={consentForced ? "Alltid på utan event: för att mejla CRM:et krävs att de tackat ja." : ""}
           onClick={() => set({ consentOnly: !segment.consentOnly })}
         >
-          Only people who want invitations
+          Bara de som vill ha inbjudningar
         </button>
       </div>
 
       <div className="cs-count">
         <b>{total == null ? "…" : total.toLocaleString("sv-SE")}</b>
-        <span>{total === 1 ? "recipient" : "recipients"} · unsubscribed people are never included</span>
+        <span>mottagare · den som avregistrerat sig får aldrig mejl</span>
       </div>
 
       <ul className="cs-list">
         {people.slice(0, shown).map((p) => (
           <li key={p.id}>
             <span className="cs-name">{p.name || p.email}<small>{p.name ? p.email : ""}</small></span>
-            <span className="cs-meta">{p.events ? `${p.events} ev` : ""}{p.attended ? ` · ${p.attended} came` : ""}</span>
-            <i className={`cs-dot${p.consent ? " is-on" : ""}`} title={p.consent ? "Wants invitations" : "Hasn't said yes to invitations"} />
+            <span className="cs-meta">{p.events ? `${p.events} ev` : ""}{p.attended ? ` · kom ${p.attended}` : ""}</span>
+            <i className={`cs-dot${p.consent ? " is-on" : ""}`} title={p.consent ? "Vill ha inbjudningar" : "Har inte tackat ja till inbjudningar"} />
           </li>
         ))}
       </ul>
       {people.length > shown && (
-        <button type="button" className="cs-more" onClick={() => setShown(shown + SHOW)}>Show more ({(people.length - shown).toLocaleString("sv-SE")})</button>
+        <button type="button" className="cs-more" onClick={() => setShown(shown + SHOW)}>Visa fler ({(people.length - shown).toLocaleString("sv-SE")})</button>
       )}
-      {!people.length && <p className="cs-hint">Nobody matches.</p>}
+      {!people.length && <p className="cs-hint">Ingen matchar.</p>}
     </div>
   );
 }

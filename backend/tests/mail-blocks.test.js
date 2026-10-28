@@ -34,7 +34,7 @@ assert(renderTemplateSubject("You're invited to {{event_title}}, {{first_name}}"
 assert(renderTemplateSubject("Hi {{first_name}}", { person: { name: "" }, event }) === "Hi there", "empty name falls back to 'there' (as before)");
 const text = renderTemplateText({ templateContent, person, event, unsubscribeUrl: "U" });
 assert(text.includes("Hi Anna,") && text.includes("the story (https://pullup.se/work/bkm)") && text.includes("View event: https://pullup.se/e/x"), "plain text: paragraphs, links, buttons");
-assert(text.includes("Release https://pullup.se/e/r") && text.endsWith("Unsubscribe: U"), "plain text: event cards and unsubscribe");
+assert(text.includes("Release https://pullup.se/e/r") && text.endsWith("Avregistrera dig: U"), "plain text: event cards and unsubscribe");
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall mail-blocks tests passed");

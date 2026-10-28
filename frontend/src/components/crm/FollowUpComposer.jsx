@@ -23,8 +23,8 @@ export default function FollowUpComposer({
   setBlocks,
   hoveredKey,
   setHoveredKey,
-  eventGateLabel = "Which event is this follow-up for?",
-  eventGateHint = "A follow-up email is always about something that happened. Pick the event so we can personalize {{event_title}} / {{event_date}} and link recipients back to it in analytics.",
+  eventGateLabel = "Vilket event följer du upp?",
+  eventGateHint = "En uppföljning handlar om något som har hänt. Välj eventet så fylls {{event_title}} och {{event_date}} i.",
 }) {
   const hasEvent = Boolean(selectedEventId);
   const tokens = availableTokens({ hasEvent });
@@ -38,7 +38,7 @@ export default function FollowUpComposer({
             onChange={(e) => setSelectedEventId(e.target.value)}
             style={inputStyle}
           >
-            <option value="">— choose an event —</option>
+            <option value="">— välj event —</option>
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>{ev.title}</option>
             ))}
@@ -53,28 +53,28 @@ export default function FollowUpComposer({
 
       {hasEvent && (
         <>
-          <Section label="Setup" variant="setup">
+          <Section label="Inställningar" variant="setup">
             {setFromName && (
-              <Field label="Sender name (in inbox)">
+              <Field label="Avsändarnamn (syns i inkorgen)">
                 <input
                   type="text"
                   value={fromName || ""}
                   onChange={(e) => setFromName(e.target.value)}
-                  placeholder="Your brand"
+                  placeholder="Ditt varumärke"
                   maxLength={80}
                   style={inputStyle}
                 />
               </Field>
             )}
-            <Field label="Subject">
-              <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Subject line…" />
+            <Field label="Ämne">
+              <TokenizedInput value={subject} onChange={setSubject} tokens={tokens} placeholder="Ämnesrad…" />
             </Field>
-            <Field label="Preview text (preheader)">
-              <TokenizedInput value={previewText} onChange={setPreviewText} tokens={tokens} placeholder="Inbox preview snippet…" />
+            <Field label="Förhandstext (syns efter ämnet i inkorgen)">
+              <TokenizedInput value={previewText} onChange={setPreviewText} tokens={tokens} placeholder="Kort text som syns i inkorgen…" />
             </Field>
           </Section>
 
-          <Section label="Content" variant="content">
+          <Section label="Innehåll" variant="content">
             <BlockEditorList
               blocks={blocks}
               onChange={setBlocks}

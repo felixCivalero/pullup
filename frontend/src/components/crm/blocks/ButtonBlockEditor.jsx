@@ -7,9 +7,9 @@ const DEFAULT_SIZE = 100;
 const DEFAULT_ALIGN = "center";
 
 const ALIGN_OPTIONS = [
-  { v: "left", icon: AlignLeft, label: "Left" },
-  { v: "center", icon: AlignCenter, label: "Center" },
-  { v: "right", icon: AlignRight, label: "Right" },
+  { v: "left", icon: AlignLeft, label: "Vänster" },
+  { v: "center", icon: AlignCenter, label: "Mitten" },
+  { v: "right", icon: AlignRight, label: "Höger" },
 ];
 
 function isHex(s) { return typeof s === "string" && /^#[0-9a-f]{6}$/i.test(s); }
@@ -22,12 +22,12 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div>
-        <label style={labelStyle}>Button text</label>
+        <label style={labelStyle}>Knapptext</label>
         <TokenizedInput
           value={block.text}
           onChange={(text) => onChange({ ...block, text })}
           tokens={tokens}
-          placeholder="Get 20% off"
+          placeholder="Få 20 % rabatt"
         />
       </div>
       <div>
@@ -41,18 +41,18 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
         />
       </div>
       <div>
-        <label style={labelStyle}>Caption (optional)</label>
+        <label style={labelStyle}>Text under knappen (valfri)</label>
         <TokenizedInput
           value={block.caption || ""}
           onChange={(caption) => onChange({ ...block, caption: caption || null })}
           tokens={tokens}
-          placeholder="Code: THANKYOU20 — valid through May 15"
+          placeholder="Kod: TACK20 – gäller till 15 maj"
         />
       </div>
 
       <div style={fieldGroupStyle}>
         <div style={fieldLabelStyle}>
-          <span>Size</span>
+          <span>Storlek</span>
           <span style={{ opacity: 0.6 }}>{size}%</span>
         </div>
         <input
@@ -67,7 +67,7 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
       </div>
 
       <div style={fieldGroupStyle}>
-        <div style={fieldLabelStyle}><span>Align</span></div>
+        <div style={fieldLabelStyle}><span>Placering</span></div>
         <div style={{ display: "flex", gap: 4 }}>
           {ALIGN_OPTIONS.map((opt) => {
             const Icon = opt.icon;
@@ -89,7 +89,7 @@ export default function ButtonBlockEditor({ block, onChange, tokens }) {
 
       <div style={fieldGroupStyle}>
         <div style={fieldLabelStyle}>
-          <span>Background color</span>
+          <span>Bakgrundsfärg</span>
           <span style={{ opacity: 0.6, fontFamily: "monospace" }}>{bg.toUpperCase()}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

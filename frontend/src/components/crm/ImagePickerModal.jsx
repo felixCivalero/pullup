@@ -1,4 +1,4 @@
-// ImagePickerModal — "Choose from your events" gallery. Upload from disk
+// ImagePickerModal — "Välj från dina event" gallery. Upload from disk
 // happens directly via the dropzone in ImageBlockEditor; this modal is now
 // single-purpose (event covers + media), no tab strip.
 
@@ -56,22 +56,22 @@ export default function ImagePickerModal({ isOpen, onSelect, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>Choose from your events</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>Välj från dina event</div>
           <button
             type="button"
             onClick={onClose}
             style={{ marginLeft: "auto", background: "transparent", border: "none", color: colors.textSubtle, cursor: "pointer", fontSize: 20, lineHeight: 1 }}
-            aria-label="Close"
+            aria-label="Stäng"
           >×</button>
         </div>
 
         {error && <div style={{ color: colors.danger, fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {loading && <div style={{ color: colors.textSubtle }}>Loading…</div>}
+          {loading && <div style={{ color: colors.textSubtle }}>Hämtar…</div>}
           {!loading && visibleGallery.length === 0 && (
             <div style={{ color: colors.textSubtle }}>
-              No images yet — your events have no cover images or media.
+              Inga bilder än – dina event har inga omslagsbilder.
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "8px" }}>

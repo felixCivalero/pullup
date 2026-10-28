@@ -44,6 +44,7 @@ export default function ConfirmSendDialog({
   onClose,
   onConfirmSend,
   onSchedule,
+  senderName,
 }) {
   // "now" = fire immediately (existing path); "later" = schedule_at.
   const [mode, setMode] = useState("now");
@@ -74,12 +75,12 @@ export default function ConfirmSendDialog({
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
         <h3 style={titleStyle}>
           {sendStage === "confirm"
-            ? "Ready to send?"
+            ? "Redo att skicka?"
             : sendStage === "sending"
-            ? "Sending campaign…"
+            ? "Skickar…"
             : sendStage === "success"
-            ? "Campaign sent"
-            : "Campaign failed"}
+            ? "Skickat"
+            : "Utskicket misslyckades"}
         </h3>
 
         {sendStage === "confirm" && (
@@ -90,32 +91,33 @@ export default function ConfirmSendDialog({
                 {effectiveRecipientCount.toLocaleString()}
               </div>
               <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>
-                {effectiveRecipientCount === 1 ? "recipient" : "recipients"}
+                {effectiveRecipientCount === 1 ? "mottagare" : "mottagare"}
               </div>
               <div style={{ marginTop: 10 }}>
                 <span style={pillStyle(isFollowup)}>
-                  {isFollowup ? "Follow-up email" : "Event email"}
+                  {isFollowup ? "Uppföljning" : "Inbjudan"}
                 </span>
               </div>
             </div>
 
             {/* Summary card */}
             <div style={summaryCardStyle}>
+              {senderName && <Row label="Från">{senderName}</Row>}
               {selectedEvent && (
                 <Row label="Event">{selectedEvent.title}</Row>
               )}
-              {resolvedSubject && <Row label="Subject">{resolvedSubject}</Row>}
-              {resolvedPreviewText && <Row label="Preview text">{resolvedPreviewText}</Row>}
-              {blockSummary && <Row label="Body">{blockSummary}</Row>}
+              {resolvedSubject && <Row label="Ämne">{resolvedSubject}</Row>}
+              {resolvedPreviewText && <Row label="Förhandstext">{resolvedPreviewText}</Row>}
+              {blockSummary && <Row label="Innehåll">{blockSummary}</Row>}
             </div>
 
             {/* Send now vs. schedule (only where scheduling exists) */}
             {onSchedule && <div style={{ display: "flex", gap: 8, marginBottom: mode === "later" ? 10 : 14 }}>
               <button type="button" onClick={() => setMode("now")} style={modePillStyle(mode === "now")}>
-                Send now
+                Skicka nu
               </button>
               <button type="button" onClick={() => setMode("later")} style={modePillStyle(mode === "later")}>
-                Schedule
+                Schemalägg
               </button>
             </div>}
 
@@ -129,16 +131,16 @@ export default function ConfirmSendDialog({
                   style={dtInputStyle}
                 />
                 <div style={{ fontSize: 11, color: colors.textSubtle, marginTop: 6, lineHeight: 1.5 }}>
-                  Sends automatically at this time ({localTz}) — you don't need to be online.
-                  The audience is recalculated when it fires, so new RSVPs are included.
+                  Skickas automatiskt vid den tiden ({localTz}), du behöver inte vara inloggad.
+                  Mottagarna räknas om då, så nya anmälningar kommer med.
                 </div>
               </div>
             )}
 
             {mode === "now" && (
               <div style={noteStyle}>
-                Once you send, emails go out immediately and can't be recalled.
-                Recipients who unsubscribed are automatically excluded.
+                När du skickar går mejlen ut direkt och kan inte tas tillbaka.
+                Den som avregistrerat sig får aldrig mejlet.
               </div>
             )}
           </>
@@ -148,14 +150,14 @@ export default function ConfirmSendDialog({
           <div style={progressBlockStyle}>
             <Spinner />
             <div style={{ marginTop: 16, fontSize: 14 }}>
-              Sending to{" "}
+              Skickar till{" "}
               <strong>{sendingStats.totalRecipients.toLocaleString()}</strong>{" "}
-              {sendingStats.totalRecipients === 1 ? "recipient" : "recipients"}…
+              {sendingStats.totalRecipients === 1 ? "mottagare" : "mottagare"}…
             </div>
             <div style={{ marginTop: 8, fontSize: 13, opacity: 0.7 }}>
-              {sendingStats.totalSent.toLocaleString()} sent
+              {sendingStats.totalSent.toLocaleString("sv-SE")} skickade
               {sendingStats.totalFailed > 0 && (
-                <> · {sendingStats.totalFailed.toLocaleString()} failed</>
+                <> · {sendingStats.totalFailed.toLocaleString("sv-SE")} misslyckades</>
               )}
             </div>
             <ProgressBar
@@ -169,12 +171,12 @@ export default function ConfirmSendDialog({
           <div style={progressBlockStyle}>
             <SuccessCheck />
             <div style={{ marginTop: 14, fontSize: 14 }}>
-              Sent to <strong>{sendingStats.totalSent.toLocaleString()}</strong>{" "}
-              {sendingStats.totalSent === 1 ? "recipient" : "recipients"}.
+              Skickat till <strong>{sendingStats.totalSent.toLocaleString()}</strong>{" "}
+              {sendingStats.totalSent === 1 ? "mottagare" : "mottagare"}.
             </div>
             {sendingStats.totalFailed > 0 && (
               <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-                {sendingStats.totalFailed.toLocaleString()} deliveries reported as failed.
+                {sendingStats.totalFailed.toLocaleString("sv-SE")} mejl gick inte fram.
               </div>
             )}
           </div>
@@ -183,7 +185,7 @@ export default function ConfirmSendDialog({
         {sendStage === "error" && (
           <div style={{ ...progressBlockStyle, color: colors.danger }}>
             <div style={{ fontSize: 14, marginBottom: 6 }}>
-              We couldn't complete this send. No more emails will be sent.
+              Utskicket kunde inte slutföras. Inga fler mejl skickas.
             </div>
             {sendingErrorMessage && (
               <div style={{ fontSize: 12, opacity: 0.85 }}>{sendingErrorMessage}</div>
@@ -195,12 +197,12 @@ export default function ConfirmSendDialog({
           {sendStage === "confirm" && (
             <>
               <button type="button" onClick={onClose} style={cancelBtnStyle}>
-                Cancel
+                Avbryt
               </button>
               {mode === "now" ? (
                 <button type="button" onClick={onConfirmSend} style={sendBtnStyle}>
-                  Send to {effectiveRecipientCount.toLocaleString()}{" "}
-                  {effectiveRecipientCount === 1 ? "recipient" : "recipients"} →
+                  Skicka till {effectiveRecipientCount.toLocaleString("sv-SE")}{" "}
+                  {effectiveRecipientCount === 1 ? "mottagare" : "mottagare"} →
                 </button>
               ) : (
                 <button
@@ -217,16 +219,16 @@ export default function ConfirmSendDialog({
                   }}
                   style={!scheduleValid || scheduling ? disabledBtnStyle : sendBtnStyle}
                 >
-                  {scheduling ? "Scheduling…" : "Schedule send →"}
+                  {scheduling ? "Schemalägger…" : "Schemalägg →"}
                 </button>
               )}
             </>
           )}
           {sendStage === "sending" && (
-            <button type="button" disabled style={disabledBtnStyle}>Sending…</button>
+            <button type="button" disabled style={disabledBtnStyle}>Skickar…</button>
           )}
           {(sendStage === "success" || sendStage === "error") && (
-            <button type="button" onClick={onClose} style={cancelBtnStyle}>Close</button>
+            <button type="button" onClick={onClose} style={cancelBtnStyle}>Stäng</button>
           )}
         </div>
       </div>

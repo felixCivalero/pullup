@@ -138,7 +138,7 @@ export default function EmailCanvas({
       <div style={canvasOuterStyle}>
         <div style={{ ...emailFrameStyle, borderRadius: 12, border: `1px solid ${colors.border}`, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", background: "#fff" }}>
           <div style={{ color: colors.textSubtle, fontSize: 14, padding: 40 }}>
-            Pick a template in the Email tab to start composing.
+            Välj en mall under Design för att börja.
           </div>
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function EmailCanvas({
           />
         ) : (
           <div style={{ padding: 40, textAlign: "center", opacity: 0.4, fontSize: 14 }}>
-            Add a section in the Design tab to start composing.
+            Lägg till ett block under Design för att börja.
           </div>
         )}
         <EmailFooter theme={palette} />
@@ -196,10 +196,10 @@ function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: "11px", color: colors.textFaded, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Subject
+          Ämne
         </div>
         <div style={{ fontSize: "15px", fontWeight: 700, color: colors.text }}>
-          {subject || <span style={{ color: colors.textFaded }}>(no subject)</span>}
+          {subject || <span style={{ color: colors.textFaded }}>(inget ämne)</span>}
         </div>
         {previewText && (
           <div style={{ fontSize: "12px", color: colors.textMuted, marginTop: 4 }}>{previewText}</div>
@@ -208,7 +208,7 @@ function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
       <button
         type="button"
         onClick={onThemeToggle}
-        title={`Preview as ${theme === "light" ? "dark" : "light"} mode`}
+        title={`Visa i ${theme === "light" ? "mörkt" : "ljust"} läge`}
         style={{
           flexShrink: 0,
           padding: "6px 10px",
@@ -223,7 +223,7 @@ function InboxHeader({ subject, previewText, theme, onThemeToggle }) {
           cursor: "pointer",
         }}
       >
-        {theme === "light" ? "Light" : "Dark"} ↻
+        {theme === "light" ? "Ljust" : "Mörkt"} ↻
       </button>
     </div>
   );
@@ -243,11 +243,9 @@ function EmailFooter({ theme }) {
       }}
     >
       <p style={{ margin: 0 }}>
-        You are receiving this email because you opted in via our site.
+        Du får det här mejlet för att du har tackat ja till inbjudningar.
         <br />
-        Want to change how you receive these emails?
-        <br />
-        You can <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>unsubscribe from this list</a>.
+        Vill du inte ha fler? <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>Avregistrera dig</a>.
       </p>
       <p style={{ margin: "12px 0 0" }}>
         Pullup.se
@@ -275,13 +273,7 @@ function fmtMeta(ev) {
   if (ev.startsAt) {
     const d = new Date(ev.startsAt);
     if (!isNaN(d.getTime())) {
-      dateLine = d.toLocaleString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
+      dateLine = d.toLocaleString("sv-SE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Stockholm" });
     }
   }
   return [dateLine, ev.location].filter(Boolean).join(" · ");
@@ -508,7 +500,7 @@ function FollowupBody({ blocks, t, inline, hoveredKey, theme }) {
     <div>
       {(blocks || []).length === 0 && (
         <div style={{ padding: 24, textAlign: "center", opacity: 0.4, fontSize: 13, border: `1px dashed ${theme.border}`, borderRadius: 8 }}>
-          Add blocks in the Email tab to fill the body.
+          Lägg till block under Design för att fylla mejlet.
         </div>
       )}
       {(blocks || []).map((b, i) => (

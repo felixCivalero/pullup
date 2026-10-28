@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { BrandKicker } from "../../components/admin/ByBrand.jsx";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
@@ -81,6 +82,7 @@ export function PeoplePage() {
       <div className="ea">
         <div className="ea-head">
           <div>
+            <BrandKicker />
             <h1>CRM</h1>
             {data && <p className="ea-muted">{nf.format(stats.total)} personer · {nf.format(stats.withEvents)} har anmält sig till event · {nf.format(stats.came)} har kommit · {nf.format(stats.regulars)} återkommande · {nf.format(stats.consent)} vill ha inbjudningar</p>}
           </div>

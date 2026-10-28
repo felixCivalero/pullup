@@ -115,7 +115,7 @@ export default function TokenizedInput({
               onMouseDown={(e) => e.preventDefault()}
               onClick={openLinkDialog}
               style={linkPillStyle}
-              title="Add a link or email"
+              title="Lägg till länk eller e-post"
             >
               + Link
             </button>
@@ -141,11 +141,11 @@ function LinkDialog({ initialLabel, onCancel, onSubmit }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!url.trim()) {
-      setError("URL or email required");
+      setError("Länk eller e-post behövs");
       return;
     }
     const ok = onSubmit({ label, url });
-    if (!ok) setError("Use https://, http://, or an email address");
+    if (!ok) setError("Använd https://, http:// eller en e-postadress");
   }
 
   return (
@@ -155,33 +155,33 @@ function LinkDialog({ initialLabel, onCancel, onSubmit }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Add link</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Lägg till länk</div>
         <label style={dialogLabel}>
-          Link text
+          Länktext
           <input
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="(falls back to URL)"
+            placeholder="(annars visas länken)"
             style={dialogInput}
             autoFocus={!initialLabel}
           />
         </label>
         <label style={dialogLabel}>
-          URL or email
+          Länk eller e-post
           <input
             type="text"
             value={url}
             onChange={(e) => { setUrl(e.target.value); setError(""); }}
-            placeholder="https://example.com or alex@cliff.se"
+            placeholder="https://exempel.se eller namn@exempel.se"
             style={dialogInput}
             autoFocus={Boolean(initialLabel)}
           />
         </label>
         {error && <div style={{ color: colors.danger, fontSize: 12 }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-          <button type="button" onClick={onCancel} style={cancelBtn}>Cancel</button>
-          <button type="submit" style={submitBtn}>Add link</button>
+          <button type="button" onClick={onCancel} style={cancelBtn}>Avbryt</button>
+          <button type="submit" style={submitBtn}>Lägg till</button>
         </div>
       </form>
     </div>

@@ -34,7 +34,7 @@ function formatDate(iso) {
 // or upcoming-events promos.
 const EVENT_QUICK_RANGES = [
   {
-    label: "Upcoming week",
+    label: "Kommande vecka",
     getRange: () => {
       const start = startOfDay(new Date());
       const end = new Date(start);
@@ -43,7 +43,7 @@ const EVENT_QUICK_RANGES = [
     },
   },
   {
-    label: "Upcoming 2 weeks",
+    label: "Kommande 2 veckor",
     getRange: () => {
       const start = startOfDay(new Date());
       const end = new Date(start);
@@ -52,7 +52,7 @@ const EVENT_QUICK_RANGES = [
     },
   },
   {
-    label: "Upcoming month",
+    label: "Kommande månad",
     getRange: () => {
       const start = startOfDay(new Date());
       const end = new Date(start);
@@ -61,7 +61,7 @@ const EVENT_QUICK_RANGES = [
     },
   },
   {
-    label: "Past week",
+    label: "Senaste veckan",
     getRange: () => {
       const end = startOfDay(new Date());
       const start = new Date(end);
@@ -70,7 +70,7 @@ const EVENT_QUICK_RANGES = [
     },
   },
   {
-    label: "Past month",
+    label: "Senaste månaden",
     getRange: () => {
       const end = startOfDay(new Date());
       const start = new Date(end);
@@ -271,19 +271,19 @@ export default function EventCardBlockEditor({ block, onChange }) {
       >
         <LayoutOption
           icon={LayoutPanelTop}
-          label="Big"
+          label="Stor"
           active={layout === "big"}
           onClick={() => setLayout("big")}
         />
         <LayoutOption
           icon={Columns2}
-          label="2 per row"
+          label="2 per rad"
           active={layout === "grid2"}
           onClick={() => setLayout("grid2")}
         />
         <LayoutOption
           icon={LayoutList}
-          label="Thumbnail list"
+          label="Lista"
           active={layout === "list"}
           onClick={() => setLayout("list")}
         />
@@ -321,10 +321,10 @@ export default function EventCardBlockEditor({ block, onChange }) {
             onFocus={() => setSearchOpen(true)}
             placeholder={
               loading
-                ? "Loading events…"
+                ? "Hämtar event…"
                 : source === "discover"
-                  ? "Search discover events…"
-                  : "Search PullUp events…"
+                  ? "Sök Stockholm-event…"
+                  : "Sök bland dina event…"
             }
             disabled={loading || atCap}
             style={{
@@ -439,7 +439,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
                 textAlign: "center",
               }}
             >
-              {searchQuery ? "No matches." : "No events available."}
+              {searchQuery ? "Inga träffar." : "Inga event än."}
             </div>
           ) : (
             searchResults.map((ev) => (
@@ -485,7 +485,7 @@ export default function EventCardBlockEditor({ block, onChange }) {
             padding: "4px 0",
           }}
         >
-          Section is at the {MAX_EVENTS}-event cap. Remove one to add more.
+          Max {MAX_EVENTS} event. Ta bort ett för att lägga till fler.
         </div>
       )}
     </div>
@@ -755,8 +755,8 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
             ...editChevronBtn,
             color: expanded ? colors.secondary : colors.secondaryBorder,
           }}
-          aria-label={expanded ? "Close editor" : "Edit details"}
-          title={expanded ? "Close editor" : "Edit details"}
+          aria-label={expanded ? "Stäng" : "Redigera"}
+          title={expanded ? "Stäng" : "Redigera"}
         >
           {expanded ? <X size={13} /> : <Pencil size={12} />}
         </button>
@@ -764,8 +764,8 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
           type="button"
           onClick={onRemove}
           style={removeBtn}
-          aria-label="Remove event"
-          title="Remove"
+          aria-label="Ta bort event"
+          title="Ta bort"
         >
           <Trash2 size={12} />
         </button>
@@ -785,15 +785,15 @@ function SelectedEventRow({ ev, isFirst, isLast, onMoveUp, onMoveDown, onRemove,
         >
           <InlineField
             icon={User}
-            label="Hosted by"
+            label="Arrangör"
             value={ev.hostedBy || ""}
-            placeholder="Not set"
+            placeholder="Inte satt"
             onChange={(v) => onPatch({ hostedBy: v || null })}
           />
           <InlineField
             icon={Music2}
             iconColor="#1DB954"
-            label="Spotify link"
+            label="Spotify-länk"
             value={ev.spotifyUrl || ""}
             placeholder="https://open.spotify.com/..."
             onChange={(v) => onPatch({ spotifyUrl: v || null })}

@@ -12,7 +12,7 @@ const PLATFORMS = [
   { key: "tiktok",     label: "TikTok",     icon: FaTiktok,     placeholder: "https://tiktok.com/@yourhandle" },
   { key: "soundcloud", label: "SoundCloud", icon: FaSoundcloud, placeholder: "https://soundcloud.com/yourhandle" },
   { key: "youtube",    label: "YouTube",    icon: FaYoutube,    placeholder: "https://youtube.com/@yourchannel" },
-  { key: "website",    label: "Website",    icon: Globe,        placeholder: "https://yourwebsite.com" },
+  { key: "website",    label: "Webbplats",  icon: Globe,        placeholder: "https://dinsida.se" },
 ];
 
 export default function SocialsBlockEditor({ block, onChange }) {
@@ -52,12 +52,12 @@ export default function SocialsBlockEditor({ block, onChange }) {
       })}
 
       <div style={fieldGroupStyle}>
-        <div style={fieldLabelStyle}><span>Align</span></div>
+        <div style={fieldLabelStyle}><span>Placering</span></div>
         <div style={{ display: "flex", gap: 4 }}>
           {[
-            { v: "left", icon: AlignLeft, label: "Left" },
-            { v: "center", icon: AlignCenter, label: "Center" },
-            { v: "right", icon: AlignRight, label: "Right" },
+            { v: "left", icon: AlignLeft, label: "Vänster" },
+            { v: "center", icon: AlignCenter, label: "Mitten" },
+            { v: "right", icon: AlignRight, label: "Höger" },
           ].map((opt) => {
             const Icon = opt.icon;
             const active = align === opt.v;

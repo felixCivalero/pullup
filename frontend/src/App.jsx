@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense } from "react";
 import { lazyPage } from "./lib/lazyPage.js";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ByBrand } from "./components/admin/ByBrand.jsx";
 
 /* pullup.se — Felix's site and the PullUp event platform. Public: the front
    page, the case pages, the legal pages, event pages (/e/:slug). /login
@@ -61,12 +62,12 @@ function App() {
           <Route path="/admin/timeline" element={<Navigate to="/admin/projects" replace />} />
           <Route path="/admin/sales" element={<SalesPage />} />
           <Route path="/admin/clients" element={<Navigate to="/admin/projects" replace />} />
-          <Route path="/admin/events" element={<EventsPage />} />
-          <Route path="/admin/events/new" element={<EventCreatePage />} />
-          <Route path="/admin/events/:id" element={<EventDetailPage />} />
-          <Route path="/admin/events/:id/edit" element={<EventEditorPage />} />
-          <Route path="/admin/people" element={<PeoplePage />} />
-          <Route path="/admin/mail" element={<MailPage />} />
+          <Route path="/admin/events" element={<ByBrand><EventsPage /></ByBrand>} />
+          <Route path="/admin/events/new" element={<ByBrand><EventCreatePage /></ByBrand>} />
+          <Route path="/admin/events/:id" element={<ByBrand><EventDetailPage /></ByBrand>} />
+          <Route path="/admin/events/:id/edit" element={<ByBrand><EventEditorPage /></ByBrand>} />
+          <Route path="/admin/people" element={<ByBrand><PeoplePage /></ByBrand>} />
+          <Route path="/admin/mail" element={<ByBrand><MailPage /></ByBrand>} />
           <Route path="/admin/archi" element={<ArchiPage />} />
           <Route path="/admin/agents" element={<AgentsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

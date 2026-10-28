@@ -2,6 +2,7 @@
 // same language as Sälj and Statistik.
 export const EVENT_ADMIN_CSS = `
   .ea { max-width: 1080px; margin: 0 auto; padding: clamp(24px, 5vw, 48px) 16px 72px; }
+  .ea-brand { margin: 0 0 2px; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: #6e6e73; }
   .ea-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
   .ea h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); font-weight: 700; letter-spacing: -0.035em; }
   .ea h2 { margin: 40px 0 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }

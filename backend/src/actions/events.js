@@ -13,6 +13,7 @@ import { getFrontendUrl } from "../lib/urls.js";
 import { createEvent, eventFor, eventWithGuests, listEvents, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { syncCover } from "../routes/adminEventMedia.js";
 import { brandScope, brandShape, createBrand, payerFor, renameBrand } from "../lib/brands.js";
+import { myInvites } from "../lib/teams.js";
 
 // Which of the account's brands to work in: its id or name. Leave out for the
 // first. Several brands (an agency, a drinks company) live under one login.
@@ -52,12 +53,12 @@ function timesToUtc(input, tz) {
 export const whoami = defineAction({
   name: "whoami",
   title: "Who am I signed in as",
-  description: "The signed-in PullUp account: email, whether it's the platform owner, its brands, how many events the first brand has, and the mail credit balance (shared by all the account's brands).",
+  description: "The signed-in PullUp account: email, whether it's the platform owner, its brands (with the role in each: head, member or event co-host), how many events the first brand has, the mail credit balance (shared by all the account's brands) and how many invites are waiting (list_my_invites).",
   access: "user",
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
-    const [events, credits, { brands }] = await Promise.all([listEvents(caller), creditBalance(await payerFor(caller)), brandScope(caller)]);
+    const [events, credits, { brands }, invites] = await Promise.all([listEvents(caller), creditBalance(await payerFor(caller)), brandScope(caller), myInvites(caller)]);
     const mine = events.filter((e) => e.mine);
     return {
       email: caller.email,
@@ -65,6 +66,7 @@ export const whoami = defineAction({
       brands: brands.map(brandShape),
       events: { total: mine.length, upcoming: mine.filter((e) => new Date(e.endsAt || e.startsAt) > new Date()).length },
       mailCredits: credits,
+      invitesWaiting: invites.length,
     };
   },
 });

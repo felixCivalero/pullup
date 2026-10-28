@@ -29,7 +29,7 @@ const owner = { userId: "o", isOwner: true, hostId: "h-o" };
 const organiser = { userId: "u", isOwner: false, hostId: "u" };
 const names = (caller) => actionsFor(caller).map((a) => a.name);
 assert(names(null).sort().join() === "about_pullup,get_event,request_meeting,rsvp_to_event", "signed out: the four public actions");
-assert(names(organiser).length === 21 && !names(organiser).some((n) => ["site_stats", "sales_pipeline", "list_meeting_requests"].includes(n)), "an organiser: 21, none of the owner's");
+assert(names(organiser).length === 31 && !names(organiser).some((n) => ["site_stats", "sales_pipeline", "list_meeting_requests"].includes(n)), "an organiser: 31, none of the owner's");
 assert(names(owner).length === ACTIONS.size, "the owner: everything");
 for (const a of ACTIONS.values()) {
   const schema = describe(a).inputSchema;
@@ -38,7 +38,7 @@ for (const a of ACTIONS.values()) {
 }
 assert(true, "every action: closed JSON Schema object and a real description");
 const sends = [...ACTIONS.values()].filter((a) => a.effect === "send").map((a) => a.name).sort();
-assert(sends.join() === "publish_event,request_meeting,rsvp_to_event,send_mail", "what reaches the world is marked as such: " + sends.join(", "));
+assert(sends.join() === "invite_cohost,invite_to_brand,publish_event,request_meeting,rsvp_to_event,send_mail", "what reaches the world is marked as such: " + sends.join(", "));
 assert(mcpAnnotations(ACTIONS.get("send_mail")).destructiveHint && webmcpAnnotations(ACTIONS.get("send_mail")).consequentialHint, "sending mail is flagged consequential in both vocabularies");
 assert(mcpAnnotations(ACTIONS.get("list_people")).readOnlyHint && webmcpAnnotations(ACTIONS.get("list_people")).untrustedContentHint, "the CRM is read-only and flagged as untrusted content");
 

@@ -17,6 +17,10 @@ const DID = {
   update_event: "Ändrade ett event", publish_event: "Publicerade / avpublicerade", set_event_cover: "Bytte omslagsbild", update_guest: "Ändrade en gäst",
   list_people: "Läste din CRM", preview_mail: "Förhandsgranskade ett utskick", send_mail: "Skickade mejl", list_sent_mail: "Listade utskick",
   get_mail_credits: "Kollade mejlkrediter", buy_mail_credits: "Tog fram en betallänk", site_stats: "Läste statistiken",
+  list_brands: "Listade varumärken", create_brand: "Skapade ett varumärke", rename_brand: "Bytte namn på ett varumärke",
+  list_team: "Läste teamet", invite_to_brand: "Bjöd in till teamet", remove_from_team: "Tog bort från teamet", list_event_cohosts: "Läste medarrangörerna",
+  invite_cohost: "Bjöd in en medarrangör", remove_cohost: "Tog bort en medarrangör", cancel_invite: "Tog tillbaka en inbjudan",
+  list_my_invites: "Läste dina inbjudningar", accept_invite: "Tackade ja till en inbjudan", decline_invite: "Tackade nej till en inbjudan",
   sales_pipeline: "Läste säljlistan", list_meeting_requests: "Läste mötesförfrågningar",
 };
 const fmt = (iso) => (iso ? new Intl.DateTimeFormat("sv-SE", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso)) : "—");

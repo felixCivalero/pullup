@@ -13,13 +13,15 @@ An AI assistant can do on PullUp exactly what its person can do on the site — 
 ## What it can do
 
 Anyone: about_pullup, get_event, rsvp_to_event, request_meeting.
-Signed in (an organiser, their own events): whoami, list_my_events, get_my_event, create_event, update_event, publish_event, set_event_cover, update_guest, list_people, preview_mail, send_mail, list_sent_mail, get_mail_credits, buy_mail_credits.
+Signed in (an organiser, their own events): whoami, list_brands, create_brand, rename_brand, list_my_events, get_my_event, create_event, update_event, publish_event, set_event_cover, update_guest, list_people, preview_mail, send_mail, list_sent_mail, get_mail_credits, buy_mail_credits.
+Working together: list_team, invite_to_brand, remove_from_team (a brand's head and its team), list_event_cohosts, invite_cohost, remove_cohost (one event), cancel_invite, list_my_invites, accept_invite, decline_invite.
 
 ## Rules
 
 - New events are drafts; publish when the person asks.
 - Times are wall-clock times in the event's time zone (default Europe/Stockholm).
 - Mail to a list costs one credit per recipient: preview first, send a test, send only text the person approved. Packs: 5 000 mails 99 kr, 25 000 449 kr, 100 000 1 490 kr (excl. VAT); buy_mail_credits returns a payment link for the person.
+- A brand has a head who invites the team; members work in the brand fully, on the head's mail credits. Co-hosts of one event edit it and run its guest list, but can't mail guests.
 - Sign-in mail codes and links work only in the browser that asked for them.
 
 ## Pages

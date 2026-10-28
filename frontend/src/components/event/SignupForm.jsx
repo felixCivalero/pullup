@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
+import { Turnstile } from "../Turnstile.jsx";
 
 /* The sign-up inside the event page (dark, like the page): name, email, a
-   yes to future invitations → POST /events/:slug/rsvp → confirmed (with
+   yes to future invitations from the organiser (the brand behind the event,
+   named — the yes is to them, not to PullUp or anyone else) → POST /events/:slug/rsvp → confirmed (with
    add-to-calendar) or on the waitlist. In the editor's preview it's inert. */
 
 const ERRORS = {
@@ -11,13 +13,15 @@ const ERRORS = {
   invalid_email: "E-postadressen ser inte rätt ut.",
   closed: "Anmälan är stängd.",
   rate_limited: "För många försök, vänta en stund.",
+  bot_check: "Vi kunde inte bekräfta att du är en människa. Ladda om sidan och försök igen.",
 };
 
-export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, preview = false }) {
+export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false }) {
   const [form, setForm] = useState({ name: "", email: "", consent: false, website: "" });
   const [state, setState] = useState("idle"); // idle | sending | done | error
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [turnstile, setTurnstile] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const submit = async (e) => {
@@ -29,7 +33,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       const res = await fetch(`${API_BASE}/events/${encodeURIComponent(slug)}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, turnstile }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out.ok) {
@@ -75,8 +79,9 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       <input placeholder="E-post" type="email" inputMode="email" autoComplete="email" value={form.email} onChange={set("email")} readOnly={preview} />
       <label className="sf-consent">
         <input type="checkbox" checked={form.consent} onChange={set("consent")} disabled={preview} />
-        <span>Jag vill få inbjudningar till kommande event.</span>
+        <span>{organizer ? `Jag vill få inbjudningar till kommande event från ${organizer}.` : "Jag vill få inbjudningar till kommande event."}</span>
       </label>
+      {!preview && <Turnstile onToken={setTurnstile} theme="dark" />}
       <input className="sf-hp" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
       <button type="submit" disabled={state === "sending"}>
         {state === "sending" ? "Skickar…" : cta || (full ? "Ställ mig i kö" : "Anmäl mig")}

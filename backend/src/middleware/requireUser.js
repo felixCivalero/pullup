@@ -5,7 +5,7 @@
 //
 // A caller is the same shape whether it arrived as a person in a browser
 // (a Supabase session) or as their assistant (an agent token, routes/mcp.js):
-//   { userId, email, isOwner, hostId, via: "session" | "agent", clientId }
+//   { userId, email, isOwner, hostId, via: "session" | "agent", clientId, requestedBrand }
 // hostId is whose events these are. The owner works on his old host account
 // (EVENT_HOST_ID) so his 38 events stay his; everyone else is their own host.
 import crypto from "crypto";
@@ -48,11 +48,13 @@ const bearer = (req) => {
   return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 };
 
-// The caller for a request with a browser session, or null.
+// The caller for a request with a browser session, or null. The brand the
+// page works in comes along as a header; lib/brands.js only honours it when
+// it's one of the account's own.
 export async function sessionCaller(req) {
   try {
     const user = await userFromSessionToken(bearer(req));
-    return user ? callerFor(user) : null;
+    return user ? callerFor(user, { requestedBrand: String(req.get("x-pullup-brand") || "").slice(0, 100) }) : null;
   } catch {
     return null;
   }

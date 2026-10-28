@@ -6,6 +6,7 @@ import { ActionError } from "../lib/actionError.js";
 import { PACKS, creditBalance, checkoutUrl, packById, recentPurchases } from "../lib/emailCredits.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvents.js";
+import { brandInput, inBrand } from "./events.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -31,12 +32,13 @@ export const listPeopleAction = defineAction({
   effect: "read",
   untrustedOutput: true,
   input: z.object({
+    brand: brandInput,
     search: z.string().trim().max(100).optional().describe("Name or email contains this."),
     eventId: z.guid().optional().describe("Only people signed up to this event."),
     limit: z.number().int().min(1).max(500).default(100),
   }),
-  run: async ({ search, eventId, limit }, { caller }) => {
-    const { people } = await listPeople(caller);
+  run: async ({ brand, search, eventId, limit }, { caller }) => {
+    const { people } = await listPeople(inBrand(caller, brand));
     const needle = (search || "").toLowerCase();
     const rows = people
       .filter((p) => !needle || `${p.name} ${p.email}`.toLowerCase().includes(needle))
@@ -54,9 +56,9 @@ export const previewMail = defineAction({
   description: "Before sending: how many people an audience reaches (unsubscribed, blocked and bounced addresses are left out), a few names, and whether the mail credits cover it.",
   access: "user",
   effect: "read",
-  input: z.object({ audience }),
-  run: async ({ audience: a }, { caller }) => {
-    const [preview, balance] = await Promise.all([previewSend(caller, a), creditBalance(caller.hostId)]);
+  input: z.object({ brand: brandInput, audience }),
+  run: async ({ brand, audience: a }, { caller }) => {
+    const [preview, balance] = await Promise.all([previewSend(inBrand(caller, brand), a), creditBalance(caller.hostId)]);
     return { ...preview, creditsNeeded: preview.count, creditBalance: balance, enoughCredits: balance >= preview.count };
   },
 });
@@ -69,15 +71,16 @@ export const sendMailAction = defineAction({
   access: "user",
   effect: "send",
   input: z.object({
+    brand: brandInput,
     audience,
     subject: z.string().trim().min(1).max(200),
     body: z.string().trim().min(1).max(20000).describe("Plain text. Blank lines make paragraphs. An unsubscribe link is added."),
     eventId: z.guid().optional().describe("Attach this event: the mail gets its card and a link to sign up."),
-    fromName: z.string().trim().max(60).optional().describe("Sender name shown to recipients, e.g. the organiser's brand."),
+    fromName: z.string().trim().max(60).optional().describe("Owner only: the sender name. An organiser's mail is always sent in its brand's name."),
     test: z.boolean().default(false).describe("Send one copy to the signed-in person only."),
   }),
   run: async (input, { caller }) => {
-    const out = await sendMail(caller, input);
+    const out = await sendMail(inBrand(caller, input.brand), input);
     return out.test
       ? { sent: "test", to: out.to }
       : { queued: out.queued, creditBalance: out.balance, note: "Sending in the background; list_sent_mail shows the result." };

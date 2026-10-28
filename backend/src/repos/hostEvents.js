@@ -1,6 +1,9 @@
 // The event platform, per organiser. Every function takes the caller
 // (middleware/requireUser.js) and only ever touches that organiser's events,
 // guests and people — the owner (platform admin) sees all events, as before.
+// An organiser works in one brand at a time (lib/brands.js): the list, the
+// CRM and the mail are that brand's; an event can be opened from any of the
+// account's brands.
 // The site's routes (routes/adminEvents.js) and the agent actions
 // (actions/*.js) both call these, so a person and their assistant can do
 // exactly the same things, with the same rules.
@@ -14,10 +17,11 @@ import { broadcastEmail } from "../lib/eventEmails.js";
 import { creditBalance, refundCredits, reserveCredits } from "../lib/emailCredits.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { ensureHostProfile } from "../middleware/requireUser.js";
+import { brandNames, brandScope, currentBrand } from "../lib/brands.js";
 import { apiBase, eventUrl } from "../lib/urls.js";
 
 export const EVENT_COLUMNS =
-  "id, host_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
+  "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
   "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
@@ -52,8 +56,10 @@ export async function loadWorld(caller) {
     ]);
     return { events, rsvps, people, pullups };
   }
+  const { brand } = await brandScope(caller);
+  if (!brand) return { events: [], rsvps: [], people: [], pullups: [] };
   const events = await selectAllPaged(() =>
-    ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).eq("host_id", caller.hostId).order("starts_at", { ascending: false }),
+    ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).eq("host_id", caller.hostId).eq("brand_id", brand.id).order("starts_at", { ascending: false }),
   );
   const ids = events.map((e) => e.id);
   const [rsvps, pullups] = await Promise.all([
@@ -71,7 +77,7 @@ export async function loadWorld(caller) {
 const loadSuppressed = async () =>
   new Set((await selectAllPaged(() => supabase.from("email_suppressions").select("email"))).map((r) => r.email.trim().toLowerCase()));
 
-export function eventShape(ev, caller, counts = {}, hosts = new Map()) {
+export function eventShape(ev, caller, counts = {}, brands = new Map()) {
   return {
     id: ev.id,
     slug: ev.slug,
@@ -86,7 +92,8 @@ export function eventShape(ev, caller, counts = {}, hosts = new Map()) {
     capacity: ev.total_capacity,
     status: ev.status,
     mine: ev.host_id === caller.hostId,
-    host: hosts.get(ev.host_id) || null,
+    brandId: ev.brand_id || null,
+    host: brands.get(ev.brand_id) || null,
     url: eventUrl(ev.slug),
     attending: counts.attending || 0,
     waitlist: counts.waitlist || 0,
@@ -173,18 +180,17 @@ export async function eventFor(caller, id) {
 }
 
 export async function listEvents(caller) {
-  const query = ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).order("starts_at", { ascending: false });
-  const events = await selectAllPaged(() => (caller.isOwner ? query : query.eq("host_id", caller.hostId)));
+  const { brand } = caller.isOwner ? {} : await brandScope(caller);
+  if (!caller.isOwner && !brand) return [];
+  const query = () => ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).order("starts_at", { ascending: false });
+  const events = await selectAllPaged(() => (caller.isOwner ? query() : query().eq("host_id", caller.hostId).eq("brand_id", brand.id)));
   const rsvps = caller.isOwner
     ? await selectAllPaged(() => supabase.from("rsvps").select(RSVP_COLUMNS).order("created_at", { ascending: true }))
     : await selectIn("rsvps", RSVP_COLUMNS, "event_id", events.map((e) => e.id));
-  let hosts = new Map();
-  if (caller.isOwner) {
-    const { data } = await supabase.from("profiles").select("id, name, brand").in("id", [...new Set(events.map((e) => e.host_id).filter(Boolean))]);
-    hosts = new Map((data || []).map((p) => [p.id, p.brand || p.name || null]));
-  }
+  // The owner sees everyone's events: each one says whose brand it is.
+  const names = caller.isOwner ? await brandNames(events.map((e) => e.brand_id)) : new Map();
   const counts = countsByEvent(rsvps);
-  return events.map((e) => eventShape(e, caller, counts.get(e.id), hosts));
+  return events.map((e) => eventShape(e, caller, counts.get(e.id), names));
 }
 
 export async function createEvent(caller, body) {
@@ -193,8 +199,10 @@ export async function createEvent(caller, body) {
   if (!patch.starts_at) throw new ActionError("invalid", "The event needs a start time.", { detail: "startsAt" });
   if (patch.ends_at && patch.ends_at <= patch.starts_at) throw new ActionError("invalid", "The end time must be after the start time.", { detail: "endsAt" });
   if (!caller.isOwner) await ensureHostProfile(caller.hostId);
+  const brand = await currentBrand(caller);
   const row = {
     host_id: caller.hostId,
+    brand_id: brand.id,
     slug: makeSlug(patch.title),
     kind: "event",
     visibility: "public",
@@ -369,7 +377,12 @@ export async function sendMail(caller, input) {
   if (cleanBlocks && JSON.stringify(cleanBlocks).length > 200000) throw new ActionError("invalid", "The mail is too large.", { detail: "too_large" });
   const event = eventId ? await eventFor(caller, eventId) : null;
   const tokenEvent = event ? { title: event.title, startsAt: event.starts_at } : null;
-  const name = typeof fromName === "string" ? fromName.replace(/["<>\r\n]/g, "").trim().slice(0, 60) : "";
+  // The sender's name: an organiser's mail always comes from the brand it's
+  // sent in (no free-typed names, so nobody can send as someone else); the
+  // owner can still name it.
+  const name = caller.isOwner
+    ? (typeof fromName === "string" ? fromName.replace(/["<>\\\r\n]/g, "").trim().slice(0, 60) : "")
+    : (await currentBrand(caller)).name.replace(/["<>\\\r\n]/g, "").slice(0, 60);
   const from = name ? `"${name}" <no-reply@pullup.se>` : undefined;
   const templateContent = cleanBlocks ? { blocks: cleanBlocks, previewText: typeof previewText === "string" ? previewText.slice(0, 200) : "" } : null;
   const compose = templateContent

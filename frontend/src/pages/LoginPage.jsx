@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { authLinkError } from "../lib/supabase.js";
 import { homeFor, safeNext, useSession } from "../lib/owner.js";
 import { linkFromHash, pendingLogin, requestCode, verifyCode, verifyLink } from "../lib/deviceLogin.js";
+import { Turnstile } from "../components/Turnstile.jsx";
 
 /* /login — sign in, or make an account (the first sign-in does). Email → a
    six-digit code (or the link in the same mail) that works only in this
@@ -31,13 +32,14 @@ export function LoginPage() {
 }
 
 // The two steps, on their own: the login page and /connect both use it.
-export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Samma steg skapar ditt konto." }) {
+export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Samma steg skapar ditt konto. Det är gratis." }) {
   const pending = useRef(pendingLogin()).current;
   const link = useRef(linkFromHash()).current;
   const [step, setStep] = useState(link ? "link" : pending ? "code" : "email");
   const [email, setEmail] = useState(pending?.email || "");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [turnstile, setTurnstile] = useState("");
   const [error, setError] = useState(authLinkError ? "Länken i mejlet är redan använd eller har gått ut. Be om en ny kod." : "");
 
   // Opened from the mail's link: sign in if this is the browser that asked.
@@ -60,7 +62,7 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
     setError("");
     setBusy(true);
     try {
-      await requestCode(email);
+      await requestCode(email, turnstile);
       setCode("");
       setStep("code");
     } catch (err) {
@@ -100,6 +102,7 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
         required
         autoFocus
       />
+      <Turnstile onToken={setTurnstile} theme="light" />
       <button type="submit" disabled={busy || !email}>{busy ? "Skickar…" : "Skicka kod"}</button>
       {error && <p className="lg-err">{error}</p>}
     </form>

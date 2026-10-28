@@ -9,6 +9,7 @@ import { getFrontendUrl } from "../lib/urls.js";
 import { isValidEmail, normalizeEmail } from "../lib/emailAddress.js";
 import { ensureHostProfile } from "../middleware/requireUser.js";
 import { isOwnerEmail } from "../middleware/requireOwner.js";
+import { humanCheck } from "../lib/abuse.js";
 import {
   ATTEMPT_TTL_MS, MAX_TRIES, checkAttempt, codeHash, describeDevice, isDeviceHash, newCode, newSecret, open, seal, sha256,
 } from "../lib/deviceLogin.js";
@@ -49,9 +50,17 @@ async function recentCount(column, value, sinceMs) {
   return count || 0;
 }
 
-// Supabase's one-time token for this address (the account is created on the
-// first sign-in). Nothing is mailed by Supabase: we send our own mail.
+// Supabase's one-time token for this address. A new address gets its account
+// here, through the admin API — so Supabase's own public sign-up can stay
+// switched off (the anon key in the site's bundle can't make accounts or send
+// mail). Nothing is mailed by Supabase: we send our own mail.
 async function supabaseToken(email) {
+  const { data: existing, error: findErr } = await supabase.rpc("auth_user_id_by_email", { p_email: email });
+  if (findErr) throw findErr;
+  if (!existing) {
+    const { error: createErr } = await supabase.auth.admin.createUser({ email, email_confirm: false });
+    if (createErr && !/already|exists|registered/i.test(createErr.message || "")) throw createErr;
+  }
   const { data, error } = await supabase.auth.admin.generateLink({ type: "magiclink", email });
   if (error || !data?.properties?.hashed_token) throw error || new Error("no token");
   return data.properties.hashed_token;
@@ -81,6 +90,7 @@ export function registerAuthRoutes(app) {
       const device = req.body?.device;
       if (!isValidEmail(email)) return res.status(400).json({ error: "invalid_email", message: "Skriv en giltig e-postadress." });
       if (!isDeviceHash(device)) return res.status(400).json({ error: "invalid_device" });
+      if (!(await humanCheck(req.body?.turnstile, req.ip))) return res.status(403).json({ error: "bot_check", message: "Vi kunde inte bekräfta att du är en människa. Ladda om sidan och försök igen." });
       const ip = req.ip || "unknown";
       const [byEmail, byIp] = await Promise.all([recentCount("email", email, 15 * 60 * 1000), recentCount("ip", ip, 60 * 60 * 1000)]);
       if (byEmail >= PER_EMAIL || byIp >= PER_IP) return res.status(429).json({ error: "rate_limited", message: "Du har bett om många koder. Vänta en stund." });

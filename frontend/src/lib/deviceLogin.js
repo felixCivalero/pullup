@@ -42,9 +42,9 @@ async function post(path, body) {
 }
 
 // Mail a code to `email`. The account is made on the first sign-in.
-export async function requestCode(email) {
+export async function requestCode(email, turnstile = "") {
   const secret = randomSecret();
-  const out = await post("/auth/login", { email: email.trim().toLowerCase(), device: await sha256(secret) });
+  const out = await post("/auth/login", { email: email.trim().toLowerCase(), device: await sha256(secret), turnstile });
   try {
     localStorage.setItem(KEY, JSON.stringify({ attempt: out.attempt, secret, email: email.trim().toLowerCase(), expiresAt: out.expiresAt }));
   } catch {

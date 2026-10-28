@@ -4,14 +4,19 @@ import { LogOut } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { isOwnerEmail, useSession } from "../../lib/owner.js";
+import { setCurrentBrandId, useBrandId } from "../../lib/brand.js";
 import { ToastProvider } from "../../components/Toast.jsx";
+import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
+import { Onboarding } from "../../components/admin/Onboarding.jsx";
 
 /* Every /admin page renders inside this: the sign-in gate + the top bar.
    Any signed-in person is an organiser and gets their events, CRM, mail and
    the assistants they've connected; the owner also gets his own pages
    (marked owner below). The server confirms the session (/admin/me) once per
-   user; a session it refuses is signed out. `fill` = the page takes the whole
-   viewport under the bar (the timeline). */
+   user; a session it refuses is signed out. It also says which brands the
+   account runs: a new account (no brand yet) gets the start (Onboarding),
+   everyone else the brand switcher, and each page is drawn for the brand
+   picked there. `fill` = the page takes the whole viewport under the bar. */
 const NAV = [
   ["/admin", "Statistik", "owner"],
   ["/admin/sales", "Sälj", "owner"],
@@ -27,15 +32,19 @@ const SIDE = ["/admin/stockholm", "Stockholm"];
 const OWNER_PATHS = ["/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
-// The server check runs once per signed-in user, not on every page switch.
-let verifiedUserId = null;
+// The server check runs once per signed-in user, not on every page switch:
+// what it said about the account is kept here.
+let verified = { userId: null, me: null };
 
 export function AdminShell({ title, fill = false, children }) {
   const session = useSession();
   const { pathname } = useLocation();
   const [server, setServer] = useState("checking"); // checking | ok | refused
+  const [loadedMe, setMe] = useState(null);
+  const brandId = useBrandId();
   const owner = !!session && isOwnerEmail(session.user?.email);
-  const verified = !!session && session.user?.id === verifiedUserId;
+  const isVerified = !!session && session.user?.id === verified.userId;
+  const me = loadedMe || (isVerified ? verified.me : null);
 
   // Felix's own browser: his clicks on the links in his outreach mail must
   // not show up in Sälj as a prospect's visit (lib/track.js reads this).
@@ -50,30 +59,46 @@ export function AdminShell({ title, fill = false, children }) {
     return () => { document.title = prev; };
   }, [title]);
 
+  // The account: brands, the brand in use (kept in step with the server's
+  // pick), whether anything's been made yet.
+  async function loadMe() {
+    const res = await authenticatedFetch("/admin/me");
+    if (res.status === 401 || res.status === 403) return { refused: true };
+    if (!res.ok) return { me: null };
+    const data = await res.json();
+    verified = { userId: session.user.id, me: data };
+    setMe(data);
+    if (data.brands?.length && !data.brands.some((b) => b.id === brandId)) setCurrentBrandId(data.brand || data.brands[0].id);
+    return { me: data };
+  }
+
   useEffect(() => {
-    if (!session || verified) return undefined;
+    if (!session) return undefined;
+    if (isVerified) return undefined;
     let alive = true;
-    authenticatedFetch("/admin/me")
-      .then((res) => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state is set once the request answers
+    loadMe()
+      .then(({ refused }) => {
         if (!alive) return;
-        if (res.status === 401 || res.status === 403) {
+        if (refused) {
           setServer("refused");
           supabase.auth.signOut();
         } else {
-          if (res.ok) verifiedUserId = session.user.id;
           setServer("ok"); // an API hiccup doesn't lock the owner out
         }
       })
       .catch(() => alive && setServer("ok"));
     return () => { alive = false; };
-  }, [session, verified]);
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While the session and the server check resolve: say so, never a blank page.
   const waiting = <p style={{ font: "14px -apple-system, sans-serif", color: "#6e6e73", padding: 24, margin: 0 }}>Laddar…</p>;
   if (session === undefined) return waiting;
   if (!session || server === "refused") return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
-  if (server === "checking" && !verified) return waiting;
+  if (server === "checking" && !isVerified) return waiting;
   if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
+  const brands = me?.brands || [];
+  const starting = !!me && !owner && brands.length === 0;
 
   return (
     <ToastProvider>
@@ -81,13 +106,14 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS}</style>
         <header className="ad-bar">
           <nav>
-            {NAV.filter(([, , only]) => owner || only !== "owner").map(([to, label]) => (
+            {!starting && NAV.filter(([, , only]) => owner || only !== "owner").map(([to, label]) => (
               <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => (isActive ? "is-on" : undefined)}>
                 {label}
               </NavLink>
             ))}
           </nav>
           <div className="ad-side">
+            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} />}
             {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
             <button type="button" onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
               <span className="ad-out-text">Logga ut</span>
@@ -95,7 +121,12 @@ export function AdminShell({ title, fill = false, children }) {
             </button>
           </div>
         </header>
-        <main className="ad-main">{children}</main>
+        {starting ? (
+          <main className="ad-main"><Onboarding email={session.user?.email} onDone={loadMe} /></main>
+        ) : (
+          // A new brand picked: the page is drawn again for it.
+          <main className="ad-main" key={brandId || "brand"}>{children}</main>
+        )}
       </div>
     </ToastProvider>
   );

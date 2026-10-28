@@ -120,6 +120,18 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
           </button>
           <div className="pc-nav-actions">
             <LangSwitch />
+            {/* The event platform: free accounts, the first sign-in makes one. */}
+            <a
+              href="/login"
+              className="pc-nav-login"
+              onClick={(e) => {
+                e.preventDefault();
+                trackEvent("cta_click", { location: "nav_login" });
+                navigate("/login");
+              }}
+            >
+              {t("Log in")}
+            </a>
             <button
               type="button"
               className="pc-nav-cta"

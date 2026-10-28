@@ -93,7 +93,14 @@ export function EventsPage() {
                 </li>
               ))}
             </ul>
-            {!list.length && <p className="ea-muted">Inga event här än.</p>}
+            {!list.length && (data.length ? <p className="ea-muted">Inga event här än.</p> : (
+              // A brand with nothing yet: the one thing to do.
+              <div className="evl-first">
+                <b>Inga event än</b>
+                <p className="ea-muted">Skapa en eventsida, dela länken och se anmälningarna komma in här. Gästerna hamnar i CRM:et.</p>
+                <button type="button" className="ea-btn is-dark" onClick={() => navigate("/admin/events/new")}><Plus size={16} /> Skapa ditt första event</button>
+              </div>
+            ))}
           </>
         )}
       </div>
@@ -102,6 +109,9 @@ export function EventsPage() {
 }
 
 const EVENTS_CSS = `
+  .evl-first { display: grid; justify-items: start; gap: 8px; padding: 28px; border: 1px dashed rgba(0,0,0,0.18); border-radius: 16px; }
+  .evl-first b { font-size: 17px; }
+  .evl-first p { margin: 0 0 6px; max-width: 46ch; line-height: 1.5; }
   .evl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .evl button { font: inherit; width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; color: #0a0a0a; }
   .evl button:hover { border-color: rgba(0,0,0,0.25); }

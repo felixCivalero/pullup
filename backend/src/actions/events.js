@@ -12,6 +12,13 @@ import { isValidTimeZone, toUtcIso } from "../lib/zonedTime.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { createEvent, eventFor, eventWithGuests, listEvents, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { syncCover } from "../routes/adminEventMedia.js";
+import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
+
+// Which of the account's brands to work in: its id or name. Leave out for the
+// first. Several brands (an agency, a drinks company) live under one login.
+export const brandInput = z.string().trim().min(1).max(100).optional()
+  .describe("Which of the account's brands (id or name, see list_brands). Leave out for the first.");
+export const inBrand = (caller, brand) => (brand ? { ...caller, requestedBrand: brand, _brandScope: null } : caller);
 
 const eventId = z.guid().describe("The event's id (from list_my_events or create_event).");
 const when = z.string().trim().min(10).max(40)
@@ -45,16 +52,17 @@ function timesToUtc(input, tz) {
 export const whoami = defineAction({
   name: "whoami",
   title: "Who am I signed in as",
-  description: "The signed-in PullUp account: email, whether it's the platform owner, how many events it has, and the mail credit balance.",
+  description: "The signed-in PullUp account: email, whether it's the platform owner, its brands, how many events the first brand has, and the mail credit balance (shared by all the account's brands).",
   access: "user",
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
-    const [events, credits] = await Promise.all([listEvents(caller), creditBalance(caller.hostId)]);
+    const [events, credits, { brands }] = await Promise.all([listEvents(caller), creditBalance(caller.hostId), brandScope(caller)]);
     const mine = events.filter((e) => e.mine);
     return {
       email: caller.email,
       owner: caller.isOwner,
+      brands: brands.map(brandShape),
       events: { total: mine.length, upcoming: mine.filter((e) => new Date(e.endsAt || e.startsAt) > new Date()).length },
       mailCredits: credits,
     };
@@ -69,11 +77,12 @@ export const listMyEvents = defineAction({
   effect: "read",
   untrustedOutput: true,
   input: z.object({
+    brand: brandInput,
     upcomingOnly: z.boolean().default(false).describe("Only events that haven't ended yet."),
     limit: z.number().int().min(1).max(200).default(50),
   }),
-  run: async ({ upcomingOnly, limit }, { caller }) => {
-    let events = await listEvents(caller);
+  run: async ({ brand, upcomingOnly, limit }, { caller }) => {
+    let events = await listEvents(inBrand(caller, brand));
     if (upcomingOnly) events = events.filter((e) => new Date(e.endsAt || e.startsAt) > new Date());
     return { events: events.slice(0, limit).map(withLinks), total: events.length };
   },
@@ -101,6 +110,7 @@ export const createEventAction = defineAction({
   access: "user",
   effect: "write",
   input: z.object({
+    brand: brandInput,
     title: z.string().trim().min(1).max(160),
     startsAt: when,
     endsAt: when.optional(),
@@ -112,7 +122,7 @@ export const createEventAction = defineAction({
   }),
   run: async (input, { caller }) => {
     const times = timesToUtc(input, input.timeZone);
-    let event = await createEvent(caller, {
+    let event = await createEvent(inBrand(caller, input.brand), {
       title: input.title,
       ...times,
       timezone: input.timeZone,
@@ -223,4 +233,36 @@ export const updateGuestAction = defineAction({
   run: async ({ rsvpId, status, pulledUp }, { caller }) => ({ guest: await updateGuest(caller, rsvpId, { status, pulledUp }) }),
 });
 
-export default [whoami, listMyEvents, getMyEvent, createEventAction, updateEventAction, publishEvent, setEventCover, updateGuestAction];
+export const listBrandsAction = defineAction({
+  name: "list_brands",
+  title: "My brands",
+  description: "The brands this account runs (one login can run several, e.g. an agency or a company with several products). Events, guests, the CRM and mail belong to a brand; mail credits are shared.",
+  access: "user",
+  effect: "read",
+  input: z.object({}),
+  run: async (_input, { caller }) => ({ brands: (await brandScope(caller)).brands.map(brandShape) }),
+});
+
+export const createBrandAction = defineAction({
+  name: "create_brand",
+  title: "Add a brand",
+  description: "Add a brand to the account. Its name is what guests see as the organiser and as the sender of its mail. Returns the existing one if the name is taken.",
+  access: "user",
+  effect: "write",
+  idempotent: true,
+  input: z.object({ name: z.string().trim().min(1).max(80) }),
+  run: async ({ name }, { caller }) => ({ brand: await createBrand(caller, name) }),
+});
+
+export const renameBrandAction = defineAction({
+  name: "rename_brand",
+  title: "Rename a brand",
+  description: "Change a brand's name (guests see it as the organiser and the sender).",
+  access: "user",
+  effect: "write",
+  idempotent: true,
+  input: z.object({ brandId: z.guid(), name: z.string().trim().min(1).max(80) }),
+  run: async ({ brandId, name }, { caller }) => ({ brand: await renameBrand(caller, brandId, name) }),
+});
+
+export default [whoami, listBrandsAction, createBrandAction, renameBrandAction, listMyEvents, getMyEvent, createEventAction, updateEventAction, publishEvent, setEventCover, updateGuestAction];

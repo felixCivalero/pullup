@@ -15,9 +15,13 @@ import { confirmationEmail } from "../lib/eventEmails.js";
 import { crawlerEventHtml } from "../lib/eventPage.js";
 import { loadEventMedia } from "./adminEventMedia.js";
 import { ActionError, statusFor } from "../lib/actionError.js";
+import { EVENT_HOST_ID } from "../lib/eventPlatform.js";
+import { brandNames } from "../lib/brands.js";
+import { humanCheck, mayConfirm } from "../lib/abuse.js";
+import { userById } from "../agents/oauthProvider.js";
 
 const EVENT_COLUMNS =
-  "id, host_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
+  "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
   "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 
 // Per-IP throttle on sign-ups: 20 an hour is plenty for a human.
@@ -49,12 +53,13 @@ async function attendingCount(eventId) {
 
 // What a guest sees — nothing about other guests. The design fields are in
 // the shape the event page components read (components/event/*).
-function publicShape(ev, attending, media = []) {
+function publicShape(ev, attending, media = [], organizer = null) {
   const spotsLeft = ev.total_capacity ? Math.max(0, ev.total_capacity - attending) : null;
   const hidden = !!ev.hide_location;
   return {
     slug: ev.slug,
     title: ev.title,
+    organizer,
     text: eventText(ev),
     location: hidden ? null : ev.location,
     locationLat: hidden ? null : ev.location_lat ?? null,
@@ -116,12 +121,25 @@ async function upsertPerson({ email, name, consent }) {
   return created.id;
 }
 
+// Who's behind an event, as guests see it: its brand's name.
+async function organizerName(ev) {
+  return ev.brand_id ? (await brandNames([ev.brand_id])).get(ev.brand_id) || null : null;
+}
+
+// Where a guest's reply to the confirmation lands: the organiser who made the
+// event (the owner's events: his reply address).
+async function organizerReplyTo(ev) {
+  if (ev.host_id === EVENT_HOST_ID) return process.env.EVENT_REPLY_TO || "felix@pullup.se";
+  const user = ev.host_id ? await userById(ev.host_id).catch(() => null) : null;
+  return user?.email || null;
+}
+
 // The event page's data — what any guest (or their assistant) can see.
 export async function getPublicEvent(slug) {
   const ev = await findEvent(slug);
   if (!ev) throw new ActionError("not_found", "No published event at that address.");
-  const [attending, media] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id)]);
-  return { event: publicShape(ev, attending, media), calendar: calendarLinks(ev) };
+  const [attending, media, organizer] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id), organizerName(ev)]);
+  return { event: publicShape(ev, attending, media, organizer), calendar: calendarLinks(ev) };
 }
 
 // Sign up: the person (found by email, or new) + the sign-up + the
@@ -166,6 +184,10 @@ export async function rsvpToEvent(slug, body = {}) {
   if (wErr) throw wErr;
 
   const calendar = calendarLinks(ev);
+  // Free mail is capped (lib/abuse.js): past the line the sign-up stands but
+  // no mail goes out, so nobody can use PullUp to reach a list of strangers.
+  if (!mayConfirm({ email, hostId: ev.host_id })) return { ok: true, status, calendar };
+  const [organizer, replyTo] = await Promise.all([organizerName(ev), organizerReplyTo(ev)]);
   const mail = confirmationEmail({
     event: ev,
     name,
@@ -175,10 +197,12 @@ export async function rsvpToEvent(slug, body = {}) {
     icsUrl: calendar.ics,
     imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
   });
+  const sender = (organizer || "").replace(/["<>\\\r\n]/g, "").slice(0, 60);
   sendEmail({
+    ...(sender ? { from: `"${sender} via PullUp" <no-reply@pullup.se>` } : {}),
     to: email,
     ...mail,
-    replyTo: process.env.EVENT_REPLY_TO || "felix@pullup.se",
+    replyTo,
     attachments: status === "attending"
       ? [{ filename: "event.ics", content: Buffer.from(icsFor({ ...ev, text: eventText(ev) }, { url: eventUrl(ev.slug) })).toString("base64"), content_type: "text/calendar" }]
       : undefined,
@@ -203,6 +227,7 @@ export function registerEventRoutes(app) {
       if (limited(req.ip)) return res.status(429).json({ error: "rate_limited" });
       const body = req.body || {};
       if (clip(body.website, 200)) return res.json({ ok: true, status: "attending" }); // honeypot
+      if (!(await humanCheck(body.turnstile, req.ip))) return res.status(403).json({ error: "bot_check" });
       return res.json(await rsvpToEvent(req.params.slug, body));
     } catch (err) {
       if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.extra.detail || err.code });
@@ -230,16 +255,16 @@ export function registerEventRoutes(app) {
     try {
       const ev = await findEvent(req.params.slug);
       if (!ev) return res.redirect(302, getFrontendUrl());
-      const [attending, host] = await Promise.all([
+      const [attending, organizer] = await Promise.all([
         ev.total_capacity ? attendingCount(ev.id) : Promise.resolve(0),
-        supabase.from("profiles").select("name, brand").eq("id", ev.host_id).maybeSingle().then(({ data }) => data),
+        organizerName(ev),
       ]);
       res.set("Content-Type", "text/html; charset=utf-8");
       res.set("Cache-Control", "public, max-age=300");
       return res.send(crawlerEventHtml(ev, {
         url: eventUrl(ev.slug),
         imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
-        hostName: host?.brand || host?.name || null,
+        hostName: organizer,
         full: !!ev.total_capacity && attending >= ev.total_capacity,
         productUrl: `${getFrontendUrl()}/pullup`,
       }));

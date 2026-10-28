@@ -13,6 +13,8 @@ import { loadEventMedia } from "./adminEventMedia.js";
 import {
   createEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, updateEvent, updateGuest,
 } from "../repos/hostEvents.js";
+import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
+import { over } from "../lib/abuse.js";
 
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 
@@ -37,6 +39,16 @@ export function handle(fn, okStatus = 200) {
 }
 
 export function registerAdminEventRoutes(app) {
+  // The account's brands and the one this page works in (lib/brands.js).
+  app.get("/admin/brands", ...handle(async (req) => {
+    const { brands, brand } = await brandScope(req.caller);
+    return { brands: brands.map(brandShape), current: brand?.id || null };
+  }));
+
+  app.post("/admin/brands", ...handle(async (req) => ({ brand: await createBrand(req.caller, req.body?.name) }), 201));
+
+  app.patch("/admin/brands/:id", ...handle(async (req) => ({ brand: await renameBrand(req.caller, req.params.id, req.body?.name) })));
+
   app.get("/admin/events", ...handle(async (req) => ({ events: await listEvents(req.caller) })));
 
   app.post("/admin/events", ...handle(async (req) => ({ event: await createEvent(req.caller, req.body) }), 201));
@@ -52,6 +64,7 @@ export function registerAdminEventRoutes(app) {
 
   // Signed upload URL: the browser uploads the cover straight to Storage.
   app.post("/admin/events/upload-url", ...handle(async (req) => {
+    if (over(`upload:${req.caller.userId}`, 120, 3600_000)) throw new ActionError("rate_limited", "Too many uploads in a short time. Wait a while.");
     const ext = EXT[req.body?.mimeType] || "jpg";
     const path = `admin/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await supabase.storage.from(EVENT_IMAGE_BUCKET).createSignedUploadUrl(path);

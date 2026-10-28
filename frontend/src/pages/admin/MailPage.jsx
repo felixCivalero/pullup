@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { authenticatedFetch } from "../../lib/api.js";
+import { isOwnerEmail, useSession } from "../../lib/owner.js";
 import { useToast } from "../../components/Toast";
 import EmailPanel from "../../components/crm/EmailPanel";
 import EmailCanvas from "../../components/crm/EmailCanvas";
@@ -116,6 +117,18 @@ function MailComposer() {
   const [followupPreviewText, setFollowupPreviewText] = useState("");
   const [followupBlocks, setFollowupBlocks] = useState([defaultGreetingBlock()]);
   const [followupFromName, setFollowupFromName] = useState("Felix, PullUp");
+  // An organiser's mail always goes out in the name of the brand it's sent
+  // in (the server sets it); only the owner names the sender himself.
+  const owner = isOwnerEmail(useSession()?.user?.email);
+  const [brandName, setBrandName] = useState("");
+  useEffect(() => {
+    authenticatedFetch("/admin/brands")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setBrandName(d.brands.find((b) => b.id === d.current)?.name || ""))
+      .catch(() => {});
+  }, []);
+  const eventSender = owner ? eventFromName : brandName;
+  const followupSender = owner ? followupFromName : brandName;
 
   const [isConfirmSendOpen, setIsConfirmSendOpen] = useState(false);
   const [sendStage, setSendStage] = useState("confirm");
@@ -181,8 +194,8 @@ function MailComposer() {
 
   const isFollowup = selectedTemplate === "followup";
   const active = isFollowup
-    ? { eventId: followupEventId, subject: followupSubject, previewText: followupPreviewText, blocks: followupBlocks, fromName: followupFromName, event: followupEvent }
-    : { eventId: selectedEventId, subject: eventSubject, previewText: eventPreviewText, blocks: eventBlocks, fromName: eventFromName, event: selectedEvent };
+    ? { eventId: followupEventId, subject: followupSubject, previewText: followupPreviewText, blocks: followupBlocks, fromName: followupSender, event: followupEvent }
+    : { eventId: selectedEventId, subject: eventSubject, previewText: eventPreviewText, blocks: eventBlocks, fromName: eventSender, event: selectedEvent };
 
   function check() {
     if (!selectedTemplate) return "Pick a template first.";
@@ -317,8 +330,8 @@ function MailComposer() {
                 setEventPreviewText={setEventPreviewText}
                 eventBlocks={eventBlocks}
                 setEventBlocks={setEventBlocks}
-                eventFromName={eventFromName}
-                setEventFromName={setEventFromName}
+                eventFromName={eventSender}
+                setEventFromName={owner ? setEventFromName : undefined}
                 selectedEventIdForFollowup={followupEventId}
                 setSelectedEventIdForFollowup={setFollowupEventId}
                 followupSubject={followupSubject}
@@ -327,8 +340,8 @@ function MailComposer() {
                 setFollowupPreviewText={setFollowupPreviewText}
                 followupBlocks={followupBlocks}
                 setFollowupBlocks={setFollowupBlocks}
-                followupFromName={followupFromName}
-                setFollowupFromName={setFollowupFromName}
+                followupFromName={followupSender}
+                setFollowupFromName={owner ? setFollowupFromName : undefined}
                 hoveredKey={hoveredKey}
                 setHoveredKey={setHoveredKey}
               />
@@ -354,7 +367,7 @@ function MailComposer() {
             followupPreviewText={followupPreviewText}
             followupBlocks={followupBlocks}
             hoveredKey={hoveredKey}
-            currentUserFirstName="Felix"
+            currentUserFirstName={owner ? "Felix" : "Anna"}
           />
         </main>
       </div>
@@ -366,7 +379,7 @@ function MailComposer() {
         sendingStats={sendingStats}
         sendingErrorMessage={sendingErrorMessage}
         selectedEvent={active.event}
-        currentUserFirstName="Felix"
+        currentUserFirstName={owner ? "Felix" : "Anna"}
         templateType={selectedTemplate}
         subjectLine={active.subject}
         previewText={active.previewText}

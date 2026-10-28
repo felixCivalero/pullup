@@ -85,6 +85,12 @@ export const AGENCY_CSS = `
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
   .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }
   /* the sales CTA is the loud one; Log in is a quiet text link */
+  .pc-nav-login {
+    color: inherit; text-decoration: none; white-space: nowrap; font-size: 14px; font-weight: 600;
+    opacity: 0.8; padding: 10px 4px; transition: opacity 0.2s ease;
+  }
+  .pc-nav-login:hover { opacity: 1; }
+  .pc-nav-login:focus-visible { outline: 2px solid #D9480F; outline-offset: 2px; border-radius: 6px; }
   .pc-nav-cta {
     background: #D9480F; border: 1px solid #D9480F; color: #fff; white-space: nowrap;
     font: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.005em;
@@ -565,6 +571,7 @@ export const AGENCY_CSS = `
   }
   @media (max-width: 420px) {
     .pc-nav-actions { gap: 10px; }
+    .pc-nav-login { font-size: 13px; padding: 10px 0; }
     .pc-nav-link { font-size: 14px; }
     .pc-nav-brand img { height: 18px; }
     .pc-nav-cta { padding: 0 12px; font-size: 13px; }

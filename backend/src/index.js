@@ -43,15 +43,28 @@ import { registerActionRoutes } from "./routes/actions.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { initObservability, captureError } from "./observability.js";
 import { getFrontendUrl } from "./lib/urls.js";
+import { over } from "./lib/abuse.js";
 
 const app = express();
 
 // nginx is the one trusted proxy hop — req.ip is the real client for rate limits.
 app.set("trust proxy", 1);
 
+// The API answers JSON, plus a few plain HTML pages (unsubscribe, the event
+// page for crawlers) that need no script at all: a strict policy costs nothing.
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'none'"],
+        styleSrc: ["'unsafe-inline'"],
+        imgSrc: ["https:", "data:"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'none'"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true, preload: false },
@@ -90,6 +103,21 @@ app.use(...emailCreditsWebhookParser);
 // So is Resend's (Svix).
 app.use(...resendEventsParser);
 app.use(express.json({ limit: "1mb" }));
+
+// A ceiling per IP on everything (per-route limits sit under it): far above
+// a person clicking around or an assistant working, a wall for a scraper or
+// a flood. Payment and mail webhooks come from their providers and are signed.
+const WEBHOOKS = new Set(["/stripe/email-credits", "/webhooks/resend-events"]);
+app.use((req, res, next) => {
+  if (WEBHOOKS.has(req.path) || req.path === "/health") return next();
+  const ip = req.ip || "unknown";
+  const writing = !["GET", "HEAD", "OPTIONS"].includes(req.method);
+  if (over(`ip:${ip}`, 900, 5 * 60_000) || (writing && over(`ip-write:${ip}`, 200, 5 * 60_000))) {
+    res.set("Retry-After", "300");
+    return res.status(429).json({ error: "rate_limited" });
+  }
+  return next();
+});
 
 // Liveness — the deploy gate and post-deploy check poll this.
 app.get("/health", (req, res) => res.json({ ok: true }));

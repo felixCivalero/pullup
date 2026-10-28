@@ -15,6 +15,9 @@ import {
 } from "../repos/hostEvents.js";
 import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
 import { over } from "../lib/abuse.js";
+import {
+  acceptInvite, brandTeam, cancelInvite, declineInvite, eventTeam, inviteToBrand, inviteToEvent, removeCohost, removeMember,
+} from "../lib/teams.js";
 
 const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 
@@ -48,6 +51,26 @@ export function registerAdminEventRoutes(app) {
   app.post("/admin/brands", ...handle(async (req) => ({ brand: await createBrand(req.caller, req.body?.name) }), 201));
 
   app.patch("/admin/brands/:id", ...handle(async (req) => ({ brand: await renameBrand(req.caller, req.params.id, req.body?.name) })));
+
+  // Working together (lib/teams.js): the brand's team, one event's co-hosts,
+  // and the invites waiting for the signed-in address.
+  app.get("/admin/team", ...handle(async (req) => brandTeam(req.caller)));
+
+  app.post("/admin/team/invites", ...handle(async (req) => inviteToBrand(req.caller, req.body?.email), 201));
+
+  app.delete("/admin/team/members/:userId", ...handle(async (req) => removeMember(req.caller, req.params.userId)));
+
+  app.get("/admin/events/:id/team", ...handle(async (req) => eventTeam(req.caller, req.params.id)));
+
+  app.post("/admin/events/:id/team", ...handle(async (req) => inviteToEvent(req.caller, req.params.id, req.body?.email), 201));
+
+  app.delete("/admin/events/:id/team/:userId", ...handle(async (req) => removeCohost(req.caller, req.params.id, req.params.userId)));
+
+  app.delete("/admin/invites/:id", ...handle(async (req) => cancelInvite(req.caller, req.params.id)));
+
+  app.post("/admin/invites/:id/accept", ...handle(async (req) => acceptInvite(req.caller, req.params.id)));
+
+  app.post("/admin/invites/:id/decline", ...handle(async (req) => declineInvite(req.caller, req.params.id)));
 
   app.get("/admin/events", ...handle(async (req) => ({ events: await listEvents(req.caller) })));
 

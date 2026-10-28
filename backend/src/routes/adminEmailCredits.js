@@ -3,6 +3,7 @@
 // the browser coming back from Checkout — both crediting the session once.
 import express from "express";
 import { requireUser } from "../middleware/requireUser.js";
+import { payerFor, payersFor } from "../lib/brands.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import {
   PACKS, packById, checkoutUrl, getCheckout, creditBalance, recordPurchase, recentPurchases, verifyStripeSignature,
@@ -14,11 +15,11 @@ const WEBHOOK_PATH = "/stripe/email-credits";
 export const emailCreditsWebhookParser = [WEBHOOK_PATH, express.raw({ type: "application/json", limit: "1mb" })];
 
 export function registerEmailCreditRoutes(app) {
-  // The caller's balance (each organiser has their own), what can be bought,
-  // and what has been.
+  // The balance the caller sends on (each account has its own; a brand's
+  // members send on its head's), what can be bought, and what has been.
   app.get("/admin/credits", requireUser, async (req, res) => {
     try {
-      const { hostId } = req.caller;
+      const hostId = await payerFor(req.caller);
       const [balance, purchases] = await Promise.all([creditBalance(hostId), recentPurchases(hostId)]);
       return res.json({ balance, packs: PACKS, purchases });
     } catch (err) {
@@ -32,7 +33,7 @@ export function registerEmailCreditRoutes(app) {
     const pack = packById(req.body?.pack);
     if (!pack) return res.status(400).json({ error: "invalid", detail: "pack" });
     try {
-      const url = await checkoutUrl({ hostId: req.caller.hostId, email: req.caller.email, pack, frontendUrl: getFrontendUrl(), returnPath: req.body?.returnPath });
+      const url = await checkoutUrl({ hostId: await payerFor(req.caller), email: req.caller.email, pack, frontendUrl: getFrontendUrl(), returnPath: req.body?.returnPath });
       return res.json({ url });
     } catch (err) {
       console.error("[credits] checkout:", err?.message);
@@ -47,9 +48,9 @@ export function registerEmailCreditRoutes(app) {
     if (!/^cs_[\w]+$/.test(id)) return res.status(400).json({ error: "invalid" });
     try {
       const session = await getCheckout(id);
-      if (session.metadata?.host_id !== req.caller.hostId) return res.status(404).json({ error: "not_found" });
+      if (!(await payersFor(req.caller)).includes(session.metadata?.host_id)) return res.status(404).json({ error: "not_found" });
       const added = await recordPurchase(session);
-      return res.json({ paid: session.payment_status === "paid", added, balance: await creditBalance(req.caller.hostId) });
+      return res.json({ paid: session.payment_status === "paid", added, balance: await creditBalance(session.metadata.host_id) });
     } catch (err) {
       console.error("[credits] confirm:", err?.message);
       return res.status(502).json({ error: "confirm_failed" });

@@ -9,6 +9,8 @@
 import crypto from "crypto";
 import express from "express";
 import { requireUser } from "../middleware/requireUser.js";
+import { brandScope } from "../lib/brands.js";
+import { inBrandEvents } from "../repos/hostEvents.js";
 import { supabase } from "../supabase.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
@@ -31,6 +33,14 @@ function fromSections(sections) {
     if (s.type === "hostedby" && typeof s.name === "string" && s.name.trim()) hostedBy = hostedBy || s.name.trim();
   }
   return { spotify, hostedBy };
+}
+
+// The events a mail can show: the brand the page works in (the owner: all).
+// Null when the caller has no brand yet.
+async function brandEvents(query, caller) {
+  if (caller.isOwner) return query;
+  const { brand } = await brandScope(caller);
+  return brand ? inBrandEvents(query, brand) : null;
 }
 
 export function registerAdminMailRoutes(app) {
@@ -67,7 +77,8 @@ export function registerAdminMailRoutes(app) {
         .from("events")
         .select("id, slug, title, cover_image_url, image_url, starts_at, location, spotify, admin_tags, host_id, sections, kind")
         .or("kind.is.null,kind.eq.event");
-      if (!req.caller.isOwner) query = query.eq("host_id", req.caller.hostId);
+      query = await brandEvents(query, req.caller);
+      if (!query) return res.json({ events: [] });
       const { data, error } = await query.order("starts_at", { ascending: false }).limit(300);
       if (error) throw error;
       const hostIds = [...new Set((data || []).map((e) => e.host_id).filter(Boolean))];
@@ -103,7 +114,8 @@ export function registerAdminMailRoutes(app) {
   app.get("/admin/mail/event-images", requireUser, async (req, res) => {
     try {
       let query = supabase.from("events").select("title, cover_image_url, image_url, starts_at");
-      if (!req.caller.isOwner) query = query.eq("host_id", req.caller.hostId);
+      query = await brandEvents(query, req.caller);
+      if (!query) return res.json({ items: [] });
       const { data, error } = await query.order("starts_at", { ascending: false }).limit(300);
       if (error) throw error;
       const seen = new Set();

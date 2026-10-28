@@ -15,3 +15,10 @@ export function BrandKicker() {
   if (!brand) return null;
   return <p className="ea-brand">{brand.name}</p>;
 }
+
+/* Things only a brand's team does (new events, mail to the guests): hidden for
+   someone who co-hosts single events in the brand. */
+export function TeamOnly({ children, otherwise = null }) {
+  const brand = useCurrentBrand();
+  return brand?.role === "event" ? otherwise : children;
+}

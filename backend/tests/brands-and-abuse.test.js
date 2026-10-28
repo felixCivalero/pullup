@@ -2,7 +2,8 @@
 // people using PullUp to mail strangers (lib/abuse.js). Pure parts only.
 process.env.SUPABASE_URL ||= "http://localhost";
 process.env.SUPABASE_SERVICE_KEY ||= "test-service-key";
-const { cleanBrandName, pickBrand } = await import("../src/lib/brands.js");
+const { cleanBrandName, pickBrand, brandShape, isHead, isTeam } = await import("../src/lib/brands.js");
+const { teamInviteEmail } = await import("../src/lib/eventEmails.js");
 const { over, mayConfirm, resetCounters, humanCheck, CONFIRMATIONS_PER_ADDRESS, CONFIRMATIONS_PER_ACCOUNT } = await import("../src/lib/abuse.js");
 
 let failures = 0;
@@ -58,6 +59,18 @@ process.env.TURNSTILE_SECRET_KEY = "secret";
 assert(await humanCheck(undefined, "1.2.3.4") === false, "keys set, no token → refused");
 assert(await humanCheck("x".repeat(5000), "1.2.3.4") === false, "keys set, absurd token → refused without asking Cloudflare");
 delete process.env.TURNSTILE_SECRET_KEY;
+
+// ── working together (lib/teams.js) ──
+assert(brandShape({ id: "b", name: "Aperol", hostId: "secret-host" }).role === "head", "a brand without role is the caller's own");
+assert(!("hostId" in brandShape({ id: "b", name: "A", hostId: "h", role: "member" })), "the brand's owning account never goes to the browser");
+assert(isHead({ role: "head" }) && !isHead({ role: "member" }) && !isHead(null), "only the head manages the team");
+assert(isTeam({ role: "member" }) && isTeam({ role: "head" }) && !isTeam({ role: "event" }), "an event co-host isn't the brand's team");
+const inviteMail = teamInviteEmail({ inviter: "julia@nigab.se", brand: "<script>alert(1)</script>", event: null, loginUrl: "https://pullup.se/login?x=1&email=a@b.se" });
+assert(!inviteMail.html.includes("<script>"), "a brand name in the invite mail is escaped");
+assert(inviteMail.html.includes("x=1&amp;email="), "the link is escaped in the html");
+assert(inviteMail.text.includes("https://pullup.se/login?x=1&email=a@b.se"), "the plain text has the link as is");
+const eventMail = teamInviteEmail({ inviter: "julia@nigab.se", brand: "Aperol", event: "Spritz Sunday", loginUrl: "https://pullup.se/login" });
+assert(/medarrangör/.test(eventMail.subject) && eventMail.text.includes("Spritz Sunday för Aperol"), "an event invite says which event and brand");
 
 if (failures) { console.error(`\n${failures} brands/abuse test(s) failed`); process.exit(1); }
 console.log("\nall brands-and-abuse tests passed");

@@ -36,7 +36,8 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
   const pending = useRef(pendingLogin()).current;
   const link = useRef(linkFromHash()).current;
   const [step, setStep] = useState(link ? "link" : pending ? "code" : "email");
-  const [email, setEmail] = useState(pending?.email || "");
+  // An invite's link (lib/teams.js) brings the invited address along.
+  const [email, setEmail] = useState(() => pending?.email || (new URLSearchParams(window.location.search).get("email") || "").slice(0, 254));
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [turnstile, setTurnstile] = useState("");

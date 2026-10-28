@@ -12,7 +12,7 @@ import { isValidTimeZone, toUtcIso } from "../lib/zonedTime.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { createEvent, eventFor, eventWithGuests, listEvents, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { syncCover } from "../routes/adminEventMedia.js";
-import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
+import { brandScope, brandShape, createBrand, payerFor, renameBrand } from "../lib/brands.js";
 
 // Which of the account's brands to work in: its id or name. Leave out for the
 // first. Several brands (an agency, a drinks company) live under one login.
@@ -57,7 +57,7 @@ export const whoami = defineAction({
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
-    const [events, credits, { brands }] = await Promise.all([listEvents(caller), creditBalance(caller.hostId), brandScope(caller)]);
+    const [events, credits, { brands }] = await Promise.all([listEvents(caller), creditBalance(await payerFor(caller)), brandScope(caller)]);
     const mine = events.filter((e) => e.mine);
     return {
       email: caller.email,
@@ -190,7 +190,7 @@ export const setEventCover = defineAction({
   input: z.object({ eventId, imageUrl: z.string().trim().url().max(2000).describe("A public https:// link to the image file.") }),
   run: async ({ eventId: id, imageUrl }, { caller }) => {
     const ev = await eventFor(caller, id);
-    if (ev.host_id !== caller.hostId) throw new ActionError("forbidden", "Only the organiser can change this event's cover.");
+    if (caller.isOwner && ev.host_id !== caller.hostId) throw new ActionError("forbidden", "Only the organiser can change this event's cover.");
     let image;
     try {
       image = await fetchRemoteImage(imageUrl);
@@ -236,7 +236,7 @@ export const updateGuestAction = defineAction({
 export const listBrandsAction = defineAction({
   name: "list_brands",
   title: "My brands",
-  description: "The brands this account runs (one login can run several, e.g. an agency or a company with several products). Events, guests, the CRM and mail belong to a brand; mail credits are shared.",
+  description: "The brands this person works in (one login can run several, e.g. an agency or a company with several products), each with their role: head (their own), member (invited into someone's brand: works in it fully, on its mail credits) or event (co-host of single events there). Events, guests, the CRM and mail belong to a brand.",
   access: "user",
   effect: "read",
   input: z.object({}),

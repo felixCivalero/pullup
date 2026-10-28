@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { authenticatedFetch } from "../../lib/api.js";
 import { setCurrentBrandId } from "../../lib/brand.js";
 
 /* The brand the admin works in, top bar. One login can run several brands
    (an agency, a company with several products): events, guests, CRM and mail
    follow the brand picked here; mail credits are the account's. Pick one,
-   rename it, or add another. `onChange` reloads the account (AdminShell). */
-export function BrandSwitcher({ brands, current, onChange, onSignOut }) {
+   rename it (its head only), or add another. Brands someone else runs show
+   whether you're in its team or co-host single events there.
+   `onChange` reloads the account (AdminShell). */
+const ROLE = { member: "Medlem", event: "Medarrangör" };
+export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState(null); // null | "new" | "rename"
   const [name, setName] = useState("");
@@ -78,18 +83,26 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut }) {
               {brands.map((b) => (
                 <button key={b.id} type="button" role="menuitemradio" aria-checked={b.id === active.id} className="bs-item" onClick={() => pick(b.id)}>
                   <span>{b.name}</span>
-                  {b.id === active.id && <Check size={15} />}
+                  <span className="bs-end">
+                    {ROLE[b.role] && <small className="bs-role">{ROLE[b.role]}</small>}
+                    {b.id === active.id && <Check size={15} />}
+                  </span>
                 </button>
               ))}
               <div className="bs-sep" />
-              <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(active.name); setMode("rename"); }}>
-                Byt namn på {active.name}
-              </button>
+              {(!active.role || active.role === "head") && (
+                <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(active.name); setMode("rename"); }}>
+                  Byt namn på {active.name}
+                </button>
+              )}
               <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(""); setMode("new"); }}>
                 <span>Nytt varumärke</span>
                 <Plus size={15} />
               </button>
-              {/* Phones: the bar has no room for its own sign-out, so it lives here. */}
+              {/* Phones: the bar has no room for Team or its own sign-out, so they live here. */}
+              {teamLink && (
+                <button type="button" role="menuitem" className="bs-item bs-muted bs-phone" onClick={() => { setOpen(false); navigate("/admin/team"); }}>Team</button>
+              )}
               {onSignOut && (
                 <button type="button" role="menuitem" className="bs-item bs-muted bs-phone" onClick={onSignOut}>Logga ut</button>
               )}
@@ -114,6 +127,8 @@ const CSS = `
   .ad-bar .bs-item:hover { background: rgba(0,0,0,0.05); color: #0a0a0a; }
   .ad-bar .bs-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ad-bar .bs-muted { color: #6e6e73; font-size: 13px; }
+  .bs-end { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .bs-role { font-size: 11px; font-weight: 600; color: #6e6e73; background: #f0f0f0; padding: 2px 7px; border-radius: 999px; }
   .bs-sep { height: 1px; background: rgba(0,0,0,0.08); margin: 6px 4px; }
   .bs-form { display: grid; gap: 8px; padding: 6px; }
   .bs-form label { font-size: 12px; font-weight: 600; color: #6e6e73; }

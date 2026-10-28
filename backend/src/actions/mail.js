@@ -7,6 +7,7 @@ import { PACKS, creditBalance, checkoutUrl, packById, recentPurchases } from "..
 import { getFrontendUrl } from "../lib/urls.js";
 import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvents.js";
 import { brandInput, inBrand } from "./events.js";
+import { payerFor } from "../lib/brands.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -58,7 +59,7 @@ export const previewMail = defineAction({
   effect: "read",
   input: z.object({ brand: brandInput, audience }),
   run: async ({ brand, audience: a }, { caller }) => {
-    const [preview, balance] = await Promise.all([previewSend(inBrand(caller, brand), a), creditBalance(caller.hostId)]);
+    const [preview, balance] = await Promise.all([previewSend(inBrand(caller, brand), a), creditBalance(await payerFor(inBrand(caller, brand)))]);
     return { ...preview, creditsNeeded: preview.count, creditBalance: balance, enoughCredits: balance >= preview.count };
   },
 });
@@ -105,7 +106,8 @@ export const getMailCredits = defineAction({
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
-    const [balance, purchases] = await Promise.all([creditBalance(caller.hostId), recentPurchases(caller.hostId)]);
+    const payer = await payerFor(caller);
+    const [balance, purchases] = await Promise.all([creditBalance(payer), recentPurchases(payer)]);
     return { balance, packs: PACKS.map((p) => ({ pack: p.id, mails: p.mails, priceSek: p.priceSek })), purchases };
   },
 });
@@ -120,7 +122,7 @@ export const buyMailCredits = defineAction({
   run: async ({ pack }, { caller }) => {
     const p = packById(pack);
     if (!process.env.STRIPE_SECRET_KEY) throw new ActionError("failed", "Payments aren't set up on this server.");
-    const url = await checkoutUrl({ hostId: caller.hostId, email: caller.email, pack: p, frontendUrl: getFrontendUrl(), returnPath: "/admin/mail" });
+    const url = await checkoutUrl({ hostId: await payerFor(caller), email: caller.email, pack: p, frontendUrl: getFrontendUrl(), returnPath: "/admin/mail" });
     return { paymentUrl: url, pack: p.id, mails: p.mails, priceSek: p.priceSek, note: "Open the link to pay. Credits never expire." };
   },
 });

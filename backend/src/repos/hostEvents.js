@@ -3,7 +3,9 @@
 // guests and people — the owner (platform admin) sees all events, as before.
 // An organiser works in one brand at a time (lib/brands.js): the list, the
 // CRM and the mail are that brand's; an event can be opened from any of the
-// account's brands.
+// caller's brands. A brand can be the caller's own, one they're a member of
+// (the brand's account is then whose events these are: brand.hostId), or one
+// they co-host single events in (only those events).
 // The site's routes (routes/adminEvents.js) and the agent actions
 // (actions/*.js) both call these, so a person and their assistant can do
 // exactly the same things, with the same rules.
@@ -17,7 +19,7 @@ import { broadcastEmail } from "../lib/eventEmails.js";
 import { creditBalance, refundCredits, reserveCredits } from "../lib/emailCredits.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { ensureHostProfile } from "../middleware/requireUser.js";
-import { brandNames, brandScope, brandShape, currentBrand } from "../lib/brands.js";
+import { brandNames, brandScope, brandShape, currentBrand, isTeam, listBrands, payerFor } from "../lib/brands.js";
 import { apiBase, eventUrl } from "../lib/urls.js";
 
 export const EVENT_COLUMNS =
@@ -29,6 +31,13 @@ const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, ma
 
 const ofKindEvent = (q) => q.or("kind.is.null,kind.eq.event");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A brand's events as the caller may see them: the whole brand for its team,
+// only the shared ones for an event co-host.
+export function inBrandEvents(query, brand) {
+  const q = query.eq("host_id", brand.hostId).eq("brand_id", brand.id);
+  return brand.role === "event" ? q.in("id", brand.eventIds.length ? brand.eventIds : ["00000000-0000-0000-0000-000000000000"]) : q;
+}
 
 // `.in()` with a long list overflows the URL; read it 200 ids at a time.
 async function selectIn(table, columns, column, ids) {
@@ -59,7 +68,7 @@ export async function loadWorld(caller) {
   const { brand } = await brandScope(caller);
   if (!brand) return { events: [], rsvps: [], people: [], pullups: [] };
   const events = await selectAllPaged(() =>
-    ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).eq("host_id", caller.hostId).eq("brand_id", brand.id).order("starts_at", { ascending: false }),
+    inBrandEvents(ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)), brand).order("starts_at", { ascending: false }),
   );
   const ids = events.map((e) => e.id);
   const [rsvps, pullups] = await Promise.all([
@@ -91,7 +100,9 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
     capacity: ev.total_capacity,
     status: ev.status,
-    mine: ev.host_id === caller.hostId,
+    // Can be edited here: anything an organiser sees is theirs to work on;
+    // the owner sees everyone's but edits his own.
+    mine: !caller.isOwner || ev.host_id === caller.hostId,
     brandId: ev.brand_id || null,
     host: brands.get(ev.brand_id) || null,
     url: eventUrl(ev.slug),
@@ -167,23 +178,42 @@ function countsByEvent(rsvps) {
   return counts;
 }
 
-// The event row, if the caller may work on it: an organiser only their own,
-// the owner any. Anything else is "not found" — never "not yours".
+// Whether the caller may work on an event: the owner any, the brand's team
+// all of the brand's, a co-host the events shared with them. → the brand it's
+// reached through (null for the owner), or undefined: no access.
+async function accessTo(caller, ev) {
+  if (caller.isOwner) return null;
+  const { brands } = await brandScope(caller);
+  const brand = brands.find((b) => b.id === ev.brand_id && b.hostId === ev.host_id);
+  if (brand && (isTeam(brand) || brand.eventIds.includes(ev.id))) return brand;
+  // An event of the caller's own account that has no brand (none should).
+  if (!ev.brand_id && ev.host_id === caller.hostId) return null;
+  return undefined;
+}
+
+// The event row, if the caller may work on it. Anything else is "not found"
+// — never "not yours".
 export async function eventFor(caller, id) {
   if (!UUID.test(String(id || ""))) throw new ActionError("not_found", "No event with that id.");
   const { data: ev, error } = await supabase.from("events").select(EVENT_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw error;
-  if (!ev || (ev.kind && ev.kind !== "event") || (!caller.isOwner && ev.host_id !== caller.hostId)) {
+  if (!ev || (ev.kind && ev.kind !== "event") || (await accessTo(caller, ev)) === undefined) {
     throw new ActionError("not_found", "No event with that id.");
   }
   return ev;
+}
+
+// The brand an event is worked on through, for checks on what the caller may
+// do with it (invite, mail): { role, ... } or null for the owner.
+export async function eventBrand(caller, ev) {
+  return (await accessTo(caller, ev)) ?? null;
 }
 
 export async function listEvents(caller) {
   const { brand } = caller.isOwner ? {} : await brandScope(caller);
   if (!caller.isOwner && !brand) return [];
   const query = () => ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).order("starts_at", { ascending: false });
-  const events = await selectAllPaged(() => (caller.isOwner ? query() : query().eq("host_id", caller.hostId).eq("brand_id", brand.id)));
+  const events = await selectAllPaged(() => (caller.isOwner ? query() : inBrandEvents(query(), brand)));
   const rsvps = caller.isOwner
     ? await selectAllPaged(() => supabase.from("rsvps").select(RSVP_COLUMNS).order("created_at", { ascending: true }))
     : await selectIn("rsvps", RSVP_COLUMNS, "event_id", events.map((e) => e.id));
@@ -198,10 +228,11 @@ export async function createEvent(caller, body) {
   if (!patch.title) throw new ActionError("invalid", "The event needs a title.", { detail: "title" });
   if (!patch.starts_at) throw new ActionError("invalid", "The event needs a start time.", { detail: "startsAt" });
   if (patch.ends_at && patch.ends_at <= patch.starts_at) throw new ActionError("invalid", "The end time must be after the start time.", { detail: "endsAt" });
-  if (!caller.isOwner) await ensureHostProfile(caller.hostId);
   const brand = await currentBrand(caller);
+  if (!isTeam(brand)) throw new ActionError("forbidden", `You co-host single events in ${brand.name}; new events there are made by its team.`, { detail: "cohost" });
+  if (!caller.isOwner && brand.hostId === caller.hostId) await ensureHostProfile(caller.hostId);
   const row = {
-    host_id: caller.hostId,
+    host_id: brand.hostId,
     brand_id: brand.id,
     slug: makeSlug(patch.title),
     kind: "event",
@@ -320,7 +351,7 @@ export async function previewSend(callerIn, audience) {
 // A send runs after the answer: 100 mails at a time, ~600 ms apart (under
 // Resend's rate limit). Each mail is logged in email_outbox under one
 // campaign_tag and the host. `compose(recipient, unsubscribeUrl)` builds it.
-async function deliver({ recipients, subject, compose, logBody, from: fromOverride, tag, hostId, brandId = null }) {
+async function deliver({ recipients, subject, compose, logBody, from: fromOverride, tag, hostId, brandId = null, sentBy = null }) {
   const unsub = new Map();
   for (const r of recipients.filter((x) => x.personId && !x.token)) {
     const token = crypto.randomBytes(18).toString("base64url");
@@ -365,6 +396,7 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
       campaign_tag: tag,
       host_id: hostId,
       brand_id: brandId,
+      sent_by: sentBy,
       created_at: now,
       updated_at: now,
     }))).then(({ error }) => error && console.error("[events] outbox log failed:", error.message));
@@ -380,7 +412,12 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
 // or the mail module's blocks (`blocks` + previewText + fromName).
 export async function sendMail(callerIn, input) {
   const caller = await sendScope(callerIn, input?.audience);
-  const brandId = (await brandScope(caller)).brand?.id || null;
+  const { brand: sendBrand } = await brandScope(caller);
+  if (!caller.isOwner && sendBrand && !isTeam(sendBrand)) {
+    throw new ActionError("forbidden", `Mail to ${sendBrand.name}'s guests goes out from its team. Ask them to send it.`, { detail: "cohost" });
+  }
+  const brandId = sendBrand?.id || null;
+  const payer = await payerFor(caller);
   const { audience, subject, body, blocks, previewText, fromName, eventId, test } = input || {};
   const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, 200) : "";
   const cleanBody = typeof body === "string" ? body.trim().slice(0, 20000) : "";
@@ -419,7 +456,7 @@ export async function sendMail(callerIn, input) {
   const replyTo = caller.isOwner ? undefined : caller.email;
 
   if (test) {
-    await deliver({ recipients: [{ personId: null, email: caller.email, name: "", basis: "test", token: "test", replyTo }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test`, hostId: caller.hostId, brandId });
+    await deliver({ recipients: [{ personId: null, email: caller.email, name: "", basis: "test", token: "test", replyTo }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test`, hostId: payer, brandId, sentBy: caller.userId });
     return { ok: true, test: true, to: caller.email };
   }
   const [world, suppressed] = await Promise.all([loadWorld(caller), loadSuppressed()]);
@@ -429,28 +466,30 @@ export async function sendMail(callerIn, input) {
     .filter((r) => !suppressed.has(r.email))
     .map((r) => ({ ...r, token: tokens.get(r.personId) || null, replyTo }));
   if (!recipients.length) throw new ActionError("invalid", "Nobody in that audience can be mailed.", { detail: "no_recipients" });
-  const left = await reserveCredits(caller.hostId, recipients.length, tag);
+  const left = await reserveCredits(payer, recipients.length, tag);
   if (left == null) {
-    const balance = await creditBalance(caller.hostId);
+    const balance = await creditBalance(payer);
     throw new ActionError("payment_required", `This send needs ${recipients.length} mail credits and the balance is ${balance}. Buy a pack first.`, { needed: recipients.length, balance });
   }
-  deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag, hostId: caller.hostId, brandId })
-    .then(({ failed }) => refundCredits(caller.hostId, failed, tag))
+  deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag, hostId: payer, brandId, sentBy: caller.userId })
+    .then(({ failed }) => refundCredits(payer, failed, tag))
     .catch((err) => console.error("[events] send failed:", err?.message));
   return { ok: true, queued: recipients.length, tag, balance: left };
 }
 
 // Earlier sends, newest first — the brand's own (sends from before brands,
-// mig 150, count as the account's first brand). Before mig 148 sends had no
-// host: those were all the owner's.
+// mig 150, count as the account's first brand; an event co-host sees the
+// ones they sent). Before mig 148 sends had no host: those were the owner's.
 export async function listSends(caller) {
-  const { brands, brand } = await brandScope(caller);
-  const firstBrand = brand && brands[0]?.id === brand.id;
+  const { brand } = await brandScope(caller);
+  const firstBrand = brand && isTeam(brand) && (await listBrands(brand.hostId))[0]?.id === brand.id;
   const rows = await selectAllPaged(() => {
     const q = supabase.from("email_outbox").select("campaign_tag, subject, status, created_at").eq("category", "event_broadcast");
     if (caller.isOwner) return q.or(`host_id.is.null,host_id.eq.${caller.hostId}`).order("created_at", { ascending: false });
-    const mine = q.eq("host_id", caller.hostId);
-    const scoped = !brand ? mine.is("brand_id", null) : firstBrand ? mine.or(`brand_id.is.null,brand_id.eq.${brand.id}`) : mine.eq("brand_id", brand.id);
+    if (!brand) return q.eq("host_id", caller.hostId).is("brand_id", null).order("created_at", { ascending: false });
+    const mine = q.eq("host_id", brand.hostId);
+    const scoped = brand.role === "event" ? mine.eq("brand_id", brand.id).eq("sent_by", caller.userId)
+      : firstBrand ? mine.or(`brand_id.is.null,brand_id.eq.${brand.id}`) : mine.eq("brand_id", brand.id);
     return scoped.order("created_at", { ascending: false });
   });
   const by = new Map();

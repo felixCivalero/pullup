@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { followBrand, useCurrentBrand } from "../../lib/brand.js";
-import { BrandKicker } from "../../components/admin/ByBrand.jsx";
+import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
+import { TeamList } from "../../components/admin/Team.jsx";
+import { teamApi } from "../../lib/team.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
@@ -74,11 +76,62 @@ export function EventDetailPage() {
             </div>
             {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
             <Guests guests={data.guests} ev={ev} onChange={load} />
-            <Compose ev={ev} />
+            <TeamOnly otherwise={<CohostMailNote />}><Compose ev={ev} /></TeamOnly>
+            <Cohosts ev={ev} />
           </>
         )}
       </div>
     </AdminShell>
+  );
+}
+
+// The people who help with this one event (backend lib/teams.js). The
+// brand's team invites and removes; a co-host can step down.
+function Cohosts({ ev }) {
+  const brand = useCurrentBrand();
+  const [team, setTeam] = useState(null);
+  const [error, setError] = useState("");
+  const load = useCallback(() => { teamApi.event(ev.id).then(setTeam).catch(() => setTeam(null)); }, [ev.id]);
+  useEffect(() => { load(); }, [load]);
+  if (!team || (!team.canManage && !team.cohosts.length)) return null;
+
+  const remove = async (c) => {
+    if (!window.confirm(c.you ? `Kliva av som medarrangör på ${ev.title}?` : `Ta bort ${c.email} som medarrangör?`)) return;
+    try {
+      await teamApi.removeCohost(ev.id, c.userId);
+      if (c.you) window.location.assign("/admin/events");
+      else load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return (
+    <section>
+      <h2>Medarrangörer</h2>
+      <p className="ea-muted ed-cohost-lead">
+        En medarrangör redigerar det här eventet och sköter gästlistan, men ser inget annat{brand?.name ? ` hos ${brand.name}` : ""}.
+        {brand?.role !== "event" && <> Teamet har redan tillgång till alla event, det bjuder du in under <Link to="/admin/team">Team</Link>.</>}
+      </p>
+      <TeamList
+        people={team.cohosts.map((c) => ({ key: c.userId, email: c.email, role: "Medarrangör", you: c.you, onRemove: team.canManage || c.you ? () => remove(c) : null }))}
+        invites={team.invites}
+        canManage={team.canManage}
+        inviteLabel="Bjud in medarrangör"
+        onInvite={async (email) => { const out = await teamApi.inviteToEvent(ev.id, email); load(); return out; }}
+        onCancel={async (id) => { await teamApi.cancel(id).catch(() => {}); load(); }}
+      />
+      {error && <p className="ea-error">{error}</p>}
+    </section>
+  );
+}
+
+function CohostMailNote() {
+  const brand = useCurrentBrand();
+  return (
+    <section>
+      <h2>Mejla</h2>
+      <p className="ea-muted">Utskick till gästerna görs av teamet för {brand?.name || "varumärket"}. Be dem skicka.</p>
+    </section>
   );
 }
 
@@ -284,4 +337,6 @@ const DETAIL_CSS = `
   .ed-compose h2 { margin-bottom: 0; }
   .ed-compose .ea-muted { margin: 0; }
   .ed-count { margin: -4px 0 0; font-size: 13px; font-weight: 600; color: #0a0a0a; }
+  .ed-cohost-lead { margin: 0 0 14px; max-width: 640px; line-height: 1.5; }
+  .ed-cohost-lead a { color: #0a0a0a; font-weight: 600; }
 `;

@@ -8,6 +8,7 @@ import { BrandContext, setCurrentBrandId, useBrandId } from "../../lib/brand.js"
 import { ToastProvider } from "../../components/Toast.jsx";
 import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
 import { Onboarding } from "../../components/admin/Onboarding.jsx";
+import { PendingInvites } from "../../components/admin/Team.jsx";
 
 /* Every /admin page renders inside this: the sign-in gate + the top bar.
    Any signed-in person is an organiser and gets their events, CRM, mail and
@@ -16,14 +17,18 @@ import { Onboarding } from "../../components/admin/Onboarding.jsx";
    user; a session it refuses is signed out. It also says which brands the
    account runs: a new account (no brand yet) gets the start (Onboarding),
    everyone else the brand switcher, and each page is drawn for the brand
-   picked there. `fill` = the page takes the whole viewport under the bar. */
+   picked there. Invites to someone's brand or event wait on top until
+   answered. Someone who only co-hosts single events in a brand doesn't get
+   its mail or team (marked team below). `fill` = the page takes the whole
+   viewport under the bar. */
 const NAV = [
   ["/admin", "Statistik", "owner"],
   ["/admin/sales", "Sälj", "owner"],
   ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
-  ["/admin/mail", "Mejl"],
+  ["/admin/mail", "Mejl", "team"],
+  ["/admin/team", "Team", "team", "ad-wide"], // phones: in the brand menu
   ["/admin/agents", "Agenter"],
   ["/admin/archi", "Archi", "owner"],
 ];
@@ -100,6 +105,7 @@ export function AdminShell({ title, fill = false, children }) {
   const brands = me?.brands || [];
   const starting = !!me && !owner && brands.length === 0;
   const current = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
+  const shown = ([, , only]) => (only === "owner" ? owner : only === "team" ? current?.role !== "event" : true);
 
   return (
     <ToastProvider>
@@ -107,14 +113,14 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS}</style>
         <header className="ad-bar">
           <nav>
-            {!starting && NAV.filter(([, , only]) => owner || only !== "owner").map(([to, label]) => (
-              <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => (isActive ? "is-on" : undefined)}>
+            {!starting && NAV.filter(shown).map(([to, label, , wide]) => (
+              <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [isActive && "is-on", wide].filter(Boolean).join(" ") || undefined}>
                 {label}
               </NavLink>
             ))}
           </nav>
           <div className="ad-side">
-            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} />}
+            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} teamLink={current?.role !== "event"} />}
             {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
             <button type="button" className={brands.length > 0 ? "ad-out has-menu" : "ad-out"} onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
               <span className="ad-out-text">Logga ut</span>
@@ -123,10 +129,11 @@ export function AdminShell({ title, fill = false, children }) {
           </div>
         </header>
         {starting ? (
-          <main className="ad-main"><Onboarding email={session.user?.email} onDone={loadMe} /></main>
+          <main className="ad-main"><Onboarding email={session.user?.email} invites={me?.invites} onDone={loadMe} /></main>
         ) : (
           // Pages that show one brand's things redraw when it changes (App.jsx, ByBrand).
           <main className="ad-main">
+            {!fill && <PendingInvites invites={me?.invites} onAnswered={loadMe} />}
             <BrandContext.Provider value={current}>{children}</BrandContext.Provider>
           </main>
         )}
@@ -160,6 +167,7 @@ const ADMIN_CSS = `
     .ad-out-text { display: none; }
     .ad-out-icon { display: block; }
     .ad-out.has-menu { display: none; }
+    .ad-bar nav a.ad-wide { display: none; }
     .ad-bar nav a { font-size: 13.5px; padding: 7px 9px; }
   }
   .ad-fill .ad-main { position: fixed; top: 56px; left: 0; right: 0; bottom: 0; overflow: hidden; }

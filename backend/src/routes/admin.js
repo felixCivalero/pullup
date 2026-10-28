@@ -5,6 +5,7 @@ import { supabase } from "../supabase.js";
 import { summarizeVisits, visitTimeline } from "../lib/visitJourneys.js";
 import { uniqueVisitors } from "../lib/uniqueVisitors.js";
 import { brandScope, brandShape } from "../lib/brands.js";
+import { myInvites } from "../lib/teams.js";
 
 // The stats cookie (opt-in, frontend lib/consent.js) went live this day; before
 // it no visitor was kept, so unique visitors are counted from here on.
@@ -123,7 +124,7 @@ export function registerAdminRoutes(app) {
   // admin decides from this whether a person needs the start (onboarding).
   app.get("/admin/me", requireUser, async (req, res) => {
     try {
-      const { brands, brand } = await brandScope(req.caller);
+      const [{ brands, brand }, invites] = await Promise.all([brandScope(req.caller), myInvites(req.caller)]);
       const { count, error } = await supabase
         .from("events")
         .select("id", { count: "exact", head: true })
@@ -136,6 +137,7 @@ export function registerAdminRoutes(app) {
         brands: brands.map(brandShape),
         brand: brand?.id || null,
         events: count || 0,
+        invites,
       });
     } catch (err) {
       console.error("[admin/me]", err?.message);

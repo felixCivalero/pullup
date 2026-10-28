@@ -79,3 +79,30 @@ export function broadcastEmail({ subject, body, unsubscribeUrl, event = null, ev
   ].join("\n");
   return { subject, html, text };
 }
+
+// An invite to work in a brand, or to co-host one event (lib/teams.js). The
+// link goes to sign-in; signing in with this address shows the invite.
+export function teamInviteEmail({ inviter, brand, event, loginUrl }) {
+  const what = event ? `eventet ${event} för ${brand}` : brand;
+  const subject = event ? `Du är inbjuden som medarrangör: ${event}` : `Du är inbjuden till ${brand} på PullUp`;
+  const lead = event
+    ? `${inviter} har bjudit in dig som medarrangör på ${what}. Du kan redigera eventet och sköta gästlistan.`
+    : `${inviter} har bjudit in dig till teamet för ${brand}. Du får jobba med varumärkets event, gäster, CRM och utskick.`;
+  const html = shell(`
+    <p style="margin:0 0 6px;font-size:14px;color:#6e6e73;">Hej!</p>
+    <h1 style="margin:0 0 12px;font-size:26px;line-height:1.15;letter-spacing:-0.02em;">${esc(event || brand)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#3a3a3e;">${esc(lead)}</p>
+    ${button(loginUrl, "Logga in och gå med")}
+    <p style="margin:18px 0 0;font-size:13px;line-height:1.5;color:#6e6e73;">Logga in med den här mejladressen. Ingen inloggning med lösenord, du får en länk. Inbjudan gäller i 30 dagar. Väntade du dig inte det här kan du strunta i mejlet.</p>
+  `, "Skickat via PullUp.");
+  const text = [
+    "Hej!",
+    "",
+    lead,
+    "",
+    `Logga in och gå med: ${loginUrl}`,
+    "",
+    "Logga in med den här mejladressen. Inbjudan gäller i 30 dagar. Väntade du dig inte det här kan du strunta i mejlet.",
+  ].join("\n");
+  return { subject, html, text };
+}

@@ -5,6 +5,8 @@
 // before adding one (backend actions/, repos/hostEvents.js, lib/emailCredits.js).
 
 export const PRODUCT_URL = "https://pullup.se/eventverktyg";
+// Share card drawn by scripts/og-pages.mjs (bump ?v= when redrawn).
+export const PRODUCT_CARD = { image: "https://pullup.se/og/eventverktyg.jpg?v=1", alt: "Fyll rummet. Gratis. — PullUps eventverktyg" };
 export const PRODUCT_TITLE = "PullUp – gratis eventsida med anmälan, kalenderinbjudan och gästlista";
 export const PRODUCT_DESCRIPTION =
   "Skapa en eventsida på en minut, ta emot anmälningar med bekräftelsemejl och kalenderinbjudan, håll koll på gästlistan och mejla dina gäster. Gratis – du betalar bara för stora utskick. Din AI kan göra allt åt dig.";

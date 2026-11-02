@@ -115,6 +115,7 @@ function pagesPlugin() {
           file: `${p}.html`,
           html: withMeta(shell, {
             title: product.PRODUCT_TITLE, description: product.PRODUCT_DESCRIPTION, url: product.PRODUCT_URL, jsonLd: product.productJsonLd(),
+            image: product.PRODUCT_CARD.image, alt: product.PRODUCT_CARD.alt,
           }),
         })),
         { route: "/stockholm", file: "stockholm.html", html: withMeta(shell, home.GUIDE_META) },
@@ -125,7 +126,9 @@ function pagesPlugin() {
           file: `work/${c.slug}.html`,
           html: withMeta(shell, { title: c.pageTitle, description: c.description, url: c.url, type: "article", image: c.image, alt: c.alt }),
         })),
-        ...["privacy", "terms", "cookies"].map((p) => ({ route: `/${p}`, file: `${p}.html`, html: shell })),
+        ...["privacy", "terms", "cookies"].map((p) => ({ route: `/${p}`, file: `${p}.html`, html: withMeta(shell, home.LEGAL_META[p]) })),
+        // Own tags for link previews only; the page itself draws in the browser.
+        { route: "/login", file: "login.html", html: withMeta(shell, home.LOGIN_META), shellOnly: true },
       ];
 
       const { createServer } = await import("vite");
@@ -148,6 +151,10 @@ function pagesPlugin() {
         const { render } = await server.ssrLoadModule("/src/entry-prerender.jsx");
         for (const page of pages) {
           let html = page.html;
+          if (page.shellOnly) {
+            writeFileSync(join(root, page.file), html);
+            continue;
+          }
           try {
             const body = await render(page.route);
             if (!html.includes('<div id="root"></div>')) throw new Error("no empty #root in index.html");

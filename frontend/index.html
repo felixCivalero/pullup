@@ -15,8 +15,8 @@
 
     <!-- Open Graph. Absolute URLs so strict crawlers (Instagram via Facebook)
          don't drop the preview. Bump the image ?v= whenever the card art
-         changes to bust Facebook's ~24h cache. og-agency.jpg is the homepage
-         card. -->
+         changes to bust Facebook's ~24h cache. og/home.jpg is the front page's
+         card (scripts/og-pages.mjs draws it and the other pages' cards). -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://pullup.se/" />
     <meta property="og:site_name" content="PullUp" />
@@ -24,19 +24,19 @@
     <meta property="og:locale:alternate" content="en_US" />
     <meta property="og:title" content="Creative powerhouse — PullUp" />
     <meta property="og:description" content="PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt." />
-    <meta property="og:image" content="https://pullup.se/og-agency.jpg?v=7" />
-    <meta property="og:image:secure_url" content="https://pullup.se/og-agency.jpg?v=7" />
+    <meta property="og:image" content="https://pullup.se/og/home.jpg?v=1" />
+    <meta property="og:image:secure_url" content="https://pullup.se/og/home.jpg?v=1" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Creative powerhouse — PullUp" />
+    <meta property="og:image:alt" content="Creative powerhouse — PullUp, Stockholm" />
 
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Creative powerhouse — PullUp" />
     <meta name="twitter:description" content="PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt." />
-    <meta name="twitter:image" content="https://pullup.se/og-agency.jpg?v=7" />
-    <meta name="twitter:image:alt" content="Creative powerhouse — PullUp" />
+    <meta name="twitter:image" content="https://pullup.se/og/home.jpg?v=1" />
+    <meta name="twitter:image:alt" content="Creative powerhouse — PullUp, Stockholm" />
 
     <!-- Structured data: who we are and what we sell -->
     <script type="application/ld+json">
@@ -46,7 +46,7 @@
         "name": "PullUp",
         "url": "https://pullup.se/",
         "logo": "https://pullup.se/pwa-icon-512.png",
-        "image": "https://pullup.se/og-agency.jpg?v=7",
+        "image": "https://pullup.se/og/home.jpg?v=1",
         "description": "PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt.",
         "email": "felix@pullup.se",
         "areaServed": ["Stockholm"],

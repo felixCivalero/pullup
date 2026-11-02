@@ -5,7 +5,8 @@ import { useT } from "./i18n.js";
 /* The cookie question, asked once: a small card at the bottom, one line of
    text and two equal buttons — Av / På. Either answer closes it; the choice
    can be changed on /cookies. It waits a moment so it never covers the hero
-   as the page opens. */
+   as the page opens. On a phone it is one slim row (question + Read more,
+   buttons beside it), so it never hides a fifth of the screen. */
 export function ConsentBanner() {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -33,7 +34,7 @@ export function ConsentBanner() {
       <style>{CB_CSS}</style>
       <p className="cb-h">{t("Allow cookie?")}</p>
       <p className="cb-p">
-        {t("One cookie that only counts how many different people visit. Nothing else.")}{" "}
+        <span className="cb-long">{t("One cookie that only counts how many different people visit. Nothing else.")}{" "}</span>
         <a href="/cookies">{t("Read more")}</a>
       </p>
       <div className="cb-seg">
@@ -64,4 +65,17 @@ const CB_CSS = `
   }
   .cb-seg button:hover { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
   @media (pointer: coarse) { .cb-seg button { min-height: 44px; } }
+  @media (max-width: 600px) {
+    .cb {
+      left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: auto;
+      padding: 8px 8px 8px 14px; border-radius: 16px;
+      display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 10px;
+    }
+    .cb-h, .cb-p { grid-column: 1; }
+    .cb-h { font-size: 14px; }
+    .cb-p { margin: 1px 0 0; font-size: 12.5px; }
+    .cb-long { display: none; }
+    .cb-seg { grid-column: 2; grid-row: 1 / span 2; margin: 0; grid-template-columns: auto auto; }
+    .cb-seg button { padding: 0 16px; min-height: 44px; }
+  }
 `;

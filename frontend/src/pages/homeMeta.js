@@ -11,6 +11,17 @@ export const GUIDE_META = {
   url: `${SITE}/stockholm`,
 };
 
+// Culture Capital: a letter Felix sends himself. Not in the menu, not in the
+// sitemap, and noindex (the pages plugin adds the robots tag).
+export const CULTURE_META = {
+  title: "Culture Capital I — a SEK 75M fund for culture and love",
+  description: "A SEK 75M fund to find and back the people who move a city. In a world AI can predict, the one thing left is what people feel.",
+  url: `${SITE}/culture-capital`,
+  image: `${SITE}/og/culture-capital.jpg`,
+  alt: "Culture Capital I — a SEK 75M fund to find and back the people who move a city.",
+  noindex: true,
+};
+
 export const FELIX_META = {
   title: "Felix Civalero Stolpe — Jag bygger varumärken. Tillväxt som håller.",
   description: "Jag bygger varumärken – för företag, kreatörer och artister. Content, marknadsföring och tillväxt som håller.",

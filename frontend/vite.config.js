@@ -69,6 +69,7 @@ function withMeta(base, m) {
     html = set(html, /(<meta name="twitter:image" content=")[^"]*"/, m.image);
     html = set(html, /(<meta name="twitter:image:alt" content=")[^"]*"/, m.alt);
   }
+  if (m.noindex) html = html.replace("</head>", `    <meta name="robots" content="noindex, nofollow" />\n  </head>`);
   if (m.jsonLd) {
     // Replace the site's own structured data with the page's.
     html = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/g, "");
@@ -118,6 +119,7 @@ function pagesPlugin() {
         })),
         { route: "/stockholm", file: "stockholm.html", html: withMeta(shell, home.GUIDE_META) },
         { route: "/felix-civalero", file: "felix-civalero.html", html: withMeta(shell, home.FELIX_META) },
+        { route: "/culture-capital", file: "culture-capital.html", html: withMeta(shell, home.CULTURE_META) },
         ...CASE_SHARES.map((c) => ({
           route: `/work/${c.slug}`,
           file: `work/${c.slug}.html`,

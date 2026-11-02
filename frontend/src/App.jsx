@@ -5,7 +5,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ByBrand } from "./components/admin/ByBrand.jsx";
 
 /* pullup.se — PullUp: the agency and its two free tools. Public: the front
-   page, /stockholm (the guide), /felix-civalero (Felix), the case pages, the legal pages, event pages (/e/:slug). /login
+   page, /stockholm (the guide), /felix-civalero (Felix), /culture-capital
+   (Fund I, unlisted), the case pages, the legal pages, event pages (/e/:slug). /login
    signs anyone in (the first time makes the account). Every organiser has
    /admin/events + /admin/people + /admin/mail (their events, guests, CRM,
    mail) and /admin/agents (their own AI on PullUp; /connect approves one).
@@ -17,6 +18,7 @@ import { ByBrand } from "./components/admin/ByBrand.jsx";
 const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
 const GuidePage = lazyPage(() => import("./pages/GuidePage"), "GuidePage");
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
+const CultureCapitalPage = lazyPage(() => import("./pages/CultureCapitalPage"), "CultureCapitalPage");
 const ProductPage = lazyPage(() => import("./pages/ProductPage"), "ProductPage");
 const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
 const PrivacyPage = lazyPage(() => import("./pages/LegalPages"), "PrivacyPage");
@@ -60,6 +62,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/stockholm" element={<GuidePage />} />
           <Route path="/felix-civalero" element={<LandingPage />} />
+          <Route path="/culture-capital" element={<CultureCapitalPage />} />
           <Route path="/work/:slug" element={<StoryRoute />} />
           {/* The link in outreach mail: lands on the cases, counted as "mejl". */}
           <Route path="/case" element={<Navigate to="/felix-civalero?ref=mejl#stories" replace />} />

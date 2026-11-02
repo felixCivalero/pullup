@@ -15,6 +15,7 @@ const FUNNEL_EVENTS = new Set([
   "signed_in",
   "waitlist_submit",
   "waitlist_joined",
+  "input",
 ]);
 
 export { getVisitorId };

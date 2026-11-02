@@ -29,6 +29,9 @@ export const TRACKED_EVENTS = new Set([
   "request_close",        // { fields, secs } — form closed without sending
   "request_error",        // { error } — the form refused or failed
   "consent",              // { on } — the stats-cookie answer; a yes carries the kept visitor id (lib/consent.js)
+  "input",                // { form, value?, result? } — what a visitor typed into a public tool: the site
+                          // check's address, the guide's follow (topics only), that the meeting
+                          // field was used (meet_email) — never an email or a name
 ]);
 
 const MAX_EVENTS_PER_BATCH = 50;

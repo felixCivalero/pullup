@@ -25,6 +25,8 @@ import { registerDeckDownloadRoutes } from "./routes/deckDownloads.js";
 import { registerTrackBatchRoutes } from "./routes/trackBatch.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerAdminStockholmRoutes } from "./routes/adminStockholm.js";
+import { registerStockholmRoutes, startStockholmJobs } from "./routes/stockholm.js";
+import { registerSiteCheckRoutes } from "./routes/siteCheck.js";
 import { registerAdminPlannerRoutes } from "./routes/adminPlanner.js";
 import { registerAdminSalesRoutes } from "./routes/adminSales.js";
 import { registerAdminClientRoutes } from "./routes/adminClients.js";
@@ -136,6 +138,8 @@ registerAgentRoutes(app);
 // ── Admin: organisers (their own events) and the owner ──────────────
 registerAdminRoutes(app);
 registerAdminStockholmRoutes(app);
+registerStockholmRoutes(app);
+registerSiteCheckRoutes(app);
 registerAdminPlannerRoutes(app);
 registerAdminSalesRoutes(app);
 registerAdminClientRoutes(app);
@@ -172,5 +176,6 @@ const PORT = process.env.PORT || 3001;
 initObservability({ serviceName: "pullup-api" }).finally(() => {
   app.listen(PORT, () => {
     console.log(`pullup-api listening on :${PORT}`);
+    startStockholmJobs();
   });
 });

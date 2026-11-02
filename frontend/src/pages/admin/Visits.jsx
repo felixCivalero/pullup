@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { checkResult } from "./checkResult.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { CASES } from "../../components/agency/agencyData.js";
 import { translate } from "../../components/agency/i18n.js";
@@ -59,7 +60,8 @@ const SECTION_LABELS = {
 };
 export const sectionLabel = (s) => SECTION_LABELS[s] || (s ? s.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase()) : "–");
 const CASE_NAMES = Object.fromEntries(CASES.map((c) => [`/work/${c.slug}`, c.name]));
-export const pathLabel = (p) => (p === "/" ? "Startsidan" : CASE_NAMES[p] ? `Case: ${CASE_NAMES[p]}` : p);
+const PATH_NAMES = { "/": "Startsidan", "/eventverktyg": "Eventverktyget", "/stockholm": "Stockholm", "/felix-civalero": "Felix" };
+export const pathLabel = (p) => PATH_NAMES[p] || (CASE_NAMES[p] ? `Case: ${CASE_NAMES[p]}` : p);
 const FIELDS = { name: "namn", email: "e-post", company: "företag", description: "beskrivning", when: "tid" };
 const SOURCES = { direct: "Direkt", mejl: "Mejl", instagram: "Instagram", facebook: "Facebook", linkedin: "LinkedIn", google: "Google", pullup: "pullup.se" };
 
@@ -181,6 +183,8 @@ export function Visits({ days }) {
               <span className="vs-num">{secs(v.active)}</span>
               <span className="vs-num">{v.depth ? `${v.depth} %` : "–"}</span>
               <span className="vs-tags">
+                {(v.inputs || []).filter((x) => x.form === "site_check").slice(0, 1).map((x) => <b key="c" className="vs-tag is-input">{x.value}</b>)}
+                {(v.inputs || []).some((x) => x.form === "follow") && <b className="vs-tag is-input">Följer Stockholm</b>}
                 {v.request ? <b className="vs-tag is-sent">{v.request.name}</b> : v.sent ? <b className="vs-tag is-sent">Skickade</b> : v.started ? <b className="vs-tag is-started">Började fylla i</b> : v.opened ? <b className="vs-tag">Formulär</b> : null}
               </span>
             </button>
@@ -261,6 +265,11 @@ function stepText(s) {
     case "close": return <>Stängde formuläret efter {secs(s.secs)}{s.fields.length ? ` utan att skicka (hade fyllt i ${s.fields.map((f) => FIELDS[f] || f).join(", ")})` : ""}</>;
     case "error": return <>Formuläret sa nej: {s.error}</>;
     case "sent": return <b>Skickade förfrågan</b>;
+    case "input":
+      if (s.form === "site_check") return <>Testade sajten <b>{s.value}</b> <span className="st-muted">· {checkResult(s.result)}</span></>;
+      if (s.form === "follow") return <><b>Började följa Stockholm</b> <span className="st-muted">· {s.value}</span></>;
+      if (s.form === "meet_email") return <b>Skrev sin e-post för att boka möte</b>;
+      return <>Skrev in <b>{s.value}</b></>;
     default: return s.kind;
   }
 }
@@ -294,6 +303,7 @@ export const VISITS_CSS = `
   .vs-tag { font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(217,72,15,0.1); color: #D9480F; white-space: nowrap; }
   .vs-tag.is-started { background: #D9480F; color: #fff; }
   .vs-tag.is-sent { background: #1f7a3a; color: #fff; }
+  .vs-tag.is-input { background: #fde3f1; color: #9c0f5f; }
   @media (max-width: 720px) {
     .vs-row { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 2px; }
     .vs-row time { grid-column: 1; } .vs-src { grid-column: 2 / 4; text-align: right; }

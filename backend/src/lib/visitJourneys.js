@@ -11,10 +11,15 @@
 //   - click / copy   what they pressed or copied
 //   - request_*      the "Jobba med mig" form: opened, fields touched, closed,
 //                    sent. A sent request carries meta.visitId → linked.
+//   - input          what they typed into a tool: the site check's address
+//                    and its result, the guide's follow (topics only)
 
 // page_view says "landing" / "case_<slug>"; the reading events say the path.
 export function pagePath(p) {
   if (!p || p === "landing") return "/";
+  if (p === "felix") return "/felix-civalero";
+  if (p === "stockholm") return "/stockholm";
+  if (p === "pullup") return "/eventverktyg";
   if (p.startsWith("case_")) return `/work/${p.slice(5)}`;
   return p;
 }
@@ -59,6 +64,7 @@ function summarize(id, list, requestByVisit) {
   const sectionsSeen = new Set();
   let maxOrder = 0;
   let opened = false, started = false, sent = false, clicks = 0;
+  const inputs = [];
   for (const e of list) {
     const p = e.props || {};
     switch (e.event_name) {
@@ -83,6 +89,7 @@ function summarize(id, list, requestByVisit) {
       case "request_open": opened = true; break;
       case "request_field": started = true; break;
       case "request_sent": sent = true; break;
+      case "input": inputs.push({ form: p.form || "", value: p.value || null, result: p.result ?? null }); break;
       default: break;
     }
   }
@@ -112,6 +119,7 @@ function summarize(id, list, requestByVisit) {
     started,
     sent: sent || !!request,
     request: request ? { id: request.id, name: request.name, company: request.company || null } : null,
+    inputs,
     reading: pagesRead,
   };
 }
@@ -214,6 +222,7 @@ export function visitTimeline({ events, request = null }) {
       case "request_close": steps.push({ at, kind: "close", fields: p.fields || [], secs: p.secs || 0 }); break;
       case "request_error": steps.push({ at, kind: "error", error: p.error || "" }); break;
       case "request_sent": steps.push({ at, kind: "sent" }); break;
+      case "input": steps.push({ at, kind: "input", form: p.form || "", value: p.value || null, result: p.result ?? null }); break;
       default: break;
     }
   }

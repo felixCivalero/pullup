@@ -8,9 +8,9 @@
     />
 
     <!-- Primary Meta -->
-    <title>Felix Civalero Stolpe — Jag bygger varumärken. Tillväxt som håller.</title>
-    <meta name="title" content="Felix Civalero Stolpe — Jag bygger varumärken. Tillväxt som håller." />
-    <meta name="description" content="Jag bygger varumärken – för företag, kreatörer och artister. Content, marknadsföring och tillväxt som håller." />
+    <title>Creative powerhouse — PullUp</title>
+    <meta name="title" content="Creative powerhouse — PullUp" />
+    <meta name="description" content="PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt." />
     <link rel="canonical" href="https://pullup.se/" />
 
     <!-- Open Graph. Absolute URLs so strict crawlers (Instagram via Facebook)
@@ -19,53 +19,38 @@
          card. -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://pullup.se/" />
-    <meta property="og:site_name" content="Felix Civalero Stolpe" />
+    <meta property="og:site_name" content="PullUp" />
     <meta property="og:locale" content="sv_SE" />
     <meta property="og:locale:alternate" content="en_US" />
-    <meta property="og:title" content="Jag bygger varumärken. Tillväxt som håller." />
-    <meta property="og:description" content="Jag bygger varumärken – för företag, kreatörer och artister. Content, marknadsföring och tillväxt som håller." />
+    <meta property="og:title" content="Creative powerhouse — PullUp" />
+    <meta property="og:description" content="PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt." />
     <meta property="og:image" content="https://pullup.se/og-agency.jpg?v=7" />
     <meta property="og:image:secure_url" content="https://pullup.se/og-agency.jpg?v=7" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Felix Civalero Stolpe – Jag bygger varumärken. Tillväxt som håller." />
+    <meta property="og:image:alt" content="Creative powerhouse — PullUp" />
 
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Jag bygger varumärken. Tillväxt som håller." />
-    <meta name="twitter:description" content="Jag bygger varumärken – för företag, kreatörer och artister. Content, marknadsföring och tillväxt som håller." />
+    <meta name="twitter:title" content="Creative powerhouse — PullUp" />
+    <meta name="twitter:description" content="PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt." />
     <meta name="twitter:image" content="https://pullup.se/og-agency.jpg?v=7" />
-    <meta name="twitter:image:alt" content="Felix Civalero Stolpe – Jag bygger varumärken. Tillväxt som håller." />
+    <meta name="twitter:image:alt" content="Creative powerhouse — PullUp" />
 
     <!-- Structured data: who we are and what we sell -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "ProfessionalService",
-        "name": "Felix Civalero Stolpe",
-        "alternateName": "PullUp",
-        "founder": { "@type": "Person", "name": "Felix Civalero Stolpe", "jobTitle": "Grundare" },
+        "name": "PullUp",
         "url": "https://pullup.se/",
         "logo": "https://pullup.se/pwa-icon-512.png",
         "image": "https://pullup.se/og-agency.jpg?v=7",
-        "description": "Jag bygger varumärken – för företag, kreatörer och artister. Content, marknadsföring och tillväxt som håller.",
+        "description": "PullUp är en creative powerhouse i Stockholm. Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt.",
         "email": "felix@pullup.se",
-        "areaServed": ["Stockholm", "Nairobi", "Worldwide"],
-        "inLanguage": ["sv", "en"],
-        "makesOffer": [
-          {
-            "@type": "Offer",
-            "name": "Ett erbjudande",
-            "description": "Strategi, en 30-minuterssprint varje vecka och alla verktyg bakom den. Första månaden har pengarna-tillbaka-garanti; därefter binder du dig för att fortsätta – ju längre, desto lägre månadspris.",
-            "priceSpecification": {
-              "@type": "UnitPriceSpecification",
-              "price": "30000",
-              "priceCurrency": "SEK",
-              "unitCode": "MON"
-            }
-          }
-        ]
+        "areaServed": ["Stockholm"],
+        "inLanguage": ["sv", "en"]
       }
     </script>
 
@@ -95,6 +80,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Tag stubs: the site is wired for Google, Meta and TikTok tags, but no
+         loader and no id is in yet (Felix 2026-11-02: not needed now). These
+         only queue calls in memory: nothing loads, no cookie, nothing leaves
+         the browser. To go live, add each tool's loader with its id, behind
+         the cookie consent. -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = window.gtag || function gtag() { window.dataLayer.push(arguments); };
+      window.fbq = window.fbq || function fbq() { (window.fbq.queue = window.fbq.queue || []).push(arguments); };
+      window.ttq = window.ttq || []; window.ttq.methods = ["page", "track", "identify"];
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

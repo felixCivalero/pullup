@@ -23,7 +23,7 @@ const PAGES = Object.fromEntries(
 export default function StoryRoute() {
   const { slug } = useParams();
   const Page = PAGES[slug];
-  if (!Page) return <Navigate to="/#stories" replace />;
+  if (!Page) return <Navigate to="/felix-civalero#stories" replace />;
   return (
     <Suspense fallback={<div style={{ minHeight: "100dvh", background: "#000" }} />}>
       <Page key={slug} />

@@ -15,18 +15,24 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
+  // ?ny=1: the same steps, worded for someone making an account (the first
+  // sign-in creates it), from "Skapa konto" on /eventverktyg.
+  const isNew = params.get("ny") === "1";
 
   useEffect(() => {
     const prev = document.title;
-    document.title = "Logga in";
+    document.title = isNew ? "Skapa konto" : "Logga in";
     return () => { document.title = prev; };
-  }, []);
+  }, [isNew]);
 
   if (session) return <Navigate to={next || homeFor(session.user?.email)} replace />;
   return (
     <main className="lg">
       <style>{LOGIN_CSS}</style>
-      <LoginForm onDone={(user) => navigate(next || homeFor(user?.email), { replace: true })} />
+      <LoginForm
+        onDone={(user) => navigate(next || homeFor(user?.email), { replace: true })}
+        {...(isNew ? { title: "Skapa konto", subtitle: "Gratis. Inget kort, ingen provperiod. Skriv din e-post så mejlar vi en kod." } : {})}
+      />
     </main>
   );
 }

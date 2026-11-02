@@ -12,6 +12,13 @@ export function ConsentBanner() {
 
   useEffect(() => {
     if (getConsent() !== null) return undefined;
+    // The front page's film and sentence get the first screen to themselves:
+    // there the card waits for the first scroll.
+    if (window.location.pathname === "/") {
+      const onScroll = () => setOpen(true);
+      window.addEventListener("scroll", onScroll, { once: true, passive: true });
+      return () => window.removeEventListener("scroll", onScroll);
+    }
     const id = setTimeout(() => setOpen(true), 1500);
     return () => clearTimeout(id);
   }, []);

@@ -27,7 +27,7 @@ function Legal({ title, children }) {
     <div className="lp">
       <style>{LEGAL_CSS}</style>
       <header className="lp-top">
-        <Link to="/" className="lp-home">&larr; Felix Civalero Stolpe</Link>
+        <Link to="/" className="lp-home">&larr; PullUp</Link>
         <LangSwitch />
       </header>
       <main className="lp-body">

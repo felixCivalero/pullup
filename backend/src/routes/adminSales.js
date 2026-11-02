@@ -14,7 +14,7 @@ import { supabase } from "../supabase.js";
 const CLICK_COLUMNS = "session_id, visitor_id, event_name, occurred_at, source, device_type, props, utm";
 const VISIT_EVENTS = [
   "page_view", "section_view", "engagement", "click", "cta_click", "copy", "consent",
-  "request_open", "request_field", "request_close", "request_error", "request_sent",
+  "request_open", "request_field", "request_close", "request_error", "request_sent", "input",
 ];
 
 async function selectAll(build) {

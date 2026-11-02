@@ -7,7 +7,8 @@ import { CASE_TODAY as FLAMBO } from "../../pages/stories/adamFlamboData.js";
 export const CONTACT = "felix@pullup.se";
 // The booklet: by email only (DeckTeaser → /deck-downloads). The PDF lives in
 // backend/assets, printed by docs/deck/build.mjs; never served publicly.
-export const DECK_PATH = "/#deck";
+export const FELIX_PATH = "/felix-civalero";
+export const DECK_PATH = "/felix-civalero#deck";
 
 // The one message. Hero, services, booklet and meta all say it this way.
 export const MESSAGE = {

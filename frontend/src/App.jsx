@@ -1,11 +1,11 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { Suspense } from "react";
+import { Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
+import { Suspense, useLayoutEffect } from "react";
 import { lazyPage } from "./lib/lazyPage.js";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ByBrand } from "./components/admin/ByBrand.jsx";
 
-/* pullup.se — Felix's site and the PullUp event platform. Public: the front
-   page, the case pages, the legal pages, event pages (/e/:slug). /login
+/* pullup.se — PullUp: the agency and its two free tools. Public: the front
+   page, /stockholm (the guide), /felix-civalero (Felix), the case pages, the legal pages, event pages (/e/:slug). /login
    signs anyone in (the first time makes the account). Every organiser has
    /admin/events + /admin/people + /admin/mail (their events, guests, CRM,
    mail) and /admin/agents (their own AI on PullUp; /connect approves one).
@@ -14,6 +14,8 @@ import { ByBrand } from "./components/admin/ByBrand.jsx";
    /admin/sales (sales pipeline, read from the Google Sheet), /admin/archi.
    Everything else goes to the front page. The old PullUp platform lives on
    the `pullup-app` branch. */
+const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
+const GuidePage = lazyPage(() => import("./pages/GuidePage"), "GuidePage");
 const LandingPage = lazyPage(() => import("./pages/LandingPage"), "LandingPage");
 const ProductPage = lazyPage(() => import("./pages/ProductPage"), "ProductPage");
 const StoryRoute = lazyPage(() => import("./pages/stories/StoryRoute"));
@@ -37,17 +39,33 @@ const AgentsPage = lazyPage(() => import("./pages/admin/AgentsPage"), "AgentsPag
 const TeamPage = lazyPage(() => import("./pages/admin/TeamPage"), "TeamPage");
 const ConnectPage = lazyPage(() => import("./pages/ConnectPage"), "ConnectPage");
 
+// A link to another page lands at its top, not at the height you left the
+// last one. Back and forward keep the browser's place; links to a #section
+// are left to the page that owns it.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  const how = useNavigationType();
+  useLayoutEffect(() => {
+    if (how !== "POP" && !hash) window.scrollTo(0, 0);
+  }, [pathname, hash, how]);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
+      <ScrollToTop />
       <Suspense fallback={null}>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/stockholm" element={<GuidePage />} />
+          <Route path="/felix-civalero" element={<LandingPage />} />
           <Route path="/work/:slug" element={<StoryRoute />} />
           {/* The link in outreach mail: lands on the cases, counted as "mejl". */}
-          <Route path="/case" element={<Navigate to="/?ref=mejl#stories" replace />} />
+          <Route path="/case" element={<Navigate to="/felix-civalero?ref=mejl#stories" replace />} />
           <Route path="/stories/adam-flambo" element={<Navigate to="/work/adam-flambo" replace />} />
           {/* The event platform's own page (free event pages; your AI can run it). */}
+          <Route path="/eventverktyg" element={<ProductPage />} />
           <Route path="/pullup" element={<ProductPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />

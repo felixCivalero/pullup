@@ -3,6 +3,7 @@ import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { CASES } from "../../components/agency/agencyData.js";
 import { Journey, Visits, VISITS_CSS } from "./Visits.jsx";
+import { checkResult } from "./checkResult.js";
 
 /* /admin — the site's numbers, kept simple: page views, CTA clicks (someone
    opened "Jobba med mig") and requests sent, per day; the running total of
@@ -29,7 +30,7 @@ const SOURCE_LABELS = {
 };
 const sourceLabel = (s) => SOURCE_LABELS[s] || s;
 const PAGE_LABELS = Object.fromEntries(CASES.map((c) => [`case_${c.slug}`, `Case: ${c.name}`]));
-const pageLabel = (p) => (p === "landing" ? "Startsidan" : PAGE_LABELS[p] || p);
+const pageLabel = (p) => (p === "landing" ? "Startsidan" : p === "felix" ? "Felix" : p === "stockholm" ? "Stockholm" : p === "pullup" ? "Eventverktyget" : PAGE_LABELS[p] || p);
 const pct = (a, b) => (b ? `${(Math.round((a / b) * 1000) / 10).toLocaleString("sv-SE")} %` : "–");
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 const when = (iso) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -39,6 +40,7 @@ export function StatsPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [leadJourney, setLeadJourney] = useState(null);
+  const [checkJourney, setCheckJourney] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -158,6 +160,28 @@ export function StatsPage() {
 
             <Visits days={days} />
 
+            <h2>Inskrivet i sajttestet <small className="st-muted">{(data.checks || []).length}</small></h2>
+            {!(data.checks || []).length && <p className="st-muted">Ingen har testat en sajt under perioden.</p>}
+            <ul className="st-checks">
+              {(data.checks || []).map((c) => (
+                <li key={c.id}>
+                  <div className="st-check-row">
+                    <b>{c.domain || c.input || "–"}</b>
+                    <span className={`st-check-res is-${c.outcome}`}>{c.outcome === "scored" ? checkResult(c.score) : checkResult(c.outcome)}</span>
+                    <span className="st-muted">{c.source === "link" ? "via länk" : "skrev in"}</span>
+                    <time className="st-muted">{when(c.created_at)}</time>
+                    {c.visit_id && (
+                      <button type="button" className="st-journey-btn" onClick={() => setCheckJourney(checkJourney === c.id ? null : c.id)}>
+                        {checkJourney === c.id ? "Dölj resan" : "Visa resan"}
+                      </button>
+                    )}
+                  </div>
+                  {c.domain && c.input && c.input.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "") !== c.domain && <p className="st-muted">Skrev: {c.input}</p>}
+                  {checkJourney === c.id && <Journey id={c.visit_id} />}
+                </li>
+              ))}
+            </ul>
+
             <h2>Leads</h2>
             {data.leads.length === 0 && <p className="st-muted">Inga förfrågningar än.</p>}
             <ul className="st-leads">
@@ -230,6 +254,15 @@ const STATS_CSS = `
   .st-lead-top b span { font-weight: 500; color: #6e6e73; }
   .st-lead-top time { font-size: 12.5px; color: #6e6e73; }
   .st-leads a { font-size: 14px; color: #0a0a0a; text-decoration-color: #D9480F; text-underline-offset: 3px; justify-self: start; }
+  .st-checks { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(0,0,0,0.1); }
+  .st-checks li { padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+  .st-check-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 14px; }
+  .st-check-row b { font-size: 15px; }
+  .st-check-row .st-journey-btn { margin-top: 0; }
+  .st-checks p { margin: 4px 0 0; font-size: 13px; }
+  .st-check-res { font-weight: 600; }
+  .st-check-res.is-scored { color: #ec178f; }
+  .st-check-res.is-unreadable, .st-check-res.is-invalid { color: #8a8a8e; }
   .st-journey-btn { font: inherit; font-size: 13px; font-weight: 600; justify-self: start; margin-top: 6px; padding: 5px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 999px; background: #fff; cursor: pointer; }
   .st-leads .vs-journey { margin: 8px -16px -14px; }
   .st-leads p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #3a3a3e; white-space: pre-wrap; }

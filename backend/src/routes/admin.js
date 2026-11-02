@@ -28,7 +28,7 @@ async function selectAll(build) {
 const VISIT_COLUMNS = "session_id, visitor_id, event_name, occurred_at, source, device_type, props";
 const VISIT_EVENTS = [
   "page_view", "section_view", "engagement", "click", "cta_click", "copy",
-  "request_open", "request_field", "request_close", "request_error", "request_sent",
+  "request_open", "request_field", "request_close", "request_error", "request_sent", "input",
 ];
 
 // The site's numbers for the last `days`: views, CTA clicks and requests per
@@ -38,7 +38,7 @@ export async function siteStats(days = 30) {
   const since = new Date(Date.now() - days * 86400000);
   since.setUTCHours(0, 0, 0, 0);
 
-  const [events, requests, leads, uniqueRows] = await Promise.all([
+  const [events, requests, leads, uniqueRows, checks] = await Promise.all([
     selectAll(() =>
       supabase
         .from("analytics_events")
@@ -71,8 +71,17 @@ export async function siteStats(days = 30) {
         .gte("occurred_at", UNIQUES_SINCE)
         .order("occurred_at", { ascending: true }),
     ),
+    // What people typed into the free site check, newest first, each with
+    // the visit it came from.
+    supabase
+      .from("site_checks")
+      .select("id, created_at, input, domain, score, outcome, source, visit_id")
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
   if (leads.error) throw leads.error;
+  if (checks.error) throw checks.error;
 
   // One row per calendar day (Stockholm), oldest first, zero-filled.
   const byDay = new Map();
@@ -114,7 +123,7 @@ export async function siteStats(days = 30) {
   const totals = series.reduce((t, d) => ({ views: t.views + d.views, clicks: t.clicks + d.clicks, requests: t.requests + d.requests }), { views: 0, clicks: 0, requests: 0 });
   totals.uniques = uniques.total;
   totals.uniquesInPeriod = uniques.inPeriod;
-  return { days, series, totals, consent: uniques.consent, uniquesSince: UNIQUES_SINCE.slice(0, 10), sources, pages, leads: leads.data || [] };
+  return { days, series, totals, consent: uniques.consent, uniquesSince: UNIQUES_SINCE.slice(0, 10), sources, pages, leads: leads.data || [], checks: checks.data || [] };
 }
 
 export function registerAdminRoutes(app) {

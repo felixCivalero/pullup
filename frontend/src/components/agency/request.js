@@ -7,8 +7,9 @@ import { getVisitorId } from "../../lib/track.js";
 let arrival = null;
 const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
 
-export function openRequest({ source, powers = [] } = {}) {
-  window.dispatchEvent(new CustomEvent("pullup:request", { detail: { source, powers } }));
+// `email` pre-fills the form (the front page's "Boka möte" field).
+export function openRequest({ source, powers = [], email = "" } = {}) {
+  window.dispatchEvent(new CustomEvent("pullup:request", { detail: { source, powers, email } }));
 }
 
 // First touch of this page load: landing page, referrer, UTM.

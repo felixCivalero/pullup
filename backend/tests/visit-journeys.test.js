@@ -94,5 +94,19 @@ assert(t.summary?.request?.name === "Anna" && t.summary.active === 90, "timeline
   assert(tech.visits === 2 && tech.reached === 1, "tech (new): measured against the 2 visits since it appeared, not 4");
 }
 
+{
+  // What a visitor typed into a tool shows on the visit and in its timeline.
+  const evs = [
+    ev("T", 0, "page_view", { page: "landing" }),
+    ev("T", 1, "input", { form: "site_check", value: "stiga.com", result: 82 }),
+    ev("T", 2, "page_view", { page: "pullup" }),
+  ];
+  const { visits } = summarizeVisits({ events: evs, requests: [] });
+  assert(visits[0].inputs.length === 1 && visits[0].inputs[0].value === "stiga.com" && visits[0].inputs[0].result === 82, "input: on the visit");
+  assert(visits[0].pages.join(" ") === "/ /eventverktyg", "pages: the event tool reads as /eventverktyg");
+  const tl = visitTimeline({ events: evs });
+  assert(tl.steps.some((s) => s.kind === "input" && s.form === "site_check" && s.value === "stiga.com"), "input: in the timeline");
+}
+
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }
 console.log("\nall visit-journeys tests passed");

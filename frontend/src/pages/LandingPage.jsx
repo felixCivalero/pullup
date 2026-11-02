@@ -9,9 +9,9 @@ import { CASE_STACK_CSS } from "../components/agency/CaseStack.jsx";
 import { TESTIMONIALS_CSS } from "../components/agency/Testimonials.jsx";
 import { useT } from "../components/agency/i18n.js";
 
-/* The public front door: Felix, in first person (FelixContent.jsx) — the
-   cases, what clients say, who he is, his network, the one offer. This file adds
-   /login's auth modal on top. */
+/* /felix-civalero — Felix, in first person (FelixContent.jsx): the cases, what
+   clients say, who he is, his network, the one offer. The front door is
+   HomePage.jsx, PullUp's own. */
 
 const TITLE = "I build brands. Growth that lasts.";
 
@@ -21,7 +21,7 @@ export function LandingPage() {
 
   useEffect(() => {
     initTracking();
-    trackPageView("landing");
+    trackPageView("felix");
   }, []);
   const t = useT();
   useEffect(() => {

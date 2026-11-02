@@ -5,7 +5,7 @@ import { initTracking, track } from "../../lib/track.js";
 import { initEngagement, setEngagementPage } from "../../lib/engagement.js";
 import { EyesCursor } from "../EyesCursor.jsx";
 import { AGENCY_CSS } from "./agencyCss.js";
-import { SERIES, casePath } from "./agencyData.js";
+import { FELIX_PATH, SERIES, casePath } from "./agencyData.js";
 import { MailLink } from "./MailLink.jsx";
 import { RequestDialog } from "./RequestDialog.jsx";
 import { ConsentBanner } from "./ConsentBanner.jsx";
@@ -15,8 +15,10 @@ import { useT } from "./i18n.js";
 
 /* The frame every agency page sits in: tone-aware nav (name · language · Work with me), the
    eyes cursor, scroll-depth tracking for [data-pc-section] beats, and the
-   footer with every case linked. Pages pass their own CSS via `css`. */
-export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false }) {
+   footer with every case linked. Pages pass their own CSS via `css`.
+   `brand` = PullUp's own pages (/, /stockholm): the nav and footer speak as
+   PullUp, not as Felix, and the name goes to /. */
+export function AgencyShell({ children, css = "", hideCursor = false, cursor = true, home = false, brand = false }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const t = useT();
@@ -91,7 +93,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
   }, []);
 
   // `home` = this page carries the landing sections itself.
-  const onHome = home || pathname === "/";
+  const onHome = home;
 
   // Phone browser chrome matches the page top: white front page, black case heroes.
   useEffect(() => {
@@ -104,7 +106,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
   }, [onHome]);
   const goHome = () => {
     if (onHome) window.scrollTo({ top: 0, behavior: "smooth" });
-    else navigate("/");
+    else navigate(brand ? "/" : FELIX_PATH);
   };
 
   return (
@@ -113,11 +115,17 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
       <div className="pc">
         <header
           ref={navRef}
-          className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}`}
+          className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}${brand ? " is-brand" : ""}`}
         >
-          <button type="button" className="pc-nav-brand pc-nav-name" onClick={goHome} aria-label="Felix Civalero Stolpe — home">
-            Felix<span> Civalero Stolpe</span>
-          </button>
+          {brand ? (
+            <button type="button" className="pc-nav-brand pc-nav-name pc-nav-pullup" onClick={goHome} aria-label="PullUp — home">
+              <img src="/pullup-textlogo.svg" alt="PullUp" />
+            </button>
+          ) : (
+            <button type="button" className="pc-nav-brand pc-nav-name" onClick={goHome} aria-label="Felix Civalero Stolpe — home">
+              Felix<span> Civalero Stolpe</span>
+            </button>
+          )}
           <div className="pc-nav-actions">
             <LangSwitch />
             {/* The event platform: free accounts, the first sign-in makes one. */}
@@ -140,7 +148,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
                 openRequest({ source: "nav" });
               }}
             >
-              {t("Work with me")}
+              {t(brand ? "Book a meeting" : "Work with me")}
             </button>
           </div>
         </header>
@@ -148,7 +156,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
         {children}
 
         <footer className="pc-footer" data-pc-tone="dark">
-          <span>Felix Civalero Stolpe &copy; {new Date().getFullYear()}</span>
+          <span>{brand ? "PullUp" : "Felix Civalero Stolpe"} &copy; {new Date().getFullYear()}</span>
           <nav aria-label="Cases">
             {SERIES.map((c) => (
               <a
@@ -166,7 +174,11 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
             ))}
           </nav>
           <nav aria-label="Legal">
-            <a href="/pullup">{t("PullUp – free event pages")}</a>
+            <a href="/">PullUp</a>
+            <a href="/stockholm">{t("Find culture in Stockholm")}</a>
+            <a href="/eventverktyg">{t("PullUp – free event pages")}</a>
+            <a href={FELIX_PATH}>Felix Civalero Stolpe</a>
+            <a href="https://www.instagram.com/itsfelixagain/" target="_blank" rel="noopener noreferrer">Instagram</a>
             <a href="/privacy">{t("Privacy")}</a>
             <a href="/terms">{t("Terms")}</a>
             <a href="/cookies">{t("Cookies")}</a>

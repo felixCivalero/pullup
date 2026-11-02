@@ -2,7 +2,7 @@
 // render inside .agency-root and use these tokens, nav, type and buttons.
 // Page-specific CSS lives with each page.
 export const AGENCY_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
 
   html, body { overflow-x: clip; }
   body.pullup-auth-locked { overflow: hidden; }
@@ -81,6 +81,13 @@ export const AGENCY_CSS = `
   .pc-nav.is-dark .pc-nav-name { color: #fff; }
   .pc-nav.is-light .pc-nav-name { color: #0a0a0a; }
   .pc-nav-name span { margin-left: 0.28em; }
+  .pc-nav-pullup { display: inline-flex; align-items: center; gap: 7px; }
+  .pc-nav.is-dark .pc-nav-pullup img { filter: brightness(0) invert(1); }
+  .pc-nav.is-light .pc-nav-pullup img { filter: brightness(0); }
+  .pc-nav.is-brand .pc-nav-cta { background: #f4f1ea; border-color: #f4f1ea; color: #0a0a0a; }
+  .pc-nav.is-brand.is-light .pc-nav-cta { background: #0a0a0a; border-color: #0a0a0a; color: #fff; }
+  .pc-nav.is-brand .pc-nav-cta:hover { background: #ec178f; border-color: #ec178f; color: #fff; }
+  @media (max-width: 719px) { .pc-nav.is-brand .pc-nav-login { display: none; } }
   @media (max-width: 640px) { .pc-nav-name span { display: none; } }
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }
   .pc-nav.is-light .pc-nav-brand img { filter: brightness(0); }

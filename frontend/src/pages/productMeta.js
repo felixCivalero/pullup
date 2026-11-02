@@ -1,10 +1,10 @@
-// /pullup — the event platform's own page. Its title, description, FAQ and
+// /eventverktyg (also /pullup) — the event platform's own page. Its title, description, FAQ and
 // schema.org data live here so the page (ProductPage.jsx) and the build
-// (vite.config.js: pre-rendered dist/pullup.html with these in <head>) say
+// (vite.config.js: pre-rendered dist/eventverktyg.html and pullup.html with these in <head>) say
 // the same thing. Every claim must be true of what's built — check the code
 // before adding one (backend actions/, repos/hostEvents.js, lib/emailCredits.js).
 
-export const PRODUCT_URL = "https://pullup.se/pullup";
+export const PRODUCT_URL = "https://pullup.se/eventverktyg";
 export const PRODUCT_TITLE = "PullUp – gratis eventsida med anmälan, kalenderinbjudan och gästlista";
 export const PRODUCT_DESCRIPTION =
   "Skapa en eventsida på en minut, ta emot anmälningar med bekräftelsemejl och kalenderinbjudan, håll koll på gästlistan och mejla dina gäster. Gratis – du betalar bara för stora utskick. Din AI kan göra allt åt dig.";

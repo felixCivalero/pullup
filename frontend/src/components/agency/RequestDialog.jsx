@@ -46,6 +46,7 @@ export function RequestDialog() {
   useEffect(() => {
     const onOpen = (e) => {
       setSource(e.detail?.source || "");
+      if (e.detail?.email) setForm((f) => ({ ...f, email: String(e.detail.email).trim() }));
       setState((s) => (s === "done" ? "idle" : s));
       setError("");
       setOpen(true);

@@ -4,6 +4,12 @@
 
 An AI assistant can do on PullUp exactly what its person can do on the site — nothing more.
 
+## Also on pullup.se
+
+- https://pullup.se/stockholm — free guide to what is on in Stockholm, with filters and a Thursday mail.
+- PullUp is also an agency in Stockholm: film, growth and direction. Free site check and booking on https://pullup.se.
+- https://pullup.se/felix-civalero — Felix Civalero Stolpe, his cases and how he works.
+
 ## Connect an assistant
 
 - Remote MCP (Streamable HTTP): https://mcp.pullup.se — OAuth 2.1 with dynamic client registration and PKCE. The person signs in and approves the assistant once at pullup.se/connect, and can disconnect it under Agenter (pullup.se/admin/agents).
@@ -26,6 +32,6 @@ Working together: list_team, invite_to_brand, remove_from_team (a brand's head a
 
 ## Pages
 
-- [PullUp – free event pages](https://pullup.se/pullup): what it does, price, how to connect an AI, FAQ
+- [PullUp – free event pages](https://pullup.se/eventverktyg): what it does, price, how to connect an AI, FAQ
 - [Felix Civalero — work](https://pullup.se/): case studies and how to work with Felix
 - [Sign in](https://pullup.se/login): email code, the first sign-in creates the account

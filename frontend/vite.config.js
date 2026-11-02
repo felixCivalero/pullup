@@ -100,19 +100,24 @@ function pagesPlugin() {
     async closeBundle() {
       const { CASE_SHARES } = await import("./src/components/agency/caseShare.js");
       const product = await import("./src/pages/productMeta.js");
+      const home = await import("./src/pages/homeMeta.js");
       const root = outDir;
       const shell = readFileSync(join(root, "index.html"), "utf8");
       writeFileSync(join(root, "app.html"), shell);
 
       const pages = [
         { route: "/", file: "index.html", html: shell },
-        {
-          route: "/pullup",
-          file: "pullup.html",
+        // The event tool: its page, and the old address it started at (same
+        // page, canonical points at /eventverktyg).
+        ...["eventverktyg", "pullup"].map((p) => ({
+          route: `/${p}`,
+          file: `${p}.html`,
           html: withMeta(shell, {
             title: product.PRODUCT_TITLE, description: product.PRODUCT_DESCRIPTION, url: product.PRODUCT_URL, jsonLd: product.productJsonLd(),
           }),
-        },
+        })),
+        { route: "/stockholm", file: "stockholm.html", html: withMeta(shell, home.GUIDE_META) },
+        { route: "/felix-civalero", file: "felix-civalero.html", html: withMeta(shell, home.FELIX_META) },
         ...CASE_SHARES.map((c) => ({
           route: `/work/${c.slug}`,
           file: `work/${c.slug}.html`,

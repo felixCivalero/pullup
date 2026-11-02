@@ -1,51 +1,32 @@
-import { COVERS } from "./agencyData.js";
+import { useState } from "react";
+import { WORDS } from "./testimonialsData.js";
 import { useT } from "./i18n.js";
 
 /* What clients say — small cards, three across, under the logo band (a swipeable
-   row on phones). Real words from real people ONLY:
-   an entry with `quote: null` is a reserved slot and never renders. Paste the
-   person's own words in when they send them (English here = translation; the
-   Swedish dictionary holds the original). */
-export const WORDS = [
-  {
-    who: "Emma Lerider Harrsson",
-    org: "POC",
-    lead: "Everyone should have a Felix.",
-    quote: "If you're weighing hiring someone versus bringing in Felix, Felix is 10x the value you actually want. Just sayin'.",
-  },
-  {
-    who: "Anton Dalsätt",
-    org: "BKM Health",
-    lead: "We'd never have got here without Felix.",
-    quote: "And it was damn fun on the way here.",
-  },
-  {
-    who: "Sebastian Ramsay",
-    org: "STIGA",
-    quote: "If Mulle Meck were a real person, it would probably be Felix. Whatever you need, he fixes it. Either himself or with help from someone he knows.",
-  },
-  {
-    who: "Adam Flambo",
-    org: "Creator",
-    photo: COVERS["adam-flambo"],
-    quote: "That's how I see you. Besides being a super chill guy, you're the one who set up my studio in a single day while I stood there navel-gazing. That's what you wish clients understood — that you're a fucking maker. An action taker.",
-  },
-  {
-    who: "Tolga Duran",
-    org: "Founder, BKM Health",
-    lead: "Felix is a machine.",
-    quote: "Everything in marketing. Content, tracking, analytics, e-commerce — he knows it by heart.",
-  },
-  {
-    who: "Li Karlsén",
-    org: "BKM Health",
-    // ⚠️ Felix's draft wording, put back by Felix 2026-10-21 while Li is asked
-    // for her own (she has seen it). Replace with her words when they come.
-    quote: "Felix sees the whole picture, but he can also go down to the millimetre to be precise and exact. I love that.",
-  },
-];
+   row on phones). Words in testimonialsData.js. */
 const LIVE = WORDS.filter((w) => w.quote);
 const initials = (name) => name.split(" ").map((p) => p[0]).slice(0, 2).join("");
+
+// The person's photo, or their initials until the file is there (or if it
+// fails to load). Photos live in public/landing/people/.
+export function Avatar({ person, className }) {
+  const [broken, setBroken] = useState(false);
+  if (person.photo && !broken) {
+    return (
+      <img
+        // A pre-rendered page may fail the image before React is listening.
+        ref={(img) => { if (img?.complete && img.naturalWidth === 0) setBroken(true); }}
+        src={person.photo}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        style={person.focus ? { objectPosition: person.focus } : undefined}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return <span className={className} aria-hidden="true">{initials(person.who)}</span>;
+}
 
 export function Testimonials() {
   const t = useT();
@@ -59,9 +40,7 @@ export function Testimonials() {
             {w.lead ? `${t(w.quote)}”` : `“${t(w.quote)}”`}
           </blockquote>
           <p className="tm-by">
-            {w.photo
-              ? <img src={w.photo} alt="" loading="lazy" decoding="async" />
-              : <span className="tm-mono" aria-hidden="true">{initials(w.who)}</span>}
+            <Avatar person={w} className="tm-mono" />
             <span><b>{w.who}</b>{t(w.org)}</span>
           </p>
         </li>

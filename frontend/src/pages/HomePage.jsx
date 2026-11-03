@@ -9,30 +9,25 @@ import { QuoteReel, QUOTE_CSS } from "../components/agency/QuoteReel.jsx";
 import { CaseStack, CASE_STACK_CSS } from "../components/agency/CaseStack.jsx";
 import { LANDING_CSS } from "../components/agency/landingParts.jsx";
 import { MailLink } from "../components/agency/MailLink.jsx";
-import { FELIX_PATH, casePath } from "../components/agency/agencyData.js";
 import { openRequest } from "../components/agency/request.js";
 import { useT } from "../components/agency/i18n.js";
 import { HOME_TITLE } from "./homeMeta.js";
 
 /* The front door sells the whole brand world: four steps from the first
-   glance to the customer who comes back, each with the people who do it. The
+   glance to the customer who comes back. No people on this page: it speaks as
+   PullUp (Felix 2026-11-03). The
    free site check is step one's door: anyone types their site and gets an
    honest answer, grouped by the first three steps. ?site=x.se runs it on
    arrival, for links in sales mail. The result measures readiness, never what
    an AI would really answer: say it that way. */
 
 const STEPS = [
-  { key: "found", name: "Get found.", who: "Felix", line: "Google and AI. A site, data and tracking that ChatGPT, Claude and Google can read, trust and recommend." },
-  { key: "seen", name: "Get seen.", who: "Adam and Chris", line: "Film, photo and short video for social, made by people who do it for a living. Content that builds the brand and sells." },
-  { key: "chosen", name: "Get chosen.", who: "Felix and Chris", line: "A site and shop that turn a look into a purchase, with ads, email and measurement that show what actually sells." },
-  { key: "back", name: "Come back.", who: "Adam and Felix", line: "Events, photo walks and community. Moments people show up for, and bring their friends to." },
+  { key: "found", name: "Get found.", line: "Google and AI. A site, data and tracking that ChatGPT, Claude and Google can read, trust and recommend." },
+  { key: "seen", name: "Get seen.", line: "Film, photo and short video for social, made by people who do it for a living. Content that builds the brand and sells." },
+  { key: "chosen", name: "Get chosen.", line: "A site and shop that turn a look into a purchase, with ads, email and measurement that show what actually sells." },
+  { key: "back", name: "Come back.", line: "Events, photo walks and community. Moments people show up for, and bring their friends to." },
 ];
 const CHECKED = STEPS.filter((s) => s.key !== "back");
-const TEAM = [
-  { name: "Adam Flambo", role: "Film and photo", to: casePath("adam-flambo") },
-  { name: "Chris", role: "Edit and social growth" },
-  { name: "Felix Civalero Stolpe", role: "Strategy and systems", to: FELIX_PATH },
-];
 
 // The AI in the check's headline, one after the other. Each has its crawler in
 // the site check (backend lib/siteCheck.js), so the question stays honest.
@@ -203,14 +198,6 @@ export function HomePage() {
             <button type="submit">{t("Book a meeting")}</button>
           </form>
           <p className="ho-meet-alt">{t("Or email us:")} <MailLink className="ho-mail" /></p>
-          <ul>
-            {TEAM.map((p) => (
-              <li key={p.name}>
-                {p.to ? <Link to={p.to}>{p.name}</Link> : <span>{p.name}</span>}
-                <small>{t(p.role)}</small>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <section className="ho-tools" data-pc-section="tools" data-pc-order="5">
@@ -344,11 +331,4 @@ const HOME_CSS = `
   .ho-meet-alt { margin: 16px 0 clamp(56px, 8vw, 104px); font-size: 15px; color: rgba(255,255,255,.6); }
   .ho-mail { color: #fff; font-size: 16px; font-weight: 600; text-decoration: none; }
   .ho-mail:hover { text-decoration: underline; text-underline-offset: 4px; }
-  .ho-meet ul { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid rgba(255,255,255,.16); }
-  @media (min-width: 900px) { .ho-meet ul { grid-template-columns: repeat(3, 1fr); gap: 24px; border-top: 0; } .ho-meet li { border-top: 1px solid rgba(255,255,255,.16); } }
-  .ho-meet li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,.16); font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
-  @media (min-width: 900px) { .ho-meet li { display: grid; gap: 4px; border-bottom: 0; } }
-  .ho-meet li a { color: inherit; text-decoration: none; }
-  .ho-meet li a:hover { color: #ec178f; }
-  .ho-meet li small { font-size: 14px; font-weight: 400; letter-spacing: 0; color: rgba(255,255,255,.55); }
 `;

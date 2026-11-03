@@ -195,6 +195,30 @@ export async function renameBrand(caller, id, rawName) {
   return brandShape(data);
 }
 
+// Delete a brand that holds nothing: no events, no brands under it, no
+// imported contacts, and not the account's last brand. Its head only. Its
+// team and open invites go with it.
+export async function deleteBrand(caller, id) {
+  if (!UUID.test(String(id || ""))) throw new ActionError("not_found", "No brand with that id.");
+  const { brands } = await brandScope(caller);
+  const known = brands.find((b) => b.id === id);
+  if (!known || known.hostId !== caller.hostId) throw new ActionError("not_found", "No brand of yours with that id.");
+  if (!isHead(known)) throw new ActionError("forbidden", "Only the brand's head can delete it.");
+  const own = brands.filter((b) => b.hostId === caller.hostId && isHead(b));
+  if (own.length <= 1) throw new ActionError("invalid", "An account keeps at least one brand. Rename it instead.", { detail: "last" });
+  if (own.some((b) => b.parent_id === id)) throw new ActionError("invalid", "Brands sit under it. Delete or move those first.", { detail: "has_brands" });
+  const [{ count: events }, { count: contacts }] = await Promise.all([
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("brand_id", id),
+    supabase.from("brand_contacts").select("person_id", { count: "exact", head: true }).eq("brand_id", id),
+  ]);
+  if (events) throw new ActionError("invalid", `It has ${events} event${events === 1 ? "" : "s"}. Delete or move them first.`, { detail: "has_events" });
+  if (contacts) throw new ActionError("invalid", `It has ${contacts} imported contact${contacts === 1 ? "" : "s"}. A brand with contacts isn't deleted.`, { detail: "has_contacts" });
+  const { error } = await supabase.from("brands").delete().eq("id", id).eq("host_id", caller.hostId);
+  if (error) throw error;
+  caller._brandScope = null;
+  return { deleted: true, brandId: id, name: known.name };
+}
+
 // A brand's name by id, for pages and mail that show who the organiser is.
 export async function brandNames(ids) {
   const unique = [...new Set(ids.filter((id) => UUID.test(String(id || ""))))];

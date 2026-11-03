@@ -10,11 +10,11 @@ import { EVENT_IMAGE_BUCKET } from "../lib/eventPlatform.js";
 import { fetchRemoteImage } from "../lib/remoteImage.js";
 import { isValidTimeZone, toUtcIso } from "../lib/zonedTime.js";
 import { getFrontendUrl } from "../lib/urls.js";
-import { createEvent, eventFor, eventWithGuests, listEvents, moveEvent, updateEvent, updateGuest } from "../repos/hostEvents.js";
+import { createEvent, deleteEvent, eventFor, eventWithGuests, listEvents, moveEvent, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { loadEventMedia, syncCover } from "../routes/adminEventMedia.js";
 import { geocode } from "../routes/places.js";
 import { answersByLabel } from "../lib/eventForm.js";
-import { brandScope, brandShape, createBrand, payerFor, renameBrand } from "../lib/brands.js";
+import { brandScope, brandShape, createBrand, deleteBrand, payerFor, renameBrand } from "../lib/brands.js";
 import { myInvites } from "../lib/teams.js";
 
 // Which of the account's brands to work in: its id or name. Leave out for the
@@ -390,4 +390,26 @@ export const renameBrandAction = defineAction({
   run: async ({ brandId, name }, { caller }) => ({ brand: await renameBrand(caller, brandId, name) }),
 });
 
-export default [whoami, listBrandsAction, createBrandAction, renameBrandAction, listMyEvents, getMyEvent, createEventAction, updateEventAction, publishEvent, setEventCover, addEventImage, removeEventImage, moveEventAction, updateGuestAction];
+export const deleteEventAction = defineAction({
+  name: "delete_event",
+  title: "Delete an event",
+  description: "Delete one of the brand's events for good: its page, sign-ups, pictures and statistics. The people stay in the CRM. Cannot be undone — confirm with the person first, then pass the event's exact title as confirmTitle. The brand's team only (not a co-host). To just take it down, set it to draft with update_event instead.",
+  access: "user",
+  effect: "write",
+  destructive: true,
+  input: z.object({ eventId, confirmTitle: z.string().trim().min(1).max(200).describe("The event's exact title, as confirmation.") }),
+  run: async ({ eventId: id, confirmTitle }, { caller }) => deleteEvent(caller, id, confirmTitle),
+});
+
+export const deleteBrandAction = defineAction({
+  name: "delete_brand",
+  title: "Delete an empty brand",
+  description: "Delete a brand that holds nothing: no events, no brands under it, no imported contacts, and not the account's only brand. Its team goes with it. The brand's head only. Confirm with the person first.",
+  access: "user",
+  effect: "write",
+  destructive: true,
+  input: z.object({ brandId: z.guid() }),
+  run: async ({ brandId }, { caller }) => deleteBrand(caller, brandId),
+});
+
+export default [whoami, listBrandsAction, createBrandAction, renameBrandAction, listMyEvents, getMyEvent, createEventAction, updateEventAction, publishEvent, setEventCover, addEventImage, removeEventImage, moveEventAction, updateGuestAction, deleteEventAction, deleteBrandAction];

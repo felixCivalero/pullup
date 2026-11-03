@@ -192,6 +192,11 @@ const EN = {
   "Importerar…": "Importing…", "Tidigare importer": "Earlier imports", "Källa": "Source", "Nya": "New", "Godkänner mejl": "Accept mail", "Avtal": "Agreement",
   "Till CRM:et →": "To the CRM →", "Importen misslyckades.": "The import failed.", "Filen är tom.": "The file is empty.",
   "Spara listan som CSV först (i Excel: Arkiv → Spara som → CSV).": "Save the list as CSV first (in Excel: File → Save as → CSV).",
+  // ─── delete ───
+  "Radera eventet…": "Delete the event…", "Radera eventet för gott.": "Delete the event for good.",
+  "Eventsidan, anmälningarna, bilderna och statistiken försvinner och går inte att få tillbaka. Gästerna finns kvar i CRM:et. Vill du bara ta ner det tillfälligt? Gör det till ett utkast i redigeraren i stället.": "The event page, sign-ups, pictures and statistics disappear and can't be brought back. The guests stay in the CRM. Only want to take it down for now? Make it a draft in the editor instead.",
+  "Skriv eventets namn för att radera:": "Type the event's name to delete:", "Radera för gott": "Delete for good", "Raderar…": "Deleting…", "Kunde inte radera eventet.": "Couldn't delete the event.",
+  "Det gick inte att radera.": "Couldn't delete it.",
   // ─── platform ───
   "Plattform": "Platform", "Plattform — Admin": "Platform — Admin", "Eventverktyget: konton, event och utskick.": "The event tool: accounts, events and mail.",
   "Nya konton": "New accounts", "Konton totalt": "Accounts in total", "med den gamla appens": "including the old app's",
@@ -236,6 +241,7 @@ const PATTERNS = [
   [/^ Du är anmäld med (\d+) (gäst|gäster)\.$/, (m, n) => ` You're signed up with ${n} ${n === "1" ? "guest" : "guests"}.`],
   [/^Eventet är fullt just nu\. Vi mejlar (.+) om en plats blir ledig\.$/, "The event is full right now. We'll mail $1 if a place opens up."],
   [/^Svara på: (.+)$/, "Answer: $1"],
+  [/^Radera (.+)$/, "Delete $1"],
   [/^Mejl från (.+) går ut från$/, "Mail from $1 goes out from"],
   [/^Mejl från (.+) går idag ut från$/, "Mail from $1 goes out today from"],
   [/^med (.+) som avsändarnamn\. Med en egen adress på er domän går de ut från den\.$/, "with $1 as the sender name. With your own address on your domain, it goes out from that."],

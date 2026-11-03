@@ -11,11 +11,11 @@ import { EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
 import { ActionError, statusFor } from "../lib/actionError.js";
 import { loadEventMedia } from "./adminEventMedia.js";
 import {
-  createEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, moveEvent, statsForEvent, statsOverview, updateEvent, updateGuest,
+  createEvent, deleteEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, moveEvent, statsForEvent, statsOverview, updateEvent, updateGuest,
 } from "../repos/hostEvents.js";
 import { importContacts, listImports } from "../repos/imports.js";
 import { getSender, setSender, verifySender } from "../lib/senders.js";
-import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
+import { brandScope, brandShape, createBrand, deleteBrand, renameBrand } from "../lib/brands.js";
 import { over } from "../lib/abuse.js";
 import {
   acceptInvite, brandTeam, cancelInvite, declineInvite, eventTeam, inviteToBrand, inviteToEvent, removeCohost, removeMember,
@@ -53,6 +53,7 @@ export function registerAdminEventRoutes(app) {
   app.post("/admin/brands", ...handle(async (req) => ({ brand: await createBrand(req.caller, req.body?.name, req.body?.parentId) }), 201));
 
   app.patch("/admin/brands/:id", ...handle(async (req) => ({ brand: await renameBrand(req.caller, req.params.id, req.body?.name) })));
+  app.delete("/admin/brands/:id", ...handle(async (req) => deleteBrand(req.caller, req.params.id)));
 
   // Working together (lib/teams.js): the brand's team, one event's co-hosts,
   // and the invites waiting for the signed-in address.
@@ -90,6 +91,7 @@ export function registerAdminEventRoutes(app) {
   }));
 
   app.patch("/admin/events/:id", ...handle(async (req) => ({ event: await updateEvent(req.caller, req.params.id, req.body) })));
+  app.post("/admin/events/:id/delete", ...handle(async (req) => deleteEvent(req.caller, req.params.id, req.body?.confirmTitle)));
 
   app.patch("/admin/rsvps/:id", ...handle(async (req) => ({ rsvp: await updateGuest(req.caller, req.params.id, req.body) })));
 

@@ -360,6 +360,26 @@ export async function moveEvent(caller, id, brandRef) {
   return eventShape(data, caller, {}, new Map([[to.id, to.name]]));
 }
 
+// Delete an event for good: its page, its guests' sign-ups, its pictures,
+// visits and co-hosts go with it (cascades). The people stay in the CRM.
+// The brand's team only (not a co-host of the one event), and the title
+// typed back as confirmation, so nothing goes by a slip.
+export async function deleteEvent(caller, id, confirmTitle) {
+  const ev = await eventFor(caller, id);
+  const brand = await accessTo(caller, ev);
+  if (brand && !isTeam(brand)) throw new ActionError("forbidden", "Events are deleted by the brand's team, not a co-host.", { detail: "team" });
+  if (caller.isOwner && ev.host_id !== caller.hostId) throw new ActionError("forbidden", "Only the organiser can delete this event.");
+  if (String(confirmTitle || "").trim().toLowerCase() !== String(ev.title || "").trim().toLowerCase()) {
+    throw new ActionError("invalid", "Type the event's title exactly to delete it.", { detail: "confirm" });
+  }
+  // Rows that don't follow the event out on their own.
+  await supabase.from("partner_clicks").delete().eq("event_id", ev.id);
+  await supabase.from("event_page_views").delete().eq("event_id", ev.id);
+  const { error } = await supabase.from("events").delete().eq("id", ev.id);
+  if (error) throw error;
+  return { deleted: true, eventId: ev.id, title: ev.title };
+}
+
 // One event with its guest list.
 export async function eventWithGuests(caller, id) {
   const ev = await eventFor(caller, id);

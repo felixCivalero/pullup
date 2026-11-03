@@ -13,6 +13,8 @@
 // effect:  "read"    changes nothing
 //          "write"   changes the caller's own data on PullUp
 //          "send"    reaches people outside, or costs money — can't be undone
+// destructive: true  a "write" that deletes for good (the hint tells
+//                    assistants to confirm with the person first)
 import crypto from "crypto";
 import { z } from "zod";
 import { supabase } from "../supabase.js";
@@ -41,7 +43,7 @@ export function mcpAnnotations(action) {
   return {
     title: action.title,
     readOnlyHint: action.effect === "read",
-    destructiveHint: action.effect === "send",
+    destructiveHint: action.effect === "send" || !!action.destructive,
     idempotentHint: action.effect === "read" || !!action.idempotent,
     openWorldHint: action.effect === "send",
   };
@@ -50,7 +52,7 @@ export function mcpAnnotations(action) {
 export function webmcpAnnotations(action) {
   return {
     readOnlyHint: action.effect === "read",
-    consequentialHint: action.effect === "send",
+    consequentialHint: action.effect === "send" || !!action.destructive,
     untrustedContentHint: !!action.untrustedOutput,
   };
 }

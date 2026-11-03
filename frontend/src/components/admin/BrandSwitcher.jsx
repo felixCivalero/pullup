@@ -70,6 +70,28 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
     }
   }
 
+  // Delete the brand picked, if it holds nothing (backend deleteBrand says
+  // what's in the way: events, brands under it, imported contacts).
+  const ownBrands = brands.filter((b) => !b.role || b.role === "head");
+  const canDelete = (!active?.role || active?.role === "head") && ownBrands.length > 1 && !brands.some((b) => b.parentId === active?.id);
+  async function remove() {
+    if (!window.confirm(`Radera ${active.name}? Det går bara om varumärket är tomt: inga event och inga importerade kontakter.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authenticatedFetch(`/admin/brands/${active.id}`, { method: "DELETE" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.message || "Det gick inte att radera.");
+      setCurrentBrandId(ownBrands.find((b) => b.id !== active.id)?.id || "");
+      await onChange?.();
+      setOpen(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!active) return null;
   return (
     <div className="bs" ref={box}>
@@ -116,6 +138,10 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
                   Byt namn på {active.name}
                 </button>
               )}
+              {canDelete && (
+                <button type="button" role="menuitem" className="bs-item bs-muted bs-del" disabled={busy} onClick={remove}>Radera {active.name}</button>
+              )}
+              {error && !mode && <p className="bs-err">{error}</p>}
               <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(""); setUnder(mains.find((b) => b.id === (active.parentId || active.id))?.id || mains[0]?.id || ""); setMode("new"); }}>
                 <span>Nytt varumärke</span>
                 <Plus size={15} />
@@ -148,6 +174,7 @@ const CSS = `
   .ad-bar .bs-item:hover { background: rgba(0,0,0,0.05); color: #0a0a0a; }
   .ad-bar .bs-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ad-bar .bs-muted { color: #6e6e73; font-size: 13px; }
+  .ad-bar .bs-del:hover { color: #b3261e; }
   .bs-end { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .bs-role { font-size: 11px; font-weight: 600; color: #6e6e73; background: #f0f0f0; padding: 2px 7px; border-radius: 999px; }
   .bs-sep { height: 1px; background: rgba(0,0,0,0.08); margin: 6px 4px; }

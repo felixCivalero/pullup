@@ -102,6 +102,7 @@ export function EventDetailPage() {
                 {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
                 {ev.mine && <MoveBrand ev={ev} onMoved={load} />}
                 <Latest guests={data.guests} onAll={() => setTab("guests")} />
+                {ev.mine && <TeamOnly><DeleteEvent ev={ev} /></TeamOnly>}
               </>
             )}
             {tab === "guests" && <Guests guests={data.guests} ev={ev} onChange={load} />}
@@ -112,6 +113,44 @@ export function EventDetailPage() {
         )}
       </div>
     </AdminShell>
+  );
+}
+
+// Delete the event for good (backend deleteEvent): opened on purpose, the
+// title typed back, then gone with its sign-ups, pictures and statistics.
+// The people stay in the CRM. To take it down for now: set it to draft.
+function DeleteEvent({ ev }) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const match = typed.trim().toLowerCase() === String(ev.title || "").trim().toLowerCase();
+  const go = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await authenticatedFetch(`/admin/events/${ev.id}/delete`, { method: "POST", body: JSON.stringify({ confirmTitle: typed }) });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.message || out.error);
+      window.location.assign("/admin/events");
+    } catch (e) {
+      setErr(e.message || "Kunde inte radera eventet.");
+      setBusy(false);
+    }
+  };
+  if (!open) return <button type="button" className="ed-del-open" onClick={() => setOpen(true)}>Radera eventet…</button>;
+  return (
+    <div className="ed-del">
+      <p><b>Radera eventet för gott.</b> Eventsidan, anmälningarna, bilderna och statistiken försvinner och går inte att få tillbaka. Gästerna finns kvar i CRM:et. Vill du bara ta ner det tillfälligt? Gör det till ett utkast i redigeraren i stället.</p>
+      <label><span>Skriv eventets namn för att radera: <b data-no-translate>{ev.title}</b></span>
+        <input className="ea-input" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+      </label>
+      {err && <p className="ea-error">{err}</p>}
+      <div className="ed-del-row">
+        <button type="button" className="ea-btn" onClick={() => { setOpen(false); setTyped(""); }}>Avbryt</button>
+        <button type="button" className="ea-btn is-danger" disabled={!match || busy} onClick={go}>{busy ? "Raderar…" : "Radera för gott"}</button>
+      </div>
+    </div>
   );
 }
 
@@ -492,6 +531,14 @@ const DETAIL_CSS = `
   .ed-statsec { margin: 30px 0 28px; }
   .ed-qcol { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ea-nowrap { white-space: nowrap; }
+  .ed-del-open { margin: 34px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: #8a8a8e; text-decoration: underline; cursor: pointer; }
+  .ed-del-open:hover { color: #b3261e; }
+  .ed-del { display: grid; gap: 10px; margin: 34px 0 0; padding: 14px 16px; border: 1px solid #e3b4b0; border-radius: 10px; background: #fdf4f3; max-width: 620px; }
+  .ed-del p { margin: 0; font-size: 14px; line-height: 1.5; color: #3a3a3c; }
+  .ed-del label { display: grid; gap: 6px; font-size: 13px; color: #3a3a3c; }
+  .ed-del-row { display: flex; gap: 8px; justify-content: flex-end; }
+  .ea-btn.is-danger { background: #b3261e; border-color: #8c1d17; color: #fff; }
+  .ea-btn.is-danger:disabled { opacity: .45; }
   .ed-move { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: #f6f5f2; font-size: 13.5px; }
   .ed-move p { flex: 1 1 260px; margin: 0; color: #3a3a3c; }
   .ed-move select { width: auto; min-width: 160px; padding: 7px 10px; font-size: 13.5px; }

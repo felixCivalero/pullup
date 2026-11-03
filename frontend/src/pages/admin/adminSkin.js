@@ -147,14 +147,8 @@ export const ADMIN_SKIN = `
   .ad .bw-node { border-radius: 8px; }
   .ad .bw-node.is-main { box-shadow: 3px 3px 0 rgba(0,0,0,.12); }
 
-  /* the sign-up builder */
-  .ad .fb-label, .ad .ee-step-head { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #3a3935; }
-  .ad .fb-seg button { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
-  .ad .fb-seg button.is-on { box-shadow: inset 0 1px 0 rgba(255,255,255,.15); }
-  .ad .fb-q { border-color: var(--line); border-radius: 8px; box-shadow: 3px 3px 0 rgba(0,0,0,.06); }
-  .ad .fb-new { border-radius: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); }
-  .ad .fb-new:hover { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
-  .ad .fb-chip { border-radius: 6px; }
+  /* the sign-up builder carries its own finish (FormBuilder.jsx) */
+  .ad .ee-step-head { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #3a3935; }
 
   /* ─── the editor ─── */
   .ad .ed2 { background: transparent; }

@@ -114,7 +114,6 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
               capacity={f.capacity === "" ? null : Number(f.capacity)}
               onCapacity={(v) => setF((x) => ({ ...x, capacity: v == null ? "" : String(v) }))}
             />
-            <p className="bw-hint">Gästerna anmäler sig alltid med namn och e-post. När det är fullt hamnar nya på väntelistan, och de som tas med räknas som platser.</p>
           </>
         )}
         {error && <p className="bw-error">{error}</p>}

@@ -192,6 +192,12 @@ const EN = {
   "Importerar…": "Importing…", "Tidigare importer": "Earlier imports", "Källa": "Source", "Nya": "New", "Godkänner mejl": "Accept mail", "Avtal": "Agreement",
   "Till CRM:et →": "To the CRM →", "Importen misslyckades.": "The import failed.", "Filen är tom.": "The file is empty.",
   "Spara listan som CSV först (i Excel: Arkiv → Spara som → CSV).": "Save the list as CSV first (in Excel: File → Save as → CSV).",
+  // ─── platform ───
+  "Plattform": "Platform", "Plattform — Admin": "Platform — Admin", "Eventverktyget: konton, event och utskick.": "The event tool: accounts, events and mail.",
+  "Nya konton": "New accounts", "Konton totalt": "Accounts in total", "med den gamla appens": "including the old app's", "Kommande": "Upcoming",
+  "publicerade, inte passerade": "published, not yet past", "på arrangörernas event": "on organisers' events", "Konton": "Accounts", "Konto": "Account",
+  "Bara nya sedan 19 okt": "Only new since 19 Oct", "Publ.": "Publ.", "Anmälda": "Signed up", "Utskick": "Mail", "Skapat": "Created", "Senast inne": "Last signed in",
+  "Ge utskick": "Give mail credits", "Inga konton här än.": "No accounts here yet.", "Kunde inte hämta plattformen.": "Couldn't load the platform.",
   // ─── sender ───
   "Mejlavsändare": "Mail sender", "Egen avsändaradress": "Own sender address", "Svar går till": "Replies go to", "Den som skickar": "The person sending",
   "t.ex. nyheter@ertvarumarke.se": "e.g. news@yourbrand.com", "Kontrollera": "Check", "Kontrollerar…": "Checking…", "Typ": "Type", "Värde": "Value", "Prio": "Priority", "Väntar": "Waiting",

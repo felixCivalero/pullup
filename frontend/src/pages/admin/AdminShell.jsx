@@ -28,6 +28,7 @@ import { browserLang, translatePage } from "../../lib/adminI18n.js";
 const NAV = [
   ["/admin", "Statistik", "owner"],
   ["/admin/sales", "Sälj", "owner"],
+  ["/admin/platform", "Plattform", "owner"],
   ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
@@ -39,7 +40,7 @@ const NAV = [
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
-const OWNER_PATHS = ["/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+const OWNER_PATHS = ["/admin/platform", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
 // The server check runs once per signed-in user, not on every page switch:

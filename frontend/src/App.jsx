@@ -34,6 +34,7 @@ const EventsPage = lazyPage(() => import("./pages/admin/EventsPage"), "EventsPag
 const EventDetailPage = lazyPage(() => import("./pages/admin/EventDetailPage"), "EventDetailPage");
 const PeoplePage = lazyPage(() => import("./pages/admin/PeoplePage"), "PeoplePage");
 const MailPage = lazyPage(() => import("./pages/admin/MailPage"), "MailPage");
+const PlatformPage = lazyPage(() => import("./pages/admin/PlatformPage"), "PlatformPage");
 const ImportPage = lazyPage(() => import("./pages/admin/ImportPage"), "ImportPage");
 const BrandStatsPage = lazyPage(() => import("./pages/admin/BrandStatsPage"), "BrandStatsPage");
 const EventCreatePage = lazyPage(() => import("./pages/admin/EventEditorPage"), "EventCreatePage");
@@ -93,6 +94,7 @@ function App() {
           <Route path="/admin/people" element={<ByBrand><PeoplePage /></ByBrand>} />
           <Route path="/admin/people/import" element={<ByBrand><ImportPage /></ByBrand>} />
           <Route path="/admin/stats" element={<ByBrand><BrandStatsPage /></ByBrand>} />
+          <Route path="/admin/platform" element={<PlatformPage />} />
           <Route path="/admin/mail" element={<ByBrand><MailPage /></ByBrand>} />
           <Route path="/admin/team" element={<ByBrand><TeamPage /></ByBrand>} />
           <Route path="/admin/archi" element={<ArchiPage />} />

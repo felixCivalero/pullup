@@ -80,14 +80,21 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = f
     next.splice(to, 0, m);
     const ordered = next.map((x, i) => ({ ...x, position: i, isCover: i === 0 }));
     setMedia(ordered);
+    update({ imageUrl: ordered[0] ? (ordered[0].mediaType === "video" ? ordered[0].thumbnailUrl || null : ordered[0].url) : null });
     try {
       await reorderEventMedia(draft.id, ordered.map((x) => ({ id: x.id, position: x.position })));
       if (ordered[0] && ordered[0].id !== media[0]?.id) await setCoverMedia(draft.id, ordered[0].id);
     } catch { toast("Kunde inte spara ordningen."); }
   };
 
+  // Gone from the page at once: the list, and the cover the preview falls
+  // back on (the event's stored cover) follows the new first item, or none.
   const remove = async (m) => {
-    setMedia((list) => list.filter((x) => x.id !== m.id).map((x, i) => ({ ...x, position: i })));
+    const rest = media.filter((x) => x.id !== m.id).map((x, i) => ({ ...x, position: i, isCover: i === 0 }));
+    setMedia(rest);
+    const first = rest[0];
+    update({ imageUrl: first ? (first.mediaType === "video" ? first.thumbnailUrl || null : first.url) : null });
+    if (!rest.length && ms.mode === "video") setMs({ mode: null });
     try { await deleteEventMedia(draft.id, m.id); } catch { toast("Kunde inte ta bort filen."); }
   };
 

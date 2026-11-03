@@ -180,6 +180,7 @@ export function HomePage() {
             ))}
           </h1>
           <div className="ho-powers">
+            <p className="ho-powers-lead">{t("Try our free tools")}<span aria-hidden="true">↓</span></p>
             <form
               className="ho-power is-site"
               onSubmit={(e) => {
@@ -308,6 +309,9 @@ const HOME_CSS = `
   .fw-hero > p { margin: 0 0 32px; max-width: 30em; font-size: clamp(18px, 2vw, 26px); line-height: 1.25; letter-spacing: -0.02em; font-weight: 500; }
   /* ─── the two free tools: grey hardware panels, old-school technical ─── */
   .ho-powers { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; max-width: 880px; margin-top: 8px; }
+  .ho-powers-lead { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin: 0 0 6px; font-size: clamp(20px, 1.9vw, 28px); line-height: 1.1; letter-spacing: -0.025em; font-weight: 600; }
+  .ho-powers-lead span { display: grid; place-items: center; width: 1.3em; height: 1.3em; border: 2px solid currentColor; border-radius: 50%; font-size: .7em; font-weight: 700; animation: ho-nudge 2.2s ease-in-out infinite; }
+  @keyframes ho-nudge { 50% { transform: translateY(3px); } }
   .ho-power { position: relative; display: grid; align-content: start; gap: 14px; margin: 0; padding: 14px 14px 14px; border-radius: 10px; color: #111; text-decoration: none;
     background: linear-gradient(180deg, #e4e3df 0%, #cfcec9 100%);
     border: 1px solid #8f8e89;
@@ -340,7 +344,7 @@ const HOME_CSS = `
     .ho-powers { grid-template-columns: 1fr; gap: 10px; }
     .ho-power.is-event { grid-template-columns: 1fr; }
   }
-  @media (prefers-reduced-motion: reduce) { .ho-led { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .ho-led, .ho-powers-lead span { animation: none; } }
 
 
   .ho-tools { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(56px, 8vw, 100px); background: #fff; }

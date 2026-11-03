@@ -2,7 +2,7 @@
 // people using PullUp to mail strangers (lib/abuse.js). Pure parts only.
 process.env.SUPABASE_URL ||= "http://localhost";
 process.env.SUPABASE_SERVICE_KEY ||= "test-service-key";
-const { cleanBrandName, pickBrand, brandShape, isHead, isTeam } = await import("../src/lib/brands.js");
+const { cleanBrandName, pickBrand, brandShape, isHead, isTeam, pickParent } = await import("../src/lib/brands.js");
 const { teamInviteEmail } = await import("../src/lib/eventEmails.js");
 const { over, mayConfirm, resetCounters, humanCheck, CONFIRMATIONS_PER_ADDRESS, CONFIRMATIONS_PER_ACCOUNT } = await import("../src/lib/abuse.js");
 
@@ -71,6 +71,18 @@ assert(inviteMail.html.includes("x=1&amp;email="), "the link is escaped in the h
 assert(inviteMail.text.includes("https://pullup.se/login?x=1&email=a@b.se"), "the plain text has the link as is");
 const eventMail = teamInviteEmail({ inviter: "julia@nigab.se", brand: "Aperol", event: "Spritz Sunday", loginUrl: "https://pullup.se/login" });
 assert(/medarrangör/.test(eventMail.subject) && eventMail.text.includes("Spritz Sunday för Aperol"), "an event invite says which event and brand");
+
+// ── brands under a main brand (migrations/155) ──
+const tree = [{ id: "m", name: "Nigab", parent_id: null }, { id: "a", name: "Aperol", parent_id: "m" }];
+assert(pickParent(tree, "") === null && pickParent(tree, undefined) === null, "no parent asked → a brand on its own");
+assert(pickParent(tree, "nigab").id === "m" && pickParent(tree, "m").id === "m", "main brand by name (any case) or id");
+let threw = "";
+try { pickParent(tree, "Aperol"); } catch (e) { threw = e.code; }
+assert(threw === "invalid", "a brand under another can't take brands under it");
+threw = "";
+try { pickParent(tree, "someone-elses-brand"); } catch (e) { threw = e.code; }
+assert(threw === "not_found", "only your own brands can be a main brand");
+assert(brandShape({ id: "a", name: "Aperol", parent_id: "m" }).parentId === "m" && brandShape({ id: "m", name: "Nigab" }).parentId === null, "the shape says which main brand it sits under");
 
 if (failures) { console.error(`\n${failures} brands/abuse test(s) failed`); process.exit(1); }
 console.log("\nall brands-and-abuse tests passed");

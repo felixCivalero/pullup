@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { authLinkError } from "../lib/supabase.js";
 import { homeFor, safeNext, useSession } from "../lib/owner.js";
 import { linkFromHash, pendingLogin, requestCode, verifyCode, verifyLink } from "../lib/deviceLogin.js";
@@ -27,8 +27,9 @@ export function LoginPage() {
 
   if (session) return <Navigate to={next || homeFor(session.user?.email)} replace />;
   return (
-    <main className="lg">
+    <main className="lg is-brand">
       <style>{LOGIN_CSS}</style>
+      <Link to="/" className="lg-logo" aria-label="PullUp"><img src="/pullup-textlogo.svg" alt="PullUp" /></Link>
       <LoginForm
         onDone={(user) => navigate(next || homeFor(user?.email), { replace: true })}
         {...(isNew ? { title: "Skapa konto", subtitle: "Gratis. Inget kort, ingen provperiod. Skriv din e-post så mejlar vi en kod." } : {})}
@@ -96,9 +97,11 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
   if (step === "link") return <p className="lg-sub">Loggar in…</p>;
 
   return step === "email" ? (
-    <form onSubmit={sendCode}>
+    <form className="lg-box" onSubmit={sendCode}>
       <h1>{title}</h1>
       <p className="lg-sub">{subtitle}</p>
+      <div className="lg-panel">
+      <div className="lg-head"><i className="lg-led" aria-hidden="true" />Din e-post</div>
       <input
         type="email"
         name="email"
@@ -110,14 +113,18 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
         autoFocus
       />
       <Turnstile onToken={setTurnstile} theme="light" />
-      <button type="submit" disabled={busy || !email}>{busy ? "Skickar…" : "Skicka kod"}</button>
+      <button type="submit" disabled={busy || !email}>{busy ? "Skickar…" : "Skicka kod →"}</button>
       {error && <p className="lg-err">{error}</p>}
+      </div>
     </form>
   ) : (
-    <form onSubmit={verify}>
-      <h1>Kolla din inkorg</h1>
+    <form className="lg-box" onSubmit={verify}>
+      <h1>Kolla din inkorg.</h1>
       <p className="lg-sub">Vi skickade en kod till {email.trim()}. Den fungerar bara i den här webbläsaren, i 15 minuter.</p>
+      <div className="lg-panel">
+      <div className="lg-head"><i className="lg-led" aria-hidden="true" />Sexsiffrig kod</div>
       <input
+        className="lg-code"
         name="code"
         inputMode="numeric"
         autoComplete="one-time-code"
@@ -127,10 +134,11 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
         required
         autoFocus
       />
-      <button type="submit" disabled={busy || code.length < 6}>{busy ? "Loggar in…" : "Logga in"}</button>
+      <button type="submit" disabled={busy || code.length < 6}>{busy ? "Loggar in…" : "Logga in →"}</button>
       {error && <p className="lg-err">{error}</p>}
+      </div>
       <button type="button" className="lg-back" onClick={() => { setStep("email"); setCode(""); setError(""); }}>
-        Byt adress
+        ← Byt adress
       </button>
     </form>
   );
@@ -138,15 +146,33 @@ export function LoginForm({ onDone, title = "Logga in", subtitle = "Ny här? Sam
 
 export const LOGIN_CSS = `
   body { margin: 0; background: #fff; }
-  .lg { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; box-sizing: border-box;
+  .lg { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; position: relative; min-height: 100dvh; display: grid; place-items: center; padding: 88px 16px 40px; box-sizing: border-box;
     font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color: #0a0a0a; }
-  .lg form { width: min(340px, 100%); display: grid; gap: 12px; }
-  .lg h1 { margin: 0 0 8px; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
-  .lg-sub { margin: -4px 0 4px; font-size: 14px; line-height: 1.45; color: #6e6e73; }
-  .lg input { font: inherit; font-size: 16px; padding: 13px 16px; border: 1px solid rgba(0,0,0,0.16); border-radius: 12px; outline: none; }
-  .lg input:focus { border-color: #000; }
-  .lg button[type="submit"] { font: inherit; font-size: 15px; font-weight: 600; padding: 13px 16px; border: 0; border-radius: 999px; background: #000; color: #fff; cursor: pointer; }
-  .lg button[type="submit"]:disabled { opacity: 0.4; cursor: default; }
-  .lg-err { margin: 0; font-size: 14px; line-height: 1.45; color: #D9480F; }
-  .lg-back { font: inherit; font-size: 14px; background: none; border: 0; color: #6e6e73; cursor: pointer; justify-self: start; padding: 0; }
+  /* /login itself: PullUp's pink, like the front page */
+  .lg.is-brand { background: radial-gradient(120% 90% at 70% 20%, #f43aa5 0%, #ec178f 55%, #d90f80 100%); }
+  .lg-logo { position: absolute; top: 22px; left: clamp(20px, 3.4vw, 48px); display: block; }
+  .lg-logo img { height: 24px; display: block; filter: brightness(0); }
+  .lg-box { width: min(440px, 100%); display: grid; gap: 14px; animation: lg-in .55s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes lg-in { from { opacity: 0; transform: translateY(16px); } }
+  .lg h1 { margin: 0; font-size: clamp(30px, 4vw, 40px); line-height: .95; font-weight: 700; letter-spacing: -0.045em; }
+  .lg.is-brand h1 { font-size: clamp(52px, 9vw, 92px); letter-spacing: -0.06em; }
+  .lg.is-brand .lg-box { width: min(580px, 100%); }
+  .lg-sub { margin: 0 0 6px; font-size: 15px; line-height: 1.45; color: #6e6e73; }
+  .lg.is-brand .lg-sub { color: rgba(10,10,10,.75); font-size: 17px; font-weight: 500; }
+  /* the form: the grey technical panel from the front page's tools */
+  .lg-panel { display: grid; gap: 10px; padding: 14px; border-radius: 10px; border: 1px solid #8f8e89; background: linear-gradient(180deg, #e4e3df, #cfcec9);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 24px 50px -22px rgba(70,0,40,.6); }
+  .lg-head { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; margin-bottom: 2px; border-bottom: 1px solid rgba(0,0,0,.14); box-shadow: 0 1px 0 rgba(255,255,255,.7); font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .lg-led { width: 7px; height: 7px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #ec178f; animation: lg-led 2.4s ease-in-out infinite; }
+  @keyframes lg-led { 50% { opacity: .45; } }
+  .lg input { font-family: var(--mono); font-size: 16px; height: 48px; padding: 0 12px; border: 1px solid #7d7c77; border-radius: 6px; outline: none; background: #f7f6f1; color: #111; box-shadow: inset 0 2px 3px rgba(0,0,0,.14); }
+  .lg input:focus { border-color: #111; box-shadow: inset 0 2px 3px rgba(0,0,0,.14), 0 0 0 2px #ec178f; }
+  .lg input.lg-code { font-size: 26px; letter-spacing: .5em; text-align: center; padding-left: .5em; }
+  .lg button[type="submit"] { height: 48px; padding: 0 18px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); }
+  .lg button[type="submit"]:hover:not(:disabled) { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .lg button[type="submit"]:disabled { opacity: 0.5; cursor: default; }
+  .lg-err { margin: 0; font-size: 14px; line-height: 1.45; color: #a3000a; font-weight: 500; }
+  .lg-back { font: inherit; font-size: 14px; font-weight: 500; background: none; border: 0; color: inherit; opacity: .7; cursor: pointer; justify-self: start; padding: 0; }
+  .lg-back:hover { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .lg-box, .lg-led { animation: none; } }
 `;

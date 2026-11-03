@@ -11,11 +11,23 @@ import { setCurrentBrandId } from "../../lib/brand.js";
    whether you're in its team or co-host single events there.
    `onChange` reloads the account (AdminShell). */
 const ROLE = { member: "Medlem", event: "Medarrangör" };
+
+// Main brands with the brands under them right after (migrations/155).
+function brandTree(brands) {
+  const ids = new Set(brands.map((b) => b.id));
+  const kidsOf = (id) => brands.filter((b) => b.parentId === id);
+  return brands
+    .filter((b) => !b.parentId || !ids.has(b.parentId))
+    .flatMap((b) => [{ ...b, depth: 0 }, ...kidsOf(b.id).map((k) => ({ ...k, depth: 1 }))]);
+}
 export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState(null); // null | "new" | "rename"
   const [name, setName] = useState("");
+  const [under, setUnder] = useState("");
+  // Where a new brand can go: under one of your own main brands, or on its own.
+  const mains = brands.filter((b) => (!b.role || b.role === "head") && !b.parentId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const box = useRef(null);
@@ -44,7 +56,7 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
     try {
       const res = await authenticatedFetch(mode === "new" ? "/admin/brands" : `/admin/brands/${active.id}`, {
         method: mode === "new" ? "POST" : "PATCH",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(mode === "new" ? { name, parentId: under || undefined } : { name }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out.message || "Det gick inte att spara.");
@@ -72,6 +84,15 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
             <form onSubmit={save} className="bs-form">
               <label htmlFor="bs-input">{mode === "new" ? "Nytt varumärke" : "Byt namn"}</label>
               <input id="bs-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus placeholder="Namn" />
+              {mode === "new" && mains.length > 0 && (
+                <>
+                  <label htmlFor="bs-under">Under</label>
+                  <select id="bs-under" value={under} onChange={(e) => setUnder(e.target.value)}>
+                    {mains.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    <option value="">Inget, ett eget huvudvarumärke</option>
+                  </select>
+                </>
+              )}
               {error && <p className="bs-err">{error}</p>}
               <div className="bs-row">
                 <button type="button" className="bs-quiet" onClick={() => setMode(null)}>Avbryt</button>
@@ -80,9 +101,9 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
             </form>
           ) : (
             <>
-              {brands.map((b) => (
-                <button key={b.id} type="button" role="menuitemradio" aria-checked={b.id === active.id} className="bs-item" onClick={() => pick(b.id)}>
-                  <span>{b.name}</span>
+              {brandTree(brands).map((b) => (
+                <button key={b.id} type="button" role="menuitemradio" aria-checked={b.id === active.id} className={`bs-item${b.depth ? " is-under" : ""}`} onClick={() => pick(b.id)}>
+                  <span>{b.depth ? <i className="bs-branch" aria-hidden="true">└</i> : null}{b.name}</span>
                   <span className="bs-end">
                     {ROLE[b.role] && <small className="bs-role">{ROLE[b.role]}</small>}
                     {b.id === active.id && <Check size={15} />}
@@ -95,7 +116,7 @@ export function BrandSwitcher({ brands, current, onChange, onSignOut, teamLink }
                   Byt namn på {active.name}
                 </button>
               )}
-              <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(""); setMode("new"); }}>
+              <button type="button" role="menuitem" className="bs-item bs-muted" onClick={() => { setName(""); setUnder(mains.find((b) => b.id === (active.parentId || active.id))?.id || mains[0]?.id || ""); setMode("new"); }}>
                 <span>Nytt varumärke</span>
                 <Plus size={15} />
               </button>
@@ -133,7 +154,10 @@ const CSS = `
   .bs-form { display: grid; gap: 8px; padding: 6px; }
   .bs-form label { font-size: 12px; font-weight: 600; color: #6e6e73; }
   .bs-form input { font: inherit; font-size: 15px; padding: 9px 11px; border: 1px solid rgba(0,0,0,0.16); border-radius: 9px; outline: none; }
-  .bs-form input:focus { border-color: #000; }
+  .bs-form input:focus, .bs-form select:focus { border-color: #000; }
+  .bs-form select { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid rgba(0,0,0,0.16); border-radius: 9px; outline: none; background: #fff; }
+  .ad-bar .bs-item.is-under { padding-left: 14px; }
+  .bs-branch { font-style: normal; color: #b0b0b5; margin-right: 6px; }
   .bs-row { display: flex; justify-content: flex-end; gap: 8px; }
   .ad-bar .bs-go { background: #0a0a0a; color: #fff; padding: 8px 14px; border-radius: 999px; font-weight: 600; }
   .ad-bar .bs-go:hover { color: #fff; }

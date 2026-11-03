@@ -248,12 +248,12 @@ export const listBrandsAction = defineAction({
 export const createBrandAction = defineAction({
   name: "create_brand",
   title: "Add a brand",
-  description: "Add a brand to the account. Its name is what guests see as the organiser and as the sender of its mail. Returns the existing one if the name is taken.",
+  description: "Add a brand to the account. Its name is what guests see as the organiser and as the sender of its mail. Returns the existing one if the name is taken. `under`: put it under one of the account's main brands (by name or id), like Aperol under Nigab; one level deep. A team invited to the main brand works in the brands under it too.",
   access: "user",
   effect: "write",
   idempotent: true,
-  input: z.object({ name: z.string().trim().min(1).max(80) }),
-  run: async ({ name }, { caller }) => ({ brand: await createBrand(caller, name) }),
+  input: z.object({ name: z.string().trim().min(1).max(80), under: z.string().trim().max(80).optional() }),
+  run: async ({ name, under }, { caller }) => ({ brand: await createBrand(caller, name, under) }),
 });
 
 export const renameBrandAction = defineAction({

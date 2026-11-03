@@ -27,7 +27,8 @@ export function cleanBrandName(v) {
   return v.replace(/[\u0000-\u001f\u007f"<>\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
-export const brandShape = (b) => ({ id: b.id, name: b.name, role: b.role || "head" });
+// parentId: the main brand this one sits under (migrations/155), or null.
+export const brandShape = (b) => ({ id: b.id, name: b.name, role: b.role || "head", parentId: b.parent_id ?? b.parentId ?? null });
 
 // May invite and remove people, rename: the head. May create events, see the
 // whole brand and mail it: head and members. An event co-host works on their
@@ -52,7 +53,7 @@ export function pickBrand(brands, requested) {
 export async function listBrands(hostId) {
   const { data, error } = await supabase
     .from("brands")
-    .select("id, name, sort_order, created_at")
+    .select("id, name, sort_order, created_at, parent_id")
     .eq("host_id", hostId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -78,10 +79,17 @@ export async function accessibleBrands(caller) {
   const member = [];
   const memberIds = (members.data || []).map((r) => r.brand_id).filter((id) => !seen.has(id));
   if (memberIds.length) {
-    const { data, error } = await supabase.from("brands").select("id, name, host_id").in("id", memberIds.slice(0, 200)).neq("host_id", caller.hostId);
-    if (error) throw error;
-    for (const b of data || []) {
-      member.push({ id: b.id, name: b.name, hostId: b.host_id, role: "member" });
+    // A member of a main brand works in the brands under it too.
+    const ids = memberIds.slice(0, 200);
+    const [direct, under] = await Promise.all([
+      supabase.from("brands").select("id, name, host_id, parent_id").in("id", ids).neq("host_id", caller.hostId),
+      supabase.from("brands").select("id, name, host_id, parent_id").in("parent_id", ids).neq("host_id", caller.hostId),
+    ]);
+    if (direct.error) throw direct.error;
+    if (under.error) throw under.error;
+    for (const b of [...(direct.data || []), ...(under.data || [])]) {
+      if (seen.has(b.id)) continue;
+      member.push({ id: b.id, name: b.name, hostId: b.host_id, role: "member", parent_id: b.parent_id });
       seen.add(b.id);
     }
   }
@@ -138,17 +146,29 @@ export async function currentBrand(caller) {
   return brand;
 }
 
-export async function createBrand(caller, rawName) {
+// The main brand a new one goes under: one of the account's own top-level
+// brands, by id or name. Null for a brand on its own.
+export function pickParent(brands, under) {
+  const want = typeof under === "string" ? under.trim() : "";
+  if (!want) return null;
+  const parent = brands.find((b) => b.id === want) || brands.find((b) => b.name.toLowerCase() === want.toLowerCase());
+  if (!parent) throw new ActionError("not_found", "No brand of yours with that id or name to put it under.", { detail: "parent" });
+  if (parent.parent_id) throw new ActionError("invalid", "Brands go one level deep: that brand is itself under another.", { detail: "parent" });
+  return parent;
+}
+
+export async function createBrand(caller, rawName, under = null) {
   const name = cleanBrandName(rawName);
   if (!name) throw new ActionError("invalid", "The brand needs a name.", { detail: "name" });
   const brands = await listBrands(caller.hostId);
   if (brands.length >= MAX_BRANDS) throw new ActionError("invalid", `An account can have at most ${MAX_BRANDS} brands.`, { detail: "too_many" });
+  const parent = pickParent(brands, under);
   const same = brands.find((b) => b.name.toLowerCase() === name.toLowerCase());
   if (same) return brandShape(same);
   const { data, error } = await supabase
     .from("brands")
-    .insert({ host_id: caller.hostId, name, sort_order: brands.length })
-    .select("id, name")
+    .insert({ host_id: caller.hostId, name, sort_order: brands.length, parent_id: parent?.id || null })
+    .select("id, name, parent_id")
     .single();
   if (error) throw error;
   caller._brandScope = null;
@@ -167,7 +187,7 @@ export async function renameBrand(caller, id, rawName) {
     .update({ name, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("host_id", caller.hostId)
-    .select("id, name")
+    .select("id, name, parent_id")
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new ActionError("not_found", "No brand with that id.");

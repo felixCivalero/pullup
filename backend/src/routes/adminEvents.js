@@ -48,7 +48,7 @@ export function registerAdminEventRoutes(app) {
     return { brands: brands.map(brandShape), current: brand?.id || null };
   }));
 
-  app.post("/admin/brands", ...handle(async (req) => ({ brand: await createBrand(req.caller, req.body?.name) }), 201));
+  app.post("/admin/brands", ...handle(async (req) => ({ brand: await createBrand(req.caller, req.body?.name, req.body?.parentId) }), 201));
 
   app.patch("/admin/brands/:id", ...handle(async (req) => ({ brand: await renameBrand(req.caller, req.params.id, req.body?.name) })));
 

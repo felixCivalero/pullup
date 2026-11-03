@@ -17,7 +17,8 @@ import { loadEventMedia } from "./adminEventMedia.js";
 import { ActionError, statusFor } from "../lib/actionError.js";
 import { EVENT_HOST_ID } from "../lib/eventPlatform.js";
 import { brandNames } from "../lib/brands.js";
-import { humanCheck, mayConfirm } from "../lib/abuse.js";
+import { humanCheck, mayConfirm, over } from "../lib/abuse.js";
+import { isBotUserAgent } from "../analytics/eventRegistry.js";
 import { userById } from "../agents/oauthProvider.js";
 
 const EVENT_COLUMNS =
@@ -219,6 +220,37 @@ export function registerEventRoutes(app) {
       if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.code });
       console.error("[events] get:", err?.message);
       return res.status(500).json({ error: "failed" });
+    }
+  });
+
+  // A visit to an event page, for the organiser's statistics (lib/eventStats.js):
+  // where it came from (referrer, utm), the device, and the visit id the
+  // sign-up carries too, so a sign-up can be traced to its source. No cookie:
+  // the id is per page load unless the visitor switched the stats cookie on.
+  app.post("/events/:slug/view", async (req, res) => {
+    try {
+      const ua = String(req.get("user-agent") || "");
+      if (isBotUserAgent(ua) || over(`view:${req.ip}`, 120, 3600000)) return res.status(204).end();
+      const ev = await findEvent(req.params.slug);
+      if (!ev) return res.status(204).end();
+      const b = req.body || {};
+      const utm = b.utm && typeof b.utm === "object" ? b.utm : {};
+      const { error } = await supabase.from("event_page_views").insert({
+        event_id: ev.id,
+        visitor_id: clip(b.visitId, 128) || null,
+        referrer: clip(b.referrer, 500) || null,
+        utm_source: clip(utm.source, 120) || null,
+        utm_medium: clip(utm.medium, 120) || null,
+        utm_campaign: clip(utm.campaign, 200) || null,
+        utm_content: clip(utm.content, 200) || null,
+        device_type: /mobi|iphone|android/i.test(ua) ? (/ipad|tablet/i.test(ua) ? "tablet" : "mobile") : "desktop",
+        user_agent: ua.slice(0, 300),
+      });
+      if (error) console.error("[events] view:", error.message);
+      return res.status(204).end();
+    } catch (err) {
+      console.error("[events] view:", err?.message);
+      return res.status(204).end();
     }
   });
 

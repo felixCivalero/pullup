@@ -8,6 +8,8 @@ import { TeamList } from "../../components/admin/Team.jsx";
 import { teamApi } from "../../lib/team.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { AdminShell } from "./AdminShell.jsx";
+import { Breakdown, Daily } from "../../components/admin/Stats.jsx";
+import { STATS_CSS, fmt as num, pct } from "../../components/admin/statsFormat.js";
 import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
 import { CreditsLine, CreditsPaywall } from "../../components/admin/EmailCredits.jsx";
 import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
@@ -75,6 +77,7 @@ export function EventDetailPage() {
               <div><b>{data.guests.filter((g) => g.consent).length}</b><span>vill ha inbjudningar</span></div>
             </div>
             {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
+            <EventStats id={ev.id} />
             <Guests guests={data.guests} ev={ev} onChange={load} />
             <TeamOnly otherwise={<CohostMailNote />}><Compose ev={ev} /></TeamOnly>
             <Cohosts ev={ev} />
@@ -82,6 +85,42 @@ export function EventDetailPage() {
         )}
       </div>
     </AdminShell>
+  );
+}
+
+// How the event page is found and how it fills (backend lib/eventStats.js):
+// visits and visitors, the conversion, where visits and sign-ups came from,
+// new vs returning guests, day by day.
+function EventStats({ id }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    authenticatedFetch(`/admin/events/${id}/stats`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => alive && setSt(d))
+      .catch(() => alive && setSt(false));
+    return () => { alive = false; };
+  }, [id]);
+  if (!st) return null;
+  const t = st.totals;
+  const since = st.countedSince ? new Date(st.countedSince).toLocaleDateString("sv-SE", { day: "numeric", month: "long" }) : null;
+  return (
+    <section className="ed-statsec">
+      <style>{STATS_CSS}</style>
+      <h2>Statistik</h2>
+      <div className="st-tiles">
+        <div><span>Besök</span><b>{num(t.visits)}</b><small>{num(t.visitors)} besökare</small></div>
+        <div><span>Konvertering</span><b>{pct(t.conversion)}</b><small>besökare som anmälde sig</small></div>
+        <div><span>Återkommande</span><b>{num(st.returning)}</b><small>{t.signups ? `${Math.round((st.returning / t.signups) * 100)} % av anmälda` : "har varit på ert event förut"}</small></div>
+        <div><span>Nya gäster</span><b>{num(Math.max(0, t.signups - st.returning))}</b><small>första gången hos er</small></div>
+        <div><span>Mobil</span><b>{t.visits ? `${Math.round(((st.devices.find((d) => d.key === "mobile")?.n || 0) / t.visits) * 100)} %` : "–"}</b><small>av besöken</small></div>
+      </div>
+      <Daily daily={st.daily} />
+      <div className="st-grid">
+        <Breakdown title="Var besöken kom ifrån" rows={st.sources} empty="Inga besök räknade än." note={since ? `Besök räknas sedan ${since}.` : "Besök räknas från och med nu. Dela länken så syns de här."} />
+        <Breakdown title="Var anmälningarna kom ifrån" rows={st.signupSources} empty="Inga anmälningar än." note="Okänd = anmäld innan besök räknades, eller via en AI-assistent." />
+      </div>
+    </section>
   );
 }
 
@@ -318,6 +357,8 @@ const DETAIL_CSS = `
   .ed-back:hover { color: #0a0a0a; }
   .ed-when::first-letter { text-transform: uppercase; }
   .ed-share { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ed-statsec { margin: 30px 0 28px; }
+  .ed-statsec > h2 { margin: 0 0 12px; }
   .ed-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
   .ed-stats > div { border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 12px 14px; display: grid; gap: 2px; }
   .ed-stats b { font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }

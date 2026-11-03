@@ -21,6 +21,7 @@ import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText 
 import { ensureHostProfile } from "../middleware/requireUser.js";
 import { brandNames, brandScope, brandShape, currentBrand, isTeam, listBrands, payerFor } from "../lib/brands.js";
 import { apiBase, eventUrl } from "../lib/urls.js";
+import { brandStats, eventStats } from "../lib/eventStats.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
@@ -561,4 +562,43 @@ export async function listSends(caller) {
     by.set(r.campaign_tag, s);
   }
   return [...by.values()].slice(0, 50);
+}
+
+// ─── Statistics (lib/eventStats.js) ─────────────────────────────────────────
+const VIEW_COLUMNS = "id, event_id, visitor_id, referrer, utm_source, device_type, created_at";
+
+async function viewsFor(ids) {
+  const out = [];
+  const unique = [...new Set(ids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    const chunk = unique.slice(i, i + 100);
+    out.push(...(await selectAllPaged(() => supabase.from("event_page_views").select(VIEW_COLUMNS).in("event_id", chunk).order("created_at", { ascending: true }))));
+  }
+  return out;
+}
+
+// The brand on screen: its events (a main brand: all its brands' events),
+// rolled up, with a row per brand under a main brand.
+export async function statsOverview(caller) {
+  const world = await loadWorld(caller);
+  const views = await viewsFor(world.events.map((e) => e.id));
+  let brands = [];
+  if (!caller.isOwner) {
+    const { brands: all, brand } = await brandScope(caller);
+    const under = brandsUnder(all, brand);
+    if (under.length) brands = [brand, ...under].map(brandShape);
+  }
+  return brandStats({ brands, events: world.events, rsvps: world.rsvps, views, pullups: world.pullups });
+}
+
+// One event's statistics, read in the world of the brand it belongs to (so
+// "returning" means came to that brand before).
+export async function statsForEvent(caller, id) {
+  const ev = await eventFor(caller, id);
+  const scope = caller.isOwner || !ev.brand_id ? caller : { ...caller, requestedBrand: ev.brand_id, _brandScope: null };
+  const world = await loadWorld(scope);
+  const events = world.events.some((e) => e.id === ev.id) ? world.events : [...world.events, ev];
+  const rsvps = world.events.some((e) => e.id === ev.id) ? world.rsvps : [...world.rsvps, ...(await selectIn("rsvps", RSVP_COLUMNS, "event_id", [ev.id]))];
+  const views = await viewsFor([ev.id]);
+  return { event: { id: ev.id, title: ev.title, startsAt: ev.starts_at, status: ev.status }, ...eventStats({ event: ev, events, rsvps, views, pullups: world.pullups }) };
 }

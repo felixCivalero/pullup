@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { eventVisitId } from "../../lib/eventView.js";
 import { Check } from "lucide-react";
 import { API_BASE } from "../../lib/env.js";
 import { Turnstile } from "../Turnstile.jsx";
@@ -33,7 +34,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       const res = await fetch(`${API_BASE}/events/${encodeURIComponent(slug)}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, turnstile }),
+        body: JSON.stringify({ ...form, turnstile, visitId: eventVisitId() }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out.ok) {

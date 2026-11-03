@@ -28,6 +28,7 @@ const NAV = [
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],
+  ["/admin/stats", "Statistik", "brand"], // the owner's own Statistik is /admin; his reads "Eventstatistik"
   ["/admin/team", "Team", "team", "ad-wide"], // phones: in the brand menu
   ["/admin/agents", "Agenter"],
   ["/admin/archi", "Archi", "owner"],
@@ -113,7 +114,7 @@ export function AdminShell({ title, fill = false, children }) {
     under: brandsUnder(brands, picked),
     parent: brands.find((b) => b.id === picked.parentId) || null,
   };
-  const shown = ([, , only]) => (only === "owner" ? owner : only === "team" ? current?.role !== "event" : true);
+  const shown = ([, , only]) => (only === "owner" ? owner : only === "team" || only === "brand" ? current?.role !== "event" : true);
 
   return (
     <ToastProvider>
@@ -121,9 +122,9 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS}</style>
         <header className="ad-bar">
           <nav>
-            {!starting && NAV.filter(shown).map(([to, label, , wide]) => (
+            {!starting && NAV.filter(shown).map(([to, label, only, wide]) => (
               <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [isActive && "is-on", wide].filter(Boolean).join(" ") || undefined}>
-                {label}
+                {owner && only === "brand" ? "Eventstatistik" : label}
               </NavLink>
             ))}
           </nav>

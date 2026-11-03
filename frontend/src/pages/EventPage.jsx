@@ -6,6 +6,7 @@ import { DesktopEventLayout } from "../components/event/DesktopEventLayout.jsx";
 import { SignupForm } from "../components/event/SignupForm.jsx";
 import { DESKTOP_MIN_WIDTH, pageProps } from "../components/event/pageProps.js";
 import { usePageContext } from "../lib/pageContext.js";
+import { recordEventView } from "../lib/eventView.js";
 
 /* /e/:slug — an event as its host designed it in the editor (cover media,
    content blocks, sign-up), on the old app's page components: full-screen
@@ -29,7 +30,11 @@ export function EventPage() {
     let alive = true;
     fetch(`${API_BASE}/events/${encodeURIComponent(slug)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => alive && setData(d))
+      .then((d) => {
+        if (!alive) return;
+        setData(d);
+        recordEventView(d?.event?.slug || slug);
+      })
       .catch(() => alive && setMissing(true));
     return () => { alive = false; };
   }, [slug]);

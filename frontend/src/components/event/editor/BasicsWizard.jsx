@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, MapPin, Network, Sparkles, Type, Users, X } from "lucide-react";
 import { fromZonedInput } from "../../../lib/zonedTime.js";
 import { colors } from "./editorStyles.js";
+import { PlaceField } from "./PlaceField.jsx";
 
 /* The basics, one question at a time (the old app's CreateWizard): name,
    when, where, how many. Every step but the name can be skipped. "Start
@@ -21,7 +22,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
   const choose = brands.length > 1;
   const steps = choose ? [WHOSE, ...STEPS] : STEPS;
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ title: "", start: "", end: "", location: "", capacity: "" });
+  const [f, setF] = useState({ title: "", start: "", end: "", location: "", locationLat: null, locationLng: null, placeId: null, capacity: "" });
   const [whose, setWhose] = useState(brandId || (brands.length === 1 ? brands[0].id : ""));
   const firstRef = useRef(null);
   const cur = steps[step];
@@ -41,6 +42,9 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
       startsAt: fromZonedInput(f.start),
       endsAt: f.end ? fromZonedInput(f.end) : null,
       location: f.location.trim(),
+      locationLat: f.locationLat,
+      locationLng: f.locationLng,
+      placeId: f.placeId,
       capacity: f.capacity ? Number(f.capacity) : null,
     });
   };
@@ -86,7 +90,15 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
             <label><span>Slutar (valfritt)</span><input className="bw-input" type="datetime-local" value={f.end} onChange={set("end")} /></label>
           </div>
         )}
-        {cur.key === "where" && <input className="bw-input" value={f.location} onChange={set("location")} placeholder="Adress eller ställe. Kan avslöjas senare." autoFocus />}
+        {cur.key === "where" && (
+          <PlaceField
+            value={f}
+            onChange={(p) => setF((x) => ({ ...x, ...p }))}
+            inputClassName="bw-input"
+            placeholder="Sök adress eller ställe. Kan avslöjas senare."
+            autoFocus
+          />
+        )}
         {cur.key === "who" && (
           <>
             <input className="bw-input" type="number" min="1" value={f.capacity} onChange={set("capacity")} placeholder="Obegränsat" autoFocus />

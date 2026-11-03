@@ -5,6 +5,7 @@ import { formatReadableDateTime, formatRelativeTime } from "../lib/dateUtils.js"
 import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
 import { Toggle } from "./editorUi.jsx";
 import { useEventBrand } from "../../../lib/brand.js";
+import { PlaceField } from "./PlaceField.jsx";
 
 /* The page body: reorderable content blocks (the old app's sections
    builder, branch pullup-app CreateEventPage step 2). Title, place and time
@@ -104,7 +105,7 @@ export function SectionsPanel({ draft, update, hovered, setHovered }) {
             </>
           ) : section.type === "location" ? (
             <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <input className="ee-input" value={draft.location || ""} onChange={(e) => update({ location: e.target.value })} placeholder="Var är eventet?" />
+              <PlaceField value={draft} onChange={(p) => update(p)} inputClassName="ee-input" placeholder="Var är eventet? Sök adress eller ställe" />
               <Toggle on={!!draft.hideLocation} onChange={(v) => update({ hideLocation: v })} label="Avslöja platsen senare" />
               {draft.hideLocation && (
                 <input className="ee-input" maxLength={80} value={draft.revealHint || ""} onChange={(e) => update({ revealHint: e.target.value })} placeholder="t.ex. Platsen släpps på fredag" />

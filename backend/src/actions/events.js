@@ -12,6 +12,7 @@ import { isValidTimeZone, toUtcIso } from "../lib/zonedTime.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { createEvent, eventFor, eventWithGuests, listEvents, moveEvent, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { loadEventMedia, syncCover } from "../routes/adminEventMedia.js";
+import { geocode } from "../routes/places.js";
 import { brandScope, brandShape, createBrand, payerFor, renameBrand } from "../lib/brands.js";
 import { myInvites } from "../lib/teams.js";
 
@@ -35,6 +36,13 @@ function withLinks(event) {
     ...rest,
     links: { page: event.url, manage: `${getFrontendUrl()}/admin/events/${event.id}`, design: `${getFrontendUrl()}/admin/events/${event.id}/edit` },
   };
+}
+
+// A typed address gets its coordinates (for the map on the page), or none.
+async function placeFor(location) {
+  if (location === undefined) return {};
+  const g = location ? await geocode(location) : null;
+  return { locationLat: g?.lat ?? null, locationLng: g?.lng ?? null, placeId: g?.placeId ?? null };
 }
 
 // The page's design as update_event takes it back.
@@ -158,6 +166,7 @@ export const createEventAction = defineAction({
       ...times,
       timezone: input.timeZone,
       location: input.location,
+      ...(await placeFor(input.location)),
       text: input.description,
       capacity: input.capacity,
     });
@@ -202,6 +211,7 @@ export const updateEventAction = defineAction({
       ...timesToUtc(input, tz),
       timezone: input.timeZone,
       location: input.location,
+      ...(await placeFor(input.location)),
       text: input.description,
       capacity: input.capacity === null ? null : input.capacity,
       sections: input.sections,

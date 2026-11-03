@@ -135,8 +135,8 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     dateRevealHint: ev.date_reveal_hint || "",
     signupSettings: ev.signup_settings || {},
     showCoordinates: !!ev.show_coordinates,
-    locationLat: ev.location_lat ?? null,
-    locationLng: ev.location_lng ?? null,
+    locationLat: ev.location_lat == null ? null : Number(ev.location_lat),
+    locationLng: ev.location_lng == null ? null : Number(ev.location_lng),
   };
 }
 
@@ -149,6 +149,13 @@ export function eventPatch(body) {
     patch.sections = sectionsFor(patch.description);
   }
   if (typeof body.location === "string") patch.location = body.location.trim().slice(0, 300);
+  // The place picked for it (routes/places.js): coordinates for the map, or
+  // null when the address was typed without picking one.
+  for (const [k, col, max] of [["locationLat", "location_lat", 90], ["locationLng", "location_lng", 180]]) {
+    if (body[k] === null) patch[col] = null;
+    else if (Number.isFinite(body[k]) && Math.abs(body[k]) <= max) patch[col] = body[k];
+  }
+  if (body.placeId === null || typeof body.placeId === "string") patch.location_place_id = body.placeId ? body.placeId.slice(0, 300) : null;
   for (const [k, col] of [["startsAt", "starts_at"], ["endsAt", "ends_at"]]) {
     if (body[k] === null || body[k] === "") patch[col] = null;
     else if (typeof body[k] === "string" && !Number.isNaN(Date.parse(body[k]))) patch[col] = new Date(body[k]).toISOString();

@@ -30,7 +30,7 @@ const SAVE_DELAY = 900;
 const PHONE = { w: 390, h: 844 };
 const DESKTOP = { w: 1280, h: 800 };
 // Fields the editor writes (media has its own routes).
-const SAVED = ["title", "startsAt", "endsAt", "location", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity"];
+const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity"];
 
 export function EventCreatePage() {
   return (

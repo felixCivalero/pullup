@@ -29,30 +29,6 @@ const STEPS = [
 ];
 const CHECKED = STEPS.filter((s) => s.key !== "back");
 
-// The AI in the check's headline, one after the other. Each has its crawler in
-// the site check (backend lib/siteCheck.js), so the question stays honest.
-const AIS = ["ChatGPT", "Claude", "Gemini", "Perplexity", "Copilot", "Meta AI"];
-
-function FlipHeadline() {
-  const t = useT();
-  const [at, setAt] = useState(0);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const id = setInterval(() => setAt((i) => (i + 1) % AIS.length), 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  const [before, after] = t("Can ChatGPT find you?").split("ChatGPT");
-  return (
-    <h3>
-      {before}
-      <span className="ho-flip"><span key={AIS[at]}>{AIS[at]}</span></span>
-      {after}
-    </h3>
-  );
-}
-
 function meeting(location) {
   trackEvent("cta_click", { location });
   openRequest({ source: location });
@@ -166,11 +142,9 @@ export function HomePage() {
   const [heroSite, setHeroSite] = useState("");
   const [state, setState] = useState("idle");
   const [result, setResult] = useState(null);
-  const [count, setCount] = useState(null);
   const [popOpen, setPopOpen] = useState(false);
   const [asked, setAsked] = useState("");
   const closePop = useCallback(() => setPopOpen(false), []);
-  const checkRef = useRef(null);
 
   const check = useCallback(async (value, source) => {
     setAsked(String(value).trim().replace(/^https?:\/\//i, "").replace(/\/$/, ""));
@@ -200,10 +174,6 @@ export function HomePage() {
     initTracking();
     trackPageView("landing");
     document.title = HOME_TITLE;
-    fetch(`${API_BASE}/stockholm/events`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.events?.length) setCount(d.events.length); })
-      .catch(() => {});
     const preset = new URLSearchParams(window.location.search).get("site");
     if (!preset) return undefined;
     const id = setTimeout(() => {
@@ -299,16 +269,21 @@ export function HomePage() {
             <button type="submit">{t("Book a meeting")}</button>
           </form>
           <p className="ho-meet-alt">{t("Or email us:")} <MailLink className="ho-mail" /></p>
-        </section>
-
-        <section className="ho-tools" data-pc-section="tools" data-pc-order="5">
-          <h2>{t("Get started with our free tools.")}</h2>
-          <div className="ho-tools-grid">
-            <div className="ho-site" ref={checkRef} id="test">
-              <small>{t("Test your site")}</small>
-              <FlipHeadline />
-              <p>{t("Your next customer asks an AI before they ask Google. See how ready your brand is, in 20 seconds.")}</p>
-              <form onSubmit={(e) => { e.preventDefault(); if (site.trim()) check(site, "home"); }}>
+          {/* The two free tools again, in their grey panels: the page ends on
+              a meeting or on trying something right now. */}
+          <div className="ho-powers ho-meet-tools">
+            <p className="ho-powers-lead">{t("Or start with our free tools")}<span aria-hidden="true">↓</span></p>
+            <form
+              className="ho-power is-site"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!site.trim()) return;
+                trackEvent("cta_click", { location: "home_end_check" });
+                check(site, "home");
+              }}
+            >
+              <PowerHead title="See if AI can find you." kind="scan" />
+              <div className="ho-power-field">
                 <input
                   type="text"
                   inputMode="url"
@@ -320,24 +295,19 @@ export function HomePage() {
                   value={site}
                   onChange={(e) => setSite(e.target.value)}
                 />
-                <button type="submit" disabled={state === "working"}>{state === "working" ? t("Reading…") : t("Check my site")}</button>
-              </form>
-              <small>{t("Free. No sign-up.")}</small>
-            </div>
-            <Link className="ho-tool" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_create" })}>
-              <small>{t("Create an event")}</small>
-              <h3>{t("Your event, ready to share.")}</h3>
-              <p>{t("Event page, sign-ups, confirmations with a calendar invite, waitlist and guest list. Free.")}</p>
-              <span>{t("Create an event")} →</span>
-            </Link>
-            <Link className="ho-tool" to="/stockholm" onClick={() => trackEvent("cta_click", { location: "home_find" })}>
-              <small>{t("Find culture")}</small>
-              <h3>{t("Everything on in Stockholm.")}</h3>
-              <p>{count ? t(`${count} things on right now. Filter for what you like and get it by email every Thursday.`) : t("Music, art and stage in one place. Filter for what you like and get it by email every Thursday.")}</p>
-              <span>{t("See events")} →</span>
+                <button type="submit" disabled={state === "working"}>{state === "working" ? t("Reading…") : t("Test")}</button>
+              </div>
+            </form>
+            <Link className="ho-power is-event" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_end_event" })}>
+              <PowerHead title="Event pages with a CRM." kind="ticket" />
+              <ul className="ho-power-spec">
+                {["Sign-ups", "Guest list", "Mail", "Statistics"].map((x) => <li key={x}>{t(x)}</li>)}
+              </ul>
+              <span className="ho-power-go">{t("Make your event")} <span aria-hidden="true">→</span></span>
             </Link>
           </div>
         </section>
+
 
       </div>
       <CheckPopup open={popOpen} state={state} asked={asked} result={result} errors={ERRORS} onClose={closePop} />
@@ -491,6 +461,9 @@ const HOME_CSS = `
   .ho-meet-form input::placeholder { color: #8a8a8e; }
   .ho-meet-form button { flex: none; height: 52px; padding: 0 clamp(18px, 2.2vw, 26px); border: 0; border-radius: 999px; background: #ec178f; color: #fff; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; transition: background .2s ease; }
   .ho-meet-form button:hover { background: #0a0a0a; }
+  .ho-meet-tools { margin-top: 0; max-width: 980px; color: #fff; }
+  .ho-meet-tools .ho-powers-lead { color: #fff; }
+  .ho-meet .ho-meet-tools .ho-power h2 { margin: 0; font-size: 13.5px; line-height: 1.2; letter-spacing: .02em; font-weight: 700; }
   .ho-meet-alt { margin: 16px 0 clamp(56px, 8vw, 104px); font-size: 15px; line-height: 1.4; color: rgba(255,255,255,.55); }
   .ho-meet-alt .ho-mail, .ho-meet-alt a { font-size: inherit; color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 3px; }
   @media (max-width: 520px) {

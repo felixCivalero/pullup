@@ -1522,4 +1522,5 @@ export const SV = {
   "Statistics": "Statistik",
   "Make your event": "Skapa ditt event",
   "Mail": "Mejl",
+  "Or start with our free tools": "Eller börja med våra gratisverktyg",
 };

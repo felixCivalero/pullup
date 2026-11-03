@@ -9,7 +9,7 @@ import { formatEventTime } from "./lib/dateUtils.js";
 import { formatLocationShort, getGoogleMapsUrl } from "./lib/urlUtils";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { transformedImageUrl } from "./lib/imageUtils";
-import { heroFrame, useCoverAspect } from "./mediaFormat";
+import { fitFor, heroFrame, useCoverAspect } from "./mediaFormat";
 import { formatPrice } from "./lib/money.js";
 
 const CTA_BAR_HEIGHT = 62;
@@ -77,7 +77,7 @@ export function DesktopEventLayout({
 
   // The cover shows the whole image at its own ratio — nothing crops, so nothing
   // to pan.
-  const coverAspect = useCoverAspect(media, imagePreview);
+  const coverAspect = useCoverAspect(media, imagePreview, mediaSettings?.ratio);
   const desktopCrops = false;
 
   const focusDrag = useHeroFocusDrag({
@@ -192,7 +192,7 @@ export function DesktopEventLayout({
   };
   // Whole image, at the hero's own ratio (contain) — no crop, no bars, no blur.
   const desktopMediaSettings = useMemo(
-    () => ({ ...(mediaSettings || {}), fit: "contain" }),
+    () => ({ ...(mediaSettings || {}), fit: fitFor(mediaSettings) }),
     [mediaSettings],
   );
 

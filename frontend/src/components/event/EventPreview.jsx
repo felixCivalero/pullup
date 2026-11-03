@@ -11,7 +11,7 @@ import { EventCTA, getCtaLabel, EVENT_CTA_HEIGHT } from "./EventCTA";
 import { useHeroFocusDrag } from "./useHeroFocusDrag";
 import { formatPrice } from "./lib/money.js";
 import { transformedImageUrl } from "./lib/imageUtils";
-import { heroFrame, useCoverAspect } from "./mediaFormat";
+import { heroFrame, useCoverAspect, fitFor } from "./mediaFormat";
 
 const CTA_BAR_HEIGHT = 62;
 
@@ -95,7 +95,7 @@ export function EventPreview({
   // Cover: the hero takes the image's OWN aspect ratio (reserved up front from
   // the stored/measured ratio) and shows the whole image with object-fit:contain
   // — no crop, no bars, no blur. Nothing crops, so there's nothing to pan.
-  const coverAspect = useCoverAspect(media, imagePreview);
+  const coverAspect = useCoverAspect(media, imagePreview, mediaSettings?.ratio);
   const heroFrameStyle = heroFrame(coverAspect, "phone");
   const phoneCrops = false;
   const focusDrag = useHeroFocusDrag({
@@ -287,7 +287,7 @@ export function EventPreview({
               // it's never cropped and there are no bars to fill.
               const phoneMediaSettings = {
                 ...(mediaSettings || {}),
-                fit: "contain",
+                fit: fitFor(mediaSettings),
               };
               if (media && media.length > 0) {
                 return (

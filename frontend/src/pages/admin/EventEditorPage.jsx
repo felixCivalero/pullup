@@ -200,7 +200,7 @@ function Editor() {
   const saveLabel = { saved: "Sparat", dirty: "Ändrat…", saving: "Sparar…", error: "Kunde inte spara" }[saveState];
 
   return (
-    <div className={`ed2${stage ? " is-stage" : ""}`}>
+    <div className={`ed2${stage ? " is-stage" : ""}${draft.media?.length ? " has-media" : ""}`}>
       <style>{EDITOR_CSS + PAGE_CSS}</style>
       {stage && (
         <header className="ed2-stagebar">
@@ -244,9 +244,8 @@ function Editor() {
 
       {/* The media: on the stage a panel beside the page; elsewhere kept
           mounted (the page's own drop zone uploads through it). */}
-      <div className="ed2-media" style={{ display: stage ? "block" : "none" }}>
-        <p className="ed2-media-head">Bild, karusell eller video</p>
-        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} />
+      <div style={{ display: stage ? "contents" : "none" }}>
+        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage />
       </div>
 
       <Canvas device={device} setDevice={setDevice} sizeId={sizes[device]} setSize={(id) => setSizes((x) => ({ ...x, [device]: id }))}>
@@ -330,14 +329,12 @@ const PAGE_CSS = `
   .ed2-steps button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border: 1px solid transparent; border-radius: 8px; background: none; color: ${colors.textSubtle}; cursor: pointer; }
   .ed2-steps button small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; opacity: .6; margin-right: 3px; }
   .ed2-steps button.is-on { color: ${colors.text}; border-color: ${colors.borderStrong}; background: ${colors.surfaceMuted}; }
-  .ed2-media { position: absolute; z-index: 5; left: 18px; top: 74px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid ${colors.borderStrong}; border-radius: 12px; box-shadow: 3px 3px 0 rgba(0,0,0,.06), 0 20px 50px -24px rgba(0,0,0,.35); }
-  .ed2-media-head { margin: 0 0 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: ${colors.textSubtle}; }
-  @media (min-width: 1101px) { .ed2.is-stage .ed2-canvas { padding-left: 330px; } }
+  @media (min-width: 1101px) { .ed2.is-stage.has-media .ed2-canvas { padding-left: 330px; } }
   .ed2-sizes { display: inline-flex; gap: 4px; margin-left: 10px; padding-left: 10px; border-left: 1px solid ${colors.border}; flex-wrap: wrap; }
   .ed2-sizes button { padding: 6px 10px !important; font-size: 12px !important; }
   .ed2-sizes button small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; opacity: .6; margin-left: 3px; }
   .ed2-sizes button.is-on { background: ${colors.surfaceMuted} !important; color: ${colors.text} !important; border-color: ${colors.text} !important; }
-  @media (max-width: 1100px) { .ed2.is-stage .ed2-media { position: static; width: auto; max-height: none; margin: 12px; } .ed2.is-stage { grid-template-rows: auto auto minmax(70vh, 1fr); overflow-y: auto; } }
+  @media (max-width: 1100px) { .ed2.is-stage { grid-template-rows: auto auto minmax(70vh, 1fr); overflow-y: auto; } }
   .ed2-rail { display: flex; flex-direction: column; min-height: 0; background: #fff; border-right: 1px solid ${colors.border}; }
   .ed2-head { padding: 14px 16px 12px; border-bottom: 1px solid ${colors.border}; display: grid; gap: 10px; }
   .ed2-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: ${colors.textSubtle}; text-decoration: none; }

@@ -173,8 +173,6 @@ export const ADMIN_SKIN = `
   .ad .ed2-devices button { border-radius: 6px; border-color: var(--line); background: linear-gradient(180deg, #fbfaf7, #e9e8e3); font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
   .ad .ed2-devices button.is-on { background: #0d0d0d; color: #f2f1ec; border-color: #000; }
   .ad .ed2-sizes { border-left-color: var(--line); }
-  .ad .ed2-media { border-color: var(--line); border-radius: 10px; padding-top: 0; box-shadow: 4px 4px 0 rgba(0,0,0,.08), 0 20px 50px -24px rgba(0,0,0,.35); }
-  .ad .ed2-media-head { margin: 0 -12px 12px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; color: #3a3935; }
   .ad .ed2-frame.is-phone { box-shadow: 0 0 0 1px #000, 6px 6px 0 rgba(0,0,0,.12), 0 30px 80px rgba(0,0,0,.25); }
   .ad .ed2-frame.is-desktop { box-shadow: 0 0 0 1px #000, 6px 6px 0 rgba(0,0,0,.12), 0 30px 80px rgba(0,0,0,.25); }
 

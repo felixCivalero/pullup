@@ -16,7 +16,12 @@ import { colors } from "./editorStyles.js";
 const MAX_IMAGES = 10;
 const TRANSITIONS = [["slide", "Glid"], ["fade", "Tona"], ["zoom", "Zoom"], ["pixelate", "Pixel"]];
 
-export function CoverPanel({ draft, setMedia, update, toast, filesRef }) {
+const FORMATS = [["", "Original"], ["4:5", "4:5"], ["1:1", "1:1"], ["9:16", "9:16"], ["16:9", "16:9"]];
+const FOCUS = [0, 50, 100];
+
+// stage: the design stage, where media is dropped on the page itself — no
+// drop zone here, and nothing at all until there's media to adjust.
+export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = false }) {
   const media = draft.media || [];
   const ms = draft.mediaSettings || {};
   const [busy, setBusy] = useState({}); // localId → percent
@@ -88,9 +93,12 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef }) {
 
   const images = media.filter((m) => m.mediaType !== "video");
   const pending = Object.values(busy);
+  const fileInput = <input ref={inputRef} type="file" hidden multiple accept="image/*,video/mp4,video/quicktime,video/webm" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />;
+  if (stage && !media.length && !pending.length) return fileInput;
   return (
-    <div className="ee-panel">
-      <div
+    <div className={`ee-panel${stage ? " cp-stage" : ""}`}>
+      {stage && <p className="cp-stage-head">Justera media</p>}
+      {stage ? fileInput : <div
         className={`cp-drop${over ? " is-over" : ""}`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -100,8 +108,8 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef }) {
         <ImagePlus size={22} />
         <b>{media.length ? "Lägg till fler" : "Lägg till bild, gif eller video"}</b>
         <span>Släpp filer här eller klicka. En bild, en karusell på upp till {MAX_IMAGES}, eller en video.</span>
-        <input ref={inputRef} type="file" hidden multiple accept="image/*,video/mp4,video/quicktime,video/webm" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-      </div>
+        {fileInput}
+      </div>}
 
       {(media.length > 0 || pending.length > 0) && (
         <div className="cp-grid">
@@ -133,6 +141,34 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef }) {
               <i style={{ width: `${pct}%` }} />
             </div>
           ))}
+          {stage && !isVideo && images.length < MAX_IMAGES && (
+            <button type="button" className="cp-item cp-more" onClick={() => inputRef.current?.click()}><ImagePlus size={18} /><span>Lägg till</span></button>
+          )}
+        </div>
+      )}
+
+      {media.length > 0 && (
+        <div className="ee-panel cp-settings">
+          <p className="ee-section-title">Format</p>
+          <div className="cp-seg" role="radiogroup" aria-label="Format">
+            {FORMATS.map(([k, l]) => (
+              <button key={l} type="button" role="radio" aria-checked={(ms.ratio || "") === k} className={(ms.ratio || "") === k ? "is-on" : ""} onClick={() => setMs({ ratio: k || null })}>
+                {k && <i style={{ aspectRatio: k.replace(":", "/") }} />}{l}
+              </button>
+            ))}
+          </div>
+          {ms.ratio ? (
+            <div className="cp-focus-row">
+              <span>Fokus</span>
+              <div className="cp-focus" role="radiogroup" aria-label="Fokus">
+                {FOCUS.map((y) => FOCUS.map((x) => {
+                  const on = (ms.focusX ?? 50) === x && (ms.focusY ?? 50) === y;
+                  return <button key={`${x}-${y}`} type="button" role="radio" aria-checked={on} className={on ? "is-on" : ""} onClick={() => setMs({ focusX: x, focusY: y })} aria-label={`Fokus ${x}% ${y}%`} />;
+                }))}
+              </div>
+              <small>Vilken del av bilden som syns när formatet beskär.</small>
+            </div>
+          ) : <p className="cp-note">Original visar hela bilden i sitt eget format.</p>}
         </div>
       )}
 
@@ -196,4 +232,21 @@ const COVER_CSS = `
   .cp-actions button { display: grid; place-items: center; width: 26px; height: 22px; border: 0; border-radius: 6px; background: rgba(255,255,255,0.9); color: #0a0a0a; cursor: pointer; font-size: 10px; }
   .cp-actions button:disabled { opacity: 0.35; cursor: default; }
   .cp-settings { padding: 12px 14px; border: 1px solid ${colors.border}; border-radius: 12px; background: #fff; }
+  .cp-more { all: unset; box-sizing: border-box; position: relative; aspect-ratio: 1; display: grid; place-items: center; align-content: center; gap: 4px; border: 1.5px dashed ${colors.borderStrong}; border-radius: 8px; color: ${colors.textSubtle}; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .cp-more:hover { border-color: #ec178f; color: #0a0a0a; }
+  .cp-seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 3px; border: 1px solid #b9b8b3; border-radius: 7px; background: linear-gradient(180deg, #efeee9, #e1e0db); }
+  .cp-seg button { display: grid; justify-items: center; align-content: center; gap: 3px; height: 46px; border: 0; border-radius: 5px; background: none; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #4a4945; }
+  .cp-seg button i { display: block; height: 16px; max-width: 26px; border: 1.5px solid currentColor; border-radius: 2px; }
+  .cp-seg button.is-on { background: #0d0d0d; color: #f2f1ec; }
+  .cp-focus-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 10px; }
+  .cp-focus-row > span { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #4a4945; }
+  .cp-focus-row small { font-size: 11.5px; color: ${colors.textSubtle}; line-height: 1.35; }
+  .cp-focus { display: grid; grid-template-columns: repeat(3, 16px); gap: 3px; padding: 4px; border: 1px solid #b9b8b3; border-radius: 6px; background: #fbfaf7; }
+  .cp-focus button { width: 16px; height: 16px; border: 1px solid #c9c8c3; border-radius: 3px; background: #fff; cursor: pointer; padding: 0; }
+  .cp-focus button.is-on { background: #ec178f; border-color: #b80f6f; box-shadow: 0 0 5px rgba(236,23,143,.6); }
+  .cp-note { margin: 0; font-size: 12px; color: ${colors.textSubtle}; }
+  .cp-stage-head { margin: -12px -12px 2px; padding: 8px 12px; background: linear-gradient(180deg, #ecebe6, #d9d8d3); border-bottom: 1px solid #9b9a95; border-radius: 10px 10px 0 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #3a3935; }
+  .cp-stage { position: absolute; z-index: 5; left: 18px; top: 74px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid #9b9a95; border-radius: 10px; box-shadow: 4px 4px 0 rgba(0,0,0,.08), 0 20px 50px -24px rgba(0,0,0,.35); animation: cp-in .3s ease both; }
+  @keyframes cp-in { from { opacity: 0; transform: translateX(-8px); } }
+  @media (max-width: 1100px) { .cp-stage { position: static; width: auto; max-height: none; margin: 12px; } }
 `;

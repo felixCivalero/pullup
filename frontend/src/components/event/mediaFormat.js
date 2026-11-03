@@ -93,8 +93,17 @@ export function useMediaAspect(media, imagePreview, skip = false) {
 
 // Resolve the cover aspect: stored dimensions first (known before paint, no
 // reflow), else the measured value, else null (caller clamps to the default).
-export function useCoverAspect(media, imagePreview) {
+// A format the organiser picked (mediaSettings.ratio) instead of the image's
+// own: the hero takes that box and the media fills it (cover), framed by the
+// focus point (mediaSettings.focusX / focusY).
+export const RATIOS = { "4:5": 4 / 5, "1:1": 1, "9:16": 9 / 16, "16:9": 16 / 9 };
+
+export function useCoverAspect(media, imagePreview, ratio = null) {
   const stored = storedAspect(media);
-  const measured = useMediaAspect(media, imagePreview, stored != null);
-  return stored ?? measured;
+  const measured = useMediaAspect(media, imagePreview, stored != null || !!RATIOS[ratio]);
+  return RATIOS[ratio] ?? stored ?? measured;
 }
+
+// How the media sits in the hero: whole (contain) at its own ratio, or filling
+// a picked format (cover) around the focus point.
+export const fitFor = (mediaSettings) => (RATIOS[mediaSettings?.ratio] ? "cover" : "contain");

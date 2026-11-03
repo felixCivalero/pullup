@@ -259,8 +259,23 @@ function Guests({ guests, ev, onChange }) {
     await authenticatedFetch(`/admin/rsvps/${g.rsvpId}`, { method: "PATCH", body: JSON.stringify(body) });
     onChange();
   };
+  // The sign-up's own fields, as columns: only what this event asks (or
+  // what someone answered before a question was removed).
+  const form = ev.form || { phone: "off", instagram: "off", plusOnes: 0, questions: [] };
+  const hasPhone = form.phone !== "off" || guests.some((g) => g.phone);
+  const hasIg = form.instagram !== "off" || guests.some((g) => g.instagram);
+  const hasPlus = form.plusOnes > 0 || guests.some((g) => g.plusOnes);
+  const qs = form.questions || [];
+  const answer = (g, q) => { const v = g.answers?.[q.id]; return v === true ? "Ja" : v || ""; };
   const exportCsv = () => {
-    const rows = [["Namn", "E-post", "Status", "Kom", "Anmäld", "Vill ha inbjudningar"], ...guests.map((g) => [g.name, g.email, STATUS_SV[g.status] || g.status, g.pulledUp ? "ja" : "", g.signedUpAt?.slice(0, 16).replace("T", " "), g.consent ? "ja" : ""])];
+    const head = ["Namn", "E-post", ...(hasPhone ? ["Telefon"] : []), ...(hasIg ? ["Instagram"] : []), ...(hasPlus ? ["Tar med", "Antal totalt"] : []), ...qs.map((q) => q.label), "Status", "Kom", "Anmäld", "Vill ha inbjudningar"];
+    const rows = [head, ...guests.map((g) => [
+      g.name, g.email,
+      ...(hasPhone ? [g.phone] : []), ...(hasIg ? [g.instagram ? `@${g.instagram}` : ""] : []),
+      ...(hasPlus ? [g.plusOnes || 0, g.party || 1] : []),
+      ...qs.map((q) => answer(g, q)),
+      STATUS_SV[g.status] || g.status, g.pulledUp ? "ja" : "", g.signedUpAt?.slice(0, 16).replace("T", " "), g.consent ? "ja" : "",
+    ])];
     const blob = new Blob(["﻿" + csv(rows)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -283,12 +298,16 @@ function Guests({ guests, ev, onChange }) {
       {shown.length ? (
         <div className="ea-wrap">
           <table className="ea-table">
-            <thead><tr><th>Namn</th><th>E-post</th><th>Status</th><th>Kom</th><th>Anmäld</th><th title="Vill ha inbjudningar">Inbj.</th></tr></thead>
+            <thead><tr><th>Namn</th><th>E-post</th>{hasPhone && <th>Telefon</th>}{hasIg && <th>Instagram</th>}{hasPlus && <th className="num" title="Gäster de tar med">+</th>}{qs.map((q) => <th key={q.id} className="ed-qcol" title={q.label}>{q.label}</th>)}<th>Status</th><th>Kom</th><th>Anmäld</th><th title="Vill ha inbjudningar">Inbj.</th></tr></thead>
             <tbody>
               {shown.map((g) => (
                 <tr key={g.rsvpId}>
                   <td>{g.name || "–"}</td>
                   <td>{g.email}</td>
+                  {hasPhone && <td className="ea-nowrap">{g.phone ? <a href={`tel:${g.phone}`}>{g.phone}</a> : "–"}</td>}
+                  {hasIg && <td>{g.instagram ? <a href={`https://instagram.com/${g.instagram}`} target="_blank" rel="noopener noreferrer">@{g.instagram}</a> : "–"}</td>}
+                  {hasPlus && <td className="num">{g.plusOnes ? `+${g.plusOnes}` : "–"}</td>}
+                  {qs.map((q) => <td key={q.id} className="ed-qcol" title={answer(g, q)}>{answer(g, q) || "–"}</td>)}
                   <td>
                     <select className="ed-status" value={g.status} onChange={(e) => patch(g, { status: e.target.value })}>
                       {Object.entries(STATUS_SV).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -407,6 +426,8 @@ const DETAIL_CSS = `
   .ed-when::first-letter { text-transform: uppercase; }
   .ed-share { display: flex; gap: 8px; flex-wrap: wrap; }
   .ed-statsec { margin: 30px 0 28px; }
+  .ed-qcol { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ea-nowrap { white-space: nowrap; }
   .ed-move { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: #f6f5f2; font-size: 13.5px; }
   .ed-move p { flex: 1 1 260px; margin: 0; color: #3a3a3c; }
   .ed-move select { width: auto; min-width: 160px; padding: 7px 10px; font-size: 13.5px; }

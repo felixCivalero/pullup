@@ -22,13 +22,14 @@ import { ensureHostProfile } from "../middleware/requireUser.js";
 import { brandNames, brandScope, brandShape, currentBrand, isTeam, listBrands, payerFor } from "../lib/brands.js";
 import { apiBase, eventUrl } from "../lib/urls.js";
 import { brandStats, eventStats } from "../lib/eventStats.js";
+import { FORM_COLUMNS, answersByLabel, formOf, formPatch } from "../lib/eventForm.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
-  "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
+  "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
-const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in, visitor_id";
+const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in, visitor_id, plus_ones, party_size, custom_answers";
 
 const ofKindEvent = (q) => q.or("kind.is.null,kind.eq.event");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -134,6 +135,7 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     revealHint: ev.reveal_hint || "",
     dateRevealHint: ev.date_reveal_hint || "",
     signupSettings: ev.signup_settings || {},
+    form: formOf(ev),
     showCoordinates: !!ev.show_coordinates,
     locationLat: ev.location_lat == null ? null : Number(ev.location_lat),
     locationLng: ev.location_lng == null ? null : Number(ev.location_lng),
@@ -176,6 +178,8 @@ export function eventPatch(body) {
   }
   if (body.mediaSettings && typeof body.mediaSettings === "object" && JSON.stringify(body.mediaSettings).length < 4000) patch.media_settings = body.mediaSettings;
   if (body.titleSettings && typeof body.titleSettings === "object" && JSON.stringify(body.titleSettings).length < 2000) patch.title_settings = body.titleSettings;
+  // The sign-up's fields and questions (lib/eventForm.js).
+  Object.assign(patch, formPatch(body.form));
   if (body.signupSettings && typeof body.signupSettings === "object") {
     const s = body.signupSettings;
     patch.signup_settings = { hidden: !!s.hidden, label: typeof s.label === "string" ? s.label.slice(0, 80) : "", cta: typeof s.cta === "string" ? s.cta.slice(0, 40) : "" };
@@ -193,9 +197,11 @@ function countsByEvent(rsvps) {
   const counts = new Map();
   for (const r of rsvps) {
     const c = counts.get(r.event_id) || { attending: 0, waitlist: 0, pulledUp: 0 };
-    if (r.status === "attending") c.attending += 1;
-    if (r.status === "waitlist") c.waitlist += 1;
-    if (r.pulled_up) c.pulledUp += 1;
+    // Heads: a sign-up counts with the guests it brings.
+    const n = Math.max(1, Number(r.party_size) || 1);
+    if (r.status === "attending") c.attending += n;
+    if (r.status === "waitlist") c.waitlist += n;
+    if (r.pulled_up) c.pulledUp += n;
     counts.set(r.event_id, c);
   }
   return counts;
@@ -297,6 +303,8 @@ export async function createEvent(caller, body) {
     timezone: "Europe/Stockholm",
     created_via: caller.via === "agent" ? "agent" : "create",
     require_email: true,
+    collect_phone: false,
+    collect_instagram: false,
     sections: sectionsFor(patch.description || ""),
     ...patch,
   };
@@ -359,13 +367,20 @@ export async function eventWithGuests(caller, id) {
       // Wants to hear about future events: the owner's list is PullUp-wide
       // consent, an organiser's is the yes given on a sign-up to them.
       consent: !!(caller.isOwner ? p.marketing_consent : r.marketing_opt_in) && !p.marketing_unsubscribed_at && !p.do_not_contact,
+      // What the sign-up asked for (lib/eventForm.js): contact, guests
+      // brought along, the answers by question id (labels: event.form).
+      phone: p.anonymized_at ? "" : p.phone_e164 || p.phone || "",
+      instagram: p.anonymized_at ? "" : p.instagram || "",
+      plusOnes: Number(r.plus_ones) || 0,
+      party: Math.max(1, Number(r.party_size) || 1),
+      answers: p.anonymized_at ? {} : r.custom_answers || {},
     };
   });
   const counts = { attending: 0, waitlist: 0, pulledUp: 0 };
   for (const g of guests) {
-    if (g.status === "attending") counts.attending += 1;
-    if (g.status === "waitlist") counts.waitlist += 1;
-    if (g.pulledUp) counts.pulledUp += 1;
+    if (g.status === "attending") counts.attending += g.party;
+    if (g.status === "waitlist") counts.waitlist += g.party;
+    if (g.pulledUp) counts.pulledUp += g.party;
   }
   return { event: eventShape(ev, caller, counts), guests };
 }
@@ -397,7 +412,11 @@ export async function updateGuest(caller, rsvpId, { status, pulledUp } = {}) {
 export async function listPeople(caller) {
   const world = await loadWorld(caller);
   return {
-    people: summarizePeople(world),
+    // Answers carry their question's label, so the CRM and its export read them.
+    people: summarizePeople(world).map((p) => ({
+      ...p,
+      answers: p.answers.map((a) => ({ eventId: a.eventId, answers: answersByLabel(formOf(world.events.find((e) => e.id === a.eventId) || {}), a.answers) })),
+    })),
     events: world.events.map((e) => ({ id: e.id, title: e.title, startsAt: e.starts_at, mine: e.host_id === caller.hostId, brandId: e.brand_id || null })),
   };
 }

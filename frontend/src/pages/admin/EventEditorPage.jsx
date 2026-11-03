@@ -21,16 +21,18 @@ import { EDITOR_CSS, colors } from "../../components/event/editor/editorStyles.j
    (phone or desktop), point at a part of the preview to edit it. Saves itself
    a moment after each change; Publish makes /e/:slug live. */
 
+// The design flow, in order: the look first, then the words and embeds;
+// the sign-up was set when the event was made and is tuned here.
 const TABS = [
-  { id: "cover", label: "Omslag", icon: ImageIcon },
-  { id: "content", label: "Innehåll", icon: Type },
-  { id: "signup", label: "Anmälan", icon: ClipboardList },
+  { id: "cover", label: "Design", icon: ImageIcon, step: "01", next: "content" },
+  { id: "content", label: "Innehåll", icon: Type, step: "02", next: "signup" },
+  { id: "signup", label: "Anmälan", icon: ClipboardList, step: "03" },
 ];
 const SAVE_DELAY = 900;
 const PHONE = { w: 390, h: 844 };
 const DESKTOP = { w: 1280, h: 800 };
 // Fields the editor writes (media has its own routes).
-const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity"];
+const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity", "form"];
 
 export function EventCreatePage() {
   return (
@@ -173,7 +175,7 @@ function Editor() {
   }
 
   const live = draft.status === "PUBLISHED";
-  const rsvpContent = () => <SignupForm preview slug={draft.slug} cta={draft.signupSettings?.cta || null} />;
+  const rsvpContent = () => <SignupForm preview slug={draft.slug} cta={draft.signupSettings?.cta || null} form={draft.form} />;
   const props = pageProps({ ...draft, text: "" }, { rsvpContent });
 
   return (
@@ -196,7 +198,7 @@ function Editor() {
         <nav className="ed2-tabs">
           {TABS.map((t) => (
             <button key={t.id} type="button" className={tab === t.id ? "is-on" : ""} onClick={() => setTab(t.id)}>
-              <t.icon size={15} /> {t.label}
+              <small>{t.step}</small> <t.icon size={15} /> {t.label}
             </button>
           ))}
         </nav>
@@ -206,6 +208,7 @@ function Editor() {
           </div>
           {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} />}
           {tab === "signup" && <SignupPanel draft={draft} update={update} />}
+          <StepFoot tab={tab} setTab={(t) => { setTab(t); railRef.current?.scrollTo({ top: 0 }); }} live={live} publish={publish} eventId={draft.id} />
         </div>
       </aside>
 
@@ -214,6 +217,24 @@ function Editor() {
           ? <EventPreview {...props} compact hoveredSection={hovered} onEditPart={onEditPart} onCoverFiles={(files) => filesRef.current?.(files)} />
           : <DesktopEventLayout {...props} hoveredSection={hovered} onCoverFiles={(files) => filesRef.current?.(files)} />}
       </Canvas>
+    </div>
+  );
+}
+
+// Under each step: on to the next one; at the end, live.
+function StepFoot({ tab, setTab, live, publish, eventId }) {
+  const t = TABS.find((x) => x.id === tab);
+  const next = TABS.find((x) => x.id === t?.next);
+  return (
+    <div className="ed2-foot">
+      {next ? (
+        <button type="button" className="ed2-btn is-dark" onClick={() => setTab(next.id)}>Nästa: {next.label} →</button>
+      ) : live ? (
+        <Link className="ed2-btn is-dark" to={`/admin/events/${eventId}`}>Klar, till eventet →</Link>
+      ) : (
+        <button type="button" className="ed2-btn is-dark" onClick={() => publish("PUBLISHED")}>Klar, publicera →</button>
+      )}
+      <span>Allt sparas medan du jobbar.</span>
     </div>
   );
 }
@@ -254,6 +275,9 @@ function Canvas({ device, setDevice, children }) {
 }
 
 const PAGE_CSS = `
+  .ed2-tabs small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; opacity: .55; }
+  .ed2-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 22px 0 8px; padding-top: 16px; border-top: 1px dashed ${colors.border}; }
+  .ed2-foot span { font-size: 12px; color: ${colors.textSubtle}; }
   .ed2 { height: 100%; display: grid; grid-template-columns: 420px minmax(0, 1fr); min-height: 0; background: ${colors.surfaceMuted}; }
   .ed2-rail { display: flex; flex-direction: column; min-height: 0; background: #fff; border-right: 1px solid ${colors.border}; }
   .ed2-head { padding: 14px 16px 12px; border-bottom: 1px solid ${colors.border}; display: grid; gap: 10px; }

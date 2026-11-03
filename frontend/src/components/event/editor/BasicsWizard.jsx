@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, MapPin, Network, Sparkles, 
 import { fromZonedInput } from "../../../lib/zonedTime.js";
 import { colors } from "./editorStyles.js";
 import { PlaceField } from "./PlaceField.jsx";
+import { FormBuilder } from "./FormBuilder.jsx";
 
 /* The basics, one question at a time (the old app's CreateWizard): name,
    when, where, how many. Every step but the name can be skipped. "Start
@@ -15,14 +16,14 @@ const STEPS = [
   { key: "name", icon: Type, eyebrow: "Grunderna", q: "Vad heter eventet?" },
   { key: "when", icon: CalendarDays, eyebrow: "Grunderna", q: "När är det?" },
   { key: "where", icon: MapPin, eyebrow: "Grunderna", q: "Var är det?" },
-  { key: "who", icon: Users, eyebrow: "Anmälan", q: "Hur många får plats?" },
+  { key: "who", icon: Users, eyebrow: "Anmälan", q: "Vem kommer, och vad vill ni veta?" },
 ];
 
 export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], root = "", brandId = "" }) {
   const choose = brands.length > 1;
   const steps = choose ? [WHOSE, ...STEPS] : STEPS;
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ title: "", start: "", end: "", location: "", locationLat: null, locationLng: null, placeId: null, capacity: "" });
+  const [f, setF] = useState({ title: "", start: "", end: "", location: "", locationLat: null, locationLng: null, placeId: null, capacity: "", form: { phone: "off", instagram: "off", plusOnes: 0, questions: [] } });
   const [whose, setWhose] = useState(brandId || (brands.length === 1 ? brands[0].id : ""));
   const firstRef = useRef(null);
   const cur = steps[step];
@@ -46,13 +47,19 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
       locationLng: f.locationLng,
       placeId: f.placeId,
       capacity: f.capacity ? Number(f.capacity) : null,
+      form: f.form,
     });
   };
 
   return (
     <div className="bw-bg">
       <style>{CSS}</style>
-      <form className="bw" onSubmit={(e) => { e.preventDefault(); next(); }}>
+      <form
+        className={`bw${cur.key === "who" ? " is-wide" : ""}`}
+        onSubmit={(e) => { e.preventDefault(); next(); }}
+        // Enter while writing a question doesn't create the event.
+        onKeyDown={(e) => { if (e.key === "Enter" && cur.key === "who" && e.target.tagName === "INPUT") e.preventDefault(); }}
+      >
         <button type="button" className="bw-close" onClick={onCancel} aria-label="Avbryt"><X size={18} /></button>
         <div className="bw-dots">{steps.map((s, i) => <i key={s.key} className={i <= step ? "is-on" : ""} />)}</div>
         <p className="bw-eyebrow"><cur.icon size={14} /> {cur.eyebrow}{brands.length > 0 && cur.key !== "whose" && whoseName ? <span className="bw-for">· {whoseName}</span> : null}</p>
@@ -101,8 +108,13 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
         )}
         {cur.key === "who" && (
           <>
-            <input className="bw-input" type="number" min="1" value={f.capacity} onChange={set("capacity")} placeholder="Obegränsat" autoFocus />
-            <p className="bw-hint">Gästerna anmäler sig med namn och e-post. När det är fullt hamnar nya på väntelistan.</p>
+            <FormBuilder
+              form={f.form}
+              onChange={(form) => setF((x) => ({ ...x, form }))}
+              capacity={f.capacity === "" ? null : Number(f.capacity)}
+              onCapacity={(v) => setF((x) => ({ ...x, capacity: v == null ? "" : String(v) }))}
+            />
+            <p className="bw-hint">Gästerna anmäler sig alltid med namn och e-post. När det är fullt hamnar nya på väntelistan, och de som tas med räknas som platser.</p>
           </>
         )}
         {error && <p className="bw-error">{error}</p>}
@@ -112,7 +124,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
           <div style={{ display: "flex", gap: 8 }}>
             {skippable && !last && <button type="button" className="bw-skip" onClick={() => setStep(step + 1)}>Hoppa över</button>}
             <button type="submit" className="bw-next" disabled={!canNext || busy}>
-              {last ? (busy ? "Skapar…" : <><Sparkles size={16} /> Börja designa</>) : <>Nästa <ArrowRight size={16} /></>}
+              {last ? (busy ? "Skapar…" : <><Sparkles size={16} /> Vidare till design</>) : <>Nästa <ArrowRight size={16} /></>}
             </button>
           </div>
         </div>
@@ -124,6 +136,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
 const CSS = `
   .bw-bg { min-height: calc(100dvh - 56px); display: grid; place-items: center; padding: 24px 16px; box-sizing: border-box; background: ${colors.surfaceMuted}; }
   .bw { position: relative; width: min(520px, 100%); background: #fff; border-radius: 22px; padding: 28px 26px 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.08); display: grid; gap: 14px; }
+  .bw.is-wide { width: min(640px, 100%); }
   .bw-close { position: absolute; top: 16px; right: 14px; border: 0; background: none; cursor: pointer; color: ${colors.textSubtle}; }
   .bw-dots { display: flex; gap: 6px; }
   .bw-dots i { width: 28px; height: 4px; border-radius: 999px; background: ${colors.border}; }

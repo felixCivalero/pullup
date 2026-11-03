@@ -86,6 +86,8 @@ export const ADMIN_SKIN = `
   .ad .ea-table td { padding: 10px; border-bottom: 1px solid #ebeae5; }
   .ad .ea-table tbody tr:nth-child(even) td { background: #fcfbf8; }
   .ad .ea-table tr.is-click:hover td { background: #fdeef6; }
+  .ad .ea-table a { color: inherit; text-decoration-color: rgba(0,0,0,.3); text-underline-offset: 2px; }
+  .ad .ea-table a:hover { color: var(--pink); }
   .ad .st-card .ea-wrap { border: 1px solid var(--line); border-radius: 6px; box-shadow: none; }
 
   /* the event list: each event a window */

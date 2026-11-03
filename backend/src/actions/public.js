@@ -41,7 +41,7 @@ export const aboutPullup = defineAction({
 export const getEvent = defineAction({
   name: "get_event",
   title: "Look at an event",
-  description: "A published event's page: title, text, time, place (unless the organiser hides it), whether sign-up is open, spots left, and calendar links.",
+  description: "A published event's page: title, text, time, place (unless the organiser hides it), whether sign-up is open, spots left, calendar links, and its sign-up form (what to ask the person before rsvp_to_event).",
   access: "public",
   effect: "read",
   untrustedOutput: true,
@@ -53,6 +53,10 @@ export const getEvent = defineAction({
       event: {
         slug: e.slug, title: e.title, text: e.text, startsAt: e.startsAt, endsAt: e.endsAt, timezone: e.timezone,
         location: e.location, imageUrl: e.imageUrl, open: e.open, full: e.full, spotsLeft: e.spotsLeft,
+        // What rsvp_to_event needs besides name and email: phone / instagram
+        // off|optional|required, how many guests one may bring, and the
+        // organiser's questions (answer by label; a choice from its options).
+        signupForm: e.form,
         url: `${getFrontendUrl()}/e/${e.slug}`,
       },
       calendar,
@@ -64,7 +68,7 @@ export const rsvpEvent = defineAction({
   name: "rsvp_to_event",
   title: "Sign up to an event",
   description:
-    "Sign a person up to a published event. They get a confirmation mail with a calendar invite at that address. If the event is full they land on the waitlist. Only sign up the person you act for, with their own name and email, and only with their consent. Signing up twice is harmless.",
+    "Sign a person up to a published event. Read its signupForm (get_event) first and ask the person what it asks for. They get a confirmation mail with a calendar invite at that address. If the event is full they land on the waitlist. Only sign up the person you act for, with their own name and email, and only with their consent. Signing up twice is harmless.",
   access: "public",
   effect: "send",
   idempotent: true,
@@ -73,8 +77,13 @@ export const rsvpEvent = defineAction({
     name: z.string().trim().min(1).max(120).describe("The guest's name, as they want it on the guest list."),
     email: z.string().trim().email().max(254).describe("The guest's own email address; the confirmation goes there."),
     wantsUpdates: z.boolean().default(false).describe("True only if the person said yes to hearing about the organiser's future events."),
+    phone: z.string().trim().max(40).optional().describe("If the event's signupForm asks for it."),
+    instagram: z.string().trim().max(80).optional().describe("Their Instagram handle, if the form asks for it."),
+    plusOnes: z.number().int().min(0).max(10).optional().describe("Guests they bring along, up to the form's plusOnes."),
+    answers: z.record(z.string().max(140), z.union([z.string().max(500), z.boolean()])).optional()
+      .describe("Answers to the organiser's questions, keyed by the question's label (or id): text, one of a choice's options, or true for a yes."),
   }),
-  run: async ({ slug: s, name, email, wantsUpdates }) => rsvpToEvent(s, { name, email, consent: wantsUpdates }),
+  run: async ({ slug: s, name, email, wantsUpdates, phone, instagram, plusOnes, answers }) => rsvpToEvent(s, { name, email, consent: wantsUpdates, phone, instagram, plusOnes, answers }),
 });
 
 export const requestMeeting = defineAction({

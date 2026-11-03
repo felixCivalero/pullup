@@ -15,10 +15,18 @@ const ERRORS = {
   closed: "Anmälan är stängd.",
   rate_limited: "För många försök, vänta en stund.",
   bot_check: "Vi kunde inte bekräfta att du är en människa. Ladda om sidan och försök igen.",
+  missing_phone: "Skriv ditt telefonnummer.",
+  invalid_phone: "Telefonnumret ser inte rätt ut.",
+  missing_instagram: "Skriv ditt Instagram-namn.",
+  invalid_instagram: "Instagram-namnet ser inte rätt ut.",
 };
 
-export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false }) {
-  const [form, setForm] = useState({ name: "", email: "", consent: false, website: "" });
+export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false, form: ask = null }) {
+  // What this event asks besides name and email (backend lib/eventForm.js).
+  const f = { phone: "off", instagram: "off", plusOnes: 0, questions: [], ...(ask || {}) };
+  const questions = (f.questions || []).filter((q) => q.label && (q.type !== "choice" || (q.options || []).filter(Boolean).length >= 2));
+  const [form, setForm] = useState({ name: "", email: "", consent: false, website: "", phone: "", instagram: "", plusOnes: 0 });
+  const [answers, setAnswers] = useState({});
   const [state, setState] = useState("idle"); // idle | sending | done | error
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -34,11 +42,11 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       const res = await fetch(`${API_BASE}/events/${encodeURIComponent(slug)}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, turnstile, visitId: eventVisitId() }),
+        body: JSON.stringify({ ...form, answers, turnstile, visitId: eventVisitId() }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out.ok) {
-        setError(ERRORS[out.error] || "Något gick fel. Försök igen.");
+        setError(ERRORS[out.error] || (out.error === "missing_answer" ? `Svara på: ${out.question}` : out.error === "invalid_answer" ? `Välj ett alternativ: ${out.question}` : "Något gick fel. Försök igen."));
         setState("error");
         return;
       }
@@ -61,7 +69,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
         <div className="sf-done">
           <span className="sf-check"><Check size={20} strokeWidth={2.4} /></span>
           <b>{waitlist ? "Du står på väntelistan" : result.already ? "Du är redan anmäld" : "Du är anmäld"}</b>
-          <p>{waitlist ? `Eventet är fullt just nu. Vi mejlar ${form.email} om en plats blir ledig.` : `En bekräftelse är på väg till ${form.email}.`}</p>
+          <p>{waitlist ? `Eventet är fullt just nu. Vi mejlar ${form.email} om en plats blir ledig.` : `En bekräftelse är på väg till ${form.email}.${form.plusOnes ? ` Du är anmäld med ${form.plusOnes} ${form.plusOnes === 1 ? "gäst" : "gäster"}.` : ""}`}</p>
           {!waitlist && cal && (
             <div className="sf-cal">
               <a href={cal.google} target="_blank" rel="noreferrer">Google Kalender</a>
@@ -78,6 +86,41 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       <style>{CSS}</style>
       <input placeholder="Namn" autoComplete="name" value={form.name} onChange={set("name")} readOnly={preview} />
       <input placeholder="E-post" type="email" inputMode="email" autoComplete="email" value={form.email} onChange={set("email")} readOnly={preview} />
+      {f.phone !== "off" && (
+        <input placeholder={f.phone === "required" ? "Telefon" : "Telefon (valfritt)"} type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} readOnly={preview} />
+      )}
+      {f.instagram !== "off" && (
+        <div className="sf-at">
+          <span>@</span>
+          <input placeholder={f.instagram === "required" ? "Instagram" : "Instagram (valfritt)"} autoCapitalize="none" autoCorrect="off" value={form.instagram} onChange={set("instagram")} readOnly={preview} />
+        </div>
+      )}
+      {f.plusOnes > 0 && (
+        <label className="sf-plus">
+          <span>Jag tar med mig</span>
+          <select value={form.plusOnes} onChange={(e) => setForm((x) => ({ ...x, plusOnes: Number(e.target.value) }))} disabled={preview}>
+            {Array.from({ length: f.plusOnes + 1 }, (_, n) => <option key={n} value={n}>{n === 0 ? "Ingen" : `${n} ${n === 1 ? "gäst" : "gäster"}`}</option>)}
+          </select>
+        </label>
+      )}
+      {questions.map((q) => (
+        q.type === "check" ? (
+          <label key={q.id} className="sf-consent sf-q-check">
+            <input type="checkbox" checked={!!answers[q.id]} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.checked }))} disabled={preview} />
+            <span>{q.label}{q.required ? " *" : ""}</span>
+          </label>
+        ) : q.type === "choice" ? (
+          <label key={q.id} className="sf-q">
+            <span>{q.label}{q.required ? " *" : ""}</span>
+            <select value={answers[q.id] || ""} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} disabled={preview}>
+              <option value="">Välj…</option>
+              {q.options.filter(Boolean).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+        ) : (
+          <input key={q.id} placeholder={`${q.label}${q.required ? "" : " (valfritt)"}`} maxLength={500} value={answers[q.id] || ""} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} readOnly={preview} />
+        )
+      ))}
       <label className="sf-consent">
         <input type="checkbox" checked={form.consent} onChange={set("consent")} disabled={preview} />
         <span>{organizer ? `Jag vill få inbjudningar till kommande event från ${organizer}.` : "Jag vill få inbjudningar till kommande event."}</span>
@@ -100,6 +143,14 @@ const CSS = `
   .sf input:focus { border-color: rgba(255,255,255,0.5); }
   .sf-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.4; color: rgba(255,255,255,0.75); cursor: pointer; }
   .sf-consent input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: #fff; flex-shrink: 0; }
+  .sf-at { position: relative; }
+  .sf-at span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.45); font-size: 16px; pointer-events: none; }
+  .sf-at input { padding-left: 32px !important; }
+  .sf-plus, .sf-q { display: grid; gap: 6px; font-size: 13.5px; color: rgba(255,255,255,0.75); }
+  .sf-plus { grid-template-columns: 1fr auto; align-items: center; }
+  .sf select { font: inherit; font-size: 15px; padding: 12px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #fff; outline: none; width: 100%; box-sizing: border-box; }
+  .sf-plus select { width: auto; min-width: 130px; }
+  .sf select option { color: #000; }
   .sf-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   .sf button { font: inherit; font-size: 15px; font-weight: 700; padding: 15px; border-radius: 999px; border: 0; background: #fff; color: #000; cursor: pointer; margin-top: 4px; }
   .sf button:disabled { opacity: 0.6; cursor: default; }

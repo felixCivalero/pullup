@@ -13,6 +13,7 @@ import { getFrontendUrl } from "../lib/urls.js";
 import { createEvent, eventFor, eventWithGuests, listEvents, moveEvent, updateEvent, updateGuest } from "../repos/hostEvents.js";
 import { loadEventMedia, syncCover } from "../routes/adminEventMedia.js";
 import { geocode } from "../routes/places.js";
+import { answersByLabel } from "../lib/eventForm.js";
 import { brandScope, brandShape, createBrand, payerFor, renameBrand } from "../lib/brands.js";
 import { myInvites } from "../lib/teams.js";
 
@@ -55,8 +56,23 @@ function designOf(event) {
     dateRevealHint: event.dateRevealHint || "",
     signupButton: event.signupSettings?.cta || "",
     signupHidden: !!event.signupSettings?.hidden,
+    signupForm: event.form,
   };
 }
+
+// The sign-up's own fields and questions (lib/eventForm.js).
+const signupForm = z.object({
+  phone: z.enum(["off", "optional", "required"]).optional().describe("Ask for a phone number."),
+  instagram: z.enum(["off", "optional", "required"]).optional().describe("Ask for an Instagram handle."),
+  plusOnes: z.number().int().min(0).max(10).optional().describe("How many guests one sign-up may bring (0 = just themselves)."),
+  questions: z.array(z.object({
+    id: z.string().max(20).optional().describe("Keep an existing question's id (get_my_event) so its answers stay linked."),
+    label: z.string().trim().min(1).max(140).describe("The question, e.g. 'Allergier eller specialkost?'"),
+    type: z.enum(["text", "choice", "check"]).default("text").describe("text = free answer, choice = one of options, check = a yes box."),
+    options: z.array(z.string().max(80)).max(12).optional().describe("For a choice: 2–12 options."),
+    required: z.boolean().default(false),
+  })).max(12).optional().describe("The organiser's own questions, replacing the current list."),
+}).optional().describe("What the sign-up asks besides name and email.");
 
 // The page's content blocks as update_event takes them (the editor's types).
 const section = z.object({
@@ -129,7 +145,7 @@ export const listMyEvents = defineAction({
 export const getMyEvent = defineAction({
   name: "get_my_event",
   title: "One of my events, with guests",
-  description: "One of the person's events with its full guest list (name, email, status attending/waitlist/cancelled, whether they came, whether they want updates), its page design (content blocks, what's hidden, the sign-up button) and its images (the carousel; the first is the cover).",
+  description: "One of the person's events with its full guest list (name, email, phone, Instagram, guests brought along, answers to the event's questions, status attending/waitlist/cancelled, whether they came, whether they want updates), its page design (content blocks, what's hidden, the sign-up button) and its images (the carousel; the first is the cover).",
   access: "user",
   effect: "read",
   untrustedOutput: true,
@@ -137,7 +153,8 @@ export const getMyEvent = defineAction({
   run: async ({ eventId: id }, { caller }) => {
     const { event, guests } = await eventWithGuests(caller, id);
     const media = await loadEventMedia(id);
-    return { event: withLinks(event), design: designOf(event), media: media.map(({ id: mediaId, mediaType, url, isCover }) => ({ mediaId, mediaType, url, isCover })), guests };
+    const labeled = guests.map((g) => ({ ...g, answers: answersByLabel(event.form, g.answers) }));
+    return { event: withLinks(event), design: designOf(event), media: media.map(({ id: mediaId, mediaType, url, isCover }) => ({ mediaId, mediaType, url, isCover })), guests: labeled };
   },
 });
 
@@ -156,7 +173,8 @@ export const createEventAction = defineAction({
     timeZone: timeZone.default("Europe/Stockholm"),
     location: z.string().trim().max(300).optional().describe("Venue and address as guests should see it."),
     description: z.string().trim().max(8000).optional().describe("The text on the page: what it is, who it's for, what to bring."),
-    capacity: z.number().int().min(1).max(100000).optional().describe("Max attending; later sign-ups go to the waitlist. Leave out for no limit."),
+    capacity: z.number().int().min(1).max(100000).optional().describe("Max attending (guests brought along count); later sign-ups go to the waitlist. Leave out for no limit."),
+    signupForm,
     publish: z.boolean().default(false).describe("Publish right away. Only if the person asked for it."),
   }),
   run: async (input, { caller }) => {
@@ -169,6 +187,7 @@ export const createEventAction = defineAction({
       ...(await placeFor(input.location)),
       text: input.description,
       capacity: input.capacity,
+      form: input.signupForm,
     });
     if (input.publish) event = await updateEvent(caller, event.id, { status: "PUBLISHED" });
     return { event: withLinks(event), next: input.publish ? "It's live: share links.page." : "It's a draft. Use publish_event when it should go live." };
@@ -178,7 +197,7 @@ export const createEventAction = defineAction({
 export const updateEventAction = defineAction({
   name: "update_event",
   title: "Edit an event",
-  description: "Change an event: title, time, place, text, capacity, and its page design (content blocks, a hidden address or date with a hint, the sign-up button). Only the fields you give change. Times are read in the event's time zone. Images: add_event_image / remove_event_image.",
+  description: "Change an event: title, time, place, text, capacity, its sign-up form (phone, Instagram, guests brought along, own questions like allergies), and its page design (content blocks, a hidden address or date with a hint, the sign-up button). Only the fields you give change. Times are read in the event's time zone. Images: add_event_image / remove_event_image.",
   access: "user",
   effect: "write",
   idempotent: true,
@@ -199,6 +218,7 @@ export const updateEventAction = defineAction({
     dateRevealHint: z.string().max(80).optional().describe("What guests see instead of a hidden date."),
     signupButton: z.string().max(40).optional().describe("The sign-up button's text, e.g. 'Save my spot'. Empty = the default."),
     signupHidden: z.boolean().optional().describe("Hide the sign-up form (a page that only informs)."),
+    signupForm,
   }),
   run: async (input, { caller }) => {
     const current = await eventFor(caller, input.eventId);
@@ -220,6 +240,7 @@ export const updateEventAction = defineAction({
       hideDate: input.hideDate,
       dateRevealHint: input.dateRevealHint,
       signupSettings: signup,
+      form: input.signupForm,
     });
     return { event: withLinks(event), design: designOf(event) };
   },

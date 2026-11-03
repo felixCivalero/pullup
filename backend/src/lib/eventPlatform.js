@@ -116,6 +116,8 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
       status: r.status,
       pulledUp: !!r.pulled_up || came.has(`${ev.id}:${r.person_id}`),
       signedUpAt: r.created_at,
+      answers: r.custom_answers && Object.keys(r.custom_answers).length ? r.custom_answers : null,
+      plusOnes: Number(r.plus_ones) || 0,
     });
   }
   return people
@@ -139,6 +141,10 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
         lastEventTitle: evs[0]?.title || null,
         eventIds: evs.map((e) => e.eventId),
         cameIds: evs.filter((e) => e.pulledUp).map((e) => e.eventId),
+        // Their answers to events' own questions, per event (labels: the
+        // event's form), and the guests they brought.
+        answers: evs.filter((e) => e.answers).map((e) => ({ eventId: e.eventId, answers: e.answers })),
+        plusOnes: evs.reduce((n, e) => n + e.plusOnes, 0),
         // Brands: the ones whose events they signed up to, and the ones they
         // said yes to hearing from (an umbrella's CRM shows both per brand).
         brandIds: [...new Set(evs.map((e) => e.brandId).filter(Boolean))],

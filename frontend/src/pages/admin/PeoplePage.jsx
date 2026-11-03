@@ -84,8 +84,8 @@ function People() {
 
   const exportCsv = () => {
     const rows = umbrella
-      ? [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Varumärken", "Vill ha inbjudningar från"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", names(p.brandIds), names(p.consentBrands)])]
-      : [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Vill ha inbjudningar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : ""])];
+      ? [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Varumärken", "Vill ha inbjudningar från", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", names(p.brandIds), names(p.consentBrands), answersText(p)])]
+      : [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Vill ha inbjudningar", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : "", answersText(p)])];
     const blob = new Blob(["﻿" + csv(rows)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -94,6 +94,8 @@ function People() {
     URL.revokeObjectURL(a.href);
   };
 
+  // Their answers to events' own questions, one line: "Event: Fråga: svar; …".
+  const answersText = (p) => (p.answers || []).map((a) => `${events.get(a.eventId)?.title || "Event"}: ${Object.entries(a.answers).map(([k, v]) => `${k}: ${v}`).join(", ")}`).join("; ");
   const person = open ? data.people.find((p) => p.id === open) : null;
   const sortedEvents = [...(data?.events || [])]
     .filter((e) => !brandId || e.brandId === brandId)
@@ -180,6 +182,19 @@ function People() {
               </>
             )}
             <p className="ea-muted">I CRM:et sedan {day(person.createdAt)}{person.source ? ` · via ${SOURCE_SV[person.source] || person.source}` : ""}</p>
+            {person.answers?.length > 0 && (
+              <>
+                <h3>Svar</h3>
+                <ul className="pp-answers">
+                  {person.answers.map((a) => (
+                    <li key={a.eventId}>
+                      <span className="ea-muted">{events.get(a.eventId)?.title || "Event"}</span>
+                      {Object.entries(a.answers).map(([k, v]) => <div key={k}><b>{k}</b> {String(v)}</div>)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             <h3>Event</h3>
             {person.eventIds.length ? (
               <ul className="pp-events">
@@ -210,6 +225,10 @@ const PEOPLE_CSS = `
   .pp-consent b { font-size: 13px; color: #8a8a8e; }
   .pp-consent b.is-yes { color: #0a7a3a; }
   .pp-note { margin: 8px 0 0; font-size: 12.5px; }
+  .pp-answers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .pp-answers li { display: grid; gap: 3px; font-size: 14px; padding: 8px 10px; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; }
+  .pp-answers li span { font-size: 12px; margin: 0; }
+  .pp-answers b { font-weight: 600; margin-right: 4px; }
   .pp-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 280px); gap: 8px; margin-bottom: 12px; }
   @media (max-width: 620px) { .pp-filters { grid-template-columns: 1fr; } }
   .pp-count { margin: 0 0 6px; }

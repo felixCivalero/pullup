@@ -19,11 +19,12 @@ import { EVENT_HOST_ID } from "../lib/eventPlatform.js";
 import { brandNames } from "../lib/brands.js";
 import { humanCheck, mayConfirm, over } from "../lib/abuse.js";
 import { isBotUserAgent } from "../analytics/eventRegistry.js";
+import { FORM_COLUMNS, formOf, readSignup } from "../lib/eventForm.js";
 import { userById } from "../agents/oauthProvider.js";
 
 const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
-  "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
+  "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
 
 // Per-IP throttle on sign-ups: 20 an hour is plenty for a human.
 const hits = new Map();
@@ -46,10 +47,11 @@ async function findEvent(slug) {
   return data;
 }
 
+// How many are coming: every attending sign-up with the guests it brings.
 async function attendingCount(eventId) {
-  const { count, error } = await supabase.from("rsvps").select("id", { count: "exact", head: true }).eq("event_id", eventId).eq("status", "attending");
+  const { data, error } = await supabase.from("rsvps").select("party_size").eq("event_id", eventId).eq("status", "attending").limit(10000);
   if (error) throw error;
-  return count || 0;
+  return (data || []).reduce((n, r) => n + Math.max(1, Number(r.party_size) || 1), 0);
 }
 
 // What a guest sees — nothing about other guests. The design fields are in
@@ -79,6 +81,8 @@ function publicShape(ev, attending, media = [], organizer = null) {
     revealHint: ev.reveal_hint || null,
     dateRevealHint: ev.date_reveal_hint || null,
     signupSettings: ev.signup_settings || {},
+    // What the sign-up asks besides name and email (lib/eventForm.js).
+    form: formOf(ev),
     open: isOpenForSignup(ev),
     full: spotsLeft === 0,
     spotsLeft,
@@ -94,7 +98,10 @@ function calendarLinks(ev) {
 }
 
 // The person behind an email: the existing row (any casing) or a new one.
-async function upsertPerson({ email, name, consent }) {
+async function upsertPerson({ email, name, consent, phone = "", instagram = "" }) {
+  // What the sign-up asked for lands on the person too, for the CRM: the
+  // latest number and handle they gave.
+  const contact = { ...(phone ? { phone, phone_e164: phone } : {}), ...(instagram ? { instagram } : {}) };
   const { data: found, error } = await supabase
     .from("people")
     .select("id, name, email, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at")
@@ -103,18 +110,18 @@ async function upsertPerson({ email, name, consent }) {
     .maybeSingle();
   if (error) throw error;
   if (found) {
-    const patch = personPatch(found, { name, consent });
+    const patch = { ...personPatch(found, { name, consent }), ...contact };
     if (Object.keys(patch).length) {
       const { error: upErr } = await supabase.from("people").update(patch).eq("id", found.id);
       if (upErr) throw upErr;
     }
     return found.id;
   }
-  const row = { email, name, acquisition_channel: "direct", ...personPatch(null, { name, consent }) };
+  const row = { email, name, acquisition_channel: "direct", ...personPatch(null, { name, consent }), ...contact };
   const { data: created, error: insErr } = await supabase.from("people").insert(row).select("id").single();
   if (insErr) {
     // Two sign-ups racing on the same address: the other one won, use it.
-    if (insErr.code === "23505") return upsertPerson({ email, name, consent });
+    if (insErr.code === "23505") return upsertPerson({ email, name, consent, phone, instagram });
     throw insErr;
   }
   // The identity graph the old app keys people on — best effort.
@@ -156,7 +163,13 @@ export async function rsvpToEvent(slug, body = {}) {
   if (!ev) throw new ActionError("not_found", "No published event at that address.");
   if (!isOpenForSignup(ev)) throw new ActionError("conflict", "Sign-up for this event is closed.", { detail: "closed" });
 
-  const personId = await upsertPerson({ email, name, consent: body.consent === true });
+  const form = formOf(ev);
+  const extra = readSignup(form, body);
+  if (extra.error) {
+    const what = { missing_phone: "A phone number is needed to sign up.", invalid_phone: "That phone number doesn't look right.", missing_instagram: "An Instagram handle is needed to sign up.", invalid_instagram: "That Instagram handle doesn't look right.", missing_answer: `An answer is needed: ${extra.question}`, invalid_answer: `That's not one of the options: ${extra.question}` }[extra.error];
+    throw new ActionError("invalid", what || "Something in the sign-up is missing.", { detail: extra.error, question: extra.question });
+  }
+  const personId = await upsertPerson({ email, name, consent: body.consent === true, phone: extra.phone, instagram: extra.instagram });
 
   const { data: existing, error: exErr } = await supabase.from("rsvps").select("id, status").eq("event_id", ev.id).eq("person_id", personId).maybeSingle();
   if (exErr) throw exErr;
@@ -164,7 +177,8 @@ export async function rsvpToEvent(slug, body = {}) {
     return { ok: true, already: true, status: existing.status, calendar: calendarLinks(ev) };
   }
 
-  const full = ev.total_capacity ? (await attendingCount(ev.id)) >= ev.total_capacity : false;
+  const party = 1 + extra.plusOnes;
+  const full = ev.total_capacity ? (await attendingCount(ev.id)) + party > ev.total_capacity : false;
   const status = full ? "waitlist" : "attending";
   const row = {
     event_id: ev.id,
@@ -172,9 +186,10 @@ export async function rsvpToEvent(slug, body = {}) {
     slug: ev.slug,
     status,
     booking_status: full ? "WAITLIST" : "CONFIRMED",
-    plus_ones: 0,
-    party_size: 1,
-    total_guests: 1,
+    plus_ones: extra.plusOnes,
+    party_size: party,
+    total_guests: party,
+    custom_answers: extra.answers,
     marketing_opt_in: body.consent === true,
     visitor_id: clip(body.visitId, 128) || null,
   };
@@ -262,7 +277,7 @@ export function registerEventRoutes(app) {
       if (!(await humanCheck(body.turnstile, req.ip))) return res.status(403).json({ error: "bot_check" });
       return res.json(await rsvpToEvent(req.params.slug, body));
     } catch (err) {
-      if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.extra.detail || err.code });
+      if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.extra.detail || err.code, question: err.extra.question || undefined });
       console.error("[events] rsvp:", err?.message);
       return res.status(500).json({ error: "failed" });
     }

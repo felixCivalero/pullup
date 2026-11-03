@@ -16,12 +16,20 @@ import { PlaceField } from "./PlaceField.jsx";
 
 const LABELS = { title: "Titel", location: "Plats", datetime: "Datum & tid", socials: "Sociala länkar", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", hostedby: "Arrangör", text: "Text" };
 const FIXED = new Set(["title", "location", "datetime"]);
+// A new embed starts with something playing (the ting goes… quack), so the
+// preview shows what the block looks like at once; paste your own over it.
+const QUACK = {
+  spotify: "https://open.spotify.com/album/5d2vrwvK9NqOd5S54Hu50A",
+  applemusic: "https://music.apple.com/se/album/mans-not-hot/1444869738?i=1444869855",
+  soundcloud: "https://soundcloud.com/fayr1/big-shaq-mans-not-hot-fayr-remix",
+  youtube: "https://www.youtube.com/watch?v=POjo0MX3huk",
+};
 const ADD = [
   { data: { type: "text", title: "", text: "" }, icon: "T", label: "Text" },
-  { data: { type: "spotify", url: "" }, icon: "♫", label: "Spotify" },
-  { data: { type: "applemusic", url: "" }, icon: "♪", label: "Apple" },
-  { data: { type: "soundcloud", url: "" }, icon: "♪", label: "SoundCloud" },
-  { data: { type: "youtube", url: "" }, icon: "▶", label: "YouTube" },
+  { data: { type: "spotify", url: QUACK.spotify }, icon: "♫", label: "Spotify" },
+  { data: { type: "applemusic", url: QUACK.applemusic }, icon: "♪", label: "Apple" },
+  { data: { type: "soundcloud", url: QUACK.soundcloud }, icon: "♪", label: "SoundCloud" },
+  { data: { type: "youtube", url: QUACK.youtube }, icon: "▶", label: "YouTube" },
   { data: { type: "socials", instagram: "", spotify: "", tiktok: "", soundcloud: "" }, icon: "@", label: "Sociala" },
   { data: { type: "hostedby", name: "", logo: "", email: "", website: "" }, icon: "★", label: "Arrangör" },
 ];

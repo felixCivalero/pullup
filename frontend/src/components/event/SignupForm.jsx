@@ -21,7 +21,7 @@ const ERRORS = {
   invalid_instagram: "Instagram-namnet ser inte rätt ut.",
 };
 
-export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false, form: ask = null }) {
+export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false, form: ask = null, lang = "sv" }) {
   // What this event asks besides name and email (backend lib/eventForm.js).
   const f = { phone: "off", instagram: "off", plusOnes: 0, questions: [], ...(ask || {}) };
   const questions = (f.questions || []).filter((q) => q.label && (q.type !== "choice" || (q.options || []).filter(Boolean).length >= 2));
@@ -43,7 +43,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       const res = await fetch(`${API_BASE}/events/${encodeURIComponent(slug)}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, answers, turnstile, visitId: eventVisitId() }),
+        body: JSON.stringify({ ...form, answers, turnstile, visitId: eventVisitId(), lang }),
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out.ok) {

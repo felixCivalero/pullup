@@ -42,9 +42,19 @@ async function post(path, body) {
 }
 
 // Mail a code to `email`. The account is made on the first sign-in.
+// The language the sign-in mail is written in: the one picked on pullup.se,
+// else the browser's (Swedish browsers Swedish, everyone else English).
+function pageLang() {
+  try {
+    const picked = localStorage.getItem("pullup.lang");
+    if (picked === "sv" || picked === "en") return picked;
+  } catch { /* private mode */ }
+  return typeof navigator !== "undefined" && (navigator.language || "").toLowerCase().startsWith("sv") ? "sv" : "en";
+}
+
 export async function requestCode(email, turnstile = "") {
   const secret = randomSecret();
-  const out = await post("/auth/login", { email: email.trim().toLowerCase(), device: await sha256(secret), turnstile });
+  const out = await post("/auth/login", { email: email.trim().toLowerCase(), device: await sha256(secret), turnstile, lang: pageLang() });
   try {
     localStorage.setItem(KEY, JSON.stringify({ attempt: out.attempt, secret, email: email.trim().toLowerCase(), expiresAt: out.expiresAt }));
   } catch {

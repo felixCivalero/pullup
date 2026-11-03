@@ -19,26 +19,44 @@ const shell = (inner, footer = "") => `<!doctype html><html><body style="margin:
 const button = (href, label, dark = true) =>
   `<a href="${esc(href)}" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;text-decoration:none;${dark ? "background:#0a0a0a;color:#ffffff;" : "background:#ffffff;color:#0a0a0a;border:1px solid #d4d4d8;"}">${esc(label)}</a>`;
 
-export function confirmationEmail({ event, name, status, eventUrl, googleUrl, icsUrl, imageUrl }) {
+const CONFIRM = {
+  sv: {
+    waitSubject: (t) => `Du står på väntelistan: ${t}`, subject: (t) => `Du är anmäld: ${t}`,
+    waitLead: "Eventet är fullt just nu, så du står på väntelistan. Du får ett mejl om en plats blir ledig.",
+    lead: "Du är anmäld. Lägg in det i kalendern så att det inte glöms bort.",
+    hi: (n) => (n ? `Hej ${n}!` : "Hej!"), google: "Google Kalender", see: "Se eventet",
+    made: MADE_WITH, madeText: "Skickat via PullUp – gratis eventsidor med anmälan: https://pullup.se/pullup", locale: "sv-SE",
+  },
+  en: {
+    waitSubject: (t) => `You're on the waitlist: ${t}`, subject: (t) => `You're signed up: ${t}`,
+    waitLead: "The event is full right now, so you're on the waitlist. You'll get an email if a spot opens up.",
+    lead: "You're signed up. Add it to your calendar so you don't forget.",
+    hi: (n) => (n ? `Hi ${n}!` : "Hi!"), google: "Google Calendar", see: "See the event",
+    made: 'Sent via <a href="https://pullup.se/pullup" style="color:#8a8a8e;">PullUp</a> – free event pages with sign-up.',
+    madeText: "Sent via PullUp – free event pages with sign-up: https://pullup.se/pullup", locale: "en-GB",
+  },
+};
+
+// lang: the guest's language on the event page (sv, else English).
+export function confirmationEmail({ event, name, status, eventUrl, googleUrl, icsUrl, imageUrl, lang = "sv" }) {
+  const L = CONFIRM[lang === "en" ? "en" : "sv"];
   const first = String(name || "").trim().split(/\s+/)[0] || "";
-  const when = formatWhen(event);
+  const when = formatWhen(event, L.locale);
   const waitlist = status === "waitlist";
-  const subject = waitlist ? `Du står på väntelistan: ${event.title}` : `Du är anmäld: ${event.title}`;
-  const lead = waitlist
-    ? "Eventet är fullt just nu, så du står på väntelistan. Du får ett mejl om en plats blir ledig."
-    : "Du är anmäld. Lägg in det i kalendern så att det inte glöms bort.";
+  const subject = waitlist ? L.waitSubject(event.title) : L.subject(event.title);
+  const lead = waitlist ? L.waitLead : L.lead;
   const html = shell(`
     ${imageUrl ? `<img src="${esc(imageUrl)}" alt="" width="516" style="display:block;width:100%;max-width:516px;height:auto;border-radius:14px;margin:0 0 24px;">` : ""}
-    <p style="margin:0 0 6px;font-size:14px;color:#6e6e73;">${first ? `Hej ${esc(first)}!` : "Hej!"}</p>
+    <p style="margin:0 0 6px;font-size:14px;color:#6e6e73;">${esc(L.hi(first))}</p>
     <h1 style="margin:0 0 12px;font-size:26px;line-height:1.15;letter-spacing:-0.02em;">${esc(event.title)}</h1>
     <p style="margin:0 0 4px;font-size:15px;line-height:1.5;"><b>${esc(when)}</b></p>
     ${event.location ? `<p style="margin:0 0 18px;font-size:15px;line-height:1.5;">${esc(event.location)}</p>` : '<div style="height:14px"></div>'}
     <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#3a3a3e;">${lead}</p>
-    ${waitlist ? "" : `${button(googleUrl, "Google Kalender")}${button(icsUrl, "Apple / Outlook (.ics)", false)}`}
-    <p style="margin:18px 0 0;font-size:14px;"><a href="${esc(eventUrl)}" style="color:#0a0a0a;">Se eventet</a></p>
-  `);
+    ${waitlist ? "" : `${button(googleUrl, L.google)}${button(icsUrl, "Apple / Outlook (.ics)", false)}`}
+    <p style="margin:18px 0 0;font-size:14px;"><a href="${esc(eventUrl)}" style="color:#0a0a0a;">${L.see}</a></p>
+  `, L.made);
   const text = [
-    first ? `Hej ${first}!` : "Hej!",
+    L.hi(first),
     "",
     event.title,
     when,
@@ -46,10 +64,10 @@ export function confirmationEmail({ event, name, status, eventUrl, googleUrl, ic
     "",
     lead,
     "",
-    ...(waitlist ? [] : [`Google Kalender: ${googleUrl}`, `Apple / Outlook: ${icsUrl}`]),
-    `Se eventet: ${eventUrl}`,
+    ...(waitlist ? [] : [`${L.google}: ${googleUrl}`, `Apple / Outlook: ${icsUrl}`]),
+    `${L.see}: ${eventUrl}`,
     "",
-    "Skickat via PullUp – gratis eventsidor med anmälan: https://pullup.se/pullup",
+    L.madeText,
   ].join("\n");
   return { subject, html, text };
 }

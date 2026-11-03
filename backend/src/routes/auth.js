@@ -22,20 +22,39 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 // The mail: the code, the same thing as a link, and where the request came
 // from, so the person recognises it (or knows it wasn't them).
-export function loginMail({ code, link, device, country, at }) {
-  const when = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", hour: "2-digit", minute: "2-digit" }).format(at);
+const LOGIN = {
+  sv: {
+    locale: "sv-SE", subject: (c) => `Din kod till PullUp: ${c}`, yourCode: "Din kod till PullUp:", button: "Logga in",
+    text: (c, link, where, when) => `Din kod: ${c}\n\nEller logga in med länken: ${link}\n\nBegärd från ${where} kl ${when}. Koden och länken fungerar bara i den webbläsaren, i 15 minuter, en gång.\n\nVar det inte du? Ignorera mejlet. Ingen kan logga in med det någon annanstans.`,
+    from: (where, when) => `Begärd från <strong style="color:#0a0a0a;font-weight:600;">${esc(where)}</strong> kl ${esc(when)}. Koden och länken fungerar bara i den webbläsaren, i 15 minuter, en gång.`,
+    notYou: "Var det inte du? Ignorera mejlet. Ingen kan logga in med det någon annanstans.",
+  },
+  en: {
+    locale: "en-GB", subject: (c) => `Your PullUp code: ${c}`, yourCode: "Your code for PullUp:", button: "Sign in",
+    text: (c, link, where, when) => `Your code: ${c}\n\nOr sign in with the link: ${link}\n\nRequested from ${where} at ${when} (Stockholm time). The code and the link only work in that browser, for 15 minutes, once.\n\nWasn't you? Ignore this email. No one can sign in with it anywhere else.`,
+    from: (where, when) => `Requested from <strong style="color:#0a0a0a;font-weight:600;">${esc(where)}</strong> at ${esc(when)} (Stockholm time). The code and the link only work in that browser, for 15 minutes, once.`,
+    notYou: "Wasn't you? Ignore this email. No one can sign in with it anywhere else.",
+  },
+};
+
+// The mail: the code, the same thing as a link, and where the request came
+// from, so the person recognises it (or knows it wasn't them). Swedish or
+// English, as the sign-in page was shown.
+export function loginMail({ code, link, device, country, at, lang = "sv" }) {
+  const L = LOGIN[lang === "en" ? "en" : "sv"];
+  const when = new Intl.DateTimeFormat(L.locale, { timeZone: "Europe/Stockholm", hour: "2-digit", minute: "2-digit" }).format(at);
   const where = [device, country].filter(Boolean).join(", ");
   const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
   return {
-    subject: `Din kod till PullUp: ${spaced}`,
-    text: `Din kod: ${spaced}\n\nEller logga in med länken: ${link}\n\nBegärd från ${where} kl ${when}. Koden och länken fungerar bara i den webbläsaren, i 15 minuter, en gång.\n\nVar det inte du? Ignorera mejlet. Ingen kan logga in med det någon annanstans.`,
-    html: `<!doctype html><html lang="sv"><body style="margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0a0a0a;">
+    subject: L.subject(spaced),
+    text: L.text(spaced, link, where, when),
+    html: `<!doctype html><html lang="${lang === "en" ? "en" : "sv"}"><body style="margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0a0a0a;">
 <div style="max-width:440px;margin:0 auto;padding:40px 24px;">
-  <p style="font-size:15px;line-height:1.5;margin:0 0 20px;">Din kod till PullUp:</p>
+  <p style="font-size:15px;line-height:1.5;margin:0 0 20px;">${L.yourCode}</p>
   <p style="font-size:38px;font-weight:700;letter-spacing:0.12em;margin:0 0 28px;font-variant-numeric:tabular-nums;">${esc(spaced)}</p>
-  <p style="margin:0 0 28px;"><a href="${esc(link)}" style="display:inline-block;background:#0a0a0a;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 22px;border-radius:999px;">Logga in</a></p>
-  <p style="font-size:13px;line-height:1.55;color:#6e6e73;margin:0 0 10px;">Begärd från <strong style="color:#0a0a0a;font-weight:600;">${esc(where)}</strong> kl ${esc(when)}. Koden och länken fungerar bara i den webbläsaren, i 15 minuter, en gång.</p>
-  <p style="font-size:13px;line-height:1.55;color:#6e6e73;margin:0;">Var det inte du? Ignorera mejlet. Ingen kan logga in med det någon annanstans.</p>
+  <p style="margin:0 0 28px;"><a href="${esc(link)}" style="display:inline-block;background:#0a0a0a;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 22px;border-radius:999px;">${L.button}</a></p>
+  <p style="font-size:13px;line-height:1.55;color:#6e6e73;margin:0 0 10px;">${L.from(where, when)}</p>
+  <p style="font-size:13px;line-height:1.55;color:#6e6e73;margin:0;">${L.notYou}</p>
 </div></body></html>`,
   };
 }
@@ -126,7 +145,7 @@ export function registerAuthRoutes(app) {
       if (upErr) throw upErr;
 
       const url = `${getFrontendUrl()}/login#a=${attempt.id}&l=${link}`;
-      await sendEmail({ from: '"PullUp" <no-reply@pullup.se>', to: email, ...loginMail({ code, link: url, device: deviceLabel, country, at: now }) });
+      await sendEmail({ from: '"PullUp" <no-reply@pullup.se>', to: email, ...loginMail({ code, link: url, device: deviceLabel, country, at: now, lang: req.body?.lang === "en" ? "en" : "sv" }) });
       return res.json({ attempt: attempt.id, expiresAt: attempt.expires_at });
     } catch (err) {
       console.error("[auth] login:", err?.message);

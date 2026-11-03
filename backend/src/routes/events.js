@@ -213,6 +213,7 @@ export async function rsvpToEvent(slug, body = {}) {
     googleUrl: calendar.google,
     icsUrl: calendar.ics,
     imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
+    lang: body.lang === "en" ? "en" : "sv",
   });
   const sender = (organizer || "").replace(/["<>\\\r\n]/g, "").slice(0, 60);
   // The brand's own verified address when it has one (lib/senders.js).

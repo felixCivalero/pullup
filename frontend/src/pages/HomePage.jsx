@@ -62,7 +62,7 @@ function Result({ result }) {
   const t = useT();
   const misses = result.items.filter((i) => !i.ok).length;
   return (
-    <div className="ho-result" role="status">
+    <div className="ho-result">
       <div className="ho-score">
         <strong>{result.score}</strong>
         <span>{t("of 100")}</span>
@@ -110,19 +110,71 @@ function PowerHead({ title, kind }) {
   );
 }
 
+// The site check's answer, wherever on the page it was asked: a centred
+// window on desktop, a sheet from the bottom on phones. It opens the moment
+// the check starts (reading…), then shows the score or what went wrong.
+function CheckPopup({ open, state, asked, result, errors, onClose }) {
+  const t = useT();
+  const panel = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const back = document.activeElement;
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    panel.current?.focus({ preventScroll: true });
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      html.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+      back?.focus?.({ preventScroll: true });
+    };
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="ho-pop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ho-pop-panel" ref={panel} role="dialog" aria-modal="true" aria-label={t("Test your site")} tabIndex={-1}>
+        <div className="ho-pop-bar">
+          <span><i className="ho-led" aria-hidden="true" />{state === "working" ? t("Reading…") : asked}</span>
+          <button type="button" onClick={onClose} aria-label={t("Close")}>×</button>
+        </div>
+        <div className="ho-pop-body" role="status" aria-live="polite">
+          {state === "working" && (
+            <div className="ho-pop-wait">
+              <p>{asked}</p>
+              <div className="ho-pop-scan" aria-hidden="true"><i /></div>
+              <small>{t("20 seconds. No sign-up.")}</small>
+            </div>
+          )}
+          {state === "done" && result && <Result result={result} />}
+          {errors[state] && (
+            <div className="ho-pop-wait">
+              <p>{t(errors[state])}</p>
+              {state === "unreadable" && <button type="button" className="ho-pop-cta" onClick={() => { onClose(); meeting("check_unreadable"); }}>{t("Book a meeting")}</button>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const t = useT();
   const [site, setSite] = useState("");
   const [heroSite, setHeroSite] = useState("");
-  const [heroAsked, setHeroAsked] = useState(false);
   const [state, setState] = useState("idle");
   const [result, setResult] = useState(null);
   const [count, setCount] = useState(null);
-  const box = useRef(null);
+  const [popOpen, setPopOpen] = useState(false);
+  const [asked, setAsked] = useState("");
+  const closePop = useCallback(() => setPopOpen(false), []);
   const checkRef = useRef(null);
 
   const check = useCallback(async (value, source) => {
-    setHeroAsked(source === "home_hero");
+    setAsked(String(value).trim().replace(/^https?:\/\//i, "").replace(/\/$/, ""));
+    setPopOpen(true);
     setState("working");
     setResult(null);
     try {
@@ -139,7 +191,6 @@ export function HomePage() {
       setResult(data);
       setState("done");
       trackEvent("cta_click", { location: "check_done" });
-      setTimeout(() => box.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     } catch (err) {
       setState(err.message === "invalid_site" ? "invalid" : err.message === "rate_limited" ? "limited" : "unreadable");
     }
@@ -157,7 +208,6 @@ export function HomePage() {
     if (!preset) return undefined;
     const id = setTimeout(() => {
       setSite(preset);
-      checkRef.current?.scrollIntoView({ block: "start" });
       check(preset, "link");
     }, 0);
     return () => clearTimeout(id);
@@ -205,7 +255,6 @@ export function HomePage() {
                 />
                 <button type="submit" disabled={state === "working"}>{state === "working" ? t("Reading…") : t("Test")}</button>
               </div>
-              {ERRORS[state] && heroAsked && <small className="ho-power-note">{t(ERRORS[state])}</small>}
             </form>
             <Link className="ho-power is-event" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_hero_event" })}>
               <PowerHead title="Fill the room." kind="ticket" />
@@ -213,8 +262,6 @@ export function HomePage() {
             </Link>
           </div>
         </FunnelWorld>
-
-        <div ref={box}>{result && <Result result={result} />}</div>
 
         <QuoteReel />
 
@@ -271,7 +318,7 @@ export function HomePage() {
                 />
                 <button type="submit" disabled={state === "working"}>{state === "working" ? t("Reading…") : t("Check my site")}</button>
               </form>
-              <small>{ERRORS[state] ? t(ERRORS[state]) : t("Free. No sign-up.")}</small>
+              <small>{t("Free. No sign-up.")}</small>
             </div>
             <Link className="ho-tool" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_create" })}>
               <small>{t("Create an event")}</small>
@@ -289,6 +336,7 @@ export function HomePage() {
         </section>
 
       </div>
+      <CheckPopup open={popOpen} state={state} asked={asked} result={result} errors={ERRORS} onClose={closePop} />
     </AgencyShell>
   );
 }
@@ -374,9 +422,33 @@ const HOME_CSS = `
   .ho-site form button:hover { background: #2a2a2a; }
   .ho-site form + small { display: block; margin-top: 14px; font-size: 15px; font-weight: 500; }
 
-  .ho-result { ${PAD} padding-top: clamp(40px, 6vw, 80px); padding-bottom: clamp(40px, 6vw, 80px); background: #fff; }
+  /* ─── the check's popup ─── */
+  .ho-pop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(10,10,10,.5); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: ho-pop-fade .25s ease both; }
+  .ho-pop-panel { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; width: min(920px, 100%); max-height: min(86vh, 860px); display: flex; flex-direction: column; overflow: hidden; border-radius: 14px; background: #fff; color: #0a0a0a; outline: 0; box-shadow: 0 40px 100px -20px rgba(0,0,0,.55); animation: ho-pop-in .4s cubic-bezier(.16,1,.3,1) both; }
+  .ho-pop-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 16px; border-bottom: 1px solid #b9b8b3; background: linear-gradient(180deg, #e4e3df, #cfcec9); font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .ho-pop-bar span { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ho-pop-bar button { flex: none; width: 34px; height: 34px; border: 1px solid #8f8e89; border-radius: 6px; background: #f7f6f1; color: #0a0a0a; font-size: 20px; line-height: 1; box-shadow: inset 0 1px 0 #fff; }
+  .ho-pop-bar button:hover { background: #0a0a0a; color: #fff; }
+  .ho-pop-body { overflow-y: auto; overscroll-behavior: contain; padding: clamp(20px, 3.4vw, 40px); }
+  .ho-pop-wait { display: grid; gap: 16px; justify-items: start; padding: 12px 0 8px; }
+  .ho-pop-wait p { margin: 0; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.15; letter-spacing: -0.03em; font-weight: 700; word-break: break-word; }
+  .ho-pop-wait small { font-family: var(--mono); font-size: 12px; color: #6e6e73; }
+  .ho-pop-scan { position: relative; width: 100%; height: 8px; overflow: hidden; border: 1px solid #8f8e89; border-radius: 4px; background: #e4e3df; box-shadow: inset 0 1px 2px rgba(0,0,0,.15); }
+  .ho-pop-scan i { position: absolute; inset: 0 auto 0 0; width: 30%; background: #ec178f; box-shadow: 0 0 12px #ec178f; animation: ho-pop-scan 1.4s ease-in-out infinite; }
+  .ho-pop-cta { height: 48px; padding: 0 24px; border: 0; border-radius: 999px; background: #0a0a0a; color: #fff; font-size: 15px; font-weight: 600; }
+  .ho-pop-cta:hover { background: #ec178f; }
+  @keyframes ho-pop-fade { from { opacity: 0; } }
+  @keyframes ho-pop-in { from { opacity: 0; transform: translateY(18px) scale(.98); } }
+  @keyframes ho-pop-scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+  @media (max-width: 759px) {
+    .ho-pop { place-items: end stretch; padding: 0; }
+    .ho-pop-panel { width: 100%; max-height: 90svh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation: ho-pop-sheet .45s cubic-bezier(.16,1,.3,1) both; }
+    @keyframes ho-pop-sheet { from { transform: translateY(100%); } }
+  }
+  @media (prefers-reduced-motion: reduce) { .ho-pop, .ho-pop-panel, .ho-pop-scan i { animation: none; } }
+  .ho-result { background: #fff; }
   .ho-score { display: grid; grid-template-columns: auto auto 1fr auto; align-items: end; gap: 0 16px; padding-bottom: 24px; margin-bottom: 28px; border-bottom: 2px solid #0a0a0a; }
-  .ho-score strong { font-size: clamp(96px, 16vw, 240px); line-height: .8; letter-spacing: -0.07em; font-weight: 700; color: #ec178f; }
+  .ho-score strong { font-size: clamp(84px, 11vw, 150px); line-height: .8; letter-spacing: -0.07em; font-weight: 700; color: #ec178f; }
   .ho-score > span { font-size: 17px; font-weight: 600; }
   .ho-score p { margin: 0; font-size: 17px; line-height: 1.3; }
   .ho-score button { height: 52px; padding: 0 28px; border: 0; border-radius: 999px; background: #0a0a0a; color: #fff; font-size: 16px; font-weight: 600; transition: background .2s ease, color .2s ease; }

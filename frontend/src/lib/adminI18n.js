@@ -166,7 +166,7 @@ const EN = {
   "Gästerna fyller alltid i namn och e-post och kan säga ja till inbjudningar. Svaren syns i gästlistan, i exporten och i CRM:et. Gäster som tas med räknas som platser.": "Guests always give name and email and can say yes to invitations. The answers show in the guest list, the export and the CRM. Guests brought along count as places.",
   // ─── the guest's sign-up (event page) ───
   "Anmäl mig": "Sign me up", "Ställ mig i kö": "Put me on the waitlist", "Skickar…": "Sending…", "Anmälan är stängd.": "Sign-up is closed.",
-  "Jag tar med mig": "I'm bringing", "Ingen": "No one", "Välj…": "Choose…", "gäst": "guest", "gäster": "guests",
+  "Jag tar med mig": "I'm bringing", "Tar du med någon?": "Bringing anyone?", "Bara du": "Just you", "Färre": "Fewer", "Fler": "More", "Ingen": "No one", "Välj…": "Choose…", "gäst": "guest", "gäster": "guests",
   "Jag vill få inbjudningar till kommande event.": "I want invitations to future events.",
   "Vi använder din e-post för bekräftelsen och info om eventet.": "We use your email for the confirmation and info about the event.",
   "Integritetspolicy": "Privacy policy", "Telefon (valfritt)": "Phone (optional)", "Instagram (valfritt)": "Instagram (optional)",
@@ -191,7 +191,7 @@ const EN_NUM = {
   "{#} besök · {#} anmälningar": "{#} visits · {#} sign-ups", "{#} event · {#} anmälda · {#} kom": "{#} events · {#} signed up · {#} came",
   "{#} personer": "{#} people", "{#} person": "{#} person", "{#} event": "{#} events", "{#} besökare": "{#} visitors", "{#} i kö": "{#} waitlisted",
   "Skicka till {#}": "Send to {#}", "Exportera {#}": "Export {#}", "Saldo: {#} utskick": "Balance: {#} sends", "in {#} days": "in {#} days",
-  "Visa fler ({#} kvar)": "Show more ({#} left)", "anmälda av {#}": "signed up of {#}", "{#} anmälningar": "{#} sign-ups",
+  "Visa fler ({#} kvar)": "Show more ({#} left)", "Du + {#} gäst": "You + {#} guest", "Du + {#} gäster": "You + {#} guests", "anmälda av {#}": "signed up of {#}", "{#} anmälningar": "{#} sign-ups",
 };
 
 // Sentences with a name or an answer in them.

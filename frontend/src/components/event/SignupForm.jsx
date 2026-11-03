@@ -95,14 +95,6 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
           <input placeholder={f.instagram === "required" ? "Instagram" : "Instagram (valfritt)"} autoCapitalize="none" autoCorrect="off" value={form.instagram} onChange={set("instagram")} readOnly={preview} />
         </div>
       )}
-      {f.plusOnes > 0 && (
-        <label className="sf-plus">
-          <span>Jag tar med mig</span>
-          <select value={form.plusOnes} onChange={(e) => setForm((x) => ({ ...x, plusOnes: Number(e.target.value) }))} disabled={preview}>
-            {Array.from({ length: f.plusOnes + 1 }, (_, n) => <option key={n} value={n}>{n === 0 ? "Ingen" : `${n} ${n === 1 ? "gäst" : "gäster"}`}</option>)}
-          </select>
-        </label>
-      )}
       {questions.map((q) => (
         q.type === "check" ? (
           <label key={q.id} className="sf-consent sf-q-check">
@@ -121,6 +113,21 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
           <input key={q.id} placeholder={`${q.label}${q.required ? "" : " (valfritt)"}`} maxLength={500} value={answers[q.id] || ""} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))} readOnly={preview} />
         )
       ))}
+      {f.plusOnes > 0 && (
+        // Guests they bring: a quiet stepper after the fields, not a menu
+        // among them. Each one counts as a place.
+        <div className="sf-guests">
+          <div className="sf-guests-text">
+            <b>Tar du med någon?</b>
+            <small>{form.plusOnes ? `Du + ${form.plusOnes} ${form.plusOnes === 1 ? "gäst" : "gäster"}` : "Bara du"}</small>
+          </div>
+          <div className="sf-step">
+            <button type="button" aria-label="Färre" disabled={preview || form.plusOnes === 0} onClick={() => setForm((x) => ({ ...x, plusOnes: x.plusOnes - 1 }))}>−</button>
+            <span aria-live="polite">{form.plusOnes ? `+${form.plusOnes}` : "0"}</span>
+            <button type="button" aria-label="Fler" disabled={preview || form.plusOnes >= f.plusOnes} onClick={() => setForm((x) => ({ ...x, plusOnes: x.plusOnes + 1 }))}>+</button>
+          </div>
+        </div>
+      )}
       <label className="sf-consent">
         <input type="checkbox" checked={form.consent} onChange={set("consent")} disabled={preview} />
         <span>{organizer ? `Jag vill få inbjudningar till kommande event från ${organizer}.` : "Jag vill få inbjudningar till kommande event."}</span>
@@ -146,6 +153,15 @@ const CSS = `
   .sf-at { position: relative; }
   .sf-at span { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.45); font-size: 16px; pointer-events: none; }
   .sf-at input { padding-left: 32px !important; }
+  .sf-guests { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 10px 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); }
+  .sf-guests-text { display: grid; gap: 1px; min-width: 0; }
+  .sf-guests-text b { font-size: 15px; font-weight: 600; color: #fff; }
+  .sf-guests-text small { font-size: 12.5px; color: rgba(255,255,255,0.55); }
+  .sf-step { display: flex; align-items: center; gap: 4px; flex: none; }
+  .sf .sf-step button { width: 36px; height: 36px; padding: 0; margin: 0; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22); background: transparent; color: #fff; font-size: 19px; font-weight: 500; line-height: 1; cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+  .sf .sf-step button:hover:not(:disabled) { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.5); }
+  .sf .sf-step button:disabled { opacity: .3; cursor: default; }
+  .sf-step span { min-width: 30px; text-align: center; font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
   .sf-plus, .sf-q { display: grid; gap: 6px; font-size: 13.5px; color: rgba(255,255,255,0.75); }
   .sf-plus { grid-template-columns: 1fr auto; align-items: center; }
   .sf select { font: inherit; font-size: 15px; padding: 12px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #fff; outline: none; width: 100%; box-sizing: border-box; }

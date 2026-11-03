@@ -21,7 +21,7 @@ const FOCUS = [0, 50, 100];
 
 // stage: the design stage, where media is dropped on the page itself — no
 // drop zone here, and nothing at all until there's media to adjust.
-export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = false, device = "desktop", setDevice = null }) {
+export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = false, inline = false, device = "desktop", setDevice = null }) {
   const media = draft.media || [];
   const ms = draft.mediaSettings || {};
   const [busy, setBusy] = useState({}); // localId → percent
@@ -106,10 +106,21 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = f
   const pending = Object.values(busy);
   const fileInput = <input ref={inputRef} type="file" hidden multiple accept="image/*,video/mp4,video/quicktime,video/webm" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />;
   if (stage && !media.length && !pending.length) return fileInput;
+  // inline: the editor's Design tab — the same as the stage's window, in the
+  // rail; with nothing yet, a pointer to the preview (where files are dropped).
+  const bare = stage || inline;
   return (
     <div className={`ee-panel${stage ? " cp-stage" : ""}`}>
       {stage && <p className="cp-stage-head">Justera media</p>}
-      {stage ? fileInput : <div
+      {inline && !media.length && !pending.length && (
+        <div className="cp-empty">
+          <ImagePlus size={20} />
+          <b>Ingen bild än</b>
+          <span>Klicka eller dra en bild, karusell eller video till omslaget i förhandsvisningen.</span>
+          <button type="button" className="ea-btn" onClick={() => inputRef.current?.click()}>Välj filer</button>
+        </div>
+      )}
+      {bare ? fileInput : <div
         className={`cp-drop${over ? " is-over" : ""}`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -152,7 +163,7 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = f
               <i style={{ width: `${pct}%` }} />
             </div>
           ))}
-          {stage && !isVideo && images.length < MAX_IMAGES && (
+          {bare && !isVideo && images.length < MAX_IMAGES && (
             <button type="button" className="cp-item cp-more" onClick={() => inputRef.current?.click()}><ImagePlus size={18} /><span>Lägg till</span></button>
           )}
         </div>
@@ -268,6 +279,10 @@ const COVER_CSS = `
   .cp-dev { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid #b9b8b3; border-radius: 6px; background: linear-gradient(180deg, #efeee9, #e1e0db); }
   .cp-dev button { border: 0; border-radius: 4px; background: none; padding: 4px 9px; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #4a4945; }
   .cp-dev button.is-on { background: #ec178f; color: #fff; }
+  .cp-empty { display: grid; justify-items: center; gap: 6px; padding: 22px 16px; text-align: center; border: 1px dashed ${colors.borderStrong}; border-radius: 10px; background: #fff; }
+  .cp-empty b { font-size: 14px; }
+  .cp-empty span { font-size: 12.5px; color: ${colors.textSubtle}; line-height: 1.45; max-width: 280px; }
+  .cp-empty .ea-btn { margin-top: 4px; }
   .cp-note { margin: 0; font-size: 12px; color: ${colors.textSubtle}; }
   .cp-stage-head { margin: -12px -12px 2px; padding: 8px 12px; background: linear-gradient(180deg, #ecebe6, #d9d8d3); border-bottom: 1px solid #9b9a95; border-radius: 10px 10px 0 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #3a3935; }
   .cp-stage { position: absolute; z-index: 5; left: 18px; top: 74px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid #9b9a95; border-radius: 10px; box-shadow: 4px 4px 0 rgba(0,0,0,.08), 0 20px 50px -24px rgba(0,0,0,.35); animation: cp-in .3s ease both; }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clock } from "lucide-react";
 import { compressImage, validateImageFile } from "../lib/imageUtils.js";
 import { formatReadableDateTime, formatRelativeTime } from "../lib/dateUtils.js";
@@ -17,7 +17,7 @@ import { PlaceField } from "./PlaceField.jsx";
 const LABELS = { title: "Titel", location: "Plats", datetime: "Datum & tid", socials: "Sociala länkar", spotify: "Spotify", applemusic: "Apple Music", soundcloud: "SoundCloud", youtube: "YouTube", hostedby: "Arrangör", text: "Text" };
 const FIXED = new Set(["title", "location", "datetime"]);
 const ADD = [
-  { data: { type: "text", title: "Rubrik", text: "Skriv något här..." }, icon: "T", label: "Text" },
+  { data: { type: "text", title: "", text: "" }, icon: "T", label: "Text" },
   { data: { type: "spotify", url: "" }, icon: "♫", label: "Spotify" },
   { data: { type: "applemusic", url: "" }, icon: "♪", label: "Apple" },
   { data: { type: "soundcloud", url: "" }, icon: "♪", label: "SoundCloud" },
@@ -35,7 +35,19 @@ function youtubeId(url) {
   return null;
 }
 
-export function SectionsPanel({ draft, update, hovered, setHovered }) {
+export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex = null }) {
+  // A block to start writing in (the flow's first text block): its heading
+  // gets the cursor and the block comes into view.
+  const panelRef = useRef(null);
+  useEffect(() => {
+    if (focusIndex == null) return;
+    const id = setTimeout(() => {
+      const card = panelRef.current?.querySelector(`[data-section-editor="${focusIndex}"]`);
+      card?.scrollIntoView({ behavior: "smooth", block: "center" });
+      card?.querySelector("input, textarea")?.focus({ preventScroll: true });
+    }, 120);
+    return () => clearTimeout(id);
+  }, [focusIndex]);
   // The organiser block starts with the brand the event belongs to.
   const brand = useEventBrand(draft?.brandId);
   const sections = draft.sections || [];
@@ -54,7 +66,7 @@ export function SectionsPanel({ draft, update, hovered, setHovered }) {
   };
 
   return (
-    <div className="ee-panel">
+    <div className="ee-panel" ref={panelRef}>
       {sections.map((section, i) => (
         <div
           key={i}

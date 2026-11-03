@@ -75,7 +75,7 @@ function CreateFlow() {
       const res = await authenticatedFetch("/admin/events", { method: "POST", body: JSON.stringify(brandId ? { ...basics, brandId } : basics) });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error);
-      navigate(`/admin/events/${out.event.id}/edit`, { replace: true });
+      navigate(`/admin/events/${out.event.id}/edit?flow=new`, { replace: true });
     } catch {
       setError("Kunde inte skapa eventet. Försök igen.");
       setBusy(false);
@@ -94,11 +94,18 @@ export function EventEditorPage() {
 
 function Editor() {
   const { id } = useParams();
+  // Making an event (from the wizard) runs as a flow: the design on a stage,
+  // then a first text block ready to write in. Editing later is the editor:
+  // the rail with every part, beside the preview, opening on the content.
+  const [params] = useSearchParams();
+  const flow = params.get("flow") === "new";
+  const [focusIndex, setFocusIndex] = useState(null);
+  const started = useRef(false);
   const { showToast } = useToast();
   const toast = useCallback((msg) => showToast(msg, "error"), [showToast]);
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState(false);
-  const [tab, setTab] = useState("cover");
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get("flow") === "new" ? "cover" : "content"));
   const [device, setDevice] = useState("desktop"); // laptop first: the page reads best there
   const [sizes, setSizes] = useState({ phone: "15", desktop: "laptop" });
   const [hovered, setHovered] = useState(null);
@@ -195,8 +202,22 @@ function Editor() {
   // 02 Design is a stage: only the page, as big as it gets, on the screen
   // sizes you pick, with the media dropped right on it. 01 Praktiskt and
   // 03 Innehåll are in the editor with the rail.
-  const stage = tab === "cover";
-  const goTab = (t) => { setTab(t); railRef.current?.scrollTo({ top: 0 }); };
+  const stage = flow && tab === "cover";
+  const goTab = (t) => {
+    setTab(t);
+    railRef.current?.scrollTo({ top: 0 });
+    // The flow's first step into the content: a text block to write in.
+    if (flow && t === "content" && !started.current) {
+      started.current = true;
+      const sections = draft.sections || [];
+      const blank = sections.findIndex((x) => x.type === "text" && !x.title && !x.text);
+      if (blank >= 0) setFocusIndex(blank);
+      else {
+        update({ sections: [...sections, { type: "text", title: "", text: "" }] });
+        setFocusIndex(sections.length);
+      }
+    }
+  };
   const saveLabel = { saved: "Sparat", dirty: "Ändrat…", saving: "Sparar…", error: "Kunde inte spara" }[saveState];
 
   return (
@@ -236,17 +257,26 @@ function Editor() {
           ))}
         </nav>
         <div className="ed2-body" ref={railRef}>
-          {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} />}
+          {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} focusIndex={focusIndex} />}
           {tab === "signup" && <SignupPanel draft={draft} update={update} />}
-          <StepFoot tab={tab} setTab={goTab} live={live} publish={publish} eventId={draft.id} />
+          {/* Editing (not the flow): the media sits here in the rail; kept
+              mounted on every tab (the preview's drop zone uploads through it). */}
+          {!flow && (
+            <div style={{ display: tab === "cover" ? "block" : "none" }}>
+              <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} inline device={device} setDevice={setDevice} />
+            </div>
+          )}
+          {flow && <StepFoot tab={tab} setTab={goTab} live={live} publish={publish} eventId={draft.id} />}
         </div>
       </aside>
 
       {/* The media: on the stage a panel beside the page; elsewhere kept
           mounted (the page's own drop zone uploads through it). */}
-      <div style={{ display: stage ? "contents" : "none" }}>
-        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage device={device} setDevice={setDevice} />
-      </div>
+      {flow && (
+        <div style={{ display: stage ? "contents" : "none" }}>
+          <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage device={device} setDevice={setDevice} />
+        </div>
+      )}
 
       <Canvas device={device} setDevice={setDevice} sizeId={sizes[device]} setSize={(id) => setSizes((x) => ({ ...x, [device]: id }))}>
         {device === "phone"

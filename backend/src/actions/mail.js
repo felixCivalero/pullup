@@ -7,7 +7,7 @@ import { PACKS, creditBalance, checkoutUrl, packById, recentPurchases } from "..
 import { getFrontendUrl } from "../lib/urls.js";
 import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvents.js";
 import { brandInput, inBrand } from "./events.js";
-import { payerFor } from "../lib/brands.js";
+import { brandScope, payerFor } from "../lib/brands.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -28,7 +28,7 @@ const audience = z.discriminatedUnion("type", [
 export const listPeopleAction = defineAction({
   name: "list_people",
   title: "My people (CRM)",
-  description: "Everyone who signed up to the person's events: name, email, how many events, how many they came to, last event, and whether they want updates. Filter with search or eventId.",
+  description: "Everyone who signed up to the brand's events: name, email, how many events, how many they came to, last event, whose brands' events they came to and which brands they said yes to hearing from (consent is per brand). A main brand over other brands holds all their people (filter with onlyBrand). Filter with search or eventId.",
   access: "user",
   effect: "read",
   untrustedOutput: true,
@@ -36,17 +36,23 @@ export const listPeopleAction = defineAction({
     brand: brandInput,
     search: z.string().trim().max(100).optional().describe("Name or email contains this."),
     eventId: z.guid().optional().describe("Only people signed up to this event."),
+    onlyBrand: z.string().trim().max(100).optional().describe("A main brand's CRM: only people from this brand under it (id or name)."),
     limit: z.number().int().min(1).max(500).default(100),
   }),
-  run: async ({ brand, search, eventId, limit }, { caller }) => {
-    const { people } = await listPeople(inBrand(caller, brand));
+  run: async ({ brand, search, eventId, onlyBrand, limit }, { caller }) => {
+    const scoped = inBrand(caller, brand);
+    const [{ people }, { brands }] = await Promise.all([listPeople(scoped), brandScope(scoped)]);
+    const nameOf = (id) => brands.find((b) => b.id === id)?.name || id;
     const needle = (search || "").toLowerCase();
     const rows = people
       .filter((p) => !needle || `${p.name} ${p.email}`.toLowerCase().includes(needle))
-      .filter((p) => !eventId || p.eventIds.includes(eventId));
+      .filter((p) => !eventId || p.eventIds.includes(eventId))
+      .filter((p) => !onlyBrand || p.brandIds.some((id) => id === onlyBrand || nameOf(id).toLowerCase() === onlyBrand.toLowerCase()));
     return {
       total: rows.length,
-      people: rows.slice(0, limit).map(({ eventIds, cameIds, ...p }) => p),
+      // brands: whose events they signed up to; yesTo: which brands they
+      // said yes to hearing from (consent is per brand).
+      people: rows.slice(0, limit).map(({ eventIds, cameIds, brandIds, consentBrands, ...p }) => ({ ...p, brands: brandIds.map(nameOf), yesTo: consentBrands.map(nameOf) })),
     };
   },
 });

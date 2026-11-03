@@ -11,7 +11,7 @@ import { EVENT_IMAGE_BUCKET, imageUrl } from "../lib/eventPlatform.js";
 import { ActionError, statusFor } from "../lib/actionError.js";
 import { loadEventMedia } from "./adminEventMedia.js";
 import {
-  createEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, statsForEvent, statsOverview, updateEvent, updateGuest,
+  createEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, moveEvent, statsForEvent, statsOverview, updateEvent, updateGuest,
 } from "../repos/hostEvents.js";
 import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
 import { over } from "../lib/abuse.js";
@@ -79,6 +79,8 @@ export function registerAdminEventRoutes(app) {
   // Statistics (lib/eventStats.js): the brand on screen, and one event.
   app.get("/admin/brand-stats", ...handle(async (req) => statsOverview(req.caller)));
   app.get("/admin/events/:id/stats", ...handle(async (req) => statsForEvent(req.caller, req.params.id)));
+
+  app.post("/admin/events/:id/move", ...handle(async (req) => ({ event: await moveEvent(req.caller, req.params.id, req.body?.brandId) })));
 
   app.get("/admin/events/:id", ...handle(async (req) => {
     const out = await eventWithGuests(req.caller, req.params.id);

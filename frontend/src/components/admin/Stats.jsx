@@ -64,6 +64,14 @@ export function Daily({ daily, title = "Dag för dag" }) {
   if (!daily?.length) return null;
   const h = hover != null ? daily[hover] : null;
   const sum = (k) => daily.reduce((s, d) => s + d[k], 0);
+  if (!sum("visits") && !sum("signups")) {
+    return (
+      <section className="st-card">
+        <div className="st-card-head"><h3>{title}</h3></div>
+        <p className="ea-muted st-empty">Inga besök eller anmälningar än. Dela länken så syns de här, dag för dag.</p>
+      </section>
+    );
+  }
   return (
     <section className="st-card">
       <div className="st-card-head">

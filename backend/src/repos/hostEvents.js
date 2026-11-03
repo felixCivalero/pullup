@@ -28,7 +28,7 @@ export const EVENT_COLUMNS =
   "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng";
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
-const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in";
+const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in, visitor_id";
 
 const ofKindEvent = (q) => q.or("kind.is.null,kind.eq.event");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -311,6 +311,27 @@ export async function updateEvent(caller, id, body) {
   return eventShape(data, caller);
 }
 
+// Move an event to another of the account's brands (an event made on a main
+// brand before it had brands under it, or simply in the wrong brand). Its
+// guests and their yes go with it: they signed up to that event. Only within
+// one account, only by its team, never onto a main brand over other brands.
+export async function moveEvent(caller, id, brandRef) {
+  const ev = await eventFor(caller, id);
+  if (caller.isOwner && ev.host_id !== caller.hostId) throw new ActionError("forbidden", "Only the organiser can move this event.");
+  const { brands } = await brandScope(caller);
+  const want = String(brandRef || "").trim();
+  const to = brands.find((b) => b.id === want) || brands.find((b) => b.name.toLowerCase() === want.toLowerCase());
+  if (!to) throw new ActionError("not_found", "No brand of yours with that id or name.", { detail: "brand" });
+  const from = brands.find((b) => b.id === ev.brand_id);
+  if (!isTeam(to) || (from && !isTeam(from))) throw new ActionError("forbidden", "Events are moved by the brands' team.", { detail: "team" });
+  if (to.hostId !== ev.host_id) throw new ActionError("invalid", "An event moves between brands of the same account only.", { detail: "account" });
+  if (brandsUnder(brands, to).length) throw new ActionError("invalid", `${to.name} is the main brand over other brands and holds no events of its own: move it to one of them.`, { detail: "umbrella" });
+  if (to.id === ev.brand_id) return eventShape(ev, caller);
+  const { data, error } = await supabase.from("events").update({ brand_id: to.id }).eq("id", ev.id).select(EVENT_COLUMNS).single();
+  if (error) throw error;
+  return eventShape(data, caller, {}, new Map([[to.id, to.name]]));
+}
+
 // One event with its guest list.
 export async function eventWithGuests(caller, id) {
   const ev = await eventFor(caller, id);
@@ -392,7 +413,7 @@ async function sendScope(caller, audience) {
 async function noUmbrellaMail(caller) {
   const main = await umbrellaOf(caller);
   if (main) {
-    throw new ActionError("forbidden", `${main.name} is the main brand: mail goes out from each brand under it, to the people who said yes to that brand.`, { detail: "umbrella" });
+    throw new ActionError("forbidden", `${main.name} is the main brand: mail goes out from each brand under it, to the people who said yes to that brand. An event that sits on ${main.name} itself: move it to one of its brands first (move_event).`, { detail: "umbrella" });
   }
 }
 

@@ -6,9 +6,10 @@ import eventActions from "./events.js";
 import mailActions from "./mail.js";
 import ownerActions from "./owner.js";
 import teamActions from "./team.js";
+import statsActions from "./stats.js";
 
-export const ACTIONS = new Map([...publicActions, ...eventActions, ...mailActions, ...teamActions, ...ownerActions].map((a) => [a.name, a]));
-if (ACTIONS.size !== publicActions.length + eventActions.length + mailActions.length + teamActions.length + ownerActions.length) {
+export const ACTIONS = new Map([...publicActions, ...eventActions, ...mailActions, ...teamActions, ...statsActions, ...ownerActions].map((a) => [a.name, a]));
+if (ACTIONS.size !== publicActions.length + eventActions.length + mailActions.length + teamActions.length + statsActions.length + ownerActions.length) {
   throw new Error("two actions share a name");
 }
 

@@ -77,6 +77,7 @@ export function EventDetailPage() {
               <div><b>{data.guests.filter((g) => g.consent).length}</b><span>vill ha inbjudningar</span></div>
             </div>
             {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
+            {ev.mine && <MoveBrand ev={ev} onMoved={load} />}
             <EventStats id={ev.id} />
             <Guests guests={data.guests} ev={ev} onChange={load} />
             <TeamOnly otherwise={<CohostMailNote />}><Compose ev={ev} /></TeamOnly>
@@ -85,6 +86,54 @@ export function EventDetailPage() {
         )}
       </div>
     </AdminShell>
+  );
+}
+
+// Which brand the event belongs to, and moving it to another of the
+// account's brands (backend moveEvent). An event left on a main brand over
+// other brands (made before they existed) is pointed out: its guests can't be
+// mailed until it sits in one of them.
+function MoveBrand({ ev, onMoved }) {
+  const brand = useCurrentBrand();
+  const all = brand?.all || [];
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const own = all.find((b) => b.id === ev.brandId);
+  const isMain = (b) => all.some((x) => x.parentId === b.id);
+  const targets = all.filter((b) => b.id !== ev.brandId && b.role !== "event" && !isMain(b) && (!own || b.role === own.role));
+  if (!own || own.role === "event" || !targets.length) return null;
+  const stuck = isMain(own);
+  const move = async () => {
+    if (!to) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await authenticatedFetch(`/admin/events/${ev.id}/move`, { method: "POST", body: JSON.stringify({ brandId: to }) });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.message || out.error);
+      setTo("");
+      onMoved();
+    } catch (e) {
+      setErr(e.message || "Kunde inte flytta eventet.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={`ed-move${stuck ? " is-stuck" : ""}`}>
+      <p>
+        {stuck
+          ? <>Det här eventet ligger på huvudkontot <b>{own.name}</b>. Flytta det till ett av varumärkena så kan gästerna mejlas.</>
+          : <>Hör till <b>{own.name}</b>.</>}
+      </p>
+      <select className="ea-input" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Flytta till varumärke">
+        <option value="">Flytta till…</option>
+        {targets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+      <button type="button" className="ea-btn" disabled={!to || busy} onClick={move}>{busy ? "Flyttar…" : "Flytta"}</button>
+      {err && <p className="ea-error">{err}</p>}
+    </div>
   );
 }
 
@@ -358,6 +407,12 @@ const DETAIL_CSS = `
   .ed-when::first-letter { text-transform: uppercase; }
   .ed-share { display: flex; gap: 8px; flex-wrap: wrap; }
   .ed-statsec { margin: 30px 0 28px; }
+  .ed-move { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: #f6f5f2; font-size: 13.5px; }
+  .ed-move p { flex: 1 1 260px; margin: 0; color: #3a3a3c; }
+  .ed-move select { width: auto; min-width: 160px; padding: 7px 10px; font-size: 13.5px; }
+  .ed-move .ea-btn { padding: 7px 14px; }
+  .ed-move .ea-error { flex-basis: 100%; margin: 0; }
+  .ed-move.is-stuck { background: #fdeef6; border: 1px solid rgba(236,23,143,0.35); }
   .ed-statsec > h2 { margin: 0 0 12px; }
   .ed-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
   .ed-stats > div { border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 12px 14px; display: grid; gap: 2px; }

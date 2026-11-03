@@ -1,23 +1,22 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { SV } from "./i18n/sv.js";
-import { SW } from "./i18n/sw.js";
 
-/* The agency site in three languages. English is the source: every string is
-   written in English in the components and data, and t() looks it up in the
-   Swedish or Swahili dictionary (keyed by the English text). A miss falls
+/* The agency site in Swedish and English. English is the source: every string
+   is written in English in the components and data, and t() looks it up in the
+   Swedish dictionary (keyed by the English text). A miss falls
    back to English, so nothing ever renders blank. Strings with numbers
    ("126 people pulled up.") also match a "{#}" key ("{#} people pulled up."),
    so live counts don't need one entry per value.
    Swedish is always the default (Felix 2026-10-19); English is a toggle away.
-   The visitor's own switch is remembered per browser; ?lang=sv|sw|en in a
-   link applies to that visit only. Prices are SEK in every language. */
+   The visitor's own switch is remembered per browser; ?lang=sv|en in a
+   link applies to that visit only (Swahili was dropped 2026-11-03: a saved
+   "sw" falls back to Swedish). Prices are SEK in every language. */
 
 export const LANGS = [
   { code: "sv", short: "SV", name: "Svenska" },
   { code: "en", short: "EN", name: "English" },
-  { code: "sw", short: "SW", name: "Kiswahili" },
 ];
-const DICTS = { sv: SV, sw: SW };
+const DICTS = { sv: SV };
 const KEY = "pullup.lang";
 const DEFAULT = "sv";
 const valid = (c) => LANGS.some((l) => l.code === c);

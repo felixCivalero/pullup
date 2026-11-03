@@ -22,6 +22,8 @@ export const SV = {
 
   // ─── proof ───
   "views for STIGA in seven months": "visningar för STIGA på sju månader",
+  "views in seven months": "visningar på sju månader",
+  "28 million views in seven months.": "28 miljoner visningar på sju månader.",
   "8 h → 30 min": "8 h → 30 min",
   "per piece of content for Li Karlsén": "per innehåll för Li Karlsén",
 

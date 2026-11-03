@@ -6,7 +6,7 @@ import { LangSwitch } from "../components/agency/LangSwitch.jsx";
 import { MailLink } from "../components/agency/MailLink.jsx";
 
 /* /privacy, /terms, /cookies — what this site actually does with data, in
-   Swedish and English (Swahili reads the English). Keep these in step with
+   Swedish and English. Keep these in step with
    the code: forms → backend/src/routes/{agencyRequests,deckDownloads}.js,
    statistics → lib/track.js + lib/consent.js (the one opt-in counter),
    browser storage → i18n.js (language),

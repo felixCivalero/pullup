@@ -477,13 +477,20 @@ const HOME_CSS = `
   .ho-cases .cr { --sc: #ec178f; --gut: clamp(20px, 3.4vw, 48px); }
 
   .ho-meet { ${PAD} padding-top: clamp(88px, 12vw, 168px); padding-bottom: clamp(56px, 8vw, 96px); background: #0a0a0a; color: #fff; }
-  .ho-meet h2 { margin: 14px 0 22px; font-size: clamp(64px, 13vw, 220px); line-height: .86; letter-spacing: -0.065em; font-weight: 700; }
-  .ho-meet > p { margin: 0 0 34px; max-width: 30em; font-size: clamp(18px, 2vw, 24px); line-height: 1.3; letter-spacing: -0.02em; color: rgba(255,255,255,.72); }
-  .ho-meet-form { display: flex; gap: 6px; width: 100%; max-width: 640px; padding: 6px; border-radius: 999px; background: #fff; }
-  .ho-meet-form input { flex: 1; min-width: 0; height: 56px; padding: 0 20px; border: 0; outline: 0; background: transparent; color: #0a0a0a; font: inherit; font-size: clamp(16px, 1.8vw, 19px); font-weight: 500; }
-  .ho-meet-form button { flex: none; height: 56px; padding: 0 clamp(18px, 2.4vw, 30px); border: 0; border-radius: 999px; background: #ec178f; color: #0a0a0a; font-size: 16px; font-weight: 700; transition: background .2s ease; }
-  .ho-meet-form button:hover { background: #0a0a0a; color: #fff; }
-  .ho-meet-alt { margin: 16px 0 clamp(56px, 8vw, 104px); font-size: 15px; color: rgba(255,255,255,.6); }
+  .ho-meet h2 { margin: 14px 0 clamp(18px, 2.4vw, 28px); padding-top: .08em; font-size: clamp(56px, 10.5vw, 176px); line-height: .9; letter-spacing: -0.045em; font-weight: 700; }
+  .ho-meet > p:not(.ho-meet-alt) { margin: 0 0 clamp(26px, 3vw, 36px); max-width: 32em; font-size: clamp(17px, 1.7vw, 21px); line-height: 1.45; letter-spacing: -0.01em; color: rgba(255,255,255,.68); }
+  .ho-meet-form { display: flex; gap: 6px; width: 100%; max-width: 560px; box-sizing: border-box; padding: 6px; border-radius: 999px; background: #fff; }
+  .ho-meet-form input { flex: 1; min-width: 0; height: 52px; padding: 0 18px; border: 0; outline: 0; background: transparent; color: #0a0a0a; font: inherit; font-size: 17px; font-weight: 500; }
+  .ho-meet-form input::placeholder { color: #8a8a8e; }
+  .ho-meet-form button { flex: none; height: 52px; padding: 0 clamp(18px, 2.2vw, 26px); border: 0; border-radius: 999px; background: #ec178f; color: #fff; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; transition: background .2s ease; }
+  .ho-meet-form button:hover { background: #0a0a0a; }
+  .ho-meet-alt { margin: 16px 0 clamp(56px, 8vw, 104px); font-size: 15px; line-height: 1.4; color: rgba(255,255,255,.55); }
+  .ho-meet-alt .ho-mail, .ho-meet-alt a { font-size: inherit; color: #fff; text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 3px; }
+  @media (max-width: 520px) {
+    .ho-meet-form { flex-direction: column; gap: 4px; border-radius: 22px; }
+    .ho-meet-form input { flex: none; height: 54px; padding: 0 16px; }
+    .ho-meet-form button { width: 100%; border-radius: 16px; }
+  }
   .ho-mail { color: #fff; font-size: 16px; font-weight: 600; text-decoration: none; }
   .ho-mail:hover { text-decoration: underline; text-underline-offset: 4px; }
 `;

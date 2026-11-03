@@ -285,46 +285,85 @@ export function FunnelWorld({ children }) {
       ctx.clearRect(0, 0, w, h);
 
       if (funnelVis > 0.01) {
-        ctx.strokeStyle = `rgba(255,255,255,${0.16 * funnelVis})`;
-        ctx.lineWidth = 1;
-        for (const side of [-1, 1]) {
+        // The funnel is a stack of grey metal plates, each with an opening
+        // that narrows: a sieve the dots fall through. An opening's edges glow
+        // pink once the dots reach it, and each level's name is a tag mounted
+        // on its plate (the hero tools' hardware look).
+        // Short plates that follow the funnel's shape: the shape is drawn
+        // by where the openings are, not by a line.
+        const len = phone ? 40 : 96;
+        const th = phone ? 7 : 9;
+        const r = th / 2;
+        const plate = (x0, x1, y) => {
+          if (x1 - x0 < 2) return;
           ctx.beginPath();
-          for (let k = 0; k <= 1.0001; k += 0.02) {
-            const x = fx + side * half(k);
-            const y = mix(y0, y1, k);
-            if (k === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
+          if (ctx.roundRect) ctx.roundRect(x0, y - r, x1 - x0, th, r);
+          else ctx.rect(x0, y - r, x1 - x0, th);
+          ctx.fill();
           ctx.stroke();
-        }
-        ctx.font = `600 ${phone ? 12 : 14}px ${font}`;
-        ctx.textBaseline = "middle";
-        ctx.textAlign = "left";
-        [...LEVELS, 1].forEach((k, i) => {
+        };
+        [0, ...LEVELS, 1].forEach((k, n) => {
           const y = mix(y0, y1, k);
-          const reached = clamp((q * 1.5 - 0.5 - k * 0.5 + 0.35) / 0.15);
-          ctx.setLineDash([3, 5]);
-          ctx.strokeStyle = `rgba(255,255,255,${(0.1 + 0.25 * reached) * funnelVis})`;
-          ctx.beginPath();
-          ctx.moveTo(fx - half(k), y);
-          ctx.lineTo(fx + half(k), y);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          // Each level is a small grey hardware tag with a lamp that lights
-          // when the dots reach it (the same panels as the hero's tools).
+          const open = n === 0 ? W0 + 1.5 : half(k);
+          const reached = n === 0 ? 1 : clamp((q * 1.5 - 0.5 - k * 0.5 + 0.35) / 0.15);
+          const vis = funnelVis * (n === 0 ? 0.75 : 0.55 + 0.45 * reached);
+          ctx.globalAlpha = vis;
+          const g = ctx.createLinearGradient(0, y - r, 0, y + r);
+          g.addColorStop(0, "#e9e8e3");
+          g.addColorStop(0.5, "#c9c8c3");
+          g.addColorStop(1, "#8f8e89");
+          ctx.fillStyle = g;
+          ctx.strokeStyle = "rgba(0,0,0,.55)";
+          ctx.lineWidth = 1;
+          const outer = open + len;
+          plate(fx - outer, fx - open, y);
+          plate(fx + open, fx + outer, y);
+          // Machined notches along the plate.
+          ctx.fillStyle = "rgba(0,0,0,.28)";
+          for (let x = fx + open + 12; x < fx + outer - 6; x += 12) ctx.fillRect(x, y - r + 2, 1, th - 4);
+          for (let x = fx - open - 12; x > fx - outer + 6; x -= 12) ctx.fillRect(x, y - r + 2, 1, th - 4);
+          // The opening's lips: pink and glowing once reached.
+          const glow = n === 0 ? 0.35 : reached;
+          ctx.fillStyle = `rgba(236,23,143,${0.25 + 0.75 * glow})`;
+          ctx.shadowColor = "#ec178f";
+          ctx.shadowBlur = 10 * glow;
+          for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.arc(fx + side * open, y, r * 0.75, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.shadowBlur = 0;
+          // A faint light through the opening, down to the next plate.
+          if (n < 4 && glow > 0.05) {
+            const yn = mix(y0, y1, [0, ...LEVELS, 1][n + 1]);
+            const beam = ctx.createLinearGradient(0, y, 0, yn);
+            beam.addColorStop(0, `rgba(236,23,143,${0.07 * glow})`);
+            beam.addColorStop(1, "rgba(236,23,143,0)");
+            ctx.fillStyle = beam;
+            const on = half([0, ...LEVELS, 1][n + 1]);
+            ctx.beginPath();
+            ctx.moveTo(fx - open, y + r);
+            ctx.lineTo(fx + open, y + r);
+            ctx.lineTo(fx + on, yn - r);
+            ctx.lineTo(fx - on, yn - r);
+            ctx.fill();
+          }
+          if (n === 0) { ctx.globalAlpha = 1; return; }
+          // The tag, mounted on the right end of the plate.
+          const i = n - 1;
           const label = names[i].toUpperCase();
           ctx.font = `700 ${phone ? 9.5 : 11}px ${mono}`;
           const tw = ctx.measureText(label).width;
           const ph = phone ? 20 : 24;
           const pw = tw + (phone ? 26 : 32);
-          const px = fx + half(k) + (phone ? 8 : 16);
+          const px = Math.min(fx + outer + (phone ? 4 : 8), w - pw - (phone ? 6 : 16));
           const py = y - ph / 2;
-          ctx.globalAlpha = (0.45 + 0.55 * reached) * funnelVis;
-          const g = ctx.createLinearGradient(0, py, 0, py + ph);
-          g.addColorStop(0, "#e4e3df");
-          g.addColorStop(1, "#cfcec9");
-          ctx.fillStyle = g;
-          ctx.strokeStyle = "#8f8e89";
+          ctx.globalAlpha = (0.55 + 0.45 * reached) * funnelVis;
+          const tg = ctx.createLinearGradient(0, py, 0, py + ph);
+          tg.addColorStop(0, "#efeee9");
+          tg.addColorStop(1, "#d3d2cd");
+          ctx.fillStyle = tg;
+          ctx.strokeStyle = "#6f6e69";
           ctx.beginPath();
           if (ctx.roundRect) ctx.roundRect(px + 0.5, py + 0.5, pw, ph, 4);
           else ctx.rect(px + 0.5, py + 0.5, pw, ph);
@@ -340,6 +379,8 @@ export function FunnelWorld({ children }) {
           ctx.fill();
           ctx.shadowBlur = 0;
           ctx.fillStyle = "#111";
+          ctx.textBaseline = "middle";
+          ctx.textAlign = "left";
           ctx.fillText(label, lx + (phone ? 7 : 9), y + 1);
           ctx.globalAlpha = 1;
         });

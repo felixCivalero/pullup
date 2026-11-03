@@ -79,14 +79,14 @@ export function Onboarding({ email, invites, onDone }) {
               <button type="submit" disabled={!top}>Nästa →</button>
             </div>
           </div>
-          <p className="ob-fine">Inloggad som {email}. Event, anmälningar, CRM och agenter är gratis. Du betalar bara för utskick till många.</p>
+          <p className="ob-fine">{`Inloggad som ${email}.`} Event, anmälningar, CRM och agenter är gratis. Du betalar bara för utskick till många.</p>
         </form>
       ) : (
         <div className="ob-step is-wide">
           <p className="ob-count">2 / 2</p>
-          <h1>Har {top} varumärken under sig?</h1>
+          <h1>{`Har ${top} varumärken under sig?`}</h1>
           <p className="ob-sub">
-            Lägg till dem här så blir {top} huvudkontot: admin över allt, med alla event och hela CRM:et samlat. Eventen och utskicken görs i varumärkena, och den du bjuder in till {top} jobbar i alla.
+            {`Lägg till dem här så blir ${top} huvudkontot: admin över allt, med alla event och hela CRM:et samlat. Eventen och utskicken görs i varumärkena, och den du bjuder in till ${top} jobbar i alla.`}
           </p>
 
           <div className="oc" aria-label={`Organisationen ${top}`}>

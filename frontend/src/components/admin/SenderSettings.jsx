@@ -46,8 +46,8 @@ export function SenderSettings() {
       <h2>Mejlavsändare</h2>
       <p className="ea-muted">
         {s.verified
-          ? <>Mejl från {brand.name} går ut från <b>{s.email}</b>.</>
-          : <>Mejl från {brand.name} går idag ut från <b>no-reply@pullup.se</b> med {brand.name} som avsändarnamn. Med en egen adress på er domän går de ut från den.</>}
+          ? `Mejl från ${brand.name} går ut från ${s.email}.`
+          : `Mejl från ${brand.name} går idag ut från no-reply@pullup.se med ${brand.name} som avsändarnamn. Med en egen adress på er domän går de ut från den.`}
       </p>
       <div className="ss-row">
         <label><span>Egen avsändaradress</span>
@@ -61,7 +61,7 @@ export function SenderSettings() {
       {error && <p className="ea-error">{error}</p>}
       {s.email && !s.verified && (
         <div className="ss-dns">
-          <p><b>Lägg in de här DNS-posterna hos er domän</b> (där ni hanterar {s.email.split("@")[1]}, t.ex. Cloudflare, Loopia eller one.com). Det kan ta en stund innan de syns. Tryck sedan Kontrollera.</p>
+          <p>{`Lägg in de här DNS-posterna där ni hanterar ${s.email.split("@")[1]} (t.ex. Cloudflare, Loopia eller one.com). Det kan ta en stund innan de syns. Tryck sedan Kontrollera.`}</p>
           {s.records?.length > 0 && (
             <div className="ea-wrap"><table className="ea-table ss-table">
               <thead><tr><th>Typ</th><th>Namn</th><th>Värde</th><th>Prio</th><th>Status</th></tr></thead>

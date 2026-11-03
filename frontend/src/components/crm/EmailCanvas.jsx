@@ -242,7 +242,8 @@ function EmailFooter({ theme }) {
         lineHeight: 1.6,
       }}
     >
-      <p style={{ margin: 0 }}>
+      {/* The footer the guests really get (Swedish), so not translated here. */}
+      <p style={{ margin: 0 }} data-no-translate>
         Du får det här mejlet för att du har tackat ja till inbjudningar.
         <br />
         Vill du inte ha fler? <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>Avregistrera dig</a>.

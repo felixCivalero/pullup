@@ -14,8 +14,8 @@ export function CreditsLine({ balance, needed, onBuy }) {
   return (
     <p className="ec-line">
       <style>{CSS}</style>
-      Saldo: <b>{n(balance)}</b> utskick
-      {short && <span className="ec-short"> · {n(needed - balance)} för lite för det här utskicket</span>}
+      <span>{`Saldo: ${n(balance)} utskick`}</span>
+      {short && <span className="ec-short">{` · ${n(needed - balance)} för lite för det här utskicket`}</span>}
       {" · "}
       <button type="button" className="ec-link" onClick={onBuy}>Köp utskick</button>
     </p>

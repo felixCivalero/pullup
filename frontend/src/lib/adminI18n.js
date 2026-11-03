@@ -192,6 +192,10 @@ const EN = {
   "Importerar…": "Importing…", "Tidigare importer": "Earlier imports", "Källa": "Source", "Nya": "New", "Godkänner mejl": "Accept mail", "Avtal": "Agreement",
   "Till CRM:et →": "To the CRM →", "Importen misslyckades.": "The import failed.", "Filen är tom.": "The file is empty.",
   "Spara listan som CSV först (i Excel: Arkiv → Spara som → CSV).": "Save the list as CSV first (in Excel: File → Save as → CSV).",
+  "Inga event än.": "No events yet.", "Mall": "Template",
+  "Välj eventet så fylls mejlet i med bild, titel, datum, plats och beskrivning. Sen kan du ändra och flytta om.": "Pick the event and the mail fills in with its picture, title, date, place and description. Then change and reorder as you like.",
+  "Lägg till ett block under Design för att börja.": "Add a block under Design to start.",
+  "En uppföljning handlar om något som har hänt. Välj eventet så fylls {{event_title}} och {{event_date}} i.": "A follow-up is about something that happened. Pick the event and {{event_title}} and {{event_date}} fill in.",
   // ─── delete ───
   "Radera eventet…": "Delete the event…", "Radera eventet för gott.": "Delete the event for good.",
   "Eventsidan, anmälningarna, bilderna och statistiken försvinner och går inte att få tillbaka. Gästerna finns kvar i CRM:et. Vill du bara ta ner det tillfälligt? Gör det till ett utkast i redigeraren i stället.": "The event page, sign-ups, pictures and statistics disappear and can't be brought back. The guests stay in the CRM. Only want to take it down for now? Make it a draft in the editor instead.",
@@ -206,7 +210,6 @@ const EN = {
   // ─── sender ───
   "Mejlavsändare": "Mail sender", "Egen avsändaradress": "Own sender address", "Svar går till": "Replies go to", "Den som skickar": "The person sending",
   "t.ex. nyheter@ertvarumarke.se": "e.g. news@yourbrand.com", "Kontrollera": "Check", "Kontrollerar…": "Checking…", "Typ": "Type", "Värde": "Value", "Prio": "Priority", "Väntar": "Waiting",
-  "Lägg in de här DNS-posterna hos er domän": "Add these DNS records at your domain",
   "Det gick inte.": "That didn't work.",
   // invites
   "Tacka ja": "Accept", "Tacka nej": "Decline",
@@ -220,7 +223,7 @@ const EN_NUM = {
   "Upp till {#} gäst": "Up to {#} guest", "Upp till {#} gäster": "Up to {#} guests", "{#} mottagare": "{#} recipients",
   "{#} besök · {#} anmälningar": "{#} visits · {#} sign-ups", "{#} event · {#} anmälda · {#} kom": "{#} events · {#} signed up · {#} came",
   "{#} personer": "{#} people", "{#} person": "{#} person", "{#} event": "{#} events", "{#} besökare": "{#} visitors", "{#} i kö": "{#} waitlisted",
-  "Skicka till {#}": "Send to {#}", "Exportera {#}": "Export {#}", "Saldo: {#} utskick": "Balance: {#} sends", "in {#} days": "in {#} days",
+  "Skicka till {#}": "Send to {#}", "Exportera {#}": "Export {#}", "Saldo: {#} utskick": "Balance: {#} sends", "· {#} för lite för det här utskicket": "· {#} short for this send", "in {#} days": "in {#} days",
   "Visa fler ({#} kvar)": "Show more ({#} left)", "Du + {#} gäst": "You + {#} guest", "Du + {#} gäster": "You + {#} guests", "anmälda av {#}": "signed up of {#}", "{#} anmälningar": "{#} sign-ups",
 };
 
@@ -232,6 +235,8 @@ const PATTERNS = [
   [/^Under (.+)$/, "Under $1"],
   [/^· (\d+) varumärken under (.+)$/, "· $1 brands under $2"],
   [/^Har (.+) varumärken under sig\?$/, "Does $1 have brands under it?"],
+  [/^Inloggad som (.+)\.$/, "Signed in as $1."],
+  [/^Lägg till dem här så blir (.+) huvudkontot: admin över allt, med alla event och hela CRM:et samlat\. Eventen och utskicken görs i varumärkena, och den du bjuder in till (.+) jobbar i alla\.$/, "Add them here and $1 becomes the main account: admin over everything, with all events and the whole CRM in one place. Events and mail are made in the brands, and whoever you invite to $2 works in all of them."],
   [/^Bara (.+), klar$/, "Just $1, done"],
   [/^Byt namn på (.+)$/, "Rename $1"],
   [/^Det här eventet ligger på huvudkontot (.+)\.$/, "This event sits on the main account $1."],
@@ -242,10 +247,9 @@ const PATTERNS = [
   [/^Eventet är fullt just nu\. Vi mejlar (.+) om en plats blir ledig\.$/, "The event is full right now. We'll mail $1 if a place opens up."],
   [/^Svara på: (.+)$/, "Answer: $1"],
   [/^Radera (.+)$/, "Delete $1"],
-  [/^Mejl från (.+) går ut från$/, "Mail from $1 goes out from"],
-  [/^Mejl från (.+) går idag ut från$/, "Mail from $1 goes out today from"],
-  [/^med (.+) som avsändarnamn\. Med en egen adress på er domän går de ut från den\.$/, "with $1 as the sender name. With your own address on your domain, it goes out from that."],
-  [/^\(där ni hanterar (.+), t\.ex\. Cloudflare, Loopia eller one\.com\)\. Det kan ta en stund innan de syns\. Tryck sedan Kontrollera\.$/, "(where you manage $1, e.g. Cloudflare, Loopia or one.com). They may take a while to show. Then press Check."],
+  [/^Mejl från (.+) går ut från (.+)\.$/, "Mail from $1 goes out from $2."],
+  [/^Mejl från (.+) går idag ut från no-reply@pullup\.se med (.+) som avsändarnamn\. Med en egen adress på er domän går de ut från den\.$/, "Mail from $1 goes out today from no-reply@pullup.se with $2 as the sender name. With your own address on your domain, it goes out from that."],
+  [/^Lägg in de här DNS-posterna där ni hanterar (.+) \(t\.ex\. Cloudflare, Loopia eller one\.com\)\. Det kan ta en stund innan de syns\. Tryck sedan Kontrollera\.$/, "Add these DNS records where you manage $1 (e.g. Cloudflare, Loopia or one.com). They may take a while to show. Then press Check."],
   [/^Välj ett alternativ: (.+)$/, "Pick an option: $1"],
   [/^(.+) \(valfritt\)$/, (m, q) => `${toEnglish(q)} (optional)`],
   [/^(\d+ [a-zåäö]+\.?): (\d+) besök, (\d+) anmälningar$/, (m, d, v, n) => `${toEnglish(d)}: ${v} visits, ${n} sign-ups`],

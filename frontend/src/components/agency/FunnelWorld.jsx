@@ -111,6 +111,7 @@ export function FunnelWorld({ children }) {
   const ref = useRef(null);
   const pinkRef = useRef(null);
   const heroRef = useRef(null);
+  const readRef = useRef(null);
   const [step, setStep] = useState(-1);
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function FunnelWorld({ children }) {
     const names = LEVEL_NAMES[lang] || LEVEL_NAMES.en;
     const worldWords = (WORLD_WORDS[lang] || WORLD_WORDS.en).map((word, i, all) => ({ word, at: fibonacci(i, all.length) }));
     const font = getComputedStyle(canvas).fontFamily;
+    const mono = 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace';
     const start = performance.now();
     let last = start;
     let w = 0;
@@ -180,6 +182,36 @@ export function FunnelWorld({ children }) {
       const grow = span(p, AT.grow);
       const funnelVis = gather * (1 - lift);
 
+      // The grey readout under the text reads the scene as it plays: the
+      // noise ticking, the filter counting down to one, the channels lighting.
+      const panel = readRef.current;
+      if (panel) {
+        const front = clamp(q * 1.5 - 0.25);
+        const left = front < 0.25 ? 1 : front < 0.5 ? mix(1, 0.45, (front - 0.25) / 0.25) : front < 0.75 ? mix(0.45, 0.18, (front - 0.5) / 0.25) : front < 0.93 ? mix(0.18, 0.05, (front - 0.75) / 0.18) : mix(0.05, 0, clamp((front - 0.93) / 0.07));
+        const live = {
+          noise: 4800 + Math.round((still ? 0 : time) * 37) % 900,
+          left: Math.max(1, Math.round(N * left)),
+          grow: Math.round(grow * 100),
+          lit: Math.min(5, Math.floor(grow * 6.5)),
+        };
+        panel.style.setProperty("--fw-q", String(Math.round(q * 200) / 200));
+        panel.style.setProperty("--fw-grow", String(Math.round(grow * 200) / 200));
+        panel.style.setProperty("--fw-left", String(Math.round(left * 200) / 200));
+        panel.querySelectorAll("[data-live]").forEach((el) => {
+          const v = live[el.dataset.live];
+          const text = lang === "sv" ? v.toLocaleString("sv-SE") : v.toLocaleString("en-US");
+          if (el.textContent !== text) el.textContent = text;
+        });
+        panel.querySelectorAll("[data-lvl]").forEach((el) => {
+          const on = front >= Number(el.dataset.lvl) - 0.02;
+          if (el.classList.contains("is-on") !== on) el.classList.toggle("is-on", on);
+        });
+        panel.querySelectorAll("[data-ch]").forEach((el) => {
+          const on = live.lit > Number(el.dataset.ch);
+          if (el.classList.contains("is-on") !== on) el.classList.toggle("is-on", on);
+        });
+      }
+
       // Pink fades to black; the bar on top follows the same value
       // (--pc-tone, read by .pc-nav.is-blend), so they move as one.
       const toneNow = Math.round(dark * 500) / 500;
@@ -223,7 +255,9 @@ export function FunnelWorld({ children }) {
 
       // The funnel.
       const fx = phone ? w * 0.5 : w * 0.66;
-      const y0 = phone ? h * 0.38 : h * 0.12;
+      // On phones the funnel starts below the text and its readout panel.
+      const below = phone && readRef.current ? readRef.current.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top + 26 : 0;
+      const y0 = phone ? Math.min(h * 0.5, Math.max(h * 0.38, below)) : h * 0.12;
       const y1 = phone ? h * 0.84 : h * 0.88;
       const W0 = phone ? w * 0.38 : Math.min(w * 0.26, 420);
       const half = (k) => W0 * (1 - k) ** 1.25 + 1.5;
@@ -276,8 +310,38 @@ export function FunnelWorld({ children }) {
           ctx.lineTo(fx + half(k), y);
           ctx.stroke();
           ctx.setLineDash([]);
-          ctx.fillStyle = i === 3 ? `rgba(236,23,143,${(0.4 + 0.6 * reached) * funnelVis})` : `rgba(255,255,255,${(0.35 + 0.65 * reached) * funnelVis})`;
-          ctx.fillText(names[i], fx + half(k) + (phone ? 10 : 18), y);
+          // Each level is a small grey hardware tag with a lamp that lights
+          // when the dots reach it (the same panels as the hero's tools).
+          const label = names[i].toUpperCase();
+          ctx.font = `700 ${phone ? 9.5 : 11}px ${mono}`;
+          const tw = ctx.measureText(label).width;
+          const ph = phone ? 20 : 24;
+          const pw = tw + (phone ? 26 : 32);
+          const px = fx + half(k) + (phone ? 8 : 16);
+          const py = y - ph / 2;
+          ctx.globalAlpha = (0.45 + 0.55 * reached) * funnelVis;
+          const g = ctx.createLinearGradient(0, py, 0, py + ph);
+          g.addColorStop(0, "#e4e3df");
+          g.addColorStop(1, "#cfcec9");
+          ctx.fillStyle = g;
+          ctx.strokeStyle = "#8f8e89";
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(px + 0.5, py + 0.5, pw, ph, 4);
+          else ctx.rect(px + 0.5, py + 0.5, pw, ph);
+          ctx.fill();
+          ctx.stroke();
+          const lx = px + (phone ? 9 : 11);
+          const lit = i === 3 ? reached : reached > 0.5 ? 1 : 0.15;
+          ctx.fillStyle = lit > 0.5 ? "#ec178f" : "#8f8e89";
+          ctx.shadowColor = "#ec178f";
+          ctx.shadowBlur = lit > 0.5 ? 8 : 0;
+          ctx.beginPath();
+          ctx.arc(lx, y + 0.5, phone ? 2.5 : 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#111";
+          ctx.fillText(label, lx + (phone ? 7 : 9), y + 1);
+          ctx.globalAlpha = 1;
         });
       }
 
@@ -477,9 +541,69 @@ export function FunnelWorld({ children }) {
               <p>{t(s.line)}</p>
             </div>
           ))}
+          <Readout step={step} panel={readRef} lang={lang} />
         </div>
       </div>
     </section>
+  );
+}
+
+// The grey panel under each step: what the scene is doing, read out like an
+// old instrument. The numbers and lamps are written by the draw loop (data-live,
+// data-lvl, data-ch) so scrolling never re-renders React.
+const READOUT = [
+  { head: "Signal / noise", tag: "Noise", rows: (t) => (
+    <>
+      <div className="fw-row"><span>{t("Impressions today")}</span><b data-live="noise">4 800</b></div>
+      <div className="fw-row"><span>{t("Sounds the same")}</span><b>94%</b></div>
+      <div className="fw-bar is-noise"><i /></div>
+    </>
+  ) },
+  { head: "Filter", tag: "Running", rows: (t, names) => (
+    <>
+      <ul className="fw-lvls">
+        {names.map((n, i) => <li key={n} data-lvl={[0.25, 0.5, 0.75, 0.93][i]}><i />{n}</li>)}
+      </ul>
+      <div className="fw-row"><span>{t("Left")}</span><b><span data-live="left">1 200</span> / 1 200</b></div>
+      <div className="fw-bar is-left"><i /></div>
+    </>
+  ) },
+  { head: "Core found", tag: "Locked", rows: (t) => (
+    <>
+      <div className="fw-row"><span>{t("Unique")}</span><b>1 / 1 200</b></div>
+      <div className="fw-row"><span>{t("Can be copied")}</span><b>0%</b></div>
+      <div className="fw-bar is-full"><i /></div>
+    </>
+  ) },
+  { head: "Amplify", tag: "Live", rows: (t, names, world) => (
+    <>
+      <ul className="fw-chs">
+        {world.slice(0, 5).map((n, i) => <li key={n} data-ch={i}><i />{n}</li>)}
+      </ul>
+      <div className="fw-row"><span>{t("Reach")}</span><b><span data-live="grow">0</span>%</b></div>
+      <div className="fw-bar is-grow"><i /></div>
+    </>
+  ) },
+];
+
+function Readout({ step, panel, lang }) {
+  const t = useT();
+  const r = READOUT[step];
+  const names = LEVEL_NAMES[lang] || LEVEL_NAMES.en;
+  const world = WORLD_WORDS[lang] || WORLD_WORDS.en;
+  return (
+    <div className={`fw-read${r ? " is-on" : ""}`} ref={panel} aria-hidden="true">
+      {r && (
+        <>
+          <div className="fw-read-head">
+            <span className="fw-read-no">{String(step + 1).padStart(2, "0")}/04</span>
+            <b>{t(r.head)}</b>
+            <em><i className="fw-led" />{t(r.tag)}</em>
+          </div>
+          <div className="fw-read-body" key={step}>{r.rows(t, names, world)}</div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -502,4 +626,39 @@ export const FUNNEL_CSS = `
     .fw-text p { font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) { .fw-text > div { transition: none; transform: none; } }
+  /* ─── the readout: the hero's grey hardware panel, reading the scene ─── */
+  .fw-text > .fw-read { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; grid-area: auto; margin-top: clamp(22px, 3vh, 34px); width: min(100%, 360px); padding: 10px 12px 12px; border-radius: 8px; color: #111;
+    background: linear-gradient(180deg, #e4e3df 0%, #cfcec9 100%); border: 1px solid #8f8e89;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 22px 46px -22px rgba(0,0,0,.9);
+    font-family: var(--mono); opacity: 0; transform: translateY(18px); transition: opacity .5s ease .1s, transform .6s cubic-bezier(.16,1,.3,1) .1s; }
+  .fw-text > .fw-read.is-on { opacity: 1; transform: none; }
+  .fw-read-head { display: flex; align-items: center; gap: 10px; padding-bottom: 9px; margin-bottom: 10px; border-bottom: 1px solid rgba(0,0,0,.14); box-shadow: 0 1px 0 rgba(255,255,255,.7); }
+  .fw-read-no { padding: 3px 6px; border-radius: 4px; background: #1a1a1a; color: #e4e3df; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
+  .fw-read-head b { flex: 1; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .fw-read-head em { display: inline-flex; align-items: center; gap: 6px; padding: 3px 7px; border: 1px solid rgba(0,0,0,.35); border-radius: 4px; background: rgba(255,255,255,.35); font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .fw-led { width: 6px; height: 6px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #ec178f; animation: fw-led 2.4s ease-in-out infinite; }
+  @keyframes fw-led { 50% { opacity: .45; } }
+  .fw-read-body { display: grid; gap: 7px; animation: fw-in .45s ease both; }
+  @keyframes fw-in { from { opacity: 0; } }
+  .fw-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: #3a3935; }
+  .fw-row b { color: #111; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .fw-bar { height: 8px; border-radius: 2px; background: #f7f6f1; border: 1px solid #7d7c77; box-shadow: inset 0 1px 2px rgba(0,0,0,.18); overflow: hidden; }
+  .fw-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, #ec178f 0 5px, #c40f76 5px 6px); }
+  .fw-bar.is-noise i { width: 94%; background: repeating-linear-gradient(90deg, #8f8e89 0 3px, #b5b4ae 3px 5px, #6f6e69 5px 6px); animation: fw-noise .35s steps(3) infinite; }
+  @keyframes fw-noise { 50% { transform: translateX(-4px); } }
+  .fw-bar.is-left i { width: calc(var(--fw-left, 1) * 100%); }
+  .fw-bar.is-full i { width: .4%; min-width: 3px; box-shadow: 0 0 8px #ec178f; }
+  .fw-bar.is-grow i { width: calc(var(--fw-grow, 0) * 100%); }
+  .fw-lvls, .fw-chs { list-style: none; margin: 0 0 2px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8a8984; }
+  .fw-chs { grid-template-columns: 1fr 1fr 1fr; }
+  .fw-lvls li, .fw-chs li { display: flex; align-items: center; gap: 7px; transition: color .3s ease; }
+  .fw-lvls i, .fw-chs i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #a8a7a2; box-shadow: 0 0 0 1px rgba(0,0,0,.2); transition: background .3s ease, box-shadow .3s ease; }
+  .fw-lvls .is-on, .fw-chs .is-on { color: #111; }
+  .fw-lvls .is-on i, .fw-chs .is-on i { background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 7px #ec178f; }
+  @media (max-width: 759px) {
+    .fw-text > .fw-read { margin-top: 14px; width: min(100%, 320px); padding: 8px 10px 9px; }
+    .fw-read-body { gap: 5px; }
+    .fw-read-body > .fw-row:nth-of-type(2), .fw-lvls, .fw-chs { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .fw-led, .fw-bar.is-noise i, .fw-read-body { animation: none; } .fw-text > .fw-read { transition: none; } }
 `;

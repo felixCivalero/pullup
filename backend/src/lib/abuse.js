@@ -46,7 +46,10 @@ export function mayConfirm({ email, hostId }, now = Date.now()) {
 
 // Cloudflare Turnstile. On when TURNSTILE_SECRET_KEY is set (the site key goes
 // to the frontend as VITE_TURNSTILE_SITE_KEY); until then every check passes.
-export const turnstileOn = () => !!process.env.TURNSTILE_SECRET_KEY;
+// Off on a local dev backend (NODE_ENV=development): the local frontend has no
+// site key, so it would never send a token and local sign-in would fail.
+export const turnstileOn = () =>
+  !!process.env.TURNSTILE_SECRET_KEY && process.env.NODE_ENV !== "development";
 
 export async function humanCheck(token, ip) {
   if (!turnstileOn()) return true;

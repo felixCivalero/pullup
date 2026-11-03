@@ -56,8 +56,13 @@ assert(mayConfirm({ email: "someone@example.com", hostId: "other-host" }, t), "a
 delete process.env.TURNSTILE_SECRET_KEY;
 assert(await humanCheck(undefined, "1.2.3.4") === true, "no Turnstile keys: the check passes (rate limits still hold)");
 process.env.TURNSTILE_SECRET_KEY = "secret";
+const envWas = process.env.NODE_ENV;
+process.env.NODE_ENV = "development";
+assert(await humanCheck(undefined, "1.2.3.4") === true, "local dev backend → no human check");
+process.env.NODE_ENV = "production";
 assert(await humanCheck(undefined, "1.2.3.4") === false, "keys set, no token → refused");
 assert(await humanCheck("x".repeat(5000), "1.2.3.4") === false, "keys set, absurd token → refused without asking Cloudflare");
+process.env.NODE_ENV = envWas;
 delete process.env.TURNSTILE_SECRET_KEY;
 
 // ── working together (lib/teams.js) ──

@@ -104,6 +104,11 @@ export function useCoverAspect(media, imagePreview, ratio = null) {
   return RATIOS[ratio] ?? stored ?? measured;
 }
 
+// The settings for one screen: format and focus can be set apart for phone
+// and desktop (mediaSettings.phone / .desktop); what isn't set there falls
+// back to the shared ones.
+export const deviceMedia = (mediaSettings, surface) => ({ ...(mediaSettings || {}), ...((mediaSettings || {})[surface] || {}) });
+
 // How the media sits in the hero: whole (contain) at its own ratio, or filling
 // a picked format (cover) around the focus point.
 export const fitFor = (mediaSettings) => (RATIOS[mediaSettings?.ratio] ? "cover" : "contain");

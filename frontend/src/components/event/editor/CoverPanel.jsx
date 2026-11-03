@@ -21,7 +21,7 @@ const FOCUS = [0, 50, 100];
 
 // stage: the design stage, where media is dropped on the page itself — no
 // drop zone here, and nothing at all until there's media to adjust.
-export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = false }) {
+export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = false, device = "desktop", setDevice = null }) {
   const media = draft.media || [];
   const ms = draft.mediaSettings || {};
   const [busy, setBusy] = useState({}); // localId → percent
@@ -30,6 +30,10 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = f
   const inputRef = useRef(null);
   const isVideo = media.some((m) => m.mediaType === "video");
   const setMs = (patch) => update({ mediaSettings: { ...ms, ...patch } });
+  // Format and focus for the screen on show (mediaSettings.phone / .desktop),
+  // over the shared ones.
+  const dm = { ratio: ms.ratio, focusX: ms.focusX, focusY: ms.focusY, ...(ms[device] || {}) };
+  const setDev = (patch) => setMs({ [device]: { ...(ms[device] || {}), ...patch } });
 
   const addFiles = async (fileList) => {
     let position = media.length;
@@ -156,26 +160,34 @@ export function CoverPanel({ draft, setMedia, update, toast, filesRef, stage = f
 
       {media.length > 0 && (
         <div className="ee-panel cp-settings">
-          <p className="ee-section-title">Format</p>
+          <div className="cp-dev-head">
+            <p className="ee-section-title">Format och fokus</p>
+            {/* One for phone, one for desktop: the preview follows the pick. */}
+            <div className="cp-dev" role="radiogroup" aria-label="Skärm">
+              {[["phone", "Mobil"], ["desktop", "Desktop"]].map(([k, l]) => (
+                <button key={k} type="button" role="radio" aria-checked={device === k} className={device === k ? "is-on" : ""} onClick={() => setDevice?.(k)}>{l}</button>
+              ))}
+            </div>
+          </div>
           <div className="cp-seg" role="radiogroup" aria-label="Format">
             {FORMATS.map(([k, l]) => (
-              <button key={l} type="button" role="radio" aria-checked={(ms.ratio || "") === k} className={(ms.ratio || "") === k ? "is-on" : ""} onClick={() => setMs({ ratio: k || null })}>
+              <button key={l} type="button" role="radio" aria-checked={(dm.ratio || "") === k} className={(dm.ratio || "") === k ? "is-on" : ""} onClick={() => setDev({ ratio: k || null })}>
                 {k && <i style={{ aspectRatio: k.replace(":", "/") }} />}{l}
               </button>
             ))}
           </div>
-          {ms.ratio ? (
+          {dm.ratio ? (
             <div className="cp-focus-row">
               <span>Fokus</span>
               <div className="cp-focus" role="radiogroup" aria-label="Fokus">
                 {FOCUS.map((y) => FOCUS.map((x) => {
-                  const on = (ms.focusX ?? 50) === x && (ms.focusY ?? 50) === y;
-                  return <button key={`${x}-${y}`} type="button" role="radio" aria-checked={on} className={on ? "is-on" : ""} onClick={() => setMs({ focusX: x, focusY: y })} aria-label={`Fokus ${x}% ${y}%`} />;
+                  const on = (dm.focusX ?? 50) === x && (dm.focusY ?? 50) === y;
+                  return <button key={`${x}-${y}`} type="button" role="radio" aria-checked={on} className={on ? "is-on" : ""} onClick={() => setDev({ focusX: x, focusY: y })} aria-label={`Fokus ${x}% ${y}%`} />;
                 }))}
               </div>
-              <small>Vilken del av bilden som syns när formatet beskär.</small>
+              <small>Vilken del av bilden som syns {device === "phone" ? "på mobil" : "på desktop"} när formatet beskär.</small>
             </div>
-          ) : <p className="cp-note">Original visar hela bilden i sitt eget format.</p>}
+          ) : <p className="cp-note">Original visar hela bilden i sitt eget format {device === "phone" ? "på mobil" : "på desktop"}.</p>}
         </div>
       )}
 
@@ -251,6 +263,11 @@ const COVER_CSS = `
   .cp-focus { display: grid; grid-template-columns: repeat(3, 16px); gap: 3px; padding: 4px; border: 1px solid #b9b8b3; border-radius: 6px; background: #fbfaf7; }
   .cp-focus button { width: 16px; height: 16px; border: 1px solid #c9c8c3; border-radius: 3px; background: #fff; cursor: pointer; padding: 0; }
   .cp-focus button.is-on { background: #ec178f; border-color: #b80f6f; box-shadow: 0 0 5px rgba(236,23,143,.6); }
+  .cp-dev-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cp-dev-head .ee-section-title { margin: 0; }
+  .cp-dev { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid #b9b8b3; border-radius: 6px; background: linear-gradient(180deg, #efeee9, #e1e0db); }
+  .cp-dev button { border: 0; border-radius: 4px; background: none; padding: 4px 9px; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #4a4945; }
+  .cp-dev button.is-on { background: #ec178f; color: #fff; }
   .cp-note { margin: 0; font-size: 12px; color: ${colors.textSubtle}; }
   .cp-stage-head { margin: -12px -12px 2px; padding: 8px 12px; background: linear-gradient(180deg, #ecebe6, #d9d8d3); border-bottom: 1px solid #9b9a95; border-radius: 10px 10px 0 0; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #3a3935; }
   .cp-stage { position: absolute; z-index: 5; left: 18px; top: 74px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid #9b9a95; border-radius: 10px; box-shadow: 4px 4px 0 rgba(0,0,0,.08), 0 20px 50px -24px rgba(0,0,0,.35); animation: cp-in .3s ease both; }

@@ -245,7 +245,7 @@ function Editor() {
       {/* The media: on the stage a panel beside the page; elsewhere kept
           mounted (the page's own drop zone uploads through it). */}
       <div style={{ display: stage ? "contents" : "none" }}>
-        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage />
+        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage device={device} setDevice={setDevice} />
       </div>
 
       <Canvas device={device} setDevice={setDevice} sizeId={sizes[device]} setSize={(id) => setSizes((x) => ({ ...x, [device]: id }))}>

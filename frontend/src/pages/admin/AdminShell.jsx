@@ -9,6 +9,7 @@ import { ToastProvider } from "../../components/Toast.jsx";
 import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
 import { Onboarding } from "../../components/admin/Onboarding.jsx";
 import { PendingInvites } from "../../components/admin/Team.jsx";
+import { ADMIN_SKIN } from "./adminSkin.js";
 
 /* Every /admin page renders inside this: the sign-in gate + the top bar.
    Any signed-in person is an organiser and gets their events, CRM, mail and
@@ -120,7 +121,7 @@ export function AdminShell({ title, fill = false, children }) {
   return (
     <ToastProvider>
       <div className={`ad${fill ? " ad-fill" : ""}`}>
-        <style>{ADMIN_CSS}</style>
+        <style>{ADMIN_CSS + ADMIN_SKIN}</style>
         <header className="ad-bar">
           <nav>
             {!starting && NAV.filter(shown).map(([to, label, only, wide]) => (

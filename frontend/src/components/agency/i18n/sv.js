@@ -1386,6 +1386,8 @@ export const SV = {
   "Let's fix it": "Vi fixar det",
   "This reads your public front page. It shows how ready the site is, not what an AI would answer.": "Testet läser er publika startsida. Det visar hur redo sajten är, inte vad en AI faktiskt svarar.",
   "Test your site for free": "Testa er sajt gratis",
+  "See if AI can find you.": "Se om AI hittar er.",
+  "Test": "Testa",
   "We build worlds around the core of your brand: content, growth and experiences. Online, in the AI answers and in real life.": "Vi bygger världar runt kärnan i ert varumärke – content, tillväxt och upplevelser. Online, i AI-svaren och på riktigt.",
   "Everything is noise.": "Allt är brus.",
   "Feeds fill up with AI. Thousands of impressions a day, and almost all of it sounds the same. In 2027, what's real wins.": "Flödena fylls av AI. Tusentals intryck om dagen, och nästan allt låter likadant. 2027 vinner det som är på riktigt.",

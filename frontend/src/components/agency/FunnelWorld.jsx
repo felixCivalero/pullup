@@ -133,6 +133,7 @@ export function FunnelWorld({ children }) {
     let visible = true;
     let shown = -1;
     let p = -1;
+    let heroTop = 0;
     let tone = -1;
     let spinHero = 0.6;
     let tiltHero = 0.3;
@@ -147,6 +148,9 @@ export function FunnelWorld({ children }) {
       h = r.height;
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
+      // Where the hero's headline starts: on phones the world fits above it.
+      const h1 = heroRef.current?.querySelector("h1");
+      heroTop = h1 ? h1.offsetTop : h * 0.5;
     };
 
     function draw(now) {
@@ -154,7 +158,10 @@ export function FunnelWorld({ children }) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const r = box.getBoundingClientRect();
-      const target = clamp(-r.top / Math.max(1, r.height - window.innerHeight));
+      let target = clamp(-r.top / Math.max(1, r.height - window.innerHeight));
+      // Typing in the hero (the site check): hold the scene still, so the
+      // phone keyboard nudging the page doesn't fade the hero away.
+      if (p >= 0 && heroRef.current?.contains(document.activeElement)) target = p;
       // The scene eases after the scroll instead of jumping with each wheel
       // notch or touch frame, so steps blend into one glide.
       p = still || p < 0 ? target : p + (target - p) * (1 - Math.exp(-dt * 9));
@@ -192,9 +199,10 @@ export function FunnelWorld({ children }) {
 
       const phone = w < 760;
       // The hero world.
-      const R0 = phone ? Math.min(w * 0.34, h * 0.2) : Math.min(w * 0.21, h * 0.37);
+      const room = Math.max(120, heroTop - 64);
+      const R0 = phone ? Math.max(56, Math.min(w * 0.34, room * 0.38)) : Math.min(w * 0.21, h * 0.37);
       const hx = phone ? w * 0.5 : Math.min(w * 0.74, w - R0 * 1.45);
-      const hy = phone ? h * 0.3 : h * 0.46;
+      const hy = phone ? 64 + room * 0.5 : h * 0.46;
       if (!still) {
         spinHero += dt * (0.16 + aim.x * 0.22);
         tiltHero += (0.3 + aim.y * 0.35 - tiltHero) * Math.min(1, dt * 3);
@@ -440,6 +448,7 @@ export function FunnelWorld({ children }) {
       wake();
     });
     resize.observe(canvas);
+    if (heroRef.current) resize.observe(heroRef.current);
     seen.observe(box);
     size();
     window.addEventListener("pointermove", onMove, { passive: true });

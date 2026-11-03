@@ -89,9 +89,32 @@ function Result({ result }) {
   );
 }
 
+// The hero's two free tools, drawn as superpowers you pick up on the spot:
+// the site check runs right in its card, the event tool is one tap away.
+function PowerIcon({ kind }) {
+  return kind === "scan" ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.6" className="is-fill" /><path d="M12 12 19 5" /></svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4Z" /><path d="M14 6v12" strokeDasharray="1.5 2.2" /></svg>
+  );
+}
+
+function PowerHead({ title, kind }) {
+  const t = useT();
+  return (
+    <div className="ho-power-head">
+      <i className="ho-power-icon"><PowerIcon kind={kind} /></i>
+      <h2>{t(title)}</h2>
+      <b><i className="ho-led" aria-hidden="true" />{t("Free")}</b>
+    </div>
+  );
+}
+
 export function HomePage() {
   const t = useT();
   const [site, setSite] = useState("");
+  const [heroSite, setHeroSite] = useState("");
+  const [heroAsked, setHeroAsked] = useState(false);
   const [state, setState] = useState("idle");
   const [result, setResult] = useState(null);
   const [count, setCount] = useState(null);
@@ -99,6 +122,7 @@ export function HomePage() {
   const checkRef = useRef(null);
 
   const check = useCallback(async (value, source) => {
+    setHeroAsked(source === "home_hero");
     setState("working");
     setResult(null);
     try {
@@ -139,10 +163,6 @@ export function HomePage() {
     return () => clearTimeout(id);
   }, [check]);
 
-  const toCheck = (location) => {
-    trackEvent("cta_click", { location });
-    checkRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   const ERRORS = {
     invalid: "That doesn't look like a website. Try yourbrand.se",
@@ -159,12 +179,41 @@ export function HomePage() {
               <span key={i} className="ho-rise" aria-hidden="true"><span style={{ animationDelay: `${0.25 + i * 0.12}s` }}>{word}</span></span>
             ))}
           </h1>
-          <p>{t("We build worlds around the core of your brand: content, growth and experiences. Online, in the AI answers and in real life.")}</p>
-          <div className="ho-ctas">
-            <button type="button" onClick={() => meeting("home_hero")}>{t("Book a meeting")}</button>
-            <button type="button" className="is-ghost" onClick={() => toCheck("home_hero_check")}>{t("Test your site for free")}</button>
+          <div className="ho-powers">
+            <form
+              className="ho-power is-site"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!heroSite.trim()) return;
+                trackEvent("cta_click", { location: "home_hero_check" });
+                check(heroSite, "home_hero");
+              }}
+            >
+              <PowerHead title="See if AI can find you." kind="scan" />
+              <div className="ho-power-field">
+                <input
+                  type="text"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  aria-label={t("Your website")}
+                  placeholder={t("yourbrand.se")}
+                  value={heroSite}
+                  onChange={(e) => setHeroSite(e.target.value)}
+                />
+                <button type="submit" disabled={state === "working"}>{state === "working" ? t("Reading…") : t("Test")}</button>
+              </div>
+              {ERRORS[state] && heroAsked && <small className="ho-power-note">{t(ERRORS[state])}</small>}
+            </form>
+            <Link className="ho-power is-event" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_hero_event" })}>
+              <PowerHead title="Fill the room." kind="ticket" />
+              <span className="ho-power-go">{t("Create an event")} <span aria-hidden="true">→</span></span>
+            </Link>
           </div>
         </FunnelWorld>
+
+        <div ref={box}>{result && <Result result={result} />}</div>
 
         <QuoteReel />
 
@@ -238,7 +287,6 @@ export function HomePage() {
           </div>
         </section>
 
-        <div ref={box}>{result && <Result result={result} />}</div>
       </div>
     </AgencyShell>
   );
@@ -253,15 +301,46 @@ const HOME_CSS = `
   .ho-rise { display: inline-block; overflow: hidden; padding: 0 .1em .22em 0; margin: 0 .12em -.22em 0; vertical-align: top; }
   .ho-rise > span { display: inline-block; animation: ho-rise 1s cubic-bezier(.16,1,.3,1) both; }
   @keyframes ho-rise { from { transform: translateY(110%) rotate(4deg); } to { transform: none; } }
-  .fw-hero > p, .ho-ctas { animation: ho-fade .9s .9s cubic-bezier(.16,1,.3,1) both; }
+  .fw-hero > p, .ho-powers { animation: ho-fade .9s .9s cubic-bezier(.16,1,.3,1) both; }
   @keyframes ho-fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .ho-rise > span, .fw-hero > p, .ho-ctas { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .ho-rise > span, .fw-hero > p, .ho-powers { animation: none; } }
   .fw-hero h1 { margin: 0 0 24px; max-width: 7em; font-size: clamp(54px, 10.6vw, 184px); line-height: .88; letter-spacing: -0.065em; font-weight: 700; }
   .fw-hero > p { margin: 0 0 32px; max-width: 30em; font-size: clamp(18px, 2vw, 26px); line-height: 1.25; letter-spacing: -0.02em; font-weight: 500; }
-  .ho-ctas { display: flex; flex-wrap: wrap; gap: 10px; }
-  .ho-ctas button { height: 56px; padding: 0 30px; border: 2px solid #0a0a0a; border-radius: 999px; background: #0a0a0a; color: #fff; font-size: 16px; font-weight: 600; transition: background .2s ease, color .2s ease; }
-  .ho-ctas button:hover { background: #fff; border-color: #fff; color: #0a0a0a; }
-  .ho-ctas .is-ghost { background: transparent; color: #0a0a0a; }
+  /* ─── the two free tools: grey hardware panels, old-school technical ─── */
+  .ho-powers { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; max-width: 880px; margin-top: 8px; }
+  .ho-power { position: relative; display: grid; align-content: start; gap: 14px; margin: 0; padding: 14px 14px 14px; border-radius: 10px; color: #111; text-decoration: none;
+    background: linear-gradient(180deg, #e4e3df 0%, #cfcec9 100%);
+    border: 1px solid #8f8e89;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 18px 40px -20px rgba(70,0,40,.6);
+    transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s ease; }
+  /* hairline rule under the head, like a panel seam */
+  .ho-power-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,.14); box-shadow: 0 1px 0 rgba(255,255,255,.7); }
+  .ho-power:hover, .ho-power:focus-within { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 24px 46px -18px rgba(70,0,40,.7); }
+  .ho-power-icon { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 5px; background: #1a1a1a; color: #e4e3df; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+  .ho-power-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .ho-power-icon .is-fill { fill: currentColor; }
+  .ho-power h2 { flex: 1; margin: 0; font-family: var(--mono); font-size: 13.5px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; line-height: 1.2; }
+  .ho-power-head b { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid rgba(0,0,0,.35); border-radius: 4px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: rgba(255,255,255,.35); }
+  .ho-led { width: 7px; height: 7px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #ec178f; animation: ho-led 2.4s ease-in-out infinite; }
+  @keyframes ho-led { 50% { opacity: .45; } }
+  .ho-power-field { display: flex; gap: 6px; }
+  .ho-power-field input { flex: 1; min-width: 0; height: 46px; padding: 0 12px; border: 1px solid #7d7c77; border-radius: 6px; outline: 0; background: #f7f6f1; color: #111; font-family: var(--mono); font-size: 16px; letter-spacing: 0; box-shadow: inset 0 2px 3px rgba(0,0,0,.14); }
+  .ho-power-field input::placeholder { color: #8a8984; }
+  .ho-power-field input:focus { border-color: #111; box-shadow: inset 0 2px 3px rgba(0,0,0,.14), 0 0 0 2px #ec178f; }
+  .ho-power-field button, .ho-power-go { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 18px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); transition: background .15s ease, transform .1s ease; }
+  .ho-power-field button:hover, .ho-power.is-event:hover .ho-power-go { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .ho-power-field button:active, .ho-power-go:active { transform: translateY(1px); }
+  .ho-power-field button:disabled { opacity: .7; }
+  .ho-power-go { justify-self: start; }
+  .ho-power-go span { transition: transform .25s ease; }
+  .ho-power.is-event:hover .ho-power-go span { transform: translateX(3px); }
+  .ho-power-note { font-family: var(--mono); font-size: 12px; color: #4a4945; }
+  @media (max-width: 759px) {
+    .fw-hero h1 { margin-bottom: 18px; }
+    .ho-powers { grid-template-columns: 1fr; gap: 10px; }
+    .ho-power.is-event { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { .ho-led { animation: none; } }
 
 
   .ho-tools { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(56px, 8vw, 100px); background: #fff; }

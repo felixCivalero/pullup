@@ -110,6 +110,7 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
     if (!byPerson.has(r.person_id)) byPerson.set(r.person_id, []);
     byPerson.get(r.person_id).push({
       eventId: ev.id,
+      brandId: ev.brand_id || null,
       title: ev.title,
       startsAt: ev.starts_at,
       status: r.status,
@@ -138,6 +139,10 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
         lastEventTitle: evs[0]?.title || null,
         eventIds: evs.map((e) => e.eventId),
         cameIds: evs.filter((e) => e.pulledUp).map((e) => e.eventId),
+        // Brands: the ones whose events they signed up to, and the ones they
+        // said yes to hearing from (an umbrella's CRM shows both per brand).
+        brandIds: [...new Set(evs.map((e) => e.brandId).filter(Boolean))],
+        consentBrands: p.marketing_unsubscribed_at || p.do_not_contact ? [] : p.consent_brands || [],
       };
     })
     // People who came to events first (latest event first), then everyone

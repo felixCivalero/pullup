@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { BrandKicker } from "../../components/admin/ByBrand.jsx";
+import { useCurrentBrand } from "../../lib/brand.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 
@@ -21,7 +22,24 @@ function csv(rows) {
 }
 
 export function PeoplePage() {
+  return (
+    <AdminShell title="CRM">
+      <People />
+    </AdminShell>
+  );
+}
+
+// Inside AdminShell, so it knows the brand on screen. A main brand over other
+// brands (an umbrella) holds all their guests: a brand filter, and per person
+// which brands they said yes to — consent stays per brand.
+function People() {
+  const brand = useCurrentBrand();
   const [data, setData] = useState(null);
+  const [brandId, setBrandId] = useState("");
+  const family = brand?.under?.length ? [brand, ...brand.under] : [];
+  const umbrella = family.length > 0;
+  const nameOf = (id) => family.find((b) => b.id === id)?.name || "Varumärke";
+  const names = (ids) => ids.map(nameOf).join(", ");
   const [error, setError] = useState(false);
   const [q, setQ] = useState("");
   const [eventId, setEventId] = useState("");
@@ -45,12 +63,13 @@ export function PeoplePage() {
     return data.people.filter((p) => {
       if (needle && !`${p.name} ${p.email} ${p.instagram}`.toLowerCase().includes(needle)) return false;
       if (eventId && !p.eventIds.includes(eventId)) return false;
-      if (only === "consent" && !p.consent) return false;
+      if (brandId && !p.brandIds.includes(brandId) && !p.consentBrands.includes(brandId)) return false;
+      if (only === "consent" && !(brandId ? p.consentBrands.includes(brandId) : p.consent)) return false;
       if (only === "came" && !p.attended) return false;
       if (only === "regulars" && p.events < 2) return false;
       return true;
     });
-  }, [data, q, eventId, only]);
+  }, [data, q, eventId, only, brandId]);
 
   const stats = useMemo(() => {
     const ps = data?.people || [];
@@ -64,7 +83,9 @@ export function PeoplePage() {
   }, [data]);
 
   const exportCsv = () => {
-    const rows = [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Vill ha inbjudningar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : ""])];
+    const rows = umbrella
+      ? [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Varumärken", "Vill ha inbjudningar från"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", names(p.brandIds), names(p.consentBrands)])]
+      : [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Vill ha inbjudningar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : ""])];
     const blob = new Blob(["﻿" + csv(rows)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -74,10 +95,12 @@ export function PeoplePage() {
   };
 
   const person = open ? data.people.find((p) => p.id === open) : null;
-  const sortedEvents = [...(data?.events || [])].sort((a, b) => (b.startsAt || "").localeCompare(a.startsAt || ""));
+  const sortedEvents = [...(data?.events || [])]
+    .filter((e) => !brandId || e.brandId === brandId)
+    .sort((a, b) => (b.startsAt || "").localeCompare(a.startsAt || ""));
 
   return (
-    <AdminShell title="CRM">
+    <>
       <style>{EVENT_ADMIN_CSS + PEOPLE_CSS}</style>
       <div className="ea">
         <div className="ea-head">
@@ -94,6 +117,12 @@ export function PeoplePage() {
           <>
             <div className="pp-filters">
               <input className="ea-search" placeholder="Sök namn, e-post eller Instagram" value={q} onChange={(e) => { setQ(e.target.value); setShown(SHOW_STEP); }} />
+              {umbrella && (
+                <select className="ea-input" value={brandId} onChange={(e) => { setBrandId(e.target.value); setEventId(""); setShown(SHOW_STEP); }}>
+                  <option value="">Alla varumärken</option>
+                  {family.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              )}
               <select className="ea-input" value={eventId} onChange={(e) => { setEventId(e.target.value); setShown(SHOW_STEP); }}>
                 <option value="">Alla event</option>
                 {sortedEvents.map((e) => <option key={e.id} value={e.id}>{e.title || "Utan titel"}{e.startsAt ? ` · ${day(e.startsAt)}` : ""}</option>)}
@@ -107,7 +136,7 @@ export function PeoplePage() {
             <p className="ea-muted pp-count">{nf.format(list.length)} {list.length === 1 ? "person" : "personer"}</p>
             <div className="ea-wrap">
               <table className="ea-table">
-                <thead><tr><th>Namn</th><th>E-post</th><th className="num">Event</th><th className="num">Kom</th><th>Senaste event</th><th title="Vill ha inbjudningar">Inbj.</th></tr></thead>
+                <thead><tr><th>Namn</th><th>E-post</th><th className="num">Event</th><th className="num">Kom</th><th>Senaste event</th>{umbrella ? <th>Vill ha inbjudningar från</th> : <th title="Vill ha inbjudningar">Inbj.</th>}</tr></thead>
                 <tbody>
                   {list.slice(0, shown).map((p) => (
                     <tr key={p.id} className="is-click" onClick={() => setOpen(p.id)}>
@@ -116,7 +145,9 @@ export function PeoplePage() {
                       <td className="num">{p.events || "–"}</td>
                       <td className="num">{p.attended || "–"}</td>
                       <td className="pp-last">{p.lastEventTitle ? <>{p.lastEventTitle} <span className="ea-muted">{day(p.lastEventAt)}</span></> : <span className="ea-muted">–</span>}</td>
-                      <td><i className={`ea-dot${p.consent ? " is-on" : ""}`} /></td>
+                      {umbrella ? (
+                        <td className="pp-yes">{p.consentBrands.length ? p.consentBrands.map((id) => <span key={id}>{nameOf(id)}</span>) : <span className="ea-muted">–</span>}</td>
+                      ) : <td><i className={`ea-dot${p.consent ? " is-on" : ""}`} /></td>}
                     </tr>
                   ))}
                 </tbody>
@@ -135,8 +166,19 @@ export function PeoplePage() {
             <div className="pp-facts">
               <div><b>{person.events}</b><span>event</span></div>
               <div><b>{person.attended}</b><span>kom</span></div>
-              <div><b>{person.consent ? "Ja" : "Nej"}</b><span>inbjudningar</span></div>
+              <div><b>{umbrella ? person.consentBrands.length : person.consent ? "Ja" : "Nej"}</b><span>{umbrella ? "samtycken" : "inbjudningar"}</span></div>
             </div>
+            {umbrella && (
+              <>
+                <h3>Vill ha inbjudningar från</h3>
+                <ul className="pp-consent">
+                  {family.filter((b) => person.brandIds.includes(b.id) || person.consentBrands.includes(b.id)).map((b) => (
+                    <li key={b.id}><span>{b.name}</span><b className={person.consentBrands.includes(b.id) ? "is-yes" : ""}>{person.consentBrands.includes(b.id) ? "Ja" : "Nej"}</b></li>
+                  ))}
+                </ul>
+                <p className="ea-muted pp-note">Varje varumärke mejlar bara dem som sagt ja till just det varumärket.</p>
+              </>
+            )}
             <p className="ea-muted">I CRM:et sedan {day(person.createdAt)}{person.source ? ` · via ${SOURCE_SV[person.source] || person.source}` : ""}</p>
             <h3>Event</h3>
             {person.eventIds.length ? (
@@ -155,11 +197,19 @@ export function PeoplePage() {
           </aside>
         </div>
       )}
-    </AdminShell>
+    </>
   );
 }
 
 const PEOPLE_CSS = `
+  .pp-filters:has(> :nth-child(3)) { grid-template-columns: minmax(0, 1fr) minmax(0, 200px) minmax(0, 260px); }
+  .pp-yes { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pp-yes span:not(.ea-muted) { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #efeeea; color: #3a3a3c; white-space: nowrap; }
+  .pp-consent { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .pp-consent li { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,0.06); font-size: 14px; }
+  .pp-consent b { font-size: 13px; color: #8a8a8e; }
+  .pp-consent b.is-yes { color: #0a7a3a; }
+  .pp-note { margin: 8px 0 0; font-size: 12.5px; }
   .pp-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 280px); gap: 8px; margin-bottom: 12px; }
   @media (max-width: 620px) { .pp-filters { grid-template-columns: 1fr; } }
   .pp-count { margin: 0 0 6px; }

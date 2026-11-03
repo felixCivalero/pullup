@@ -7,7 +7,8 @@ import { colors } from "./editorStyles.js";
    when, where, how many. Every step but the name can be skipped. "Start
    designing" creates the event (a draft) and opens the editor, where the page
    itself is designed. A main brand with brands under it is first asked whose
-   event it is (`brands`: the main brand, then the ones under it). */
+   event it is (`brands`: the ones under it, `root`: the main brand's name,
+   drawn on top as the admin it is, not a choice). */
 const WHOSE = { key: "whose", icon: Network, eyebrow: "Varumärke", q: "Vems event är det?" };
 const STEPS = [
   { key: "name", icon: Type, eyebrow: "Grunderna", q: "Vad heter eventet?" },
@@ -16,12 +17,12 @@ const STEPS = [
   { key: "who", icon: Users, eyebrow: "Anmälan", q: "Hur många får plats?" },
 ];
 
-export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], brandId = "" }) {
+export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], root = "", brandId = "" }) {
   const choose = brands.length > 1;
   const steps = choose ? [WHOSE, ...STEPS] : STEPS;
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ title: "", start: "", end: "", location: "", capacity: "" });
-  const [whose, setWhose] = useState(brandId || (choose ? brands[0].id : ""));
+  const [whose, setWhose] = useState(brandId || (brands.length === 1 ? brands[0].id : ""));
   const firstRef = useRef(null);
   const cur = steps[step];
   useEffect(() => { if (cur.key === "name") firstRef.current?.focus(); }, [cur.key]);
@@ -35,7 +36,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
     if (!canNext || busy) return;
     if (!last) { setStep(step + 1); return; }
     onDone({
-      ...(choose && whose ? { brandId: whose } : {}),
+      ...(brands.length && whose ? { brandId: whose } : {}),
       title: f.title.trim(),
       startsAt: fromZonedInput(f.start),
       endsAt: f.end ? fromZonedInput(f.end) : null,
@@ -50,22 +51,28 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
       <form className="bw" onSubmit={(e) => { e.preventDefault(); next(); }}>
         <button type="button" className="bw-close" onClick={onCancel} aria-label="Avbryt"><X size={18} /></button>
         <div className="bw-dots">{steps.map((s, i) => <i key={s.key} className={i <= step ? "is-on" : ""} />)}</div>
-        <p className="bw-eyebrow"><cur.icon size={14} /> {cur.eyebrow}{choose && cur.key !== "whose" && whoseName ? <span className="bw-for">· {whoseName}</span> : null}</p>
+        <p className="bw-eyebrow"><cur.icon size={14} /> {cur.eyebrow}{brands.length > 0 && cur.key !== "whose" && whoseName ? <span className="bw-for">· {whoseName}</span> : null}</p>
         <h2>{cur.q}</h2>
 
         {cur.key === "whose" && (
           // The umbrella, as in the onboarding: the main brand on top, the
           // brands under it hanging below. A tap picks and moves on.
           <div className="bw-tree">
-            {brands.map((b, i) => (
+            {root && (
+              <div className="bw-node is-main is-root">
+                <span className="bw-node-name">{root}</span>
+                <span className="bw-node-sub">Huvudkonto · admin</span>
+              </div>
+            )}
+            {brands.map((b) => (
               <button
                 key={b.id}
                 type="button"
-                className={`bw-node${i ? " is-under" : " is-main"}${whose === b.id ? " is-on" : ""}`}
+                className={`bw-node is-under${whose === b.id ? " is-on" : ""}`}
                 onClick={() => { setWhose(b.id); setStep(step + 1); }}
               >
                 <span className="bw-node-name">{b.name}</span>
-                <span className="bw-node-sub">{i ? `Under ${brands[0].name}` : "Huvudvarumärke"}</span>
+                <span className="bw-node-sub">{root ? `Under ${root}` : "Varumärke"}</span>
                 {whose === b.id && <Check size={16} className="bw-node-check" />}
               </button>
             ))}
@@ -126,6 +133,7 @@ const CSS = `
   .bw-tree { display: grid; gap: 8px; position: relative; }
   .bw-node { font: inherit; position: relative; display: grid; gap: 2px; text-align: left; padding: 13px 44px 13px 16px; border-radius: 14px; border: 1px solid ${colors.borderStrong}; background: #fff; color: ${colors.text}; cursor: pointer; }
   .bw-node:hover { border-color: ${colors.text}; }
+  .bw-node.is-root { cursor: default; }
   .bw-node.is-main { background: #0a0a0a; border-color: #0a0a0a; color: #fff; box-shadow: 0 10px 30px rgba(236,23,143,0.18); }
   .bw-node.is-under { margin-left: 28px; background: linear-gradient(180deg, #f1f0ec, #e4e3df); border-color: rgba(0,0,0,0.12); }
   .bw-node.is-under::before { content: ""; position: absolute; left: -18px; top: -10px; width: 14px; height: calc(50% + 10px); border-left: 1.5px solid rgba(0,0,0,0.22); border-bottom: 1.5px solid rgba(0,0,0,0.22); border-bottom-left-radius: 8px; }

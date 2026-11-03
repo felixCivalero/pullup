@@ -48,7 +48,9 @@ function CreateFlow() {
   // A main brand makes events for itself or for a brand under it: the wizard
   // asks whose it is first (pre-picked when the list was narrowed to one).
   const brand = useCurrentBrand();
-  const family = brand?.under?.length ? [brand, ...brand.under] : [];
+  // The main brand of an umbrella makes no events of its own: one of its
+  // brands does.
+  const family = brand?.under?.length ? brand.under : [];
   const asked = params.get("brand");
   const startBrand = family.some((b) => b.id === asked) ? asked : "";
   const create = async ({ brandId, ...basics }) => {
@@ -64,7 +66,7 @@ function CreateFlow() {
       setBusy(false);
     }
   };
-  return <BasicsWizard brands={family} brandId={startBrand} onDone={create} onCancel={() => navigate("/admin/events")} busy={busy} error={error} />;
+  return <BasicsWizard brands={family} root={family.length ? brand.name : ""} brandId={startBrand} onDone={create} onCancel={() => navigate("/admin/events")} busy={busy} error={error} />;
 }
 
 export function EventEditorPage() {

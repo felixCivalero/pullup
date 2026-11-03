@@ -86,12 +86,12 @@ export function Onboarding({ email, invites, onDone }) {
           <p className="ob-count">2 / 2</p>
           <h1>Har {top} varumärken under sig?</h1>
           <p className="ob-sub">
-            Lägg till dem här så ser du hela paraplyet. Varje varumärke får egna event, gäster och utskick. Den du bjuder in till {top} jobbar i alla under.
+            Lägg till dem här så blir {top} huvudkontot: admin över allt, med alla event och hela CRM:et samlat. Eventen och utskicken görs i varumärkena, och den du bjuder in till {top} jobbar i alla.
           </p>
 
           <div className="oc" aria-label={`Organisationen ${top}`}>
             <div className="oc-node is-root">
-              <small>Huvudvarumärke</small>
+              <small>{kids.length ? "Huvudkonto · admin" : "Huvudvarumärke"}</small>
               <b>{top}</b>
             </div>
             <div className="oc-stem" aria-hidden="true" />

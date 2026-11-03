@@ -67,22 +67,35 @@ export async function loadWorld(caller) {
     ]);
     return { events, rsvps, people, pullups };
   }
-  const { brand } = await brandScope(caller);
+  const { brands, brand } = await brandScope(caller);
   if (!brand) return { events: [], rsvps: [], people: [], pullups: [] };
-  const events = await selectAllPaged(() =>
-    inBrandEvents(ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)), brand).order("starts_at", { ascending: false }),
-  );
+  // A main brand (an umbrella) holds the CRM of every brand under it: one
+  // list, each person saying which brands they said yes to.
+  const under = brandsUnder(brands, brand);
+  const events = await selectAllPaged(() => {
+    const q = ofKindEvent(supabase.from("events").select(EVENT_COLUMNS));
+    const scoped = under.length ? q.eq("host_id", brand.hostId).in("brand_id", [brand.id, ...under.map((b) => b.id)]) : inBrandEvents(q, brand);
+    return scoped.order("starts_at", { ascending: false });
+  });
   const ids = events.map((e) => e.id);
   const [rsvps, pullups] = await Promise.all([
     selectIn("rsvps", RSVP_COLUMNS, "event_id", ids),
     selectIn("pullups", "event_id, person_id", "event_id", ids),
   ]);
   rsvps.sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
-  const optedIn = new Set(rsvps.filter((r) => r.marketing_opt_in && r.status !== "cancelled").map((r) => r.person_id));
+  // Consent is per brand: a yes on a sign-up to one of the brand's events.
+  const brandOf = new Map(events.map((e) => [e.id, e.brand_id]));
+  const consentBrands = new Map();
+  for (const r of rsvps) {
+    if (!r.marketing_opt_in || r.status === "cancelled") continue;
+    const set = consentBrands.get(r.person_id) || new Set();
+    set.add(brandOf.get(r.event_id) || brand.id);
+    consentBrands.set(r.person_id, set);
+  }
   const people = (await selectIn("people", PEOPLE_COLUMNS, "id", rsvps.map((r) => r.person_id)))
-    .map((p) => ({ ...p, marketing_consent: optedIn.has(p.id) }))
+    .map((p) => ({ ...p, marketing_consent: consentBrands.has(p.id), consent_brands: [...(consentBrands.get(p.id) || [])] }))
     .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
-  return { events, rsvps, people, pullups };
+  return { events, rsvps, people, pullups, umbrella: under.length > 0 };
 }
 
 const loadSuppressed = async () =>
@@ -218,6 +231,15 @@ export function brandsUnder(brands, brand) {
   return brands.filter((b) => b.parent_id === brand.id && b.hostId === brand.hostId && isTeam(b));
 }
 
+// A main brand with brands under it is the admin of them: it sees all their
+// events and their whole CRM, but events are made in, and mail goes out from,
+// the brands themselves (a guest's yes was to that brand).
+async function umbrellaOf(caller) {
+  if (caller.isOwner) return null;
+  const { brands, brand } = await brandScope(caller);
+  return brandsUnder(brands, brand).length ? brand : null;
+}
+
 export async function listEvents(caller) {
   const { brands, brand } = caller.isOwner ? {} : await brandScope(caller);
   if (!caller.isOwner && !brand) return [];
@@ -252,6 +274,10 @@ export async function createEvent(caller, body) {
     throw new ActionError("not_found", "No brand of yours with that id.", { detail: "brand" });
   }
   if (!isTeam(brand)) throw new ActionError("forbidden", `You co-host single events in ${brand.name}; new events there are made by its team.`, { detail: "cohost" });
+  const scoped = body?.brandId ? inBrandStrict(caller, brand.id) : caller;
+  if (await umbrellaOf(scoped)) {
+    throw new ActionError("invalid", `${brand.name} is the main brand over other brands: make the event in one of them (brand: their name or id).`, { detail: "umbrella" });
+  }
   if (!caller.isOwner && brand.hostId === caller.hostId) await ensureHostProfile(caller.hostId);
   const row = {
     host_id: brand.hostId,
@@ -343,7 +369,7 @@ export async function listPeople(caller) {
   const world = await loadWorld(caller);
   return {
     people: summarizePeople(world),
-    events: world.events.map((e) => ({ id: e.id, title: e.title, startsAt: e.starts_at, mine: e.host_id === caller.hostId })),
+    events: world.events.map((e) => ({ id: e.id, title: e.title, startsAt: e.starts_at, mine: e.host_id === caller.hostId, brandId: e.brand_id || null })),
   };
 }
 
@@ -362,8 +388,16 @@ async function sendScope(caller, audience) {
   return ev.brand_id ? { ...caller, requestedBrand: ev.brand_id, _brandScope: null } : caller;
 }
 
+async function noUmbrellaMail(caller) {
+  const main = await umbrellaOf(caller);
+  if (main) {
+    throw new ActionError("forbidden", `${main.name} is the main brand: mail goes out from each brand under it, to the people who said yes to that brand.`, { detail: "umbrella" });
+  }
+}
+
 export async function previewSend(callerIn, audience) {
   const caller = await sendScope(callerIn, audience);
+  await noUmbrellaMail(caller);
   const [world, suppressed, { brand }] = await Promise.all([loadWorld(caller), loadSuppressed(), brandScope(caller)]);
   checkAudienceEvents(world, audience);
   const recipients = pickAudience({ audience, ...world }).filter((r) => !suppressed.has(r.email));
@@ -434,6 +468,7 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
 // or the mail module's blocks (`blocks` + previewText + fromName).
 export async function sendMail(callerIn, input) {
   const caller = await sendScope(callerIn, input?.audience);
+  await noUmbrellaMail(caller);
   const { brand: sendBrand } = await brandScope(caller);
   if (!caller.isOwner && sendBrand && !isTeam(sendBrand)) {
     throw new ActionError("forbidden", `Mail to ${sendBrand.name}'s guests goes out from its team. Ask them to send it.`, { detail: "cohost" });
@@ -503,7 +538,9 @@ export async function sendMail(callerIn, input) {
 // mig 150, count as the account's first brand; an event co-host sees the
 // ones they sent). Before mig 148 sends had no host: those were the owner's.
 export async function listSends(caller) {
-  const { brand } = await brandScope(caller);
+  const { brands, brand } = await brandScope(caller);
+  // A main brand reads the sends of the brands under it.
+  const under = caller.isOwner ? [] : brandsUnder(brands, brand);
   const firstBrand = brand && isTeam(brand) && (await listBrands(brand.hostId))[0]?.id === brand.id;
   const rows = await selectAllPaged(() => {
     const q = supabase.from("email_outbox").select("campaign_tag, subject, status, created_at").eq("category", "event_broadcast");
@@ -511,6 +548,7 @@ export async function listSends(caller) {
     if (!brand) return q.eq("host_id", caller.hostId).is("brand_id", null).order("created_at", { ascending: false });
     const mine = q.eq("host_id", brand.hostId);
     const scoped = brand.role === "event" ? mine.eq("brand_id", brand.id).eq("sent_by", caller.userId)
+      : under.length ? mine.in("brand_id", [brand.id, ...under.map((b) => b.id)])
       : firstBrand ? mine.or(`brand_id.is.null,brand_id.eq.${brand.id}`) : mine.eq("brand_id", brand.id);
     return scoped.order("created_at", { ascending: false });
   });

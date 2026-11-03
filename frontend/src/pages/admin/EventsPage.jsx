@@ -85,8 +85,8 @@ function EventsList() {
                 <button type="button" className={!only ? "is-on" : ""} onClick={() => setOnly("")}>
                   Alla <small>{data.length}</small>
                 </button>
-                {family.map((b, i) => (
-                  <button key={b.id} type="button" className={`${only === b.id ? "is-on" : ""}${i ? " is-under" : " is-main"}`} onClick={() => setOnly(b.id)}>
+                {family.filter((b, i) => i || data.some((e) => e.brandId === b.id)).map((b) => (
+                  <button key={b.id} type="button" className={`${only === b.id ? "is-on" : ""}${b.id === brand.id ? " is-main" : " is-under"}`} onClick={() => setOnly(b.id)}>
                     {b.name} <small>{data.filter((e) => e.brandId === b.id).length}</small>
                   </button>
                 ))}
@@ -128,7 +128,7 @@ function EventsList() {
                 <b>{only ? `Inga event för ${family.find((b) => b.id === only)?.name || "varumärket"} än` : "Inga event än"}</b>
                 <p className="ea-muted">
                   {family.length && !only
-                    ? `Här samlas eventen för ${brand.name} och varumärkena under. När du skapar ett event väljer du vems det är.`
+                    ? `${brand.name} är admin för varumärkena under: här samlas allas event. Ett event skapas alltid i ett av varumärkena.`
                     : "Skapa en eventsida, dela länken och se anmälningarna komma in här. Gästerna hamnar i CRM:et."}
                 </p>
                 <TeamOnly><button type="button" className="ea-btn is-dark" onClick={newEvent}><Plus size={16} /> Skapa ditt första event</button></TeamOnly>

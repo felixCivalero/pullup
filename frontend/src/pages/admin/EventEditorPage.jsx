@@ -99,7 +99,7 @@ function Editor() {
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState(false);
   const [tab, setTab] = useState("cover");
-  const [device, setDevice] = useState("phone");
+  const [device, setDevice] = useState("desktop"); // laptop first: the page reads best there
   const [sizes, setSizes] = useState({ phone: "15", desktop: "laptop" });
   const [hovered, setHovered] = useState(null);
   const [saveState, setSaveState] = useState("saved"); // saved | dirty | saving | error

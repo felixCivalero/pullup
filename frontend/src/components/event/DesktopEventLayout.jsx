@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { MediaCarousel } from "./MediaCarousel";
+
+// The size the desktop page is laid out at; larger screens scale it up.
+const BASE_W = 1280;
+const BASE_H = 720;
 import { WebGLHero } from "./WebGLHero";
 import { SceneFrame } from "./SceneFrame";
 import { EventPageContent } from "./EventPageContent";
@@ -182,6 +186,18 @@ export function DesktopEventLayout({
   const eyebrowLabel = signupLabel || priceLabel;
   const ctaLabel = signupCta || buttonLabel;
 
+  // The screen's size, for the proportional scale above 1280 × 720.
+  const stageRef = useRef(null);
+  const [stage, setStage] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(([e]) => setStage({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const grow = stage.w > BASE_W && stage.h > 0 ? Math.min(2, stage.w / BASE_W, Math.max(1, stage.h / BASE_H)) : 1;
+
   // The hero frame follows the image's own ratio, reserved up front.
   // maxHeight/maxWidth keep it inside the fixed-height left column (a tall
   // portrait centers with side space rather than overflowing).
@@ -198,6 +214,7 @@ export function DesktopEventLayout({
 
   return (
     <div
+      ref={stageRef}
       style={{
         width: "100%",
         height: "100%",
@@ -206,6 +223,10 @@ export function DesktopEventLayout({
         position: "relative",
       }}
     >
+      {/* Bigger screens see the same page, larger: laid out at 1280 and
+          scaled to the screen, so a 1920 display looks like the laptop view
+          grown, not a small block in a black field. */}
+      <div style={grow > 1 ? { width: stage.w / grow, height: stage.h / grow, transform: `scale(${grow})`, transformOrigin: "top left" } : { width: "100%", height: "100%" }}>
       <style>{`
         .desktop-event-right-scroll::-webkit-scrollbar { width: 8px; }
         .desktop-event-right-scroll::-webkit-scrollbar-thumb {
@@ -266,12 +287,12 @@ export function DesktopEventLayout({
                 <MediaCarousel
                   media={media}
                   mediaSettings={desktopMediaSettings}
-                  displayWidth={heroWidth}
+                  displayWidth={Math.round(heroWidth * grow)}
                 />
               </div>
             ) : imagePreview ? (
               <img
-                src={transformedImageUrl(imagePreview, { width: heroWidth })}
+                src={transformedImageUrl(imagePreview, { width: Math.round(heroWidth * grow) })}
                 alt={title || "Event"}
                 draggable={false}
                 loading="eager"
@@ -508,6 +529,7 @@ export function DesktopEventLayout({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

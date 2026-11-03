@@ -31,6 +31,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [turnstile, setTurnstile] = useState("");
+  const [check, setCheck] = useState(0); // a new bot check after a failed try (a token works once)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const submit = async (e) => {
@@ -48,6 +49,8 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
       if (!res.ok || !out.ok) {
         setError(ERRORS[out.error] || (out.error === "missing_answer" ? `Svara på: ${out.question}` : out.error === "invalid_answer" ? `Välj ett alternativ: ${out.question}` : "Något gick fel. Försök igen."));
         setState("error");
+        setTurnstile("");
+        setCheck((n) => n + 1);
         return;
       }
       setResult(out);
@@ -132,7 +135,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
         <input type="checkbox" checked={form.consent} onChange={set("consent")} disabled={preview} />
         <span>{organizer ? `Jag vill få inbjudningar till kommande event från ${organizer}.` : "Jag vill få inbjudningar till kommande event."}</span>
       </label>
-      {!preview && <Turnstile onToken={setTurnstile} theme="dark" />}
+      {!preview && <Turnstile key={check} onToken={setTurnstile} theme="dark" />}
       <input className="sf-hp" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
       <button type="submit" disabled={state === "sending"}>
         {state === "sending" ? "Skickar…" : cta || (full ? "Ställ mig i kö" : "Anmäl mig")}

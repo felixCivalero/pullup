@@ -274,7 +274,13 @@ export function registerEventRoutes(app) {
       if (limited(req.ip)) return res.status(429).json({ error: "rate_limited" });
       const body = req.body || {};
       if (clip(body.website, 200)) return res.json({ ok: true, status: "attending" }); // honeypot
-      if (!(await humanCheck(body.turnstile, req.ip))) return res.status(403).json({ error: "bot_check" });
+      // The bot check helps but never locks a real guest out (a blocker, a
+      // network, a reused token): unverified sign-ups get a tighter limit
+      // instead, and the confirmation caps (lib/abuse.js) hold either way.
+      if (!(await humanCheck(body.turnstile, req.ip))) {
+        if (over(`rsvp-unverified:${req.ip}`, 6, 3600000)) return res.status(429).json({ error: "rate_limited" });
+        console.warn(`[events] sign-up without a passed bot check (${req.ip})`);
+      }
       return res.json(await rsvpToEvent(req.params.slug, body));
     } catch (err) {
       if (err instanceof ActionError) return res.status(statusFor(err.code)).json({ error: err.extra.detail || err.code, question: err.extra.question || undefined });

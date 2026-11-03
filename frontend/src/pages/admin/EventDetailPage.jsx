@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
+import { createElement, useCallback, useEffect, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, BarChart3, Copy, ExternalLink, LayoutGrid, Mail, Send, UserPlus, Users } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { followBrand, useCurrentBrand, useEventBrand } from "../../lib/brand.js";
 import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
@@ -34,8 +34,21 @@ function csv(rows) {
   return rows.map((r) => r.map(cell).join(",")).join("\n");
 }
 
+// The event, in parts: an overview, then the guests, the numbers, mail and
+// the people helping. The part is in the address (?del=), so it can be linked.
+const TABS = [
+  ["overview", "Översikt", LayoutGrid],
+  ["guests", "Gäster", Users],
+  ["stats", "Statistik", BarChart3],
+  ["mail", "Mejla", Mail],
+  ["team", "Medarrangörer", UserPlus],
+];
+
 export function EventDetailPage() {
   const { id } = useParams();
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(([k]) => k === params.get("del")) ? params.get("del") : "overview";
+  const setTab = (k) => setParams(k === "overview" ? {} : { del: k }, { replace: true });
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
 
@@ -76,12 +89,25 @@ export function EventDetailPage() {
               <div><b>{ev.pulledUp}</b><span>kom</span></div>
               <div><b>{data.guests.filter((g) => g.consent).length}</b><span>vill ha inbjudningar</span></div>
             </div>
-            {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
-            {ev.mine && <MoveBrand ev={ev} onMoved={load} />}
-            <EventStats id={ev.id} />
-            <Guests guests={data.guests} ev={ev} onChange={load} />
-            <TeamOnly otherwise={<CohostMailNote />}><Compose ev={ev} /></TeamOnly>
-            <Cohosts ev={ev} />
+            <nav className="ed-tabs" aria-label="Eventet">
+              {TABS.map(([k, label, icon]) => (
+                <button key={k} type="button" className={tab === k ? "is-on" : ""} onClick={() => setTab(k)} aria-current={tab === k ? "page" : undefined}>
+                  {createElement(icon, { size: 15 })} {label}
+                  {k === "guests" && <small>{data.guests.filter((g) => g.status !== "cancelled").length}</small>}
+                </button>
+              ))}
+            </nav>
+            {tab === "overview" && (
+              <>
+                {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
+                {ev.mine && <MoveBrand ev={ev} onMoved={load} />}
+                <Latest guests={data.guests} onAll={() => setTab("guests")} />
+              </>
+            )}
+            {tab === "guests" && <Guests guests={data.guests} ev={ev} onChange={load} />}
+            {tab === "stats" && <EventStats id={ev.id} />}
+            {tab === "mail" && <TeamOnly otherwise={<CohostMailNote />}><Compose ev={ev} /></TeamOnly>}
+            {tab === "team" && <Cohosts ev={ev} empty />}
           </>
         )}
       </div>
@@ -173,15 +199,41 @@ function EventStats({ id }) {
   );
 }
 
+// The latest sign-ups, on the overview: who's coming, at a glance.
+function Latest({ guests, onAll }) {
+  const live = guests.filter((g) => g.status !== "cancelled").slice().sort((a, b) => (b.signedUpAt || "").localeCompare(a.signedUpAt || ""));
+  return (
+    <section className="ed-latest">
+      <div className="ed-sec-head">
+        <h2>Senaste anmälda</h2>
+        {live.length > 0 && <button type="button" className="ea-btn" onClick={onAll}>Alla gäster →</button>}
+      </div>
+      {live.length ? (
+        <ul>
+          {live.slice(0, 6).map((g) => (
+            <li key={g.rsvpId}>
+              <b>{g.name || g.email}</b>
+              {g.plusOnes > 0 && <span className="ed-plus">+{g.plusOnes}</span>}
+              <span className="ea-muted">{g.status === "waitlist" ? "Väntelista" : "Anmäld"} · {g.signedUpAt ? fmt(g.signedUpAt) : ""}</span>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="ea-muted">Inga anmälda än. Dela länken så dyker de upp här.</p>}
+    </section>
+  );
+}
+
 // The people who help with this one event (backend lib/teams.js). The
 // brand's team invites and removes; a co-host can step down.
-function Cohosts({ ev }) {
+function Cohosts({ ev, empty = false }) {
   const brand = useCurrentBrand();
   const [team, setTeam] = useState(null);
   const [error, setError] = useState("");
   const load = useCallback(() => { teamApi.event(ev.id).then(setTeam).catch(() => setTeam(null)); }, [ev.id]);
   useEffect(() => { load(); }, [load]);
-  if (!team || (!team.canManage && !team.cohosts.length)) return null;
+  if (!team || (!team.canManage && !team.cohosts.length)) {
+    return empty ? <p className="ea-muted">Bara teamet för varumärket jobbar med det här eventet.</p> : null;
+  }
 
   const remove = async (c) => {
     if (!window.confirm(c.you ? `Kliva av som medarrangör på ${ev.title}?` : `Ta bort ${c.email} som medarrangör?`)) return;
@@ -425,6 +477,18 @@ const DETAIL_CSS = `
   .ed-back:hover { color: #0a0a0a; }
   .ed-when::first-letter { text-transform: uppercase; }
   .ed-share { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ed-tabs { display: flex; gap: 2px; margin: 0 0 22px; padding: 3px; overflow-x: auto; scrollbar-width: none; border: 1px solid #7d7c77; border-radius: 8px; background: linear-gradient(180deg, #ecebe6, #d9d8d3); box-shadow: inset 0 1px 0 rgba(255,255,255,.85); position: sticky; top: 64px; z-index: 5; }
+  .ed-tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 14px; border: 1px solid transparent; border-radius: 6px; background: none; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #3a3935; white-space: nowrap; }
+  .ed-tabs button:hover { background: rgba(255,255,255,.5); }
+  .ed-tabs button.is-on { background: #0d0d0d; color: #f2f1ec; border-color: #000; box-shadow: inset 0 1px 0 rgba(255,255,255,.15); }
+  .ed-tabs button.is-on svg { color: #ec178f; }
+  .ed-tabs small { font-size: 10.5px; opacity: .6; }
+  .ed-tabs + section > h2:first-child, .ed-tabs + .ed-statsec > h2 { margin-top: 0; }
+  .ed-latest ul { list-style: none; margin: 0; padding: 0; border: 1px solid #9b9a95; border-radius: 8px; background: #fff; box-shadow: 3px 3px 0 rgba(0,0,0,.07); overflow: hidden; }
+  .ed-latest li { display: flex; align-items: baseline; gap: 10px; padding: 11px 14px; font-size: 14px; }
+  .ed-latest li + li { border-top: 1px solid #ebeae5; }
+  .ed-latest li .ea-muted { margin: 0 0 0 auto; font-size: 12.5px; }
+  .ed-plus { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; padding: 1px 6px; border: 1px solid #9b9a95; border-radius: 4px; }
   .ed-statsec { margin: 30px 0 28px; }
   .ed-qcol { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ea-nowrap { white-space: nowrap; }

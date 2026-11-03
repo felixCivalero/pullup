@@ -1516,4 +1516,10 @@ export const SV = {
   "Amplify": "Förstärk",
   "Live": "Live",
   "Reach": "Räckvidd",
+  // Front page: the event tool panel
+  "Event pages with a CRM.": "Eventsidor med CRM.",
+  "Sign-ups": "Anmälan",
+  "Statistics": "Statistik",
+  "Make your event": "Skapa ditt event",
+  "Mail": "Mejl",
 };

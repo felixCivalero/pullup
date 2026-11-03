@@ -257,8 +257,12 @@ export function HomePage() {
               </div>
             </form>
             <Link className="ho-power is-event" to="/eventverktyg" onClick={() => trackEvent("cta_click", { location: "home_hero_event" })}>
-              <PowerHead title="Fill the room." kind="ticket" />
-              <span className="ho-power-go">{t("Create an event")} <span aria-hidden="true">→</span></span>
+              <PowerHead title="Event pages with a CRM." kind="ticket" />
+              {/* What you get, read like a spec sheet. */}
+              <ul className="ho-power-spec">
+                {["Sign-ups", "Guest list", "Mail", "Statistics"].map((x) => <li key={x}>{t(x)}</li>)}
+              </ul>
+              <span className="ho-power-go">{t("Make your event")} <span aria-hidden="true">→</span></span>
             </Link>
           </div>
         </FunnelWorld>
@@ -386,6 +390,9 @@ const HOME_CSS = `
   .ho-power-go { justify-self: start; }
   .ho-power-go span { transition: transform .25s ease; }
   .ho-power.is-event:hover .ho-power-go span { transform: translateX(3px); }
+  .ho-power-spec { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: -2px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #3a3935; }
+  .ho-power-spec li { display: inline-flex; align-items: center; gap: 6px; }
+  .ho-power-spec li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 5px #ec178f; }
   .ho-power-note { font-family: var(--mono); font-size: 12px; color: #4a4945; }
   @media (max-width: 759px) {
     .fw-hero h1 { margin-bottom: 18px; }

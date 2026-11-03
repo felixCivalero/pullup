@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
+import { useCurrentBrand } from "../../lib/brand.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { useAgentChanges, usePageContext } from "../../lib/pageContext.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
@@ -19,10 +20,25 @@ const FILTERS = [
 ];
 
 export function EventsPage() {
+  return (
+    <AdminShell title="Event">
+      <EventsList />
+    </AdminShell>
+  );
+}
+
+// Inside AdminShell, so it knows the brand on screen (and the ones under it).
+function EventsList() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState("mine");
+  // A main brand shows the events of the brands under it too: one row of
+  // brands to narrow it down, and every event says whose it is.
+  const brand = useCurrentBrand();
+  const family = brand?.under?.length ? [brand, ...brand.under] : [];
+  const [only, setOnly] = useState("");
+  const newEvent = () => navigate(only ? `/admin/events/new?brand=${only}` : "/admin/events/new");
 
   const load = useCallback(() => {
     authenticatedFetch("/admin/events")
@@ -37,28 +53,26 @@ export function EventsPage() {
 
   const [now] = useState(() => Date.now());
   const isPast = (e) => new Date(e.endsAt || e.startsAt).getTime() < now;
-  const lists = useMemo(() => {
-    const all = data || [];
-    return {
-      mine: all.filter((e) => e.mine),
-      upcoming: all.filter((e) => !isPast(e) && new Date(e.startsAt).getFullYear() < 2090).sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      all,
-    };
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const all = (data || []).filter((e) => !only || e.brandId === only);
+  const lists = {
+    mine: all.filter((e) => e.mine),
+    upcoming: all.filter((e) => !isPast(e) && new Date(e.startsAt).getFullYear() < 2090).sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    all,
+  };
   const list = lists[filter];
-  const totals = (data || []).reduce((t, e) => ({ guests: t.guests + e.attending, came: t.came + e.pulledUp }), { guests: 0, came: 0 });
+  const totals = lists.all.reduce((t, e) => ({ guests: t.guests + e.attending, came: t.came + e.pulledUp }), { guests: 0, came: 0 });
 
   return (
-    <AdminShell title="Event">
+    <>
       <style>{EVENT_ADMIN_CSS + EVENTS_CSS}</style>
       <div className="ea">
         <div className="ea-head">
           <div>
             <BrandKicker />
             <h1>Event</h1>
-            {data && <p className="ea-muted">{data.length} event · {totals.guests} anmälda · {totals.came} kom</p>}
+            {data && <p className="ea-muted">{lists.all.length} event · {totals.guests} anmälda · {totals.came} kom</p>}
           </div>
-          <TeamOnly><button type="button" className="ea-btn is-dark" onClick={() => navigate("/admin/events/new")}><Plus size={16} /> Nytt event</button></TeamOnly>
+          <TeamOnly><button type="button" className="ea-btn is-dark" onClick={newEvent}><Plus size={16} /> Nytt event</button></TeamOnly>
         </div>
 
         {error && <p className="ea-error">Kunde inte hämta eventen.</p>}
@@ -66,6 +80,18 @@ export function EventsPage() {
 
         {data && (
           <>
+            {family.length > 0 && (
+              <div className="evl-family" role="group" aria-label="Varumärken">
+                <button type="button" className={!only ? "is-on" : ""} onClick={() => setOnly("")}>
+                  Alla <small>{data.length}</small>
+                </button>
+                {family.map((b, i) => (
+                  <button key={b.id} type="button" className={`${only === b.id ? "is-on" : ""}${i ? " is-under" : " is-main"}`} onClick={() => setOnly(b.id)}>
+                    {b.name} <small>{data.filter((e) => e.brandId === b.id).length}</small>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="ea-tabs">
               {FILTERS.filter(([k]) => k !== "all" || lists.all.length !== lists.mine.length).map(([k, label]) => (
                 <button key={k} type="button" className={filter === k ? "is-on" : ""} onClick={() => setFilter(k)}>
@@ -82,6 +108,7 @@ export function EventsPage() {
                       <b>{e.title || "Utan titel"}</b>
                       <span className="ea-muted">{formatEventWhen(e.startsAt, null, e.timezone, { year: true })}{e.location ? ` · ${e.location}` : ""}</span>
                       {!e.mine && e.host && <span className="evl-host">{e.host}</span>}
+                      {e.mine && family.length > 0 && e.host && <span className={`evl-brand${e.brandId === brand.id ? " is-main" : ""}`}>{e.host}</span>}
                     </span>
                     <span className="evl-nums">
                       <span><b>{e.attending}</b> anmälda</span>
@@ -95,22 +122,35 @@ export function EventsPage() {
                 </li>
               ))}
             </ul>
-            {!list.length && (data.length ? <p className="ea-muted">Inga event här än.</p> : (
+            {!list.length && (lists.all.length ? <p className="ea-muted">Inga event här än.</p> : (
               // A brand with nothing yet: the one thing to do.
               <div className="evl-first">
-                <b>Inga event än</b>
-                <p className="ea-muted">Skapa en eventsida, dela länken och se anmälningarna komma in här. Gästerna hamnar i CRM:et.</p>
-                <TeamOnly><button type="button" className="ea-btn is-dark" onClick={() => navigate("/admin/events/new")}><Plus size={16} /> Skapa ditt första event</button></TeamOnly>
+                <b>{only ? `Inga event för ${family.find((b) => b.id === only)?.name || "varumärket"} än` : "Inga event än"}</b>
+                <p className="ea-muted">
+                  {family.length && !only
+                    ? `Här samlas eventen för ${brand.name} och varumärkena under. När du skapar ett event väljer du vems det är.`
+                    : "Skapa en eventsida, dela länken och se anmälningarna komma in här. Gästerna hamnar i CRM:et."}
+                </p>
+                <TeamOnly><button type="button" className="ea-btn is-dark" onClick={newEvent}><Plus size={16} /> Skapa ditt första event</button></TeamOnly>
               </div>
             ))}
           </>
         )}
       </div>
-    </AdminShell>
+    </>
   );
 }
 
 const EVENTS_CSS = `
+  .evl-family { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; padding: 0 0 14px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+  .evl-family button { font: inherit; font-size: 13.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.12); background: #fff; color: #0a0a0a; cursor: pointer; }
+  .evl-family button small { font-size: 11.5px; color: #8a8a8e; font-weight: 600; }
+  .evl-family button.is-main { border-color: #0a0a0a; }
+  .evl-family button.is-under::before { content: "└"; color: #b0b0b4; font-weight: 400; margin-right: -2px; }
+  .evl-family button.is-on { background: #0a0a0a; border-color: #0a0a0a; color: #fff; }
+  .evl-family button.is-on small, .evl-family button.is-on::before { color: rgba(255,255,255,0.6); }
+  .evl-brand { justify-self: start; margin-top: 3px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #efeeea; color: #3a3a3c; }
+  .evl-brand.is-main { background: #0a0a0a; color: #fff; }
   .evl-first { display: grid; justify-items: start; gap: 8px; padding: 28px; border: 1px dashed rgba(0,0,0,0.18); border-radius: 16px; }
   .evl-first b { font-size: 17px; }
   .evl-first p { margin: 0 0 6px; max-width: 46ch; line-height: 1.5; }

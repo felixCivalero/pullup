@@ -89,5 +89,23 @@ try { pickParent(tree, "someone-elses-brand"); } catch (e) { threw = e.code; }
 assert(threw === "not_found", "only your own brands can be a main brand");
 assert(brandShape({ id: "a", name: "Aperol", parent_id: "m" }).parentId === "m" && brandShape({ id: "m", name: "Nigab" }).parentId === null, "the shape says which main brand it sits under");
 
+// The umbrella in the event list: a main brand reaches the brands under it
+// (its own account's, worked as team), nothing else.
+{
+  const { brandsUnder } = await import("../src/repos/hostEvents.js");
+  const main = { id: "m", hostId: "h", role: "head", parent_id: null };
+  const kids = [
+    { id: "a", hostId: "h", role: "head", parent_id: "m" },
+    { id: "b", hostId: "h", role: "head", parent_id: "m" },
+    { id: "x", hostId: "other", role: "member", parent_id: "m" },
+    { id: "e", hostId: "h", role: "event", parent_id: "m", eventIds: [] },
+    { id: "z", hostId: "h", role: "head", parent_id: null },
+  ];
+  const all = [main, ...kids];
+  assert(brandsUnder(all, main).map((b) => b.id).join() === "a,b", "main brand → its own brands under it");
+  assert(brandsUnder(all, kids[0]).length === 0, "a brand under another has nothing under it");
+  assert(brandsUnder(all, { ...main, role: "event" }).length === 0, "an event co-host gets no umbrella");
+}
+
 if (failures) { console.error(`\n${failures} brands/abuse test(s) failed`); process.exit(1); }
 console.log("\nall brands-and-abuse tests passed");

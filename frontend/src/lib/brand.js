@@ -30,10 +30,34 @@ export function setCurrentBrandId(id) {
 export const BrandContext = createContext(null);
 export const useCurrentBrand = () => useContext(BrandContext);
 
+// The brand one event belongs to, as far as the page knows it: the brand on
+// screen, or one under it when a main brand opens that brand's event.
+export function useEventBrand(brandId) {
+  const brand = useCurrentBrand();
+  if (!brand || !brandId || brand.id === brandId) return brand;
+  return brand.under?.find((b) => b.id === brandId) || brand;
+}
+
+// The account's brands as AdminShell last drew them ({ id, parentId }), so
+// followBrand knows the umbrella.
+let known = [];
+export function rememberBrands(brands) {
+  known = brands || [];
+}
+
+// The brands under a main brand (one level, migrations/155).
+export const brandsUnder = (brands, brand) =>
+  brand && !brand.parentId && brand.role !== "event" ? brands.filter((b) => b.parentId === brand.id && b.role !== "event") : [];
+
 // When a page opens an event of another of the account's brands, the admin
 // moves to that brand: what's on screen and what the page works in agree.
+// Not from a main brand into a brand under it: the main brand already shows
+// that brand's events, so the admin stays where they were.
 export function followBrand(brandId) {
-  if (brandId && brandId !== currentBrandId()) setCurrentBrandId(brandId);
+  const now = currentBrandId();
+  if (!brandId || brandId === now) return;
+  if (known.some((b) => b.id === brandId && b.parentId && b.parentId === now)) return;
+  setCurrentBrandId(brandId);
 }
 
 // The id, kept live across the page when the switcher changes it.

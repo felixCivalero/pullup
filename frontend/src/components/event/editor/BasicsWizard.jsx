@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, MapPin, Sparkles, Type, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, MapPin, Network, Sparkles, Type, Users, X } from "lucide-react";
 import { fromZonedInput } from "../../../lib/zonedTime.js";
 import { colors } from "./editorStyles.js";
 
 /* The basics, one question at a time (the old app's CreateWizard): name,
    when, where, how many. Every step but the name can be skipped. "Start
    designing" creates the event (a draft) and opens the editor, where the page
-   itself is designed. */
+   itself is designed. A main brand with brands under it is first asked whose
+   event it is (`brands`: the main brand, then the ones under it). */
+const WHOSE = { key: "whose", icon: Network, eyebrow: "Varumärke", q: "Vems event är det?" };
 const STEPS = [
   { key: "name", icon: Type, eyebrow: "Grunderna", q: "Vad heter eventet?" },
   { key: "when", icon: CalendarDays, eyebrow: "Grunderna", q: "När är det?" },
@@ -14,20 +16,26 @@ const STEPS = [
   { key: "who", icon: Users, eyebrow: "Anmälan", q: "Hur många får plats?" },
 ];
 
-export function BasicsWizard({ onDone, onCancel, busy = false, error = "" }) {
+export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], brandId = "" }) {
+  const choose = brands.length > 1;
+  const steps = choose ? [WHOSE, ...STEPS] : STEPS;
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ title: "", start: "", end: "", location: "", capacity: "" });
+  const [whose, setWhose] = useState(brandId || (choose ? brands[0].id : ""));
   const firstRef = useRef(null);
-  useEffect(() => { if (step === 0) firstRef.current?.focus(); }, [step]);
+  const cur = steps[step];
+  useEffect(() => { if (cur.key === "name") firstRef.current?.focus(); }, [cur.key]);
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
-  const cur = STEPS[step];
-  const last = step === STEPS.length - 1;
-  const canNext = step === 0 ? !!f.title.trim() : step === 1 ? !!f.start : true;
+  const last = step === steps.length - 1;
+  const canNext = cur.key === "whose" ? !!whose : cur.key === "name" ? !!f.title.trim() : cur.key === "when" ? !!f.start : true;
+  const skippable = cur.key === "where" || cur.key === "who";
+  const whoseName = brands.find((b) => b.id === whose)?.name;
 
   const next = () => {
     if (!canNext || busy) return;
     if (!last) { setStep(step + 1); return; }
     onDone({
+      ...(choose && whose ? { brandId: whose } : {}),
       title: f.title.trim(),
       startsAt: fromZonedInput(f.start),
       endsAt: f.end ? fromZonedInput(f.end) : null,
@@ -41,9 +49,28 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "" }) {
       <style>{CSS}</style>
       <form className="bw" onSubmit={(e) => { e.preventDefault(); next(); }}>
         <button type="button" className="bw-close" onClick={onCancel} aria-label="Avbryt"><X size={18} /></button>
-        <div className="bw-dots">{STEPS.map((s, i) => <i key={s.key} className={i <= step ? "is-on" : ""} />)}</div>
-        <p className="bw-eyebrow"><cur.icon size={14} /> {cur.eyebrow}</p>
+        <div className="bw-dots">{steps.map((s, i) => <i key={s.key} className={i <= step ? "is-on" : ""} />)}</div>
+        <p className="bw-eyebrow"><cur.icon size={14} /> {cur.eyebrow}{choose && cur.key !== "whose" && whoseName ? <span className="bw-for">· {whoseName}</span> : null}</p>
         <h2>{cur.q}</h2>
+
+        {cur.key === "whose" && (
+          // The umbrella, as in the onboarding: the main brand on top, the
+          // brands under it hanging below. A tap picks and moves on.
+          <div className="bw-tree">
+            {brands.map((b, i) => (
+              <button
+                key={b.id}
+                type="button"
+                className={`bw-node${i ? " is-under" : " is-main"}${whose === b.id ? " is-on" : ""}`}
+                onClick={() => { setWhose(b.id); setStep(step + 1); }}
+              >
+                <span className="bw-node-name">{b.name}</span>
+                <span className="bw-node-sub">{i ? `Under ${brands[0].name}` : "Huvudvarumärke"}</span>
+                {whose === b.id && <Check size={16} className="bw-node-check" />}
+              </button>
+            ))}
+          </div>
+        )}
 
         {cur.key === "name" && <input ref={firstRef} className="bw-input" value={f.title} onChange={set("title")} placeholder="Release party, middag, listening session…" />}
         {cur.key === "when" && (
@@ -64,7 +91,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "" }) {
         <div className="bw-foot">
           <button type="button" className="bw-back" disabled={step === 0} onClick={() => setStep(step - 1)}><ArrowLeft size={16} /> Tillbaka</button>
           <div style={{ display: "flex", gap: 8 }}>
-            {step >= 2 && !last && <button type="button" className="bw-skip" onClick={() => setStep(step + 1)}>Hoppa över</button>}
+            {skippable && !last && <button type="button" className="bw-skip" onClick={() => setStep(step + 1)}>Hoppa över</button>}
             <button type="submit" className="bw-next" disabled={!canNext || busy}>
               {last ? (busy ? "Skapar…" : <><Sparkles size={16} /> Börja designa</>) : <>Nästa <ArrowRight size={16} /></>}
             </button>
@@ -95,4 +122,15 @@ const CSS = `
   .bw-back:disabled { opacity: 0; cursor: default; }
   .bw-next { font: inherit; font-size: 14.5px; font-weight: 700; border: 0; border-radius: 999px; padding: 12px 20px; background: ${colors.text}; color: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
   .bw-next:disabled { opacity: 0.4; cursor: default; }
+  .bw-for { text-transform: none; letter-spacing: 0; font-weight: 600; color: ${colors.textSubtle}; margin-left: 2px; }
+  .bw-tree { display: grid; gap: 8px; position: relative; }
+  .bw-node { font: inherit; position: relative; display: grid; gap: 2px; text-align: left; padding: 13px 44px 13px 16px; border-radius: 14px; border: 1px solid ${colors.borderStrong}; background: #fff; color: ${colors.text}; cursor: pointer; }
+  .bw-node:hover { border-color: ${colors.text}; }
+  .bw-node.is-main { background: #0a0a0a; border-color: #0a0a0a; color: #fff; box-shadow: 0 10px 30px rgba(236,23,143,0.18); }
+  .bw-node.is-under { margin-left: 28px; background: linear-gradient(180deg, #f1f0ec, #e4e3df); border-color: rgba(0,0,0,0.12); }
+  .bw-node.is-under::before { content: ""; position: absolute; left: -18px; top: -10px; width: 14px; height: calc(50% + 10px); border-left: 1.5px solid rgba(0,0,0,0.22); border-bottom: 1.5px solid rgba(0,0,0,0.22); border-bottom-left-radius: 8px; }
+  .bw-node.is-on { outline: 2px solid #ec178f; outline-offset: 2px; }
+  .bw-node-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .bw-node-sub { font-size: 12px; opacity: 0.6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .bw-node-check { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #ec178f; }
 `;

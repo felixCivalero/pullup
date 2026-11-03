@@ -34,6 +34,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // A brand's events as the caller may see them: the whole brand for its team,
 // only the shared ones for an event co-host.
+const inBrandStrict = (caller, brandId) => ({ ...caller, requestedBrand: String(brandId).slice(0, 100), _brandScope: null });
+
 export function inBrandEvents(query, brand) {
   const q = query.eq("host_id", brand.hostId).eq("brand_id", brand.id);
   return brand.role === "event" ? q.in("id", brand.eventIds.length ? brand.eventIds : ["00000000-0000-0000-0000-000000000000"]) : q;
@@ -209,16 +211,31 @@ export async function eventBrand(caller, ev) {
   return (await accessTo(caller, ev)) ?? null;
 }
 
+// The brands under a main brand (migrations/155) that the caller works in
+// with it: a main brand's list shows their events too.
+export function brandsUnder(brands, brand) {
+  if (!brand || !isTeam(brand) || brand.parent_id) return [];
+  return brands.filter((b) => b.parent_id === brand.id && b.hostId === brand.hostId && isTeam(b));
+}
+
 export async function listEvents(caller) {
-  const { brand } = caller.isOwner ? {} : await brandScope(caller);
+  const { brands, brand } = caller.isOwner ? {} : await brandScope(caller);
   if (!caller.isOwner && !brand) return [];
   const query = () => ofKindEvent(supabase.from("events").select(EVENT_COLUMNS)).order("starts_at", { ascending: false });
-  const events = await selectAllPaged(() => (caller.isOwner ? query() : inBrandEvents(query(), brand)));
+  // A main brand sees its own events and those of the brands under it, each
+  // saying whose it is.
+  const under = caller.isOwner ? [] : brandsUnder(brands, brand);
+  const umbrella = under.length
+    ? () => query().eq("host_id", brand.hostId).in("brand_id", [brand.id, ...under.map((b) => b.id)])
+    : null;
+  const events = await selectAllPaged(() => (caller.isOwner ? query() : umbrella ? umbrella() : inBrandEvents(query(), brand)));
   const rsvps = caller.isOwner
     ? await selectAllPaged(() => supabase.from("rsvps").select(RSVP_COLUMNS).order("created_at", { ascending: true }))
     : await selectIn("rsvps", RSVP_COLUMNS, "event_id", events.map((e) => e.id));
   // The owner sees everyone's events: each one says whose brand it is.
-  const names = caller.isOwner ? await brandNames(events.map((e) => e.brand_id)) : new Map();
+  const names = caller.isOwner
+    ? await brandNames(events.map((e) => e.brand_id))
+    : new Map(under.length ? [brand, ...under].map((b) => [b.id, b.name]) : []);
   const counts = countsByEvent(rsvps);
   return events.map((e) => eventShape(e, caller, counts.get(e.id), names));
 }
@@ -228,7 +245,12 @@ export async function createEvent(caller, body) {
   if (!patch.title) throw new ActionError("invalid", "The event needs a title.", { detail: "title" });
   if (!patch.starts_at) throw new ActionError("invalid", "The event needs a start time.", { detail: "startsAt" });
   if (patch.ends_at && patch.ends_at <= patch.starts_at) throw new ActionError("invalid", "The end time must be after the start time.", { detail: "endsAt" });
-  const brand = await currentBrand(caller);
+  // The brand it's for: the one asked for (a main brand making an event for
+  // a brand under it), else the one the caller works in.
+  const brand = await currentBrand(body?.brandId ? inBrandStrict(caller, body.brandId) : caller);
+  if (body?.brandId && brand.id !== body.brandId && brand.name.toLowerCase() !== String(body.brandId).toLowerCase()) {
+    throw new ActionError("not_found", "No brand of yours with that id.", { detail: "brand" });
+  }
   if (!isTeam(brand)) throw new ActionError("forbidden", `You co-host single events in ${brand.name}; new events there are made by its team.`, { detail: "cohost" });
   if (!caller.isOwner && brand.hostId === caller.hostId) await ensureHostProfile(caller.hostId);
   const row = {

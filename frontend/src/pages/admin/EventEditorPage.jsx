@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ClipboardList, ExternalLink, Image as ImageIcon, Monitor, Smartphone, Type } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { followBrand } from "../../lib/brand.js";
+import { followBrand, useCurrentBrand } from "../../lib/brand.js";
 import { useToast } from "../../components/Toast";
 import { AdminShell } from "./AdminShell.jsx";
 import { EventPreview } from "../../components/event/EventPreview.jsx";
@@ -42,13 +42,20 @@ export function EventCreatePage() {
 
 function CreateFlow() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const create = async (basics) => {
+  // A main brand makes events for itself or for a brand under it: the wizard
+  // asks whose it is first (pre-picked when the list was narrowed to one).
+  const brand = useCurrentBrand();
+  const family = brand?.under?.length ? [brand, ...brand.under] : [];
+  const asked = params.get("brand");
+  const startBrand = family.some((b) => b.id === asked) ? asked : "";
+  const create = async ({ brandId, ...basics }) => {
     setBusy(true);
     setError("");
     try {
-      const res = await authenticatedFetch("/admin/events", { method: "POST", body: JSON.stringify(basics) });
+      const res = await authenticatedFetch("/admin/events", { method: "POST", body: JSON.stringify(brandId ? { ...basics, brandId } : basics) });
       const out = await res.json();
       if (!res.ok) throw new Error(out.error);
       navigate(`/admin/events/${out.event.id}/edit`, { replace: true });
@@ -57,7 +64,7 @@ function CreateFlow() {
       setBusy(false);
     }
   };
-  return <BasicsWizard onDone={create} onCancel={() => navigate("/admin/events")} busy={busy} error={error} />;
+  return <BasicsWizard brands={family} brandId={startBrand} onDone={create} onCancel={() => navigate("/admin/events")} busy={busy} error={error} />;
 }
 
 export function EventEditorPage() {

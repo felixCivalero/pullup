@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Copy, ExternalLink, Send } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { followBrand, useCurrentBrand } from "../../lib/brand.js";
+import { followBrand, useCurrentBrand, useEventBrand } from "../../lib/brand.js";
 import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
 import { TeamList } from "../../components/admin/Team.jsx";
 import { teamApi } from "../../lib/team.js";
@@ -222,7 +222,7 @@ function Guests({ guests, ev, onChange }) {
 }
 
 function Compose({ ev }) {
-  const brand = useCurrentBrand();
+  const brand = useEventBrand(ev.brandId);
   const [audience, setAudience] = useState("attending");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");

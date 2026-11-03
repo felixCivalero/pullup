@@ -4,7 +4,7 @@ import { compressImage, validateImageFile } from "../lib/imageUtils.js";
 import { formatReadableDateTime, formatRelativeTime } from "../lib/dateUtils.js";
 import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
 import { Toggle } from "./editorUi.jsx";
-import { useCurrentBrand } from "../../../lib/brand.js";
+import { useEventBrand } from "../../../lib/brand.js";
 
 /* The page body: reorderable content blocks (the old app's sections
    builder, branch pullup-app CreateEventPage step 2). Title, place and time
@@ -36,7 +36,7 @@ function youtubeId(url) {
 
 export function SectionsPanel({ draft, update, hovered, setHovered }) {
   // The organiser block starts with the brand the event belongs to.
-  const brand = useCurrentBrand();
+  const brand = useEventBrand(draft?.brandId);
   const sections = draft.sections || [];
   const setSections = (next) => update({ sections: next });
   const setAt = (i, patch) => setSections(sections.map((s, j) => (j === i ? { ...s, ...patch } : s)));

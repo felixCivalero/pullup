@@ -13,7 +13,8 @@ export function ByBrand({ children }) {
 export function BrandKicker() {
   const brand = useCurrentBrand();
   if (!brand) return null;
-  return <p className="ea-brand">{brand.name}</p>;
+  // A brand under a main brand says so: "Nigab › Aperol".
+  return <p className="ea-brand">{brand.parent ? <>{brand.parent.name} <span aria-hidden="true">›</span> </> : null}{brand.name}</p>;
 }
 
 /* Things only a brand's team does (new events, mail to the guests): hidden for

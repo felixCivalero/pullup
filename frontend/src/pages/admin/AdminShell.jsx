@@ -4,7 +4,7 @@ import { LogOut } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { authenticatedFetch } from "../../lib/api.js";
 import { isOwnerEmail, useSession } from "../../lib/owner.js";
-import { BrandContext, setCurrentBrandId, useBrandId } from "../../lib/brand.js";
+import { BrandContext, brandsUnder, rememberBrands, setCurrentBrandId, useBrandId } from "../../lib/brand.js";
 import { ToastProvider } from "../../components/Toast.jsx";
 import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
 import { Onboarding } from "../../components/admin/Onboarding.jsx";
@@ -104,7 +104,15 @@ export function AdminShell({ title, fill = false, children }) {
   if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
   const brands = me?.brands || [];
   const starting = !!me && !owner && brands.length === 0;
-  const current = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
+  const picked = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
+  rememberBrands(brands);
+  // The brand on screen, with the umbrella around it: the brands under it
+  // (a main brand works in them too) and the main brand it sits under.
+  const current = picked && {
+    ...picked,
+    under: brandsUnder(brands, picked),
+    parent: brands.find((b) => b.id === picked.parentId) || null,
+  };
   const shown = ([, , only]) => (only === "owner" ? owner : only === "team" ? current?.role !== "event" : true);
 
   return (

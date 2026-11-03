@@ -29,8 +29,20 @@ const TABS = [
   { id: "signup", label: "Anmälan", icon: ClipboardList, step: "03" },
 ];
 const SAVE_DELAY = 900;
-const PHONE = { w: 390, h: 844 };
-const DESKTOP = { w: 1280, h: 800 };
+// The screens to look at the page on.
+const SIZES = {
+  phone: [
+    { id: "se", label: "iPhone SE", w: 375, h: 667 },
+    { id: "15", label: "iPhone 15", w: 393, h: 852 },
+    { id: "max", label: "iPhone Pro Max", w: 430, h: 932 },
+    { id: "android", label: "Android", w: 412, h: 915 },
+  ],
+  desktop: [
+    { id: "laptop", label: "Laptop", w: 1280, h: 800 },
+    { id: "desk", label: "Desktop", w: 1440, h: 900 },
+    { id: "wide", label: "Stor skärm", w: 1920, h: 1080 },
+  ],
+};
 // Fields the editor writes (media has its own routes).
 const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity", "form"];
 
@@ -87,6 +99,7 @@ function Editor() {
   const [error, setError] = useState(false);
   const [tab, setTab] = useState("cover");
   const [device, setDevice] = useState("phone");
+  const [sizes, setSizes] = useState({ phone: "15", desktop: "laptop" });
   const [hovered, setHovered] = useState(null);
   const [saveState, setSaveState] = useState("saved"); // saved | dirty | saving | error
   const timer = useRef(null);
@@ -178,15 +191,34 @@ function Editor() {
   const rsvpContent = () => <SignupForm preview slug={draft.slug} cta={draft.signupSettings?.cta || null} form={draft.form} />;
   const props = pageProps({ ...draft, text: "" }, { rsvpContent });
 
+  // 01 Design is a stage: only the page, as big as it gets, on the screen
+  // sizes you pick, with the media dropped right on it. Then 02 Innehåll and
+  // 03 Anmälan in the editor with the rail.
+  const stage = tab === "cover";
+  const goTab = (t) => { setTab(t); railRef.current?.scrollTo({ top: 0 }); };
+  const saveLabel = { saved: "Sparat", dirty: "Ändrat…", saving: "Sparar…", error: "Kunde inte spara" }[saveState];
+
   return (
-    <div className="ed2">
+    <div className={`ed2${stage ? " is-stage" : ""}`}>
       <style>{EDITOR_CSS + PAGE_CSS}</style>
+      {stage && (
+        <header className="ed2-stagebar">
+          <Link to={`/admin/events/${draft.id}`} className="ed2-back"><ArrowLeft size={15} /> Eventet</Link>
+          <nav className="ed2-steps" aria-label="Steg">
+            {TABS.map((t) => (
+              <button key={t.id} type="button" className={tab === t.id ? "is-on" : ""} onClick={() => goTab(t.id)}><small>{t.step}</small> {t.label}</button>
+            ))}
+          </nav>
+          <span className={`ed2-save is-${saveState}`}>{saveLabel}</span>
+          <button type="button" className="ed2-btn is-dark" onClick={() => goTab("content")}>Nästa: Innehåll →</button>
+        </header>
+      )}
       <aside className="ed2-rail">
         <div className="ed2-head">
           <Link to={`/admin/events/${draft.id}`} className="ed2-back"><ArrowLeft size={15} /> Eventet</Link>
           <div className="ed2-title">
             <b>{draft.title || "Utan titel"}</b>
-            <span className={`ed2-save is-${saveState}`}>{{ saved: "Sparat", dirty: "Ändrat…", saving: "Sparar…", error: "Kunde inte spara" }[saveState]}</span>
+            <span className={`ed2-save is-${saveState}`}>{saveLabel}</span>
           </div>
           <div className="ed2-pub">
             <a className="ed2-btn" href={draft.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> {live ? "Öppna" : "Förhandsvisa"}</a>
@@ -197,22 +229,26 @@ function Editor() {
         </div>
         <nav className="ed2-tabs">
           {TABS.map((t) => (
-            <button key={t.id} type="button" className={tab === t.id ? "is-on" : ""} onClick={() => setTab(t.id)}>
+            <button key={t.id} type="button" className={tab === t.id ? "is-on" : ""} onClick={() => goTab(t.id)}>
               <small>{t.step}</small> <t.icon size={15} /> {t.label}
             </button>
           ))}
         </nav>
         <div className="ed2-body" ref={railRef}>
-          <div style={{ display: tab === "cover" ? "block" : "none" }}>
-            <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} />
-          </div>
           {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} />}
           {tab === "signup" && <SignupPanel draft={draft} update={update} />}
-          <StepFoot tab={tab} setTab={(t) => { setTab(t); railRef.current?.scrollTo({ top: 0 }); }} live={live} publish={publish} eventId={draft.id} />
+          <StepFoot tab={tab} setTab={goTab} live={live} publish={publish} eventId={draft.id} />
         </div>
       </aside>
 
-      <Canvas device={device} setDevice={setDevice}>
+      {/* The media: on the stage a panel beside the page; elsewhere kept
+          mounted (the page's own drop zone uploads through it). */}
+      <div className="ed2-media" style={{ display: stage ? "block" : "none" }}>
+        <p className="ed2-media-head">Bild, karusell eller video</p>
+        <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} />
+      </div>
+
+      <Canvas device={device} setDevice={setDevice} sizeId={sizes[device]} setSize={(id) => setSizes((x) => ({ ...x, [device]: id }))}>
         {device === "phone"
           ? <EventPreview {...props} compact hoveredSection={hovered} onEditPart={onEditPart} onCoverFiles={(files) => filesRef.current?.(files)} />
           : <DesktopEventLayout {...props} hoveredSection={hovered} onCoverFiles={(files) => filesRef.current?.(files)} />}
@@ -241,10 +277,10 @@ function StepFoot({ tab, setTab, live, publish, eventId }) {
 
 // The preview at its real size (phone 390×844, desktop 1280×800), scaled
 // down to fit the space it has.
-function Canvas({ device, setDevice, children }) {
+function Canvas({ device, setDevice, sizeId, setSize, children }) {
   const ref = useRef(null);
   const [scale, setScale] = useState(1);
-  const size = device === "phone" ? PHONE : DESKTOP;
+  const size = SIZES[device].find((x) => x.id === sizeId) || SIZES[device][0];
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
@@ -262,6 +298,13 @@ function Canvas({ device, setDevice, children }) {
       <div className="ed2-devices">
         <button type="button" className={device === "phone" ? "is-on" : ""} onClick={() => setDevice("phone")}><Smartphone size={15} /> Mobil</button>
         <button type="button" className={device === "desktop" ? "is-on" : ""} onClick={() => setDevice("desktop")}><Monitor size={15} /> Desktop</button>
+        <span className="ed2-sizes">
+          {SIZES[device].map((x) => (
+            <button key={x.id} type="button" className={x.id === size.id ? "is-on" : ""} onClick={() => setSize(x.id)} title={`${x.w} × ${x.h}`}>
+              {x.label} <small>{x.w}×{x.h}</small>
+            </button>
+          ))}
+        </span>
       </div>
       <div className="ed2-stage" ref={ref}>
         <div style={{ width: size.w * scale, height: size.h * scale }}>
@@ -278,7 +321,22 @@ const PAGE_CSS = `
   .ed2-tabs small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; opacity: .55; }
   .ed2-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 22px 0 8px; padding-top: 16px; border-top: 1px dashed ${colors.border}; }
   .ed2-foot span { font-size: 12px; color: ${colors.textSubtle}; }
-  .ed2 { height: 100%; display: grid; grid-template-columns: 420px minmax(0, 1fr); min-height: 0; background: ${colors.surfaceMuted}; }
+  .ed2 { position: relative; height: 100%; display: grid; grid-template-columns: 420px minmax(0, 1fr); min-height: 0; background: ${colors.surfaceMuted}; }
+  .ed2.is-stage { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .ed2.is-stage .ed2-rail { display: none; }
+  .ed2-stagebar { display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: #fff; border-bottom: 1px solid ${colors.border}; }
+  .ed2-steps { display: flex; gap: 4px; margin: 0 auto; }
+  .ed2-steps button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border: 1px solid transparent; border-radius: 8px; background: none; color: ${colors.textSubtle}; cursor: pointer; }
+  .ed2-steps button small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; opacity: .6; margin-right: 3px; }
+  .ed2-steps button.is-on { color: ${colors.text}; border-color: ${colors.borderStrong}; background: ${colors.surfaceMuted}; }
+  .ed2-media { position: absolute; z-index: 5; left: 18px; top: 74px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid ${colors.borderStrong}; border-radius: 12px; box-shadow: 3px 3px 0 rgba(0,0,0,.06), 0 20px 50px -24px rgba(0,0,0,.35); }
+  .ed2-media-head { margin: 0 0 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: ${colors.textSubtle}; }
+  @media (min-width: 1101px) { .ed2.is-stage .ed2-canvas { padding-left: 330px; } }
+  .ed2-sizes { display: inline-flex; gap: 4px; margin-left: 10px; padding-left: 10px; border-left: 1px solid ${colors.border}; flex-wrap: wrap; }
+  .ed2-sizes button { padding: 6px 10px !important; font-size: 12px !important; }
+  .ed2-sizes button small { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; opacity: .6; margin-left: 3px; }
+  .ed2-sizes button.is-on { background: ${colors.surfaceMuted} !important; color: ${colors.text} !important; border-color: ${colors.text} !important; }
+  @media (max-width: 1100px) { .ed2.is-stage .ed2-media { position: static; width: auto; max-height: none; margin: 12px; } .ed2.is-stage { grid-template-rows: auto auto minmax(70vh, 1fr); overflow-y: auto; } }
   .ed2-rail { display: flex; flex-direction: column; min-height: 0; background: #fff; border-right: 1px solid ${colors.border}; }
   .ed2-head { padding: 14px 16px 12px; border-bottom: 1px solid ${colors.border}; display: grid; gap: 10px; }
   .ed2-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: ${colors.textSubtle}; text-decoration: none; }
@@ -294,7 +352,7 @@ const PAGE_CSS = `
   .ed2-tabs button.is-on { color: ${colors.text}; border-bottom-color: ${colors.text}; }
   .ed2-body { flex: 1; overflow-y: auto; padding: 16px; background: ${colors.surfaceMuted}; }
   .ed2-canvas { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .ed2-devices { display: flex; justify-content: center; gap: 6px; padding: 12px; }
+  .ed2-devices { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 6px; padding: 12px; }
   .ed2-devices button { font: inherit; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px; border: 1px solid ${colors.border}; background: #fff; color: ${colors.textSubtle}; cursor: pointer; }
   .ed2-devices button.is-on { background: ${colors.text}; border-color: ${colors.text}; color: #fff; }
   .ed2-stage { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }

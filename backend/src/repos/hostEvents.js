@@ -23,6 +23,7 @@ import { brandNames, brandScope, brandShape, currentBrand, isTeam, listBrands, p
 import { apiBase, eventUrl } from "../lib/urls.js";
 import { brandStats, eventStats } from "../lib/eventStats.js";
 import { FORM_COLUMNS, answersByLabel, formOf, formPatch } from "../lib/eventForm.js";
+import { brandSenderRow, senderFor } from "../lib/senders.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
@@ -549,7 +550,11 @@ export async function sendMail(callerIn, input) {
   const name = caller.isOwner
     ? (typeof fromName === "string" ? fromName.replace(/["<>\\\r\n]/g, "").trim().slice(0, 60) : "")
     : (await currentBrand(caller)).name.replace(/["<>\\\r\n]/g, "").slice(0, 60);
-  const from = name ? `"${name}" <no-reply@pullup.se>` : undefined;
+  // The brand's own verified address, else no-reply@pullup.se under its name
+  // (lib/senders.js); replies to the brand's reply-to, else the sender.
+  const own = caller.isOwner ? null : await brandSenderRow(brandId);
+  const sender = senderFor(own, name);
+  const from = sender.from || undefined;
   const templateContent = cleanBlocks ? { blocks: cleanBlocks, previewText: typeof previewText === "string" ? previewText.slice(0, 200) : "" } : null;
   const compose = templateContent
     ? (r, unsubscribeUrl) => {
@@ -570,7 +575,7 @@ export async function sendMail(callerIn, input) {
   const logBody = cleanBody || renderTemplateText({ templateContent, person: { name: "" }, event: tokenEvent });
   const tag = `event_broadcast:${new Date().toISOString().slice(0, 16)}:${crypto.randomBytes(3).toString("hex")}`;
   // Replies from guests go to the organiser (the owner's go to felix@).
-  const replyTo = caller.isOwner ? undefined : caller.email;
+  const replyTo = caller.isOwner ? undefined : sender.replyTo || caller.email;
 
   if (test) {
     await deliver({ recipients: [{ personId: null, email: caller.email, name: "", basis: "test", token: "test", replyTo }], subject: cleanSubject, compose, logBody, from, tag: `${tag}:test`, hostId: payer, brandId, sentBy: caller.userId });

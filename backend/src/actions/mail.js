@@ -9,6 +9,7 @@ import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvent
 import { brandInput, inBrand } from "./events.js";
 import { brandScope, payerFor } from "../lib/brands.js";
 import { DPA_VERSION, importContacts } from "../repos/imports.js";
+import { getSender, setSender, verifySender } from "../lib/senders.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -153,4 +154,35 @@ export const importContactsAction = defineAction({
   run: async (input, { caller }) => importContacts(caller, input),
 });
 
-export default [importContactsAction, listPeopleAction, previewMail, sendMailAction, listSentMail, getMailCredits, buyMailCredits];
+export const getSenderAction = defineAction({
+  name: "get_sender",
+  title: "A brand's mail sender",
+  description: "What a brand's mail goes out from: its own address (when its domain is verified) or no-reply@pullup.se under the brand's name, the reply-to, and while pending the DNS records to add at the domain.",
+  access: "user",
+  effect: "read",
+  input: z.object({ brand: brandInput }),
+  run: async ({ brand }, { caller }) => ({ sender: await getSender(caller, brand) }),
+});
+
+export const setSenderAction = defineAction({
+  name: "set_sender",
+  title: "Set a brand's mail sender",
+  description: "Send a brand's mail from its own address (on a domain it owns, e.g. news@brand.com; not a free mail address) and/or set where replies land. Returns DNS records to add at the domain's host; then verify_sender. Empty email = back to no-reply@pullup.se. The brand's owner only.",
+  access: "user",
+  effect: "write",
+  input: z.object({ brand: brandInput, email: z.string().trim().max(254).optional(), replyTo: z.string().trim().max(254).optional() }),
+  run: async ({ brand, email, replyTo }, { caller }) => ({ sender: await setSender(caller, { brand, email, replyTo }) }),
+});
+
+export const verifySenderAction = defineAction({
+  name: "verify_sender",
+  title: "Check a brand's sender domain",
+  description: "Check the DNS records for a brand's sender address now; once verified, its mail goes from that address.",
+  access: "user",
+  effect: "write",
+  idempotent: true,
+  input: z.object({ brand: brandInput }),
+  run: async ({ brand }, { caller }) => ({ sender: await verifySender(caller, brand) }),
+});
+
+export default [importContactsAction, getSenderAction, setSenderAction, verifySenderAction, listPeopleAction, previewMail, sendMailAction, listSentMail, getMailCredits, buyMailCredits];

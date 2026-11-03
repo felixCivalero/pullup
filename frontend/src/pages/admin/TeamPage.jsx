@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AdminShell } from "./AdminShell.jsx";
 import { BrandKicker } from "../../components/admin/ByBrand.jsx";
 import { TeamList } from "../../components/admin/Team.jsx";
+import { SenderSettings } from "../../components/admin/SenderSettings.jsx";
 import { teamApi } from "../../lib/team.js";
 import { setCurrentBrandId } from "../../lib/brand.js";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
@@ -78,6 +79,7 @@ export function TeamPage() {
             <p className="ea-muted tp-hint">
               Behöver någon bara hjälpa till med ett event? Bjud in en medarrangör från eventets sida. <button type="button" className="tp-link" onClick={() => navigate("/admin/events")}>Till eventen</button>
             </p>
+            <SenderSettings />
           </>
         )}
       </div>

@@ -192,6 +192,11 @@ const EN = {
   "Importerar…": "Importing…", "Tidigare importer": "Earlier imports", "Källa": "Source", "Nya": "New", "Godkänner mejl": "Accept mail", "Avtal": "Agreement",
   "Till CRM:et →": "To the CRM →", "Importen misslyckades.": "The import failed.", "Filen är tom.": "The file is empty.",
   "Spara listan som CSV först (i Excel: Arkiv → Spara som → CSV).": "Save the list as CSV first (in Excel: File → Save as → CSV).",
+  // ─── sender ───
+  "Mejlavsändare": "Mail sender", "Egen avsändaradress": "Own sender address", "Svar går till": "Replies go to", "Den som skickar": "The person sending",
+  "t.ex. nyheter@ertvarumarke.se": "e.g. news@yourbrand.com", "Kontrollera": "Check", "Kontrollerar…": "Checking…", "Typ": "Type", "Värde": "Value", "Prio": "Priority", "Väntar": "Waiting",
+  "Lägg in de här DNS-posterna hos er domän": "Add these DNS records at your domain",
+  "Det gick inte.": "That didn't work.",
   // invites
   "Tacka ja": "Accept", "Tacka nej": "Decline",
   "Öppna": "Open", "En gäst har sagt ja till ett varumärke, inte till hela": "A guest said yes to one brand, not to all of",
@@ -225,6 +230,10 @@ const PATTERNS = [
   [/^ Du är anmäld med (\d+) (gäst|gäster)\.$/, (m, n) => ` You're signed up with ${n} ${n === "1" ? "guest" : "guests"}.`],
   [/^Eventet är fullt just nu\. Vi mejlar (.+) om en plats blir ledig\.$/, "The event is full right now. We'll mail $1 if a place opens up."],
   [/^Svara på: (.+)$/, "Answer: $1"],
+  [/^Mejl från (.+) går ut från$/, "Mail from $1 goes out from"],
+  [/^Mejl från (.+) går idag ut från$/, "Mail from $1 goes out today from"],
+  [/^med (.+) som avsändarnamn\. Med en egen adress på er domän går de ut från den\.$/, "with $1 as the sender name. With your own address on your domain, it goes out from that."],
+  [/^\(där ni hanterar (.+), t\.ex\. Cloudflare, Loopia eller one\.com\)\. Det kan ta en stund innan de syns\. Tryck sedan Kontrollera\.$/, "(where you manage $1, e.g. Cloudflare, Loopia or one.com). They may take a while to show. Then press Check."],
   [/^Välj ett alternativ: (.+)$/, "Pick an option: $1"],
   [/^(.+) \(valfritt\)$/, (m, q) => `${toEnglish(q)} (optional)`],
   [/^(\d+ [a-zåäö]+\.?): (\d+) besök, (\d+) anmälningar$/, (m, d, v, n) => `${toEnglish(d)}: ${v} visits, ${n} sign-ups`],

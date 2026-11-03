@@ -20,6 +20,7 @@ import { brandNames } from "../lib/brands.js";
 import { humanCheck, mayConfirm, over } from "../lib/abuse.js";
 import { isBotUserAgent } from "../analytics/eventRegistry.js";
 import { FORM_COLUMNS, formOf, readSignup } from "../lib/eventForm.js";
+import { brandSenderRow } from "../lib/senders.js";
 import { userById } from "../agents/oauthProvider.js";
 
 const EVENT_COLUMNS =
@@ -214,11 +215,15 @@ export async function rsvpToEvent(slug, body = {}) {
     imageUrl: imageUrl(ev.cover_image_url || ev.image_url, process.env.SUPABASE_URL),
   });
   const sender = (organizer || "").replace(/["<>\\\r\n]/g, "").slice(0, 60);
+  // The brand's own verified address when it has one (lib/senders.js).
+  const own = await brandSenderRow(ev.brand_id).catch(() => null);
+  const ownFrom = own?.sender_email && own?.sender_verified_at ? `"${sender || own.name}" <${own.sender_email}>` : null;
   sendEmail({
-    ...(sender ? { from: `"${sender} via PullUp" <no-reply@pullup.se>` } : {}),
+    ...(ownFrom ? { from: ownFrom } : sender ? { from: `"${sender} via PullUp" <no-reply@pullup.se>` } : {}),
+
     to: email,
     ...mail,
-    replyTo,
+    replyTo: own?.reply_to || replyTo,
     attachments: status === "attending"
       ? [{ filename: "event.ics", content: Buffer.from(icsFor({ ...ev, text: eventText(ev) }, { url: eventUrl(ev.slug) })).toString("base64"), content_type: "text/calendar" }]
       : undefined,

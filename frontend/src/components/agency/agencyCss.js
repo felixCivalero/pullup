@@ -87,6 +87,23 @@ export const AGENCY_CSS = `
   .pc-nav.is-brand .pc-nav-cta { background: #f4f1ea; border-color: #f4f1ea; color: #0a0a0a; }
   .pc-nav.is-brand.is-light .pc-nav-cta { background: #0a0a0a; border-color: #0a0a0a; color: #fff; }
   .pc-nav.is-brand .pc-nav-cta:hover { background: #ec178f; border-color: #ec178f; color: #fff; }
+  /* over a scene that fades its own colour (FunnelWorld): clear bar, colours
+     follow --pc-tone (0 = on pink, 1 = on black) frame by frame */
+  .pc-nav.is-blend {
+    /* ink crosses to white over the middle 40% of the fade, so the bar never sits grey on magenta for long */
+    --k: clamp(0, calc((var(--pc-tone, 0) - 0.3) * 2.5), 1);
+    background: transparent; border-bottom-color: transparent;
+    backdrop-filter: none; -webkit-backdrop-filter: none; transition: none;
+    color: rgb(calc(10 + 245 * var(--k)) calc(10 + 245 * var(--k)) calc(10 + 245 * var(--k)));
+  }
+  .pc-nav.is-blend .pc-nav-brand img { filter: brightness(0) invert(var(--k)); transition: none; }
+  .pc-nav.is-blend .pc-nav-cta {
+    transition: none;
+    background: rgb(calc(10 + 234 * var(--k)) calc(10 + 231 * var(--k)) calc(10 + 224 * var(--k)));
+    border-color: transparent;
+    color: rgb(calc(255 - 245 * var(--k)) calc(255 - 245 * var(--k)) calc(255 - 245 * var(--k)));
+  }
+  .pc-nav.is-brand.is-blend .pc-nav-cta:hover { background: #ec178f; color: #fff; }
   @media (max-width: 719px) { .pc-nav.is-brand .pc-nav-login { display: none; } }
   @media (max-width: 640px) { .pc-nav-name span { display: none; } }
   .pc-nav.is-dark .pc-nav-brand img { filter: brightness(0) invert(1); }

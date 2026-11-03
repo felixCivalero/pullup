@@ -24,6 +24,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
   const t = useT();
   const [scrolled, setScrolled] = useState(false);
   const [navDark, setNavDark] = useState(true);
+  const [navBlend, setNavBlend] = useState(false);
   const navRef = useRef(null);
 
   // The bar takes the tone of whatever section sits under it — black over
@@ -39,7 +40,15 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
         const r = el.getBoundingClientRect();
         if (r.top <= probe && r.bottom > probe) dark = true;
       });
+      // [data-pc-blend] scenes fade their own background; over them the bar
+      // stays clear and follows their --pc-tone instead of flipping.
+      let blend = false;
+      document.querySelectorAll("[data-pc-blend]").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top <= probe && r.bottom > probe) blend = true;
+      });
       setNavDark(dark);
+      setNavBlend(blend);
     };
     const onScroll = () => {
       if (raf == null) raf = requestAnimationFrame(compute);
@@ -115,7 +124,7 @@ export function AgencyShell({ children, css = "", hideCursor = false, cursor = t
       <div className="pc">
         <header
           ref={navRef}
-          className={`pc-nav${scrolled ? " is-scrolled" : ""}${navDark ? " is-dark" : " is-light"}${brand ? " is-brand" : ""}`}
+          className={`pc-nav${scrolled ? " is-scrolled" : ""}${navBlend ? " is-blend" : navDark ? " is-dark" : " is-light"}${brand ? " is-brand" : ""}`}
         >
           {brand ? (
             <button type="button" className="pc-nav-brand pc-nav-name pc-nav-pullup" onClick={goHome} aria-label="PullUp — home">

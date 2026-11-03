@@ -34,7 +34,7 @@ const WORLD_WORDS = {
   en: ["Content", "Film", "Photo", "Events", "Site", "AI answers", "Community", "Campaigns", "Regulars"],
 };
 // Where each part of the scene plays, as a share of the scroll.
-const AT = { away: [0.015, 0.11], dark: [0.02, 0.1], gather: [0.14, 0.25], fall: [0.22, 0.61], lift: [0.62, 0.71], grow: [0.72, 0.96] };
+const AT = { away: [0.012, 0.12], dark: [0.008, 0.14], gather: [0.14, 0.25], fall: [0.22, 0.61], lift: [0.62, 0.71], grow: [0.72, 0.96] };
 const STEPS = [
   { at: 0.07, title: "Everything is noise.", line: "Feeds fill up with AI. Thousands of impressions a day, and almost all of it sounds the same. In 2027, what's real wins." },
   { at: 0.22, title: "We find the core.", line: "Strategy, identity and story. We strip away everything that isn't you, until only what's yours is left." },
@@ -132,13 +132,17 @@ export function FunnelWorld({ children }) {
     let raf = 0;
     let visible = true;
     let shown = -1;
+    let p = -1;
+    let tone = -1;
     let spinHero = 0.6;
     let tiltHero = 0.3;
     const aim = { x: 0, y: 0 };
 
     const size = () => {
       const r = canvas.getBoundingClientRect();
-      dpr = Math.min(2, window.devicePixelRatio || 1);
+      // A full-screen canvas at 2x is four times the pixels to clear and
+      // fill every frame; 1.5x looks the same for soft dots.
+      dpr = Math.min(r.width * r.height > 700000 ? 1.5 : 2, window.devicePixelRatio || 1);
       w = r.width;
       h = r.height;
       canvas.width = Math.round(w * dpr);
@@ -150,7 +154,11 @@ export function FunnelWorld({ children }) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const r = box.getBoundingClientRect();
-      const p = clamp(-r.top / Math.max(1, r.height - window.innerHeight));
+      const target = clamp(-r.top / Math.max(1, r.height - window.innerHeight));
+      // The scene eases after the scroll instead of jumping with each wheel
+      // notch or touch frame, so steps blend into one glide.
+      p = still || p < 0 ? target : p + (target - p) * (1 - Math.exp(-dt * 9));
+      if (Math.abs(target - p) < 0.0003) p = target;
       const at = STEPS.reduce((n, s, i) => (p >= s.at ? i : n), -1);
       if (at !== shown) {
         shown = at;
@@ -158,23 +166,29 @@ export function FunnelWorld({ children }) {
       }
 
       const away = smooth(span(p, AT.away));
-      const dark = span(p, AT.dark);
+      const dark = smooth(span(p, AT.dark));
       const gather = smooth(span(p, AT.gather));
       const q = span(p, AT.fall);
       const lift = smooth(span(p, AT.lift));
       const grow = span(p, AT.grow);
       const funnelVis = gather * (1 - lift);
 
-      // Pink fades to black; the bar on top follows.
-      if (pinkRef.current) pinkRef.current.style.opacity = String(1 - dark);
+      // Pink fades to black; the bar on top follows the same value
+      // (--pc-tone, read by .pc-nav.is-blend), so they move as one.
+      const toneNow = Math.round(dark * 500) / 500;
+      if (toneNow !== tone) {
+        tone = toneNow;
+        if (pinkRef.current) pinkRef.current.style.opacity = String(1 - tone);
+        document.documentElement.style.setProperty("--pc-tone", String(tone));
+      }
+      // The colour behind the canvas right now, for halos that should vanish into it.
+      const bg = [mix(PINK[0], 10, dark), mix(PINK[1], 10, dark), mix(PINK[2], 10, dark)];
       if (heroRef.current) {
         const k = clamp(p / 0.06);
         heroRef.current.style.opacity = String(1 - k);
         heroRef.current.style.transform = `translateY(${-k * 40}px)`;
         heroRef.current.style.visibility = k >= 1 ? "hidden" : "visible";
       }
-      if (dark > 0.5) box.setAttribute("data-pc-tone", "dark");
-      else box.removeAttribute("data-pc-tone");
 
       const phone = w < 760;
       // The hero world.
@@ -275,7 +289,7 @@ export function FunnelWorld({ children }) {
           ctx.font = `${depth > 0.55 ? 700 : 500} ${Math.round((phone ? 11 : 13) + depth * (phone ? 7 : 13))}px ${font}`;
           ctx.lineWidth = 5;
           ctx.lineJoin = "round";
-          ctx.strokeStyle = `rgba(240,40,150,${0.9 * depth * fade * (1 - dark)})`;
+          ctx.strokeStyle = rgba(bg, bg, 0, 0.9 * depth * fade);
           ctx.strokeText(word, x, y);
           ctx.fillStyle = rgba(INK, WHITE, dark, (0.12 + depth * 0.88) * fade);
           ctx.fillText(word, x, y);
@@ -283,6 +297,9 @@ export function FunnelWorld({ children }) {
       };
       drawHeroWords(false);
 
+      // Dots are grouped by colour (alpha in 1/24 steps) and filled once per
+      // group: a few dozen fills a frame instead of 1,400.
+      const groups = new Map();
       for (let i = 1; i < pts.length; i += 1) {
         const d = pts[i];
         let x;
@@ -325,13 +342,23 @@ export function FunnelWorld({ children }) {
           y = mix(mix(hy2, ny, away), ffy, gather);
           a = mix(hAlpha, nAlpha, away);
           rad = mix(hRad, d.size, away);
-          color = d.accent ? (dark < 0.5 ? WHITE : PINK) : null;
+          color = d.accent ? [mix(WHITE[0], PINK[0], dark), mix(WHITE[1], PINK[1], dark), mix(WHITE[2], PINK[2], dark)] : [mix(INK[0], WHITE[0], dark), mix(INK[1], WHITE[1], dark), mix(INK[2], WHITE[2], dark)];
         }
         if (a <= 0.01) continue;
-        ctx.fillStyle = color ? `rgba(${color[0]},${color[1]},${color[2]},${a})` : rgba(INK, WHITE, dark, a);
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(0.3, rad), 0, Math.PI * 2);
-        ctx.fill();
+        const key = `${Math.round(color[0])},${Math.round(color[1])},${Math.round(color[2])},${Math.round(Math.min(1, a) * 24)}`;
+        let path = groups.get(key);
+        if (!path) {
+          path = new Path2D();
+          groups.set(key, path);
+        }
+        const rr = Math.max(0.3, rad);
+        path.moveTo(x + rr, y);
+        path.arc(x, y, rr, 0, Math.PI * 2);
+      }
+      for (const [key, path] of groups) {
+        const [cr, cg, cb, ca] = key.split(",");
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${ca / 24})`;
+        ctx.fill(path);
       }
       drawHeroWords(true);
 
@@ -424,11 +451,12 @@ export function FunnelWorld({ children }) {
       seen.disconnect();
       window.removeEventListener("pointermove", onMove);
       document.removeEventListener("visibilitychange", wake);
+      document.documentElement.style.removeProperty("--pc-tone");
     };
   }, [lang]);
 
   return (
-    <section className="fw" ref={wrap} data-pc-section="hero" data-pc-order="1">
+    <section className="fw" ref={wrap} data-pc-blend="" data-pc-section="hero" data-pc-order="1">
       <div className="fw-pin">
         <div className="fw-pink" ref={pinkRef} aria-hidden="true" />
         <canvas ref={ref} className="fw-canvas" aria-hidden="true" />

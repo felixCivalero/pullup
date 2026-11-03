@@ -17,7 +17,7 @@ export function Tiles({ totals, extra = [] }) {
     ["Anmälda", fmt(totals.signups), totals.waitlist ? `${fmt(totals.waitlist)} i kö` : null],
     ["Konvertering", pct(totals.conversion), "besökare som anmälde sig"],
     ["Kom", fmt(totals.came), totals.signups ? `${Math.round((totals.came / totals.signups) * 100)} % av anmälda` : null],
-    ["Vill ha inbjudningar", fmt(totals.consents), totals.signups ? `${Math.round((totals.consents / totals.signups) * 100)} % av anmälda` : null],
+    ["Godkänner mejlutskick", fmt(totals.consents), totals.signups ? `${Math.round((totals.consents / totals.signups) * 100)} % av anmälda` : null],
     ...extra,
   ];
   return (

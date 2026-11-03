@@ -25,7 +25,7 @@ const AUDIENCES = [
   ["attending", "Alla anmälda"],
   ["waitlist", "Väntelistan"],
   ["all", "Anmälda + väntelista"],
-  ["consent", "Alla i CRM:et som sagt ja till inbjudningar"],
+  ["consent", "Alla i CRM:et som godkänt mejlutskick"],
 ];
 const fmt = (iso) => new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -87,7 +87,7 @@ export function EventDetailPage() {
               <div><b>{ev.attending}</b><span>anmälda{ev.capacity ? ` av ${ev.capacity}` : ""}</span></div>
               <div><b>{ev.waitlist}</b><span>i kö</span></div>
               <div><b>{ev.pulledUp}</b><span>kom</span></div>
-              <div><b>{data.guests.filter((g) => g.consent).length}</b><span>vill ha inbjudningar</span></div>
+              <div><b>{data.guests.filter((g) => g.consent).length}</b><span>godkänner mejlutskick</span></div>
             </div>
             <nav className="ed-tabs" aria-label="Eventet">
               {TABS.map(([k, label, icon]) => (
@@ -320,7 +320,7 @@ function Guests({ guests, ev, onChange }) {
   const qs = form.questions || [];
   const answer = (g, q) => { const v = g.answers?.[q.id]; return v === true ? "Ja" : v || ""; };
   const exportCsv = () => {
-    const head = ["Namn", "E-post", ...(hasPhone ? ["Telefon"] : []), ...(hasIg ? ["Instagram"] : []), ...(hasPlus ? ["Tar med", "Antal totalt"] : []), ...qs.map((q) => q.label), "Status", "Kom", "Anmäld", "Vill ha inbjudningar"];
+    const head = ["Namn", "E-post", ...(hasPhone ? ["Telefon"] : []), ...(hasIg ? ["Instagram"] : []), ...(hasPlus ? ["Tar med", "Antal totalt"] : []), ...qs.map((q) => q.label), "Status", "Kom", "Anmäld", "Godkänner mejlutskick"];
     const rows = [head, ...guests.map((g) => [
       g.name, g.email,
       ...(hasPhone ? [g.phone] : []), ...(hasIg ? [g.instagram ? `@${g.instagram}` : ""] : []),
@@ -350,7 +350,7 @@ function Guests({ guests, ev, onChange }) {
       {shown.length ? (
         <div className="ea-wrap">
           <table className="ea-table">
-            <thead><tr><th>Namn</th><th>E-post</th>{hasPhone && <th>Telefon</th>}{hasIg && <th>Instagram</th>}{hasPlus && <th className="num" title="Gäster de tar med">+</th>}{qs.map((q) => <th key={q.id} className="ed-qcol" title={q.label}>{q.label}</th>)}<th>Status</th><th>Kom</th><th>Anmäld</th><th title="Vill ha inbjudningar">Inbj.</th></tr></thead>
+            <thead><tr><th>Namn</th><th>E-post</th>{hasPhone && <th>Telefon</th>}{hasIg && <th>Instagram</th>}{hasPlus && <th className="num" title="Gäster de tar med">+</th>}{qs.map((q) => <th key={q.id} className="ed-qcol" title={q.label}>{q.label}</th>)}<th>Status</th><th>Kom</th><th>Anmäld</th><th title="Godkänner mejlutskick">Mejl</th></tr></thead>
             <tbody>
               {shown.map((g) => (
                 <tr key={g.rsvpId}>

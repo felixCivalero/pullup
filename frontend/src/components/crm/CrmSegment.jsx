@@ -83,7 +83,7 @@ export default function CrmSegment({ segment, setSegment, total }) {
             ))}
           </div>
         )}
-        <p className="cs-hint">{segment.eventIds.length ? "Alla som anmält sig till något av dessa." : "Inget event valt: alla i CRM:et som vill ha inbjudningar."}</p>
+        <p className="cs-hint">{segment.eventIds.length ? "Alla som anmält sig till något av dessa." : "Inget event valt: alla i CRM:et som godkänt mejlutskick."}</p>
       </div>
 
       <div className="cs-toggles">
@@ -95,7 +95,7 @@ export default function CrmSegment({ segment, setSegment, total }) {
           title={consentForced ? "Alltid på utan event: för att mejla CRM:et krävs att de tackat ja." : ""}
           onClick={() => set({ consentOnly: !segment.consentOnly })}
         >
-          Bara de som vill ha inbjudningar
+          Bara de som godkänt mejlutskick
         </button>
       </div>
 
@@ -109,7 +109,7 @@ export default function CrmSegment({ segment, setSegment, total }) {
           <li key={p.id}>
             <span className="cs-name">{p.name || p.email}<small>{p.name ? p.email : ""}</small></span>
             <span className="cs-meta">{p.events ? `${p.events} ev` : ""}{p.attended ? ` · kom ${p.attended}` : ""}</span>
-            <i className={`cs-dot${p.consent ? " is-on" : ""}`} title={p.consent ? "Vill ha inbjudningar" : "Har inte tackat ja till inbjudningar"} />
+            <i className={`cs-dot${p.consent ? " is-on" : ""}`} title={p.consent ? "Godkänner mejlutskick" : "Har inte tackat ja till inbjudningar"} />
           </li>
         ))}
       </ul>

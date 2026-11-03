@@ -84,8 +84,8 @@ function People() {
 
   const exportCsv = () => {
     const rows = umbrella
-      ? [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Varumärken", "Vill ha inbjudningar från", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", names(p.brandIds), names(p.consentBrands), answersText(p)])]
-      : [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Vill ha inbjudningar", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : "", answersText(p)])];
+      ? [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Varumärken", "Godkänner mejlutskick från", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", names(p.brandIds), names(p.consentBrands), answersText(p)])]
+      : [["Namn", "E-post", "Telefon", "Instagram", "Event", "Kom", "Senaste event", "Godkänner mejlutskick", "Svar"], ...list.map((p) => [p.name, p.email, p.phone, p.instagram, p.events, p.attended, p.lastEventTitle || "", p.consent ? "ja" : "", answersText(p)])];
     const blob = new Blob(["﻿" + csv(rows)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -109,7 +109,7 @@ function People() {
           <div>
             <BrandKicker />
             <h1>CRM</h1>
-            {data && <p className="ea-muted">{nf.format(stats.total)} personer · {nf.format(stats.withEvents)} har anmält sig till event · {nf.format(stats.came)} har kommit · {nf.format(stats.regulars)} återkommande · {nf.format(stats.consent)} vill ha inbjudningar</p>}
+            {data && <p className="ea-muted">{nf.format(stats.total)} personer · {nf.format(stats.withEvents)} har anmält sig till event · {nf.format(stats.came)} har kommit · {nf.format(stats.regulars)} återkommande · {nf.format(stats.consent)} godkänner mejlutskick</p>}
           </div>
           <button type="button" className="ea-btn" onClick={exportCsv} disabled={!list.length}>Exportera {list.length ? nf.format(list.length) : ""}</button>
         </div>
@@ -131,14 +131,14 @@ function People() {
               </select>
             </div>
             <div className="ea-tabs">
-              {[["all", "Alla"], ["came", "Har kommit"], ["regulars", "Återkommande (2+)"], ["consent", "Vill ha inbjudningar"]].map(([k, l]) => (
+              {[["all", "Alla"], ["came", "Har kommit"], ["regulars", "Återkommande (2+)"], ["consent", "Godkänner mejlutskick"]].map(([k, l]) => (
                 <button key={k} type="button" className={only === k ? "is-on" : ""} onClick={() => { setOnly(k); setShown(SHOW_STEP); }}>{l}</button>
               ))}
             </div>
             <p className="ea-muted pp-count">{nf.format(list.length)} {list.length === 1 ? "person" : "personer"}</p>
             <div className="ea-wrap">
               <table className="ea-table">
-                <thead><tr><th>Namn</th><th>E-post</th><th className="num">Event</th><th className="num">Kom</th><th>Senaste event</th>{umbrella ? <th>Vill ha inbjudningar från</th> : <th title="Vill ha inbjudningar">Inbj.</th>}</tr></thead>
+                <thead><tr><th>Namn</th><th>E-post</th><th className="num">Event</th><th className="num">Kom</th><th>Senaste event</th>{umbrella ? <th>Godkänner mejlutskick från</th> : <th title="Godkänner mejlutskick">Mejl</th>}</tr></thead>
                 <tbody>
                   {list.slice(0, shown).map((p) => (
                     <tr key={p.id} className="is-click" onClick={() => setOpen(p.id)}>
@@ -172,7 +172,7 @@ function People() {
             </div>
             {umbrella && (
               <>
-                <h3>Vill ha inbjudningar från</h3>
+                <h3>Godkänner mejlutskick från</h3>
                 <ul className="pp-consent">
                   {family.filter((b) => person.brandIds.includes(b.id) || person.consentBrands.includes(b.id)).map((b) => (
                     <li key={b.id}><span>{b.name}</span><b className={person.consentBrands.includes(b.id) ? "is-yes" : ""}>{person.consentBrands.includes(b.id) ? "Ja" : "Nej"}</b></li>

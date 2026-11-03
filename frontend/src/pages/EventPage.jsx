@@ -7,6 +7,8 @@ import { SignupForm } from "../components/event/SignupForm.jsx";
 import { DESKTOP_MIN_WIDTH, pageProps } from "../components/event/pageProps.js";
 import { usePageContext } from "../lib/pageContext.js";
 import { recordEventView } from "../lib/eventView.js";
+import { useLang } from "../components/agency/i18n.js";
+import { browserLang, translatePage } from "../lib/adminI18n.js";
 
 /* /e/:slug — an event as its host designed it in the editor (cover media,
    content blocks, sign-up), on the old app's page components: full-screen
@@ -18,6 +20,9 @@ export function EventPage() {
   usePageContext({ page: "event", eventSlug: slug, hint: "Use get_event and rsvp_to_event with this eventSlug." });
   const [data, setData] = useState(null);
   const [missing, setMissing] = useState(false);
+  // The guest's language: their own pick on pullup.se, else their browser's.
+  const picked = useLang();
+  const lang = (() => { try { return localStorage.getItem("pullup.lang") ? picked : browserLang(); } catch { return picked; } })();
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= DESKTOP_MIN_WIDTH);
 
   useEffect(() => {
@@ -38,6 +43,11 @@ export function EventPage() {
       .catch(() => alive && setMissing(true));
     return () => { alive = false; };
   }, [slug]);
+
+  useEffect(() => {
+    if (lang !== "en" || !data) return undefined;
+    return translatePage(document.getElementById("root") || document.body);
+  }, [lang, data]);
 
   useEffect(() => {
     if (!data) return undefined;

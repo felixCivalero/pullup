@@ -4,6 +4,8 @@ import { authLinkError } from "../lib/supabase.js";
 import { homeFor, safeNext, useSession } from "../lib/owner.js";
 import { linkFromHash, pendingLogin, requestCode, verifyCode, verifyLink } from "../lib/deviceLogin.js";
 import { Turnstile } from "../components/Turnstile.jsx";
+import { LangSwitch } from "../components/agency/LangSwitch.jsx";
+import { setLang as setSiteLang, useLang } from "../components/agency/i18n.js";
 
 // Swedish or English: the visitor's own pick (pullup.lang, shared with the
 // front page), else the browser's language — Swedish only for Swedish ones.
@@ -47,16 +49,6 @@ const ERRORS_EN = {
   bot_check: "We couldn't confirm you're human. Reload the page and try again.",
 };
 
-function LangToggle({ lang, setLang }) {
-  return (
-    <div className="lg-lang" role="radiogroup" aria-label="Language / Språk">
-      {[["sv", "SV"], ["en", "EN"]].map(([k, l]) => (
-        <button key={k} type="button" role="radio" aria-checked={lang === k} className={lang === k ? "is-on" : ""} onClick={() => { try { localStorage.setItem(KEY, k); } catch { /* fine */ } setLang(k); }}>{l}</button>
-      ))}
-    </div>
-  );
-}
-
 /* /login — sign in, or make an account (the first sign-in does). Email → a
    six-digit code (or the link in the same mail) that works only in this
    browser: see lib/deviceLogin.js. `?next=/path` returns there afterwards
@@ -70,8 +62,11 @@ export function LoginPage() {
   // ?ny=1: the same steps, worded for someone making an account (the first
   // sign-in creates it), from "Skapa konto" on /eventverktyg.
   const isNew = params.get("ny") === "1";
-  const [lang, setLang] = useState(startLang);
-  const w = WORDS[lang];
+  // The site's language setting (the globe, as on the front page); the
+  // browser's language until someone picks.
+  const lang = useLang();
+  useEffect(() => { try { if (!localStorage.getItem(KEY)) setSiteLang(startLang()); } catch { /* fine */ } }, []);
+  const w = WORDS[lang] || WORDS.sv;
 
   useEffect(() => {
     const prev = document.title;
@@ -84,7 +79,7 @@ export function LoginPage() {
     <main className="lg is-brand">
       <style>{LOGIN_CSS}</style>
       <Link to="/" className="lg-logo" aria-label="PullUp"><img src="/pullup-textlogo.svg" alt="PullUp" /></Link>
-      <LangToggle lang={lang} setLang={setLang} />
+      <div className="lg-lang"><LangSwitch /></div>
       <LoginForm
         lang={lang}
         onDone={(user) => navigate(next || homeFor(user?.email), { replace: true })}
@@ -214,9 +209,9 @@ export const LOGIN_CSS = `
   /* /login itself: PullUp's pink, like the front page */
   .lg.is-brand { background: radial-gradient(120% 90% at 70% 20%, #f43aa5 0%, #ec178f 55%, #d90f80 100%); }
   .lg-logo { position: absolute; top: 22px; left: clamp(20px, 3.4vw, 48px); display: block; }
-  .lg-lang { position: absolute; top: 18px; right: clamp(20px, 3.4vw, 48px); display: inline-flex; padding: 3px; gap: 2px; border: 1px solid rgba(0,0,0,.35); border-radius: 7px; background: rgba(255,255,255,.35); }
-  .lg-lang button { border: 0; border-radius: 5px; background: none; padding: 5px 10px; cursor: pointer; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #111; }
-  .lg-lang button.is-on { background: #0a0a0a; color: #fff; }
+  .lg-lang { position: absolute; top: 18px; right: clamp(20px, 3.4vw, 48px); }
+  .lg-lang .pc-lang { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(0,0,0,.3); background: rgba(255,255,255,.3); color: #0a0a0a; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .lg-lang .pc-lang select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; border: 0; appearance: none; -webkit-appearance: none; }
   .lg-logo img { height: 24px; display: block; filter: brightness(0); }
   .lg-box { width: min(440px, 100%); display: grid; gap: 14px; animation: lg-in .55s cubic-bezier(.16,1,.3,1) both; }
   @keyframes lg-in { from { opacity: 0; transform: translateY(16px); } }

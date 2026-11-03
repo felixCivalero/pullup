@@ -197,4 +197,10 @@ export const ADMIN_SKIN = `
   .ad .ee-field input[type="datetime-local"] { font-size: 13px; padding-left: 8px; padding-right: 6px; }
   @media (max-width: 520px) { .ad .ee-two { grid-template-columns: 1fr; } }
   .ad .cp-item { border-color: var(--line); border-radius: 6px; }
+
+  /* the language globe, as on the front page */
+  .ad .pc-lang { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--edge); background: linear-gradient(180deg, #fbfaf7, #e2e1dc); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(0,0,0,.12); font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .06em; color: #111; cursor: pointer; }
+  .ad .pc-lang:hover { border-color: #111; }
+  .ad .pc-lang select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; border: 0; appearance: none; -webkit-appearance: none; }
+  @media (max-width: 520px) { .ad .pc-lang svg { display: none; } .ad .pc-lang { padding: 0 7px; } }
 `;

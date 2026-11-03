@@ -10,6 +10,9 @@ import { BrandSwitcher } from "../../components/admin/BrandSwitcher.jsx";
 import { Onboarding } from "../../components/admin/Onboarding.jsx";
 import { PendingInvites } from "../../components/admin/Team.jsx";
 import { ADMIN_SKIN } from "./adminSkin.js";
+import { LangSwitch } from "../../components/agency/LangSwitch.jsx";
+import { setLang, useLang } from "../../components/agency/i18n.js";
+import { browserLang, translatePage } from "../../lib/adminI18n.js";
 
 /* Every /admin page renders inside this: the sign-in gate + the top bar.
    Any signed-in person is an organiser and gets their events, CRM, mail and
@@ -44,6 +47,17 @@ const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PAT
 let verified = { userId: null, me: null };
 
 export function AdminShell({ title, fill = false, children }) {
+  // Swedish or English (the site's one setting; the browser's language until
+  // someone picks), applied to everything on screen (lib/adminI18n.js).
+  const lang = useLang();
+  useEffect(() => {
+    try { if (!localStorage.getItem("pullup.lang")) setLang(browserLang()); } catch { /* storage blocked */ }
+  }, []);
+  useEffect(() => {
+    if (lang !== "en") return undefined;
+    const root = document.getElementById("root") || document.body;
+    return translatePage(root);
+  }, [lang]);
   const session = useSession();
   const { pathname } = useLocation();
   const [server, setServer] = useState("checking"); // checking | ok | refused
@@ -131,6 +145,7 @@ export function AdminShell({ title, fill = false, children }) {
             ))}
           </nav>
           <div className="ad-side">
+            <LangSwitch />
             {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} teamLink={current?.role !== "event"} />}
             {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
             <button type="button" className={brands.length > 0 ? "ad-out has-menu" : "ad-out"} onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">

@@ -90,10 +90,14 @@ export function registerAuthRoutes(app) {
       const device = req.body?.device;
       if (!isValidEmail(email)) return res.status(400).json({ error: "invalid_email", message: "Skriv en giltig e-postadress." });
       if (!isDeviceHash(device)) return res.status(400).json({ error: "invalid_device" });
-      if (!(await humanCheck(req.body?.turnstile, req.ip))) return res.status(403).json({ error: "bot_check", message: "Vi kunde inte bekräfta att du är en människa. Ladda om sidan och försök igen." });
+      // The bot check is a help, not a gate: it fails for real people too (a
+      // blocker, a network, a reused token), and all this does is mail a code
+      // to the address given. Unverified, the limits are tighter instead.
+      const human = await humanCheck(req.body?.turnstile, req.ip);
       const ip = req.ip || "unknown";
       const [byEmail, byIp] = await Promise.all([recentCount("email", email, 15 * 60 * 1000), recentCount("ip", ip, 60 * 60 * 1000)]);
-      if (byEmail >= PER_EMAIL || byIp >= PER_IP) return res.status(429).json({ error: "rate_limited", message: "Du har bett om många koder. Vänta en stund." });
+      if (byEmail >= (human ? PER_EMAIL : 3) || byIp >= (human ? PER_IP : 6)) return res.status(429).json({ error: "rate_limited", message: "Du har bett om många koder. Vänta en stund." });
+      if (!human) console.warn(`[auth] login without a passed bot check (${ip})`);
 
       const code = newCode();
       const link = newSecret();

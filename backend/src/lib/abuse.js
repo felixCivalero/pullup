@@ -63,6 +63,7 @@ export async function humanCheck(token, ip) {
       signal: AbortSignal.timeout(5000),
     });
     const out = await res.json();
+    if (out?.success !== true) console.warn("[abuse] turnstile said no:", (out?.["error-codes"] || []).join(",") || "unknown");
     return out?.success === true;
   } catch (err) {
     // Cloudflare down: fail closed would lock everyone out of signing in.

@@ -19,8 +19,9 @@ const FIXED = new Set(["title", "location", "datetime"]);
 // A new embed starts with something playing (the ting goes… quack), so the
 // preview shows what the block looks like at once; paste your own over it.
 const QUACK = {
-  spotify: "https://open.spotify.com/album/5d2vrwvK9NqOd5S54Hu50A",
-  applemusic: "https://music.apple.com/se/album/mans-not-hot/1444869738?i=1444869855",
+  spotify: "https://open.spotify.com/track/61aSNFi5mFKc580uvufoRL",
+  applemusic: "https://music.apple.com/se/album/the-ting-goes-quack/6779302484?i=6779302492",
+  // Not on SoundCloud as itself (as of 2026-11-03): the closest, until a link comes.
   soundcloud: "https://soundcloud.com/fayr1/big-shaq-mans-not-hot-fayr-remix",
   youtube: "https://www.youtube.com/watch?v=POjo0MX3huk",
 };

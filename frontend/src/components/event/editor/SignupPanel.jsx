@@ -1,14 +1,38 @@
 import { Field, Toggle } from "./editorUi.jsx";
 import { FormBuilder } from "./FormBuilder.jsx";
+import { PlaceField } from "./PlaceField.jsx";
+import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
 
-/* Sign-up & access: how many can come, what the sign-up asks (FormBuilder:
+/* 01 Praktiskt — everything practical before the design: the basics (name,
+   time, place) and then sign-up & access: how many can come, what the sign-up asks (FormBuilder:
    guests brought along, phone, Instagram, own questions), and the sign-up
    box on the page — shown or hidden, its heading and button text. */
 export function SignupPanel({ draft, update }) {
   const s = draft.signupSettings || {};
   const setS = (patch) => update({ signupSettings: { ...s, ...patch } });
+  const tz = draft.timezone || "Europe/Stockholm";
   return (
     <div className="ee-panel">
+      <p className="ee-step-head">Grunderna</p>
+      <Field label="Namn">
+        <input maxLength={160} value={draft.title || ""} placeholder="Eventets namn" onChange={(e) => update({ title: e.target.value })} />
+      </Field>
+      <div className="ee-two">
+        <Field label="Startar">
+          <input type="datetime-local" value={toZonedInput(draft.startsAt, tz)} onChange={(e) => update({ startsAt: e.target.value ? fromZonedInput(e.target.value, tz) : null })} />
+        </Field>
+        <Field label="Slutar (valfritt)">
+          <input type="datetime-local" value={toZonedInput(draft.endsAt, tz)} onChange={(e) => update({ endsAt: e.target.value ? fromZonedInput(e.target.value, tz) : null })} />
+        </Field>
+      </div>
+      <div className="ee-field"><span>Plats</span>
+        <PlaceField value={draft} onChange={(p) => update(p)} inputClassName="ee-input" placeholder="Sök adress eller ställe" />
+      </div>
+      <Toggle on={!!draft.hideLocation} onChange={(v) => update({ hideLocation: v })} label="Avslöja platsen senare" />
+      {draft.hideLocation && (
+        <input className="ee-input" maxLength={80} value={draft.revealHint || ""} onChange={(e) => update({ revealHint: e.target.value })} placeholder="t.ex. Platsen släpps på fredag" />
+      )}
+      <p className="ee-step-head">Anmälan</p>
       <FormBuilder form={draft.form} onChange={(form) => update({ form })} capacity={draft.capacity} onCapacity={(capacity) => update({ capacity })} />
       <Toggle on={!s.hidden} onChange={(v) => setS({ hidden: !v })} label="Visa anmälan på sidan" hint={s.hidden ? "Ingen kan anmäla sig via sidan just nu." : null} />
       {!s.hidden && (

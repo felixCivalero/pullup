@@ -105,6 +105,8 @@ app.use("/admin/mail/images", mailImageBodyParser);
 app.use(...emailCreditsWebhookParser);
 // So is Resend's (Svix).
 app.use(...resendEventsParser);
+// A contact import (repos/imports.js) carries up to 20 000 rows.
+app.use("/admin/imports", express.json({ limit: "8mb" }));
 app.use(express.json({ limit: "1mb" }));
 
 // A ceiling per IP on everything (per-route limits sit under it): far above

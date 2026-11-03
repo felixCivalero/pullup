@@ -44,13 +44,14 @@ export function inBrandEvents(query, brand) {
 }
 
 // `.in()` with a long list overflows the URL; read it 200 ids at a time.
-async function selectIn(table, columns, column, ids) {
+// …and page each slice, so a slice with more than 1000 rows (an event's
+// sign-ups, a brand's contacts) is read whole. `key` orders the pages.
+async function selectIn(table, columns, column, ids, key = "id") {
   const out = [];
   const unique = [...new Set(ids.filter(Boolean))];
   for (let i = 0; i < unique.length; i += 200) {
-    const { data, error } = await supabase.from(table).select(columns).in(column, unique.slice(i, i + 200));
-    if (error) throw error;
-    out.push(...(data || []));
+    const slice = unique.slice(i, i + 200);
+    out.push(...(await selectAllPaged(() => supabase.from(table).select(columns).in(column, slice).order(key, { ascending: true }))));
   }
   return out;
 }
@@ -82,20 +83,31 @@ export async function loadWorld(caller) {
   const ids = events.map((e) => e.id);
   const [rsvps, pullups] = await Promise.all([
     selectIn("rsvps", RSVP_COLUMNS, "event_id", ids),
-    selectIn("pullups", "event_id, person_id", "event_id", ids),
+    selectIn("pullups", "id, event_id, person_id", "event_id", ids),
   ]);
   rsvps.sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
-  // Consent is per brand: a yes on a sign-up to one of the brand's events.
+  // Consent is per brand: a yes on a sign-up to one of the brand's events,
+  // or a yes brought in with the brand's own contacts (an import, mig 157).
   const brandOf = new Map(events.map((e) => [e.id, e.brand_id]));
   const consentBrands = new Map();
+  const yes = (personId, brandId) => {
+    const set = consentBrands.get(personId) || new Set();
+    set.add(brandId);
+    consentBrands.set(personId, set);
+  };
   for (const r of rsvps) {
     if (!r.marketing_opt_in || r.status === "cancelled") continue;
-    const set = consentBrands.get(r.person_id) || new Set();
-    set.add(brandOf.get(r.event_id) || brand.id);
-    consentBrands.set(r.person_id, set);
+    yes(r.person_id, brandOf.get(r.event_id) || brand.id);
   }
-  const people = (await selectIn("people", PEOPLE_COLUMNS, "id", rsvps.map((r) => r.person_id)))
-    .map((p) => ({ ...p, marketing_consent: consentBrands.has(p.id), consent_brands: [...(consentBrands.get(p.id) || [])] }))
+  // A co-host of single events sees their guests only, not the brand's list.
+  const contacts = brand.role === "event" ? [] : await selectIn("brand_contacts", "brand_id, person_id, consent", "brand_id", [brand.id, ...under.map((b) => b.id)], "person_id");
+  const contactBrands = new Map();
+  for (const c of contacts) {
+    if (c.consent) yes(c.person_id, c.brand_id);
+    contactBrands.set(c.person_id, [...(contactBrands.get(c.person_id) || []), c.brand_id]);
+  }
+  const people = (await selectIn("people", PEOPLE_COLUMNS, "id", [...rsvps.map((r) => r.person_id), ...contacts.map((c) => c.person_id)]))
+    .map((p) => ({ ...p, marketing_consent: consentBrands.has(p.id), consent_brands: [...(consentBrands.get(p.id) || [])], contact_brands: contactBrands.get(p.id) || [] }))
     .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
   return { events, rsvps, people, pullups, umbrella: under.length > 0 };
 }

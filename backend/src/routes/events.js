@@ -101,7 +101,7 @@ function calendarLinks(ev) {
 async function upsertPerson({ email, name, consent, phone = "", instagram = "" }) {
   // What the sign-up asked for lands on the person too, for the CRM: the
   // latest number and handle they gave.
-  const contact = { ...(phone ? { phone, phone_e164: phone } : {}), ...(instagram ? { instagram } : {}) };
+  const contact = { ...(phone ? { phone, ...(/^\+[1-9]\d{6,14}$/.test(phone) ? { phone_e164: phone } : {}) } : {}), ...(instagram ? { instagram } : {}) };
   const { data: found, error } = await supabase
     .from("people")
     .select("id, name, email, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at")

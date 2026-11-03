@@ -147,7 +147,7 @@ export function summarizePeople({ people, rsvps, events, pullups = [] }) {
         plusOnes: evs.reduce((n, e) => n + e.plusOnes, 0),
         // Brands: the ones whose events they signed up to, and the ones they
         // said yes to hearing from (an umbrella's CRM shows both per brand).
-        brandIds: [...new Set(evs.map((e) => e.brandId).filter(Boolean))],
+        brandIds: [...new Set([...evs.map((e) => e.brandId), ...(p.contact_brands || [])].filter(Boolean))],
         consentBrands: p.marketing_unsubscribed_at || p.do_not_contact ? [] : p.consent_brands || [],
       };
     })

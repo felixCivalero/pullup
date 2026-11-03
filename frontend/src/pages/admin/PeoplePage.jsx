@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
-import { BrandKicker } from "../../components/admin/ByBrand.jsx";
+import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
 import { useCurrentBrand } from "../../lib/brand.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
@@ -111,7 +111,10 @@ function People() {
             <h1>CRM</h1>
             {data && <p className="ea-muted">{nf.format(stats.total)} personer · {nf.format(stats.withEvents)} har anmält sig till event · {nf.format(stats.came)} har kommit · {nf.format(stats.regulars)} återkommande · {nf.format(stats.consent)} godkänner mejlutskick</p>}
           </div>
-          <button type="button" className="ea-btn" onClick={exportCsv} disabled={!list.length}>Exportera {list.length ? nf.format(list.length) : ""}</button>
+          <div className="pp-actions">
+            <TeamOnly><Link to="/admin/people/import" className="ea-btn">Importera kontakter</Link></TeamOnly>
+            <button type="button" className="ea-btn" onClick={exportCsv} disabled={!list.length}>Exportera {list.length ? nf.format(list.length) : ""}</button>
+          </div>
         </div>
         {error && <p className="ea-error">Kunde inte hämta CRM:et.</p>}
         {!data && !error && <p className="ea-muted">Hämtar…</p>}
@@ -218,6 +221,7 @@ function People() {
 
 const PEOPLE_CSS = `
   .pp-filters:has(> :nth-child(3)) { grid-template-columns: minmax(0, 1fr) minmax(0, 200px) minmax(0, 260px); }
+  .pp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .pp-yes { display: flex; flex-wrap: wrap; gap: 4px; }
   .pp-yes span:not(.ea-muted) { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #efeeea; color: #3a3a3c; white-space: nowrap; }
   .pp-consent { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }

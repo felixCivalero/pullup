@@ -8,6 +8,7 @@ import { getFrontendUrl } from "../lib/urls.js";
 import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvents.js";
 import { brandInput, inBrand } from "./events.js";
 import { brandScope, payerFor } from "../lib/brands.js";
+import { DPA_VERSION, importContacts } from "../repos/imports.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -133,4 +134,23 @@ export const buyMailCredits = defineAction({
   },
 });
 
-export default [listPeopleAction, previewMail, sendMailAction, listSentMail, getMailCredits, buyMailCredits];
+export const importContactsAction = defineAction({
+  name: "import_contacts",
+  title: "Bring in a brand's contacts",
+  description: `Bring a brand's own contacts into its CRM (an old newsletter list, a customer register): name, email, phone, Instagram, and whether each said yes to mail from this brand (consent is per brand; a yes is never taken back by an import). Say where the list comes from and how they said yes (source). The organiser must have read and accepted PullUp's data processing agreement (shown at pullup.se/admin/people/import, version ${DPA_VERSION}): pass dpaAccepted only when they have. Into a brand, not a main brand over other brands.`,
+  access: "user",
+  effect: "write",
+  input: z.object({
+    brand: brandInput,
+    source: z.string().trim().min(2).max(200).describe("Where the list comes from and how they said yes, e.g. 'Mailchimp newsletter, double opt-in 2023'."),
+    allConsent: z.boolean().default(false).describe("Everyone on the list said yes to mail from this brand."),
+    dpaAccepted: z.literal(true).describe("The organiser has read and accepted the data processing agreement."),
+    rows: z.array(z.object({
+      email: z.string().max(254), name: z.string().max(120).optional(), phone: z.string().max(40).optional(),
+      instagram: z.string().max(80).optional(), consent: z.boolean().optional(),
+    })).min(1).max(5000),
+  }),
+  run: async (input, { caller }) => importContacts(caller, input),
+});
+
+export default [importContactsAction, listPeopleAction, previewMail, sendMailAction, listSentMail, getMailCredits, buyMailCredits];

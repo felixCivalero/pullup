@@ -13,6 +13,7 @@ import { loadEventMedia } from "./adminEventMedia.js";
 import {
   createEvent, eventWithGuests, listEvents, listPeople, listSends, previewSend, sendMail, moveEvent, statsForEvent, statsOverview, updateEvent, updateGuest,
 } from "../repos/hostEvents.js";
+import { importContacts, listImports } from "../repos/imports.js";
 import { brandScope, brandShape, createBrand, renameBrand } from "../lib/brands.js";
 import { over } from "../lib/abuse.js";
 import {
@@ -100,6 +101,10 @@ export function registerAdminEventRoutes(app) {
     if (error || !data) throw error || new Error("upload_url_failed");
     return { bucket: EVENT_IMAGE_BUCKET, path, token: data.token, publicUrl: imageUrl(path, process.env.SUPABASE_URL) };
   }));
+
+  // The brand's own contacts, brought in (repos/imports.js).
+  app.get("/admin/imports", ...handle(async (req) => listImports(req.caller)));
+  app.post("/admin/imports", ...handle(async (req) => importContacts(req.caller, req.body), 201));
 
   app.get("/admin/people", ...handle(async (req) => listPeople(req.caller)));
 

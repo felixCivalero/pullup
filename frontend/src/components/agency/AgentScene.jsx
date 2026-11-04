@@ -106,7 +106,7 @@ export function AgentScene({ children }) {
 }
 
 export const AGENT_CSS = `
-  .ag { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; position: relative; height: 340vh; background: #0a0a0a; color: #fff; }
+  .ag { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; position: relative; height: 260vh; background: #0a0a0a; color: #fff; }
   .ag-pin { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: center; gap: clamp(28px, 4vw, 72px); padding: 96px clamp(20px, 3.4vw, 48px) 40px; box-sizing: border-box; overflow: hidden; }
   .ag-stage { position: relative; height: min(78svh, 680px); display: grid; }
   .ag-win { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 0; width: min(100%, 600px); justify-self: end; border-radius: 12px; overflow: hidden; background: #121212; border: 1px solid #2c2c2c; box-shadow: 0 40px 100px -30px rgba(236,23,143,.35); }
@@ -150,7 +150,7 @@ export const AGENT_CSS = `
   .ag-progress { position: absolute; left: 0; right: 0; bottom: -18px; height: 2px; background: rgba(255,255,255,.1); }
   .ag-progress i { display: block; height: 100%; background: #ec178f; }
   @media (max-width: 899px) {
-    .ag { height: 300vh; }
+    .ag { height: 240vh; }
     .ag-pin { grid-template-columns: 1fr; align-content: start; gap: 18px; padding-top: 84px; }
     .ag-stage { height: auto; min-height: 0; }
     .ag-win { width: 100%; height: min(52svh, 460px); }

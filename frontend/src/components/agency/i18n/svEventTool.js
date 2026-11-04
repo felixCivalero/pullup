@@ -40,6 +40,7 @@ export const SV_EVENT_TOOL = {
   "Draft": "Utkast",
   "Put my release party on PullUp: Saturday 7 November, 19:00 at Slakthusområdet, 120 spots.": "Lägg upp min releasefest på PullUp: lördag 7 november kl 19 på Slakthusområdet, 120 platser.",
   "Draft saved": "Utkast sparat",
+  "pullup.se/e/release-party": "pullup.se/e/releasefest",
   "Done, it's saved as a draft. Want me to publish it?": "Klart, det ligger som utkast. Ska jag publicera det?",
   "Yes. Then write an invitation to everyone who said yes to hearing from us.": "Ja. Skriv sedan en inbjudan till alla som sagt ja till att höra från oss.",
   "214 said yes to invitations": "214 har sagt ja till inbjudningar",
@@ -74,4 +75,6 @@ export const SV_EVENT_TOOL = {
   "Team": "Team",
   "What's in it": "Det här ingår",
   "Free, for the culture": "Gratis, för kulturen",
+  "The only thing that costs: email to many": "Det enda som kostar: mejl till många",
+  "We're an agency, not a ticket site: we make our money building brands, so we take no cut of your evening. And your guests are yours, we never sell their details.": "Vi är en byrå, inte en biljettsajt: vi tjänar våra pengar på att bygga varumärken, så vi tar ingen del av er kväll. Och dina gäster är dina, vi säljer aldrig deras uppgifter.",
 };

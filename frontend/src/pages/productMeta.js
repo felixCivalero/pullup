@@ -28,6 +28,18 @@ export const FAQ = [
   ["Kan jag ta betalt för biljetter?", "Inte i dag. PullUp är byggt för event med gratis anmälan."],
 ];
 
+// The same answers in English, for the page in English (the JSON-LD stays Swedish).
+export const FAQ_EN = [
+  ["What does PullUp cost?", "Nothing. Event pages, sign-up, confirmation emails with a calendar invite, the guest list and the CRM are free. The only thing that costs is emailing many at once, like invitations and newsletters: 5,000 emails for 99 kr, 25,000 for 449 kr or 100,000 for 1,490 kr (excl. VAT). The credits never expire."],
+  ["Do my guests need an account?", "No. They sign up with name and email and get a confirmation email with the event and a calendar file."],
+  ["Can my AI create the event for me?", "Yes. Add PullUp as a connector in Claude, ChatGPT or another AI assistant (https://mcp.pullup.se), approve it once, and say for example: \"Put my release party on PullUp on 7 November at 19:00.\" It can create and publish events, see the guest list and email the guests – the same things you can, nothing more. In browsers with WebMCP, the AI gets the same tools right on the page."],
+  ["What happens when the event is full?", "Set a maximum number of spots, and the next person to sign up lands on the waitlist automatically. You can move guests between the waitlist and signed up."],
+  ["Who owns the guest list?", "You. You see everyone who signed up, can export the list and email those who want to hear more. PullUp never sells your guests' details."],
+  ["Can I have several brands on one login?", "Yes. One account can run several brands, like an agency with several clients or a company with several products. You switch brand in the menu. Each brand has its own events, its own CRM and its own sends, and guests see the brand as host and sender. Someone who said yes to invitations from one brand gets nothing from the others. Mail credits are shared by the whole account."],
+  ["How do I sign in?", "With a code emailed to you. The code and the link in the email only work in the browser where you asked for them, so a forwarded email can't be used by anyone else. The first sign-in creates the account."],
+  ["Can I charge for tickets?", "Not today. PullUp is built for events with free sign-up."],
+];
+
 export function productJsonLd() {
   return [
     {

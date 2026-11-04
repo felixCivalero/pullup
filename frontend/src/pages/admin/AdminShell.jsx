@@ -28,19 +28,25 @@ import { browserLang, translatePage } from "../../lib/adminI18n.js";
 const NAV = [
   ["/admin", "Statistik", "owner"],
   ["/admin/sales", "Sälj", "owner"],
+  ["/admin/free-tool", "Gratisverktyget", "owner"],
   ["/admin/platform", "Plattform", "owner"],
   ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],
-  ["/admin/stats", "Statistik", "stats"], // the owner's own Statistik is /admin; his reads "Eventstatistik"
+  ["/admin/stats", "Statistik", "stats"], // the brand's stats; the owner's own Statistik is /admin
   ["/admin/team", "Team", "team", "ad-wide"], // phones: in the brand menu
   ["/admin/agents", "Agenter"],
   ["/admin/archi", "Archi", "owner"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
-const OWNER_PATHS = ["/admin/platform", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+const OWNER_PATHS = ["/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+// The owner's login is the internal engine only (Felix 2026-11-04): no event
+// tool of his own. He runs events from his own organiser account and sees
+// what happens on the platform in Plattform and Gratisverktyget.
+const ORGANISER_PATHS = ["/admin/events", "/admin/people", "/admin/mail", "/admin/stats", "/admin/team", "/admin/agents"];
+const organiserPage = (path) => ORGANISER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
 // The server check runs once per signed-in user, not on every page switch:
@@ -119,6 +125,7 @@ export function AdminShell({ title, fill = false, children }) {
   if (!session || server === "refused") return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
   if (server === "checking" && !isVerified) return waiting;
   if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
+  if (owner && organiserPage(pathname)) return <Navigate to="/admin" replace />;
   const brands = me?.brands || [];
   const starting = !!me && !owner && brands.length === 0;
   const picked = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
@@ -131,7 +138,7 @@ export function AdminShell({ title, fill = false, children }) {
     parent: brands.find((b) => b.id === picked.parentId) || null,
     all: brands,
   };
-  const shown = ([, , only]) => (only === "owner" ? owner : only === "team" ? current?.role !== "event" : true);
+  const shown = ([, , only]) => (owner ? only === "owner" : only === "owner" ? false : only === "team" ? current?.role !== "event" : true);
 
   return (
     <ToastProvider>
@@ -139,17 +146,17 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS + ADMIN_SKIN}</style>
         <header className="ad-bar">
           <nav>
-            {!starting && NAV.filter(shown).map(([to, label, only, wide]) => (
+            {!starting && NAV.filter(shown).map(([to, label, , wide]) => (
               <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [isActive && "is-on", wide].filter(Boolean).join(" ") || undefined}>
-                {owner && only === "stats" ? "Eventstatistik" : label}
+                {label}
               </NavLink>
             ))}
           </nav>
           <div className="ad-side">
             <LangSwitch />
-            {brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} teamLink={current?.role !== "event"} />}
+            {!owner && brands.length > 0 && <BrandSwitcher brands={brands} current={brandId || me?.brand} onChange={loadMe} onSignOut={() => supabase.auth.signOut()} teamLink={current?.role !== "event"} />}
             {owner && <NavLink to={SIDE[0]} className={({ isActive }) => `ad-stockholm${isActive ? " is-on" : ""}`}>{SIDE[1]}</NavLink>}
-            <button type="button" className={brands.length > 0 ? "ad-out has-menu" : "ad-out"} onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
+            <button type="button" className={!owner && brands.length > 0 ? "ad-out has-menu" : "ad-out"} onClick={() => supabase.auth.signOut()} aria-label="Logga ut" title="Logga ut">
               <span className="ad-out-text">Logga ut</span>
               <LogOut className="ad-out-icon" size={17} />
             </button>

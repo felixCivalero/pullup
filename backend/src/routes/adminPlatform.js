@@ -54,6 +54,8 @@ export async function platformStats(now = Date.now()) {
       published: ev.filter(live).length,
       upcoming: ev.filter(upcoming).length,
       signups: ev.reduce((n, e) => n + (signups.get(e.id) || 0), 0),
+      // Each event's day, for "since the mail" counts (lib/freeToolOutreach.js).
+      eventList: ev.map((e) => ({ createdAt: e.created_at, published: live(e), signups: signups.get(e.id) || 0 })),
       credits: await creditBalance(u.id).catch(() => null),
     };
   }));

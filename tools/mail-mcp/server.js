@@ -146,18 +146,28 @@ async function compose({ to, cc, bcc, subject, text, html, reply, attachments = 
 }
 
 // [[pullup.se]] in a body → a link to the prospect's own pullup.se URL (the
-// code lets Sälj see who clicked, backend lib/mailClicks.js). The HTML part
-// shows only the words; the plain-text part spells out the URL.
-const LINK = /\[\[([^\]]+)\]\]/g;
+// code lets Sälj see who clicked, backend lib/mailClicks.js). [[words|/path]]
+// links to that page instead (e.g. [[pullup.se/eventverktyg|/eventverktyg]]),
+// with the same code. The HTML part shows only the words; the plain-text part
+// spells out the URL.
+const LINK = /\[\[([^\]|]+)(?:\|(\/[^\]]*))?\]\]/g;
 const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export function linkTo(base, path) {
+  if (!path) return base;
+  const u = new URL(base);
+  const [p, q] = path.split('?');
+  u.pathname = p;
+  if (q) new URLSearchParams(q).forEach((v, k) => u.searchParams.set(k, v));
+  return u.toString();
+}
 async function withProspectLink(text, prospectId) {
   if (!text.match(LINK)) return { text };
   if (!prospectId) throw new Error('[[…]] links need prospect_id');
   const url = (await ensureMailLinks([prospectId]))[prospectId];
   const html = `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5">${escapeHtml(text)
-    .replace(LINK, (_, words) => `<a href="${url}">${words}</a>`)
+    .replace(LINK, (_, words, path) => `<a href="${linkTo(url, path)}">${words}</a>`)
     .replace(/\n/g, '<br>')}</div>`;
-  return { text: text.replace(LINK, (_, words) => `${words} (${url})`), html, link: url };
+  return { text: text.replace(LINK, (_, words, path) => `${words} (${linkTo(url, path)})`), html, link: url };
 }
 
 const replyContext = (client, ref) => (ref ? readMessage(client, ref.folder, ref.uid) : null);

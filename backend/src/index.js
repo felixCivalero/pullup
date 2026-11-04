@@ -37,6 +37,7 @@ import { registerAdminMailRoutes, mailImageBodyParser } from "./routes/adminMail
 import { registerAdminEventMediaRoutes } from "./routes/adminEventMedia.js";
 import { registerPlaceRoutes } from "./routes/places.js";
 import { registerAdminPlatformRoutes } from "./routes/adminPlatform.js";
+import { registerAdminFreeToolRoutes } from "./routes/adminFreeTool.js";
 import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
 import { registerEmailCreditRoutes, emailCreditsWebhookParser } from "./routes/adminEmailCredits.js";
 import { registerResendEventRoutes, resendEventsParser } from "./routes/resendEvents.js";
@@ -154,6 +155,7 @@ registerAdminMailRoutes(app);
 registerAdminEventMediaRoutes(app);
 registerPlaceRoutes(app);
 registerAdminPlatformRoutes(app);
+registerAdminFreeToolRoutes(app);
 registerAdminArchiRoutes(app);
 registerEmailCreditRoutes(app);
 registerResendEventRoutes(app);

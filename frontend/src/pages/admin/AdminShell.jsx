@@ -25,11 +25,17 @@ import { browserLang, translatePage } from "../../lib/adminI18n.js";
    answered. Someone who only co-hosts single events in a brand doesn't get
    its mail or team (marked team below). `fill` = the page takes the whole
    viewport under the bar. */
+// The owner's Statistik and Sälj each come in two: the agency (the site,
+// the sales pipeline) and the free event tool (how it's doing, its outreach).
+// A group's tabs show in a row under the bar.
+const GROUPS = {
+  "/admin": [["/admin", "Agency"], ["/admin/platform", "Eventverktyget"]],
+  "/admin/sales": [["/admin/sales", "Agency"], ["/admin/free-tool", "Eventverktyget"]],
+};
+const groupOf = (path) => Object.keys(GROUPS).find((k) => GROUPS[k].some(([to]) => path === to || (to !== "/admin" && path.startsWith(`${to}/`))));
 const NAV = [
   ["/admin", "Statistik", "owner"],
   ["/admin/sales", "Sälj", "owner"],
-  ["/admin/free-tool", "Gratisverktyget", "owner"],
-  ["/admin/platform", "Plattform", "owner"],
   ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
@@ -44,7 +50,7 @@ const SIDE = ["/admin/stockholm", "Stockholm"];
 const OWNER_PATHS = ["/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
 // The owner's login is the internal engine only (Felix 2026-11-04): no event
 // tool of his own. He runs events from his own organiser account and sees
-// what happens on the platform in Plattform and Gratisverktyget.
+// what happens on the platform under Statistik/Sälj → Eventverktyget.
 const ORGANISER_PATHS = ["/admin/events", "/admin/people", "/admin/mail", "/admin/stats", "/admin/team", "/admin/agents"];
 const organiserPage = (path) => ORGANISER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
@@ -147,7 +153,7 @@ export function AdminShell({ title, fill = false, children }) {
         <header className="ad-bar">
           <nav>
             {!starting && NAV.filter(shown).map(([to, label, , wide]) => (
-              <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [isActive && "is-on", wide].filter(Boolean).join(" ") || undefined}>
+              <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [(isActive || (GROUPS[to] && groupOf(pathname) === to)) && "is-on", wide].filter(Boolean).join(" ") || undefined}>
                 {label}
               </NavLink>
             ))}
@@ -162,6 +168,13 @@ export function AdminShell({ title, fill = false, children }) {
             </button>
           </div>
         </header>
+        {owner && groupOf(pathname) && (
+          <nav className="ad-sub" aria-label="Del"><span>
+            {GROUPS[groupOf(pathname)].map(([to, label]) => (
+              <NavLink key={to} to={to} end className={({ isActive }) => (isActive ? "is-on" : undefined)}>{label}</NavLink>
+            ))}
+          </span></nav>
+        )}
         {starting ? (
           <main className="ad-main"><Onboarding email={session.user?.email} invites={me?.invites} onDone={loadMe} /></main>
         ) : (
@@ -193,6 +206,11 @@ const ADMIN_CSS = `
   .ad-bar button { font: inherit; font-size: 13px; color: #6e6e73; background: none; border: 0; cursor: pointer; white-space: nowrap; }
   .ad-bar button:hover { color: #0a0a0a; }
   .ad-out-icon { display: none; }
+  .ad-sub { position: sticky; top: 56px; z-index: 49; display: flex; gap: 0; padding: 8px clamp(16px, 4vw, 40px); }
+  .ad-sub > span { display: inline-flex; padding: 3px; border: 1px solid #7d7c77; border-radius: 7px; background: linear-gradient(180deg, #ecebe6 0%, #d9d8d3 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+  .ad-sub a { padding: 6px 12px; border-radius: 5px; border: 1px solid transparent; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #3a3935; text-decoration: none; }
+  .ad-sub a:hover { color: #0a0a0a; }
+  .ad-sub a.is-on { background: #0d0d0d; color: #f2f1ec; border-color: #000; box-shadow: inset 0 1px 0 rgba(255,255,255,.15); }
   @media (max-width: 520px) {
     .ad-bar { gap: 8px; }
     .ad-bar nav { gap: 0; min-width: 0; }

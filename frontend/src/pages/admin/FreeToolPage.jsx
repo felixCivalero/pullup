@@ -12,7 +12,7 @@ import { STATS_CSS, fmt, pct } from "../../components/admin/statsFormat.js";
    sync as Sälj), then reads everything again. */
 export function FreeToolPage() {
   return (
-    <AdminShell title="Gratisverktyget">
+    <AdminShell title="Sälj · Eventverktyget">
       <FreeTool />
     </AdminShell>
   );
@@ -54,7 +54,7 @@ function FreeTool() {
       <div className="ea">
         <div className="ea-head">
           <div>
-            <h1>Gratisverktyget</h1>
+            <h1>Eventverktyget</h1>
             <p className="ea-muted">Mejlen till eventarrangörer om gratisverktyget: vem som fått, klickat, skapat konto och gjort event sedan mejlet.</p>
           </div>
           <div className="ft-actions">

@@ -46,7 +46,11 @@ const smooth = (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
 const clamp = (v) => Math.max(0, Math.min(1, v));
 const mix = (a, b, k) => a + (b - a) * k;
 const span = (p, [a, b]) => clamp((p - a) / (b - a));
-const PINK = [236, 23, 143];
+// The page's accent, as the negative turns it (see NEGATIVE_GRADIENT below):
+// cyan, cornflower, lavender, sepia. Each dot gets one, so the glowing ones
+// read as the same gradient as the hero.
+const TINTS = [[236, 23, 143], [240, 74, 106], [232, 96, 74], [111, 138, 94]];
+const rgbaOf = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 const INK = [10, 10, 10];
 const WHITE = [255, 255, 255];
 const mixc = (a, b, k) => [mix(a[0], b[0], k), mix(a[1], b[1], k), mix(a[2], b[2], k)];
@@ -71,6 +75,7 @@ function guests() {
     cr: Math.sqrt(rand()) * 0.95,
     cw: 0.15 + rand() * 0.25,
     size: 0.85 + rand() * 0.4,
+    tint: TINTS[Math.min(3, Math.floor(rand() ** 1.3 * 4))],
   }));
 }
 function ambient() {
@@ -250,7 +255,7 @@ export function EventWorld({ children }) {
         const lift = (1 - phoneIn) * 30;
         ctx.save();
         ctx.translate(0, lift);
-        ctx.shadowColor = "rgba(236,23,143,.25)";
+        ctx.shadowColor = "rgba(232,96,74,.3)";
         ctx.shadowBlur = 60;
         ctx.fillStyle = "#141414";
         roundRect(ctx, px, py, pw, ph, pw * 0.11);
@@ -263,9 +268,10 @@ export function EventWorld({ children }) {
         roundRect(ctx, px, py, pw, ph, pw * 0.11);
         ctx.clip();
         const cover = ctx.createRadialGradient(px + pw * 0.3, py + ph * 0.06, 0, px + pw * 0.3, py + ph * 0.06, pw * 1.1);
-        cover.addColorStop(0, "#f43aa5");
-        cover.addColorStop(0.45, "#ec178f");
-        cover.addColorStop(1, "#5a0636");
+        cover.addColorStop(0, "#ec178f");
+        cover.addColorStop(0.4, "#f04a6a");
+        cover.addColorStop(0.75, "#e8604a");
+        cover.addColorStop(1, "#3d8f6a");
         ctx.fillStyle = cover;
         ctx.fillRect(px, py, pw, ph * 0.34);
         ctx.restore();
@@ -282,7 +288,12 @@ export function EventWorld({ children }) {
         ctx.fillStyle = "rgba(255,255,255,.12)";
         roundRect(ctx, px + pw * 0.08, by, pw * 0.84, 5, 3);
         ctx.fill();
-        ctx.fillStyle = "#ec178f";
+        const bar = ctx.createLinearGradient(px + pw * 0.08, 0, px + pw * 0.92, 0);
+        bar.addColorStop(0, "#ec178f");
+        bar.addColorStop(0.45, "#f04a6a");
+        bar.addColorStop(0.8, "#e8604a");
+        bar.addColorStop(1, "#3d8f6a");
+        ctx.fillStyle = bar;
         roundRect(ctx, px + pw * 0.08, by, Math.max(4, pw * 0.84 * (seated / SEATS)), 5, 3);
         ctx.fill();
         ctx.fillStyle = "rgba(255,255,255,.75)";
@@ -368,7 +379,7 @@ export function EventWorld({ children }) {
         if (land > 0) color = mixc(color, WHITE, land);
         if (land >= 1 && phoneIn > 0) a = 0.95;
         if (!isIn && room > 0) a = mix(a, 0.45, room);
-        if (here) color = PINK;
+        if (here) color = d.tint;
         if (crm > 0) {
           const [ox, oy, oz] = sphere(d.sphere, R);
           const depth = clamp((oz + 1) / 2);
@@ -377,12 +388,12 @@ export function EventWorld({ children }) {
           rad = mix(rad, (1.2 + depth * 2.2), crm);
           a = mix(a, 0.3 + depth * 0.7, crm);
           if (d.more) wants += 1;
-          color = mixc(color, d.more ? PINK : WHITE, crm);
+          color = mixc(color, d.more ? d.tint : WHITE, crm);
         }
         add(color, a, x, y, rad);
         // A ring flashes where a sign-up lands.
         if (land > 0.85 && land < 1 && crm === 0) {
-          ctx.strokeStyle = `rgba(236,23,143,${(1 - land) * 6})`;
+          ctx.strokeStyle = rgbaOf(d.tint, (1 - land) * 6);
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(x, y, rad + (land - 0.85) * 60, 0, Math.PI * 2);
@@ -410,7 +421,7 @@ export function EventWorld({ children }) {
         ctx.lineWidth = 1.5;
         for (let n = 0; n < 3; n += 1) {
           const f = ((still ? 0.2 : time * 0.4) + n / 3) % 1;
-          ctx.strokeStyle = `rgba(236,23,143,${(1 - f) * 0.4 * k})`;
+          ctx.strokeStyle = rgbaOf(TINTS[n], (1 - f) * 0.4 * k);
           ctx.beginPath();
           ctx.arc(cx, cy, R * 0.2 + f * R * 1.6, 0, Math.PI * 2);
           ctx.stroke();
@@ -532,6 +543,16 @@ function Readout({ step, panel }) {
   );
 }
 
+// The page is shown as a negative (ProductPage: invert + hue-rotate 60°), so
+// these colours are chosen for what they turn into: #ec178f → electric cyan,
+// #f04a6a → cornflower, #e8604a → lavender, #3d8f6a → sepia. The hero is a
+// gradient from cyan at the crowd, through blue and lilac, to sepia edges.
+export const NEGATIVE_GRADIENT = "radial-gradient(110% 95% at 74% 46%, #ec178f 0%, #f04a6a 28%, #e8604a 52%, #6f8a5e 76%, #3d8f6a 100%)";
+export const NEGATIVE_LINEAR = "linear-gradient(90deg, #ec178f 0%, #f04a6a 40%, #e8604a 75%, #3d8f6a 100%)";
 export const EVENT_WORLD_CSS = `
   .ew { height: 520vh; }
+  .ew .fw-bar i { background: ${NEGATIVE_LINEAR}; }
+  .ew .fw-led { background: ${NEGATIVE_LINEAR}; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #e8604a; }
+  .ew .fw-pink { background: ${NEGATIVE_GRADIENT}; }
+  @media (max-width: 759px) { .ew .fw-pink { background: radial-gradient(120% 80% at 50% 28%, #ec178f 0%, #f04a6a 28%, #e8604a 52%, #6f8a5e 76%, #3d8f6a 100%); } }
 `;

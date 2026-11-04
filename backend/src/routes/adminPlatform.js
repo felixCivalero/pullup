@@ -75,10 +75,26 @@ export async function platformStats(now = Date.now()) {
   };
 }
 
+// The event tool's own page (/eventverktyg, tracked as page "pullup"): visits
+// and what they clicked, the last 30 days.
+export async function toolPageStats(now = Date.now()) {
+  const since = new Date(now - 30 * DAY).toISOString();
+  const [views, ctas] = await Promise.all([
+    selectAllPaged(() => supabase.from("analytics_events").select("id, session_id, occurred_at").eq("event_name", "page_view").eq("props->>page", "pullup").gte("occurred_at", since).order("id", { ascending: true })),
+    selectAllPaged(() => supabase.from("analytics_events").select("id, session_id, occurred_at, props").eq("event_name", "cta_click").like("props->>location", "tool_%").gte("occurred_at", since).order("id", { ascending: true })),
+  ]);
+  const week = now - 7 * DAY;
+  const visits = (rows, from = 0) => new Set(rows.filter((r) => Date.parse(r.occurred_at) >= from).map((r) => r.session_id)).size;
+  const signup = ctas.filter((c) => !/_mcp$/.test(c.props?.location || ""));
+  const mcp = ctas.filter((c) => /_mcp$/.test(c.props?.location || ""));
+  return { visits30: visits(views), visits7: visits(views, week), signupClicks: visits(signup), mcpCopies: visits(mcp) };
+}
+
 export function registerAdminPlatformRoutes(app) {
   app.get("/admin/platform", requireOwner, async (_req, res) => {
     try {
-      return res.json(await platformStats());
+      const [stats, page] = await Promise.all([platformStats(), toolPageStats().catch(() => null)]);
+      return res.json({ ...stats, page });
     } catch (err) {
       console.error("[platform] stats:", err?.message);
       return res.status(500).json({ error: "failed" });

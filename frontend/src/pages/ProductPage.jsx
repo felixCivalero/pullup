@@ -4,7 +4,7 @@ import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { FUNNEL_CSS } from "../components/agency/FunnelWorld.jsx";
-import { EventWorld, EVENT_WORLD_CSS } from "../components/agency/EventWorld.jsx";
+import { EventWorld, EVENT_WORLD_CSS, NEGATIVE_GRADIENT, NEGATIVE_LINEAR } from "../components/agency/EventWorld.jsx";
 import { AgentScene, AGENT_CSS } from "../components/agency/AgentScene.jsx";
 import { useT } from "../components/agency/i18n.js";
 import { FAQ, FAQ_EN, PACKS, PRODUCT_TITLE } from "./productMeta.js";
@@ -78,7 +78,15 @@ export function ProductPage() {
     trackPageView("pullup");
     const prev = document.title;
     document.title = PRODUCT_TITLE;
-    return () => { document.title = prev; };
+    // The page as a photo negative (Felix 2026-11-04): the front page's
+    // world turned inside out, its pink turned electric blue, so the tool
+    // reads as its own place. On the
+    // root, so the bar and anything fixed stay put and turn with it.
+    document.documentElement.classList.add("et-negative");
+    return () => {
+      document.title = prev;
+      document.documentElement.classList.remove("et-negative");
+    };
   }, []);
 
   const signup = (location) => () => trackEvent("cta_click", { location });
@@ -194,14 +202,15 @@ export function ProductPage() {
 const PAD = "padding-left: clamp(20px, 3.4vw, 48px); padding-right: clamp(20px, 3.4vw, 48px);";
 
 const ET_CSS = `
+  html.et-negative { filter: invert(1) hue-rotate(60deg); background: #fff; }
   .et { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; background: #fff; color: #0a0a0a; }
   .et button { font: inherit; cursor: pointer; }
-  .et-kicker { display: block; margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #ec178f; }
-  .et-kicker.is-ink { color: #0a0a0a; }
+  .et-kicker { display: block; justify-self: start; width: fit-content; margin: 0 0 16px; font-size: 15px; font-weight: 600; background: ${NEGATIVE_LINEAR}; -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .et-kicker.is-ink { background: none; color: #0a0a0a; }
   .et-h2 { margin: 0 0 clamp(22px, 3vw, 40px); max-width: 13em; font-size: clamp(40px, 6.4vw, 104px); line-height: .94; letter-spacing: -0.055em; font-weight: 700; }
   .et-lead { margin: 0; max-width: 32em; font-size: clamp(17px, 1.6vw, 21px); line-height: 1.42; letter-spacing: -0.01em; color: rgba(255,255,255,.7); }
   .et-btn { display: inline-flex; align-items: center; height: 58px; padding: 0 32px; border-radius: 999px; font-size: 17px; font-weight: 700; text-decoration: none; transition: background .2s ease, color .2s ease, transform .3s cubic-bezier(.16,1,.3,1); }
-  .et-btn.is-pink { background: #ec178f; color: #0a0a0a; }
+  .et-btn.is-pink { background: ${NEGATIVE_LINEAR}; color: #0a0a0a; }
   .et-btn.is-pink:hover { background: #0a0a0a; color: #fff; transform: translateY(-2px); }
   .et-end .et-btn.is-pink:hover { background: #fff; color: #0a0a0a; }
   .et-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
@@ -226,20 +235,20 @@ const ET_CSS = `
   .et-panel-head h3 { flex: 1; margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; line-height: 1.2; }
   .et-panel-head b { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid rgba(0,0,0,.35); border-radius: 4px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: rgba(255,255,255,.35); }
   .et-no { padding: 3px 6px; border-radius: 4px; background: #1a1a1a; color: #e4e3df; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
-  .et-led { width: 7px; height: 7px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #ec178f; animation: et-led 2.4s ease-in-out infinite; }
+  .et-led { width: 7px; height: 7px; border-radius: 50%; background: ${NEGATIVE_LINEAR}; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #e8604a; animation: et-led 2.4s ease-in-out infinite; }
   @keyframes et-led { 50% { opacity: .45; } }
   .et-panel p { margin: 0; font-size: 15px; line-height: 1.45; color: #2e2d2a; }
   .et-spec { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: -2px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #3a3935; }
   .et-spec li { display: inline-flex; align-items: center; gap: 6px; }
-  .et-spec li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 5px #ec178f; }
+  .et-spec li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: ${NEGATIVE_LINEAR}; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 5px #e8604a; }
   .et-go { justify-self: start; display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); transition: background .15s ease; }
-  .et-panel.is-go:hover .et-go { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .et-panel.is-go:hover .et-go { background: ${NEGATIVE_LINEAR}; color: #111; border-color: #6f3a2a; }
   .et-addr { display: flex; gap: 6px; }
   .et-addr code { flex: 1; min-width: 0; display: flex; align-items: center; height: 46px; padding: 0 12px; border: 1px solid #7d7c77; border-radius: 6px; background: #f7f6f1; color: #111; font-family: var(--mono); font-size: 15px; box-shadow: inset 0 2px 3px rgba(0,0,0,.14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .et-addr button { flex: none; height: 46px; padding: 0 16px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); }
-  .et-addr button:hover { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .et-addr button:hover { background: ${NEGATIVE_LINEAR}; color: #111; border-color: #6f3a2a; }
   .et-more { justify-self: start; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #111; text-decoration: none; }
-  .et-more:hover { color: #c40f76; }
+  .et-more:hover { color: #b8503c; }
   @media (max-width: 759px) {
     .ew .fw-hero h1 { margin-bottom: 18px; }
     .et-powers { grid-template-columns: 1fr; gap: 10px; }
@@ -272,7 +281,7 @@ const ET_CSS = `
   .et-plans { display: grid; gap: 12px; }
   @media (min-width: 900px) { .et-plans { grid-template-columns: 1.15fr 1fr; } }
   .et-plans article { display: grid; gap: 14px; align-content: start; padding: clamp(24px, 3vw, 40px); border-radius: 28px; background: #f4f4f5; }
-  .et-plans .is-free { background: radial-gradient(120% 100% at 80% 0%, #f43aa5 0%, #ec178f 55%, #d90f80 100%); color: #0a0a0a; }
+  .et-plans .is-free { background: ${NEGATIVE_GRADIENT}; color: #0a0a0a; }
   .et-plans .is-free .et-kicker { margin: 0; color: #0a0a0a; }
   .et-plans .is-free .et-h3 { margin: 0; }
   .et-plans h3 { margin: 0; font-size: 22px; letter-spacing: -0.03em; }
@@ -291,7 +300,7 @@ const ET_CSS = `
   .et-faq details { max-width: 64em; border-bottom: 1px solid rgba(0,0,0,.12); }
   .et-faq summary { cursor: pointer; padding: 20px 0; font-size: clamp(18px, 1.8vw, 22px); font-weight: 600; letter-spacing: -0.02em; list-style: none; }
   .et-faq summary::-webkit-details-marker { display: none; }
-  .et-faq summary::after { content: "+"; float: right; color: #ec178f; font-weight: 500; }
+  .et-faq summary::after { content: "+"; float: right; color: #e8604a; font-weight: 500; }
   .et-faq details[open] summary::after { content: "–"; }
   .et-faq details p { margin: 0 0 22px; max-width: 46em; font-size: 16px; line-height: 1.55; color: #3a3a3c; }
 

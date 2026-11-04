@@ -10,7 +10,7 @@ import { STATS_CSS, fmt } from "../../components/admin/statsFormat.js";
    mail credits; credits can be given to a customer set up by hand. */
 export function PlatformPage() {
   return (
-    <AdminShell title="Plattform">
+    <AdminShell title="Statistik · Eventverktyget">
       <Platform />
     </AdminShell>
   );
@@ -42,11 +42,18 @@ function Platform() {
     <>
       <style>{EVENT_ADMIN_CSS + STATS_CSS + PF_CSS}</style>
       <div className="ea">
-        <div className="ea-head"><div><h1>Plattform</h1><p className="ea-muted">Eventverktyget: konton, event och utskick.</p></div></div>
+        <div className="ea-head"><div><h1>Eventverktyget</h1><p className="ea-muted">Hur det går för gratisverktyget: sidan, konton, event och utskick.</p></div></div>
         {error && <p className="ea-error">Kunde inte hämta plattformen.</p>}
         {!data && !error && <p className="ea-muted">Hämtar…</p>}
         {t && (
           <>
+            {data.page && (
+              <div className="st-tiles">
+                <div><span>Besök på /eventverktyg</span><b>{fmt(data.page.visits7)}</b><small>senaste veckan · {fmt(data.page.visits30)} på 30 dagar</small></div>
+                <div><span>Klick på Skapa konto</span><b>{fmt(data.page.signupClicks)}</b><small>besök som klickade, 30 dagar</small></div>
+                <div><span>Kopierade MCP-adressen</span><b>{fmt(data.page.mcpCopies)}</b><small>besök, 30 dagar</small></div>
+              </div>
+            )}
             <div className="st-tiles">
               <div><span>Nya konton</span><b>{fmt(t.sinceRelaunch)}</b><small>sedan 19 okt · {fmt(t.new7)} senaste veckan</small></div>
               <div><span>Konton totalt</span><b>{fmt(t.accounts)}</b><small>med den gamla appens</small></div>

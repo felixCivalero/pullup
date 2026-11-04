@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE } from "../lib/env.js";
 import { getVisitorId, trackEvent } from "../lib/analytics.js";
-import { initTracking, trackPageView } from "../lib/track.js";
+import { initTracking, isSelf, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { FunnelWorld, FUNNEL_CSS } from "../components/agency/FunnelWorld.jsx";
 import { QuoteReel, QUOTE_CSS } from "../components/agency/QuoteReel.jsx";
@@ -177,7 +177,8 @@ export function HomePage() {
       const res = await fetch(`${API_BASE}/site-check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site: value, source, visitId: getVisitorId() }),
+        // Felix testing from his own browser is marked, so it isn't taken for a lead.
+        body: JSON.stringify({ site: value, source: isSelf() ? "owner" : source, visitId: getVisitorId() }),
       });
       const data = await res.json().catch(() => ({}));
       // Statistik: what was typed and how it went, on this visit's journey.

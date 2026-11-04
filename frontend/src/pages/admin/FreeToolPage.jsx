@@ -12,7 +12,7 @@ import { STATS_CSS, fmt, pct } from "../../components/admin/statsFormat.js";
    sync as Sälj), then reads everything again. */
 export function FreeToolPage() {
   return (
-    <AdminShell title="Sälj · Eventverktyget">
+    <AdminShell title="Eventverktyget · Utskick">
       <FreeTool />
     </AdminShell>
   );

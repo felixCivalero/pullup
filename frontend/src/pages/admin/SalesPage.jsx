@@ -154,7 +154,7 @@ export function SalesPage() {
   const waiting = data ? data.toAnswer.length + data.followUps.length + data.due.length : 0;
 
   return (
-    <AdminShell title="Sälj">
+    <AdminShell title="Byrå · Sälj">
       <style>{SALES_CSS + VISITS_CSS}</style>
       <div className="sl">
         <div className="sl-head">

@@ -27,14 +27,9 @@ function addDays(d, n) {
   return t.toISOString().slice(0, 10);
 }
 
-// prospects: parseProspects() rows; clicks: mailClicks() rows;
-// accounts: platformStats().accounts ({ id, email, createdAt, events, published, signups, brands }).
-export function summarizeFreeTool({ prospects, clicks = [], accounts = [], today, days = 30 }) {
-  const list = prospects.filter((p) => p.track === "Event");
-  const withEmail = list.filter((p) => emailsOf(p.email).length);
-  const contacted = list.filter((p) => p.dateSent);
-  const clickBy = new Map(clicks.map((c) => [c.id, c]));
-
+// The organiser account that belongs to a prospect, or null (the rule above).
+// Shared with the owner's Översikt (lib/overview.js).
+export function accountMatcher(accounts = []) {
   const byEmail = new Map();
   const byDomain = new Map();
   for (const a of accounts) {
@@ -44,7 +39,7 @@ export function summarizeFreeTool({ prospects, clicks = [], accounts = [], today
     const d = domainOf(e);
     if (d && !FREE_MAIL.test(d)) (byDomain.get(d) || byDomain.set(d, []).get(d)).push(a);
   }
-  const accountOf = (p) => {
+  return (p) => {
     const mails = emailsOf(p.email);
     for (const m of mails) if (byEmail.has(m)) return byEmail.get(m);
     for (const m of mails) {
@@ -53,6 +48,17 @@ export function summarizeFreeTool({ prospects, clicks = [], accounts = [], today
     }
     return null;
   };
+}
+
+// prospects: parseProspects() rows; clicks: mailClicks() rows;
+// accounts: platformStats().accounts ({ id, email, createdAt, events, published, signups, brands }).
+export function summarizeFreeTool({ prospects, clicks = [], accounts = [], today, days = 30 }) {
+  const list = prospects.filter((p) => p.track === "Event");
+  const withEmail = list.filter((p) => emailsOf(p.email).length);
+  const contacted = list.filter((p) => p.dateSent);
+  const clickBy = new Map(clicks.map((c) => [c.id, c]));
+
+  const accountOf = accountMatcher(accounts);
 
   // Everyone on the list who has been mailed, clicked or made an account.
   const rows = [];

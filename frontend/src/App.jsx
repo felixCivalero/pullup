@@ -26,6 +26,7 @@ const TermsPage = lazyPage(() => import("./pages/LegalPages"), "TermsPage");
 const CookiesPage = lazyPage(() => import("./pages/LegalPages"), "CookiesPage");
 const LoginPage = lazyPage(() => import("./pages/LoginPage"), "LoginPage");
 const StatsPage = lazyPage(() => import("./pages/admin/StatsPage"), "StatsPage");
+const OverviewPage = lazyPage(() => import("./pages/admin/OverviewPage"), "OverviewPage");
 const StockholmPage = lazyPage(() => import("./pages/admin/StockholmPage"), "StockholmPage");
 const ProjectPage = lazyPage(() => import("./pages/admin/ProjectPage"), "ProjectPage");
 const SalesPage = lazyPage(() => import("./pages/admin/SalesPage"), "SalesPage");
@@ -82,7 +83,8 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           {/* An assistant asks to act for you (OAuth consent, backend routes/oauth.js). */}
           <Route path="/connect" element={<ConnectPage />} />
-          <Route path="/admin" element={<StatsPage />} />
+          <Route path="/admin" element={<OverviewPage />} />
+          <Route path="/admin/site" element={<StatsPage />} />
           <Route path="/admin/stockholm" element={<StockholmPage />} />
           <Route path="/admin/projects" element={<ProjectPage />} />
           <Route path="/admin/timeline" element={<Navigate to="/admin/projects" replace />} />

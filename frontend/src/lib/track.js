@@ -50,7 +50,7 @@ export function getVisitorId() {
 const LIVE = typeof window !== "undefined" && /(^|\.)pullup\.se$/.test(window.location.hostname);
 
 // Set by the admin (AdminShell) in Felix's own browser.
-function isSelf() {
+export function isSelf() {
   try { return localStorage.getItem("pullup.self") === "1"; } catch { return false; }
 }
 

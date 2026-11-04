@@ -15,7 +15,7 @@ const TZ = "Europe/Stockholm";
 const dayKey = (iso) => new Intl.DateTimeFormat("sv-SE", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 
 // Page through a query 1000 rows at a time (PostgREST caps a single read).
-async function selectAll(build) {
+export async function selectAll(build) {
   const out = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await build().range(from, from + 999);
@@ -25,8 +25,8 @@ async function selectAll(build) {
   }
 }
 
-const VISIT_COLUMNS = "session_id, visitor_id, event_name, occurred_at, source, device_type, props";
-const VISIT_EVENTS = [
+export const VISIT_COLUMNS = "session_id, visitor_id, event_name, occurred_at, source, device_type, props";
+export const VISIT_EVENTS = [
   "page_view", "section_view", "engagement", "click", "cta_click", "copy",
   "request_open", "request_field", "request_close", "request_error", "request_sent", "input",
 ];

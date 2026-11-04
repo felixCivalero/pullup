@@ -25,32 +25,35 @@ import { browserLang, translatePage } from "../../lib/adminI18n.js";
    answered. Someone who only co-hosts single events in a brand doesn't get
    its mail or team (marked team below). `fill` = the page takes the whole
    viewport under the bar. */
-// The owner's Statistik and Sälj each come in two: the agency (the site,
-// the sales pipeline) and the free event tool (how it's doing, its outreach).
-// A group's tabs show in a row under the bar.
+// The owner's menu is the business, not the kind of number (Felix
+// 2026-11-04): Översikt (both sides in one picture, and Sajten = the site's
+// traffic), Byrå (Sälj; Projekt has its own full-screen tab), Eventverktyget
+// (Plattform = how the tool is doing, Utskick = its outreach). A group's tabs
+// show in a row under the bar.
 const GROUPS = {
-  "/admin": [["/admin", "Agency"], ["/admin/platform", "Eventverktyget"]],
-  "/admin/sales": [["/admin/sales", "Agency"], ["/admin/free-tool", "Eventverktyget"]],
+  "/admin": [["/admin", "Översikt"], ["/admin/site", "Sajten"]],
+  "/admin/platform": [["/admin/platform", "Plattform"], ["/admin/free-tool", "Utskick"]],
 };
 const groupOf = (path) => Object.keys(GROUPS).find((k) => GROUPS[k].some(([to]) => path === to || (to !== "/admin" && path.startsWith(`${to}/`))));
 const NAV = [
-  ["/admin", "Statistik", "owner"],
-  ["/admin/sales", "Sälj", "owner"],
+  ["/admin", "Översikt", "owner"],
+  ["/admin/sales", "Byrå", "owner"],
+  ["/admin/platform", "Eventverktyget", "owner"],
   ["/admin/projects", "Projekt", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],
-  ["/admin/stats", "Statistik", "stats"], // the brand's stats; the owner's own Statistik is /admin
+  ["/admin/stats", "Statistik", "stats"], // the brand's stats; the owner's own are Översikt and Sajten
   ["/admin/team", "Team", "team", "ad-wide"], // phones: in the brand menu
   ["/admin/agents", "Agenter"],
   ["/admin/archi", "Archi", "owner"],
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
-const OWNER_PATHS = ["/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+const OWNER_PATHS = ["/admin/site", "/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
 // The owner's login is the internal engine only (Felix 2026-11-04): no event
 // tool of his own. He runs events from his own organiser account and sees
-// what happens on the platform under Statistik/Sälj → Eventverktyget.
+// what happens on the platform under Översikt and Eventverktyget.
 const ORGANISER_PATHS = ["/admin/events", "/admin/people", "/admin/mail", "/admin/stats", "/admin/team", "/admin/agents"];
 const organiserPage = (path) => ORGANISER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

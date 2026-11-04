@@ -60,13 +60,15 @@ export function StatsPage() {
     .map((d, i) => `${((i + 0.5) / series.length) * 100},${100 - ((d.uniquesTotal || 0) / uMax) * 92}`)
     .join(" ");
   const answered = (data?.consent?.yes || 0) + (data?.consent?.no || 0);
+  // The deploy's own checks aren't visitors; Felix's own are marked "du".
+  const checks = (data?.checks || []).filter((c) => c.source !== "deploy-check");
 
   return (
-    <AdminShell title="Statistik">
+    <AdminShell title="Sajten">
       <style>{STATS_CSS + VISITS_CSS}</style>
       <div className="st">
         <div className="st-head">
-          <h1>Statistik</h1>
+          <h1>Sajten</h1>
           <div className="st-range">
             {RANGES.map((n) => (
               <button key={n} type="button" className={n === days ? "is-on" : ""} onClick={() => { setError(false); setDays(n); }}>{n} dagar</button>
@@ -160,15 +162,15 @@ export function StatsPage() {
 
             <Visits days={days} />
 
-            <h2>Inskrivet i sajttestet <small className="st-muted">{(data.checks || []).length}</small></h2>
-            {!(data.checks || []).length && <p className="st-muted">Ingen har testat en sajt under perioden.</p>}
+            <h2>Inskrivet i sajttestet <small className="st-muted">{checks.length}</small></h2>
+            {!checks.length && <p className="st-muted">Ingen har testat en sajt under perioden.</p>}
             <ul className="st-checks">
-              {(data.checks || []).map((c) => (
+              {checks.map((c) => (
                 <li key={c.id}>
                   <div className="st-check-row">
                     <b>{c.domain || c.input || "–"}</b>
                     <span className={`st-check-res is-${c.outcome}`}>{c.outcome === "scored" ? checkResult(c.score) : checkResult(c.outcome)}</span>
-                    <span className="st-muted">{c.source === "link" ? "via länk" : "skrev in"}</span>
+                    <span className="st-muted">{c.source === "owner" ? "du testade" : c.source === "link" ? "via länk" : "skrev in"}</span>
                     <time className="st-muted">{when(c.created_at)}</time>
                     {c.visit_id && (
                       <button type="button" className="st-journey-btn" onClick={() => setCheckJourney(checkJourney === c.id ? null : c.id)}>

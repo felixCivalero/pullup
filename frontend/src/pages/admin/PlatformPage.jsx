@@ -10,7 +10,7 @@ import { STATS_CSS, fmt } from "../../components/admin/statsFormat.js";
    mail credits; credits can be given to a customer set up by hand. */
 export function PlatformPage() {
   return (
-    <AdminShell title="Statistik · Eventverktyget">
+    <AdminShell title="Eventverktyget · Plattform">
       <Platform />
     </AdminShell>
   );

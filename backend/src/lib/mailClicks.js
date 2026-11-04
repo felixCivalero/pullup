@@ -75,7 +75,9 @@ export function summarizeMailClicks({ prospects, events }) {
     // Mail filters open links in a browser of their own the moment a mail
     // lands: one page, the first section, no clicks. A person scrolls on.
     const glance = v.sections <= 1 && v.clicks === 0 && v.pages.length <= 1;
-    o.visits.push({ id: v.id, start: v.start, viaLink: link, active: v.active, pages: v.pages, offer: v.offer, sent: v.sent, glance });
+    // What they typed into the site check on this visit (Översikt).
+    const checks = (v.inputs || []).filter((i) => i.form === "site_check").map((i) => ({ value: i.value, result: i.result }));
+    o.visits.push({ id: v.id, start: v.start, viaLink: link, active: v.active, pages: v.pages, offer: v.offer, sent: v.sent, read: v.read, checks, glance });
     o.active += v.active;
     o.offer ||= v.offer;
     o.opened ||= v.opened;

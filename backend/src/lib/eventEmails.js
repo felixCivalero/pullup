@@ -87,13 +87,13 @@ export function broadcastEmail({ subject, body, unsubscribeUrl, event = null, ev
          ${button(eventUrl, "Se eventet")}
        </div>`
     : "";
-  const footer = `Du får det här för att du anmält dig till ett event via PullUp. <a href="${esc(unsubscribeUrl)}" style="color:#8a8a8e;">Avregistrera dig</a>.`;
+  const footer = `You get this because you signed up to an event via PullUp. <a href="${esc(unsubscribeUrl)}" style="color:#8a8a8e;">Unsubscribe</a>.`;
   const html = shell(paras + eventBox, footer);
   const text = [
     String(body || "").trim(),
     ...(event && eventUrl ? ["", `${event.title} · ${formatWhen(event)}`, eventUrl] : []),
     "",
-    `Avregistrera dig: ${unsubscribeUrl}`,
+    `Unsubscribe: ${unsubscribeUrl}`,
   ].join("\n");
   return { subject, html, text };
 }

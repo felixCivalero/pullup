@@ -112,7 +112,7 @@ const w = confirmationEmail({ event: ev, name: "", status: "waitlist", eventUrl:
 assert(w.subject.startsWith("Du står på väntelistan") && !w.html.includes('href="G"'), "waitlist: no calendar buttons");
 const b = broadcastEmail({ subject: "Hej", body: "Rad ett\n\n<b>x</b> https://pullup.se", unsubscribeUrl: "UNSUB", event: ev, eventUrl: "U" });
 assert(b.html.includes("&lt;b&gt;x&lt;/b&gt;") && b.html.includes('<a href="https://pullup.se"'), "broadcast: escaped, links linked");
-assert(b.html.includes('href="UNSUB"') && b.text.includes("Avregistrera dig: UNSUB"), "broadcast: unsubscribe in html and text");
+assert(b.html.includes('href="UNSUB"') && b.text.includes("Unsubscribe: UNSUB"), "broadcast: unsubscribe in html and text");
 assert(!/[\u{1F300}-\u{1FAFF}]/u.test(c.html + b.html), "no emojis");
 
 if (failures) { console.error(`\n${failures} failure(s)`); process.exit(1); }

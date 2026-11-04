@@ -242,11 +242,11 @@ function EmailFooter({ theme }) {
         lineHeight: 1.6,
       }}
     >
-      {/* The footer the guests really get (Swedish), so not translated here. */}
+      {/* The footer the guests really get (English), so not translated here. */}
       <p style={{ margin: 0 }} data-no-translate>
-        Du får det här mejlet för att du har tackat ja till inbjudningar.
+        You get this email because you said yes to invitations.
         <br />
-        Vill du inte ha fler? <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>Avregistrera dig</a>.
+        Don&apos;t want more? <a href="#" onClick={(e) => e.preventDefault()} style={{ color: theme.link, textDecoration: "underline" }}>Unsubscribe</a>.
       </p>
       <p style={{ margin: "12px 0 0" }}>
         Pullup.se

@@ -156,7 +156,7 @@ export function renderFollowUpEmailTemplate({ templateContent, person, event, un
   // through the tracker (one-click unsubscribe needs a direct hop).
   const footer = unsubscribeUrl
     ? `<div class="pu-footer" style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(0,0,0,0.08);font-size:12px;text-align:center;line-height:1.6;color:rgba(12,10,18,0.55);">
-        <p style="margin:0;">Du får det här mejlet för att du har tackat ja till inbjudningar.<br>Vill du inte ha fler? <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">Avregistrera dig</a>.</p>
+        <p style="margin:0;">You get this email because you said yes to invitations.<br>Don't want more? <a href="${escapeAttr(unsubscribeUrl)}#ses:no-track" style="color:#0670DB;text-decoration:underline;">Unsubscribe</a>.</p>
         <p style="margin:12px 0 0;">Pullup.se<br>Lorensbergsgatan 3b<br>117 33, Stockholm</p>
       </div>`
     : "";
@@ -513,6 +513,6 @@ export function renderTemplateText({ templateContent, person, event, unsubscribe
       for (const ev of items) if (ev?.title) out.push([ev.title, /^https?:\/\//i.test(ev.url || "") ? ev.url : ""].filter(Boolean).join(" "));
     }
   }
-  if (unsubscribeUrl) out.push(`Avregistrera dig: ${unsubscribeUrl}`);
+  if (unsubscribeUrl) out.push(`Unsubscribe: ${unsubscribeUrl}`);
   return out.join("\n\n");
 }

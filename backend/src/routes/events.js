@@ -369,10 +369,10 @@ export function registerEventRoutes(app) {
     }
     if (req.method === "POST") return res.status(ok ? 200 : 404).json({ ok });
     res.set("Content-Type", "text/html; charset=utf-8");
-    return res.status(ok ? 200 : 404).send(`<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avregistrering</title></head>
+    return res.status(ok ? 200 : 404).send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unsubscribe</title></head>
 <body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0a0a0a;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box;">
-<div style="max-width:420px;"><h1 style="font-size:24px;margin:0 0 8px;">${ok ? "Du är avregistrerad" : "Länken fungerar inte"}</h1>
-<p style="font-size:15px;line-height:1.5;color:#6e6e73;margin:0;">${ok ? "Du får inga fler utskick från PullUp. Anmäler du dig till ett event igen får du fortfarande bekräftelsen." : "Den här avregistreringslänken är ogiltig eller redan använd."}</p></div></body></html>`);
+<div style="max-width:420px;"><h1 style="font-size:24px;margin:0 0 8px;">${ok ? "You're unsubscribed" : "This link doesn't work"}</h1>
+<p style="font-size:15px;line-height:1.5;color:#6e6e73;margin:0;">${ok ? "You won't get more mailings via PullUp. If you sign up to an event again, you still get the confirmation." : "This unsubscribe link is invalid or already used."}</p></div></body></html>`);
   };
   app.get("/unsubscribe/:token", unsubscribe);
   app.post("/unsubscribe/:token", unsubscribe);

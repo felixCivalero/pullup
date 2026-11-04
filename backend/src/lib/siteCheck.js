@@ -51,11 +51,25 @@ export function normalizeSite(input) {
   }
 }
 
+// Our own site is read on this machine, not through Cloudflare: its Bot Fight
+// Mode challenges the server's AWS address, can't be told to skip one IP on
+// the free plan, and pullup.se then "couldn't be read" on pullup.se. Only these
+// fixed names, over https, still checked against the site's real certificate.
+const OWN_HOSTS = new Set(["pullup.se", "www.pullup.se"]);
+export const readsOnThisMachine = (url) => url.protocol === "https:" && OWN_HOSTS.has(url.hostname);
+const thisMachine = (host, opts, cb) => (opts.all ? cb(null, [{ address: "127.0.0.1", family: 4 }]) : cb(null, "127.0.0.1", 4));
+
 function getOnce(url) {
+  if (!readsOnThisMachine(url)) return getVia(url, safeLookup);
+  // Not served here (a laptop): read it the ordinary way.
+  return getVia(url, thisMachine).catch(() => getVia(url, safeLookup));
+}
+
+function getVia(url, lookupFn) {
   return new Promise((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     const req = client.get(url, {
-      lookup: safeLookup,
+      lookup: lookupFn,
       timeout: TIMEOUT_MS,
       headers: { "User-Agent": UA, Accept: "text/html,text/plain,*/*", "Accept-Encoding": "gzip, br" },
     }, (res) => {
@@ -155,7 +169,7 @@ export function gradeSite({ url, html, robots, llms, sitemap }) {
     ITEM("found", "AI-tjänster får läsa sajten", !blocked.length, `robots.txt stänger ute ${blocked.join(", ")}. Då kan de inte rekommendera er.`, 3),
     ITEM("found", "Innehållet går att läsa utan JavaScript", text.length >= 600, "Nästan ingen text finns i sidans kod. AI-tjänster läser ofta inte det som ritas upp i webbläsaren.", 3),
     ITEM("found", "Sajten berättar vilka ni är för maskiner", /application\/ld\+json/i.test(html), "Strukturerad data saknas, så maskiner får gissa vad ni heter, gör och säljer.", 2),
-    ITEM("found", "Det finns en sammanfattning för AI (llms.txt)", llms.length > 20, "Ingen llms.txt. En kort fil som säger vilka ni är och vad som är viktigast, gjord på en timme."),
+    ITEM("found", "AI har en sammanfattning av er att gå på", llms.length > 20, "AI-tjänster får ingen egen bild av er från er själva, så de pusslar ihop en av det de hittar. Det kan vi ändra på."),
     ITEM("found", "Sidan har en tydlig huvudrubrik", /<h1[\s>]/i.test(html), "Ingen h1. Både Google och AI använder den för att förstå vad sidan handlar om."),
     ITEM("found", "Sidkarta för Google", /<(urlset|sitemapindex)/i.test(sitemap) || /^sitemap:/im.test(robots), "Ingen sidkarta hittades, så nya sidor tar längre tid att hitta."),
     ITEM("seen", "Titel och beskrivning i sökresultat", /<title[^>]*>[^<]{10,}/i.test(html) && meta(html, "description"), "Titel eller beskrivning saknas. Det är er annons i Google, och den är gratis.", 2),

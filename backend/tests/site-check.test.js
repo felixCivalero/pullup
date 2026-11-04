@@ -1,5 +1,5 @@
 // The site check: who it may reach, how it reads robots.txt, how it grades.
-import { gradeSite, isBotWall, isPrivateAddress, normalizeSite, robotsBlocks } from "../src/lib/siteCheck.js";
+import { gradeSite, isBotWall, isPrivateAddress, normalizeSite, readsOnThisMachine, robotsBlocks } from "../src/lib/siteCheck.js";
 
 let failures = 0;
 function assert(cond, msg) {
@@ -56,5 +56,11 @@ assert(isBotWall("<title>Access denied</title><p>Access denied. You don't have p
 assert(isBotWall('<title>Verify</title><div class="g-recaptcha"></div><p>Please complete the captcha to continue.</p>'), "botWall: a captcha you must solve isn't graded");
 const gtm = gradeSite({ url: "https://a.se/", html: '<script src="https://www.googletagmanager.com/gtm.js?id=GTM-ABC123"></script>', robots: "", llms: "", sitemap: "" });
 assert(gtm.items.find((i) => i.label.includes("Meta")).ok, "grade: a pixel may hide in the tag manager, so it isn't called missing");
+
+// Our own site skips Cloudflare (Bot Fight Mode challenges the server); nothing else does
+assert(readsOnThisMachine(new URL("https://pullup.se/")) && readsOnThisMachine(new URL("https://www.pullup.se/robots.txt")), "own site: pullup.se is read on this machine");
+for (const u of ["http://pullup.se/", "https://evil-pullup.se/", "https://pullup.se.evil.com/", "https://mcp.pullup.se/", "https://gatuverket.com/"]) {
+  assert(!readsOnThisMachine(new URL(u)), `own site: ${u} goes the ordinary way`);
+}
 
 if (failures) process.exit(1);

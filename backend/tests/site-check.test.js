@@ -48,6 +48,12 @@ assert(full.score === 100 && full.items.every((i) => !i.fix), "grade: a complete
 
 assert(isBotWall("<title>Just a moment...</title><script>cf-chl</script>"), "botWall: a challenge page isn't graded");
 assert(!isBotWall(`<p>${words}</p>`), "botWall: a real page is");
+// Squarespace ships its captcha settings in the page's config, and a short
+// image-led home page is still a real page (gatuverket.com, 2026-11-04).
+const squarespace = '<title>GATUVERKET</title><script>Static.SQUARESPACE_CONTEXT = {"website":{"captchaSettings":{"enabledForDonations":false}},"recaptchaEnterpriseContext":{}};</script><h1>GATUVERKET</h1><p>Streetdance in Stockholm. Workshops and membership.</p>';
+assert(!isBotWall(squarespace), "botWall: a short page with captcha settings in its scripts is read");
+assert(isBotWall("<title>Access denied</title><p>Access denied. You don't have permission.</p>"), "botWall: a plain block page isn't graded");
+assert(isBotWall('<title>Verify</title><div class="g-recaptcha"></div><p>Please complete the captcha to continue.</p>'), "botWall: a captcha you must solve isn't graded");
 const gtm = gradeSite({ url: "https://a.se/", html: '<script src="https://www.googletagmanager.com/gtm.js?id=GTM-ABC123"></script>', robots: "", llms: "", sitemap: "" });
 assert(gtm.items.find((i) => i.label.includes("Meta")).ok, "grade: a pixel may hide in the tag manager, so it isn't called missing");
 

@@ -134,8 +134,15 @@ const meta = (html, name) => new RegExp(`<meta[^>]+(?:name|property)=["']${name}
 const ITEM = (group, label, ok, fix, weight = 1) => ({ group, label, ok: !!ok, fix, weight });
 
 // A bot wall isn't the brand's site: grading it would tell them something false.
+// The words are read where a visitor sees them (title and text), never in the
+// scripts: site builders like Squarespace carry "captchaSettings" in every
+// page's config, and a short image-led home page is still a real page.
 export function isBotWall(html) {
-  return textOf(html).length < 1500 && /just a moment|attention required|cf-chl|captcha|access denied|are you human|verify you are|enable cookies/i.test(html);
+  const text = textOf(html);
+  if (text.length >= 1500) return false;
+  const title = (html.match(/<title[^>]*>([^<]*)/i) || [])[1] || "";
+  return /cf-chl|challenge-platform/i.test(html)
+    || /just a moment|attention required|captcha|access denied|are you human|verify you are|enable cookies/i.test(`${title} ${text}`);
 }
 
 export function gradeSite({ url, html, robots, llms, sitemap }) {

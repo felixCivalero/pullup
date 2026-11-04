@@ -3,24 +3,25 @@ import { Link } from "react-router-dom";
 import { trackEvent } from "../lib/analytics.js";
 import { initTracking, trackPageView } from "../lib/track.js";
 import { AgencyShell } from "../components/agency/AgencyShell.jsx";
+import { FUNNEL_CSS } from "../components/agency/FunnelWorld.jsx";
+import { EventWorld, EVENT_WORLD_CSS } from "../components/agency/EventWorld.jsx";
+import { AgentScene, AGENT_CSS } from "../components/agency/AgentScene.jsx";
 import { useT } from "../components/agency/i18n.js";
 import { FAQ, PACKS, PRODUCT_TITLE } from "./productMeta.js";
 
-/* /eventverktyg (also /pullup) — the free event tool's own page, in the
-   agency's look: what it does, that it's free and why, how an AI can run it,
-   the price of the one thing that costs, and a way to make an account. Every
-   claim true of what's built (productMeta.js). Pre-rendered at build, so
+/* /eventverktyg (also /pullup) — the free event tool's own page, in the front
+   page's language: a pinned scroll scene (EventWorld) that plays what the
+   tool does, from one link to a full room to your own CRM; then the agent
+   scene, the 2027 part: your AI runs the event through PullUp's MCP, with
+   the real tool names; then how to connect, what's in it, why it's free, the
+   price of the one thing that costs, and the FAQ. Every claim true of what's
+   built (productMeta.js, backend/src/actions). Pre-rendered at build, so
    crawlers that don't run JavaScript read all of it. The FAQ stays Swedish:
    it is also the page's FAQPage data. */
 
 const SIGNUP = `/login?ny=1&next=${encodeURIComponent("/admin/events/new")}`;
 const LOGIN = `/login?next=${encodeURIComponent("/admin/events")}`;
-
-const STEPS = [
-  ["Create.", "Title, time, place and an image or video. The page is ready in a minute, in your own design."],
-  ["Share.", "One link that looks sharp in Instagram, WhatsApp and Messenger."],
-  ["Fill the room.", "Guests sign up with name and email, get a confirmation with a calendar invite, and you watch the list grow."],
-];
+const MCP_URL = "https://mcp.pullup.se";
 
 const FEATURES = [
   ["The event page", "Title, time, place, text and a cover image or video, in your own design. Ready to share in a minute, with a sharp preview in Instagram, WhatsApp and Messenger."],
@@ -39,34 +40,49 @@ const WHY = [
   ["Your guests are yours.", "We never sell your guests' details. You own the list and can export it whenever you like."],
 ];
 
-function Mock() {
+// Real actions (backend/src/actions), the ones an organiser's AI gets.
+const TOOLS = [
+  ["Events", ["create_event", "update_event", "publish_event", "add_event_image", "set_event_cover", "move_event", "delete_event"]],
+  ["Guests", ["list_people", "update_guest", "import_contacts", "get_event_stats", "get_stats"]],
+  ["Mail", ["preview_mail", "send_mail", "list_sent_mail", "get_mail_credits", "set_sender"]],
+  ["Team", ["create_brand", "invite_to_brand", "invite_cohost", "list_team"]],
+];
+
+const CONNECT = [
+  ["Add PullUp", "In Claude, ChatGPT or another assistant: add a connector with the address below."],
+  ["Approve once", "Sign in with your email and say yes. Your AI gets your rights, nothing more."],
+  ["Say what you want", "\"Put my release party on PullUp.\" It creates, publishes, invites and keeps count."],
+];
+
+function PanelHead({ title, tag, no }) {
   const t = useT();
-  const [n, setN] = useState(64);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const id = setInterval(() => setN((v) => (v >= 118 ? 64 : v + 1)), 140);
-    return () => clearInterval(id);
-  }, []);
   return (
-    <div className="et-mock" aria-hidden="true">
-      <div className="et-phone">
-        <div className="et-cover"><span>{t("Release party")}</span></div>
-        <div className="et-page">
-          <b>{t("Release party")}</b>
-          <p>{t("Sat 7 Nov · 19:00 · Slakthusområdet")}</p>
-          <div className="et-bar"><i style={{ width: `${(n / 120) * 100}%` }} /></div>
-          <small>{t(`${n} of 120 coming`)}</small>
-          <span className="et-rsvp">{t("Sign up")}</span>
-        </div>
-      </div>
-      <div className="et-chip et-chip-1"><i>✓</i><span><b>{t("You're signed up")}</b>{t("Added to your calendar")}</span></div>
-      <div className="et-chip et-chip-2">
-        <b>{t("Guest list")}</b>
-        <span><i className="is-on" />Alva Lind</span>
-        <span><i className="is-on" />Omar Haddad</span>
-        <span><i />Ellen Berg</span>
-      </div>
-      <div className="et-chip et-chip-3"><b>{t("Waitlist")}</b><span>{t("12 waiting")}</span></div>
+    <div className="et-panel-head">
+      {no && <span className="et-no">{no}</span>}
+      <h3>{t(title)}</h3>
+      {tag && <b><i className="et-led" aria-hidden="true" />{t(tag)}</b>}
+    </div>
+  );
+}
+
+function CopyAddress({ location }) {
+  const t = useT();
+  const [done, setDone] = useState(false);
+  return (
+    <div className="et-addr">
+      <code>{MCP_URL}</code>
+      <button
+        type="button"
+        onClick={() => {
+          trackEvent("cta_click", { location });
+          navigator.clipboard?.writeText(MCP_URL).then(() => {
+            setDone(true);
+            setTimeout(() => setDone(false), 1800);
+          }).catch(() => {});
+        }}
+      >
+        {done ? t("Copied") : t("Copy")}
+      </button>
     </div>
   );
 }
@@ -83,56 +99,92 @@ export function ProductPage() {
   }, []);
 
   const signup = (location) => () => trackEvent("cta_click", { location });
+  const title = t("Fill the room. For free.");
 
   return (
-    <AgencyShell css={ET_CSS} brand>
+    <AgencyShell css={FUNNEL_CSS + EVENT_WORLD_CSS + AGENT_CSS + ET_CSS} brand>
       <div className="et">
-        <section className="et-hero" data-pc-tone="dark" data-pc-section="hero" data-pc-order="1">
-          <div>
-            <small className="et-kicker">{t("The event tool · Free")}</small>
-            <h1>{t("Fill the room. For free.")}</h1>
-            <p>{t("Event page, sign-up, confirmations with a calendar invite, waitlist, guest list and your own CRM. Everything you need for people to show up, without paying a krona.")}</p>
-            <div className="et-ctas">
-              <Link className="et-btn is-pink" to={SIGNUP} onClick={signup("tool_hero")}>{t("Create a free account")}</Link>
-              <a className="et-btn is-ghost" href="#how">{t("See how it works")}</a>
+        <EventWorld>
+          <small className="et-kicker is-ink">{t("The event tool · Free")}</small>
+          <h1 aria-label={title}>
+            {title.split(" ").map((word, i) => (
+              <span key={i} className="et-rise" aria-hidden="true"><span style={{ animationDelay: `${0.2 + i * 0.12}s` }}>{word}</span></span>
+            ))}
+          </h1>
+          <div className="et-powers">
+            <Link className="et-panel is-go" to={SIGNUP} onClick={signup("tool_hero")}>
+              <PanelHead title="Make your event" tag="Free" />
+              <ul className="et-spec">
+                {["Event page", "Sign-ups", "Guest list", "CRM", "Mail"].map((x) => <li key={x}>{t(x)}</li>)}
+              </ul>
+              <span className="et-go">{t("Create a free account")} <span aria-hidden="true">→</span></span>
+            </Link>
+            <div className="et-panel">
+              <PanelHead title="Or let your AI do it" tag="MCP" />
+              <CopyAddress location="tool_hero_mcp" />
+              <a className="et-more" href="#agents">{t("See how")} <span aria-hidden="true">↓</span></a>
             </div>
-            <small className="et-note">{t("No card. No trial. No limit on events or guests.")}</small>
           </div>
-          <Mock />
-        </section>
+        </EventWorld>
 
-        <section className="et-how" id="how" data-pc-section="how" data-pc-order="2">
-          <small className="et-kicker">{t("How it works")}</small>
-          <ol>
-            {STEPS.map(([title, line], i) => (
-              <li key={title}>
-                <span>0{i + 1}</span>
-                <h2>{t(title)}</h2>
+        <div id="agents" />
+        <AgentScene>
+          <small className="et-kicker">{t("2027 · Agents are users")}</small>
+          <h2 className="et-h2 is-agents">{t("Say it. Your AI does the rest.")}</h2>
+          <p className="et-lead">{t("PullUp is built for AI assistants from the start. Connect Claude, ChatGPT or another assistant once, and it can do what you can: create the event, publish it, see who's coming and email them.")}</p>
+        </AgentScene>
+
+        <section className="et-connect" data-pc-tone="dark" data-pc-section="connect" data-pc-order="3">
+          <div className="et-connect-head">
+            <small className="et-kicker">{t("Connect in a minute")}</small>
+            <h2 className="et-h2">{t("Your AI, your events.")}</h2>
+            <p className="et-lead">{t("Nothing more than you can do yourself, and you disconnect it whenever you like. In browsers with WebMCP, your AI gets the same tools right on the page.")}</p>
+          </div>
+          <ol className="et-steps">
+            {CONNECT.map(([head, line], i) => (
+              <li key={head} className="et-panel">
+                <PanelHead no={`0${i + 1}`} title={head} />
                 <p>{t(line)}</p>
+                {i === 0 && <CopyAddress location="tool_connect_mcp" />}
               </li>
             ))}
           </ol>
+          <div className="et-tools">
+            <div className="et-tools-head">
+              <h3>{t("What your AI can do")}</h3>
+              <span>{t("The real tools, by name.")}</span>
+            </div>
+            <div className="et-tools-grid">
+              {TOOLS.map(([group, names]) => (
+                <div key={group} className="et-panel is-flat">
+                  <PanelHead title={group} />
+                  <ul>{names.map((n) => <li key={n}><code>{n}</code></li>)}</ul>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
-        <section className="et-features" data-pc-section="features" data-pc-order="3">
+        <section className="et-features" data-pc-section="features" data-pc-order="4">
+          <small className="et-kicker">{t("What's in it")}</small>
           <h2 className="et-h2">{t("Everything you need for people to come.")}</h2>
           <div className="et-grid">
-            {FEATURES.map(([title, text]) => (
-              <article key={title}>
-                <h3>{t(title)}</h3>
+            {FEATURES.map(([head, text], i) => (
+              <article key={head} className="et-panel">
+                <PanelHead no={String(i + 1).padStart(2, "0")} title={head} />
                 <p>{t(text)}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="et-why" data-pc-section="why" data-pc-order="4">
+        <section className="et-why" data-pc-section="why" data-pc-order="5">
           <small className="et-kicker is-ink">{t("Why is it free?")}</small>
           <h2 className="et-h2">{t("Because good evenings shouldn't cost per guest.")}</h2>
           <div className="et-why-grid">
-            {WHY.map(([title, text]) => (
-              <article key={title}>
-                <h3>{t(title)}</h3>
+            {WHY.map(([head, text]) => (
+              <article key={head}>
+                <h3>{t(head)}</h3>
                 <p>{t(text)}</p>
               </article>
             ))}
@@ -140,19 +192,6 @@ export function ProductPage() {
           <p className="et-honest">
             <b>{t("The only thing that costs:")}</b> {t("emailing many at once, like invitations and newsletters, because every email costs to send. 5,000 emails for 99 kr. Confirmations to your guests are always free.")}
           </p>
-        </section>
-
-        <section className="et-ai" data-pc-tone="dark" data-pc-section="ai" data-pc-order="5">
-          <div>
-            <small className="et-kicker">{t("For your AI")}</small>
-            <h2 className="et-h2">{t("Tell your AI to put it on PullUp.")}</h2>
-            <p>{t("Your AI assistant can do everything you can do here: create and publish the event, see who's coming and email them. Nothing more than you can, and you disconnect it whenever you like.")}</p>
-            <p className="et-small">{t("Claude, ChatGPT and others: add a connector with the address")} <code>https://mcp.pullup.se</code>{t(", sign in and approve once.")}</p>
-          </div>
-          <div className="et-chat" aria-label={t("Example")}>
-            <p className="et-you">{t("Put my release party on PullUp, Saturday 7 November at 19:00 at Slakthusområdet, max 120 guests.")}</p>
-            <p className="et-bot">{t("Done. The event is saved as a draft. Want me to publish it and give you the link?")}</p>
-          </div>
         </section>
 
         <section className="et-price" id="pris" data-pc-section="price" data-pc-order="6">
@@ -195,6 +234,7 @@ export function ProductPage() {
         </section>
 
         <section className="et-end" data-pc-tone="dark" data-pc-section="signup" data-pc-order="8">
+          <small className="et-kicker">{t("Free, for the culture")}</small>
           <h2>{t("Your next event starts here.")}</h2>
           <div className="et-ctas">
             <Link className="et-btn is-pink" to={SIGNUP} onClick={signup("tool_end")}>{t("Create a free account")}</Link>
@@ -209,65 +249,91 @@ export function ProductPage() {
 const PAD = "padding-left: clamp(20px, 3.4vw, 48px); padding-right: clamp(20px, 3.4vw, 48px);";
 
 const ET_CSS = `
-  .et { background: #fff; color: #0a0a0a; }
+  .et { --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; background: #fff; color: #0a0a0a; }
+  .et button { font: inherit; cursor: pointer; }
   .et-kicker { display: block; margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #ec178f; }
   .et-kicker.is-ink { color: #0a0a0a; }
-  .et-h2 { margin: 0 0 clamp(28px, 4vw, 48px); max-width: 13em; font-size: clamp(40px, 6.4vw, 104px); line-height: .94; letter-spacing: -0.055em; font-weight: 700; }
+  .et-h2 { margin: 0 0 clamp(22px, 3vw, 40px); max-width: 13em; font-size: clamp(40px, 6.4vw, 104px); line-height: .94; letter-spacing: -0.055em; font-weight: 700; }
+  .et-lead { margin: 0; max-width: 32em; font-size: clamp(17px, 1.6vw, 21px); line-height: 1.42; letter-spacing: -0.01em; color: rgba(255,255,255,.7); }
   .et-btn { display: inline-flex; align-items: center; height: 58px; padding: 0 32px; border-radius: 999px; font-size: 17px; font-weight: 700; text-decoration: none; transition: background .2s ease, color .2s ease, transform .3s cubic-bezier(.16,1,.3,1); }
   .et-btn.is-pink { background: #ec178f; color: #0a0a0a; }
-  .et-btn.is-pink:hover { background: #fff; transform: translateY(-2px); }
-  .et-btn.is-ghost { border: 2px solid rgba(255,255,255,.35); color: #fff; }
-  .et-btn.is-ghost:hover { border-color: #fff; }
+  .et-btn.is-pink:hover { background: #0a0a0a; color: #fff; transform: translateY(-2px); }
+  .et-end .et-btn.is-pink:hover { background: #fff; color: #0a0a0a; }
   .et-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 
-  .et-hero { ${PAD} min-height: 100svh; padding-top: 120px; padding-bottom: clamp(48px, 7vw, 88px); display: grid; align-items: center; gap: 56px; background: radial-gradient(90% 70% at 80% 40%, #2a0a1d 0%, #0a0a0a 65%); color: #fff; }
-  @media (min-width: 1000px) { .et-hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); } }
-  .et-hero h1 { margin: 0 0 24px; max-width: 7em; font-size: clamp(60px, 9.6vw, 168px); line-height: .88; letter-spacing: -0.065em; font-weight: 700; }
-  .et-hero h1 + p { margin: 0 0 34px; max-width: 30em; font-size: clamp(18px, 1.9vw, 24px); line-height: 1.32; letter-spacing: -0.02em; color: rgba(255,255,255,.75); }
-  .et-note { display: block; margin-top: 18px; font-size: 14px; color: rgba(255,255,255,.55); }
+  /* ─── the hero, over EventWorld's pink ─── */
+  .ew .fw-hero h1 { margin: 0 0 26px; max-width: 7em; font-size: clamp(56px, 10.6vw, 184px); line-height: .88; letter-spacing: -0.065em; font-weight: 700; }
+  .et-rise { display: inline-block; overflow: hidden; padding: 0 .1em .22em 0; margin: 0 .12em -.22em 0; vertical-align: top; }
+  .et-rise > span { display: inline-block; animation: et-rise 1s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes et-rise { from { transform: translateY(110%) rotate(4deg); } to { transform: none; } }
+  .et-powers { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; max-width: 860px; animation: et-fade .9s .8s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes et-fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .et-rise > span, .et-powers { animation: none; } }
 
-  .et-mock { position: relative; justify-self: center; width: min(100%, 420px); aspect-ratio: 4 / 5; }
-  .et-phone { position: absolute; inset: 0 12% 0 12%; border-radius: 34px; border: 1px solid rgba(255,255,255,.14); background: #141414; overflow: hidden; box-shadow: 0 40px 90px rgba(236,23,143,.18); animation: et-in .9s .1s cubic-bezier(.16,1,.3,1) both; }
-  .et-cover { height: 46%; display: flex; align-items: flex-end; padding: 18px; background: radial-gradient(120% 90% at 30% 20%, #f43aa5 0%, #ec178f 45%, #5a0636 100%); }
-  .et-cover span { font-size: clamp(26px, 3vw, 36px); font-weight: 700; letter-spacing: -0.05em; line-height: .9; color: #0a0a0a; }
-  .et-page { display: grid; gap: 8px; padding: 18px; }
-  .et-page b { font-size: 19px; letter-spacing: -0.03em; }
-  .et-page p { margin: 0; font-size: 13px; color: rgba(255,255,255,.6); }
-  .et-bar { height: 6px; margin-top: 8px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; }
-  .et-bar i { display: block; height: 100%; border-radius: 6px; background: #ec178f; transition: width .14s linear; }
-  .et-page small { font-size: 12px; color: rgba(255,255,255,.7); font-variant-numeric: tabular-nums; }
-  .et-rsvp { margin-top: 10px; display: grid; place-items: center; height: 44px; border-radius: 999px; background: #fff; color: #0a0a0a; font-size: 15px; font-weight: 700; }
-  .et-chip { position: absolute; display: grid; gap: 6px; padding: 12px 14px; border-radius: 16px; background: #fff; color: #0a0a0a; font-size: 13px; box-shadow: 0 18px 40px rgba(0,0,0,.4); animation: et-in .8s cubic-bezier(.16,1,.3,1) both; }
-  .et-chip b { font-size: 13px; }
-  .et-chip-1 { left: -2%; top: 14%; grid-template-columns: auto 1fr; align-items: center; gap: 10px; animation-delay: .6s; }
-  .et-chip-1 i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #ec178f; font-style: normal; font-weight: 700; }
-  .et-chip-1 span { display: grid; color: #55555a; }
-  .et-chip-1 span b { color: #0a0a0a; }
-  .et-chip-2 { right: -4%; top: 52%; min-width: 150px; animation-delay: .9s; }
-  .et-chip-2 span { display: flex; align-items: center; gap: 8px; color: #3a3a3c; }
-  .et-chip-2 span i { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid #c7c7cc; }
-  .et-chip-2 span i.is-on { border-color: #ec178f; background: #ec178f; }
-  .et-chip-3 { left: 4%; bottom: 6%; animation-delay: 1.2s; }
-  .et-chip-3 span { color: #55555a; }
-  @keyframes et-in { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .et-phone, .et-chip { animation: none; } }
+  /* ─── grey hardware panels, the front page's look ─── */
+  .et-panel { position: relative; display: grid; align-content: start; gap: 14px; margin: 0; padding: 14px; border-radius: 10px; color: #111; text-decoration: none;
+    background: linear-gradient(180deg, #e4e3df 0%, #cfcec9 100%); border: 1px solid #8f8e89;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 18px 40px -20px rgba(70,0,40,.6);
+    transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s ease; }
+  a.et-panel:hover { transform: translateY(-2px); }
+  .et-panel.is-flat { box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12); }
+  .et-panel-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,0,0,.14); box-shadow: 0 1px 0 rgba(255,255,255,.7); }
+  .et-panel-head h3 { flex: 1; margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; line-height: 1.2; }
+  .et-panel-head b { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid rgba(0,0,0,.35); border-radius: 4px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: rgba(255,255,255,.35); }
+  .et-no { padding: 3px 6px; border-radius: 4px; background: #1a1a1a; color: #e4e3df; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; }
+  .et-led { width: 7px; height: 7px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 8px #ec178f; animation: et-led 2.4s ease-in-out infinite; }
+  @keyframes et-led { 50% { opacity: .45; } }
+  .et-panel p { margin: 0; font-size: 15px; line-height: 1.45; color: #2e2d2a; }
+  .et-spec { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: -2px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #3a3935; }
+  .et-spec li { display: inline-flex; align-items: center; gap: 6px; }
+  .et-spec li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ec178f; box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 0 5px #ec178f; }
+  .et-go { justify-self: start; display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); transition: background .15s ease; }
+  .et-panel.is-go:hover .et-go { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .et-addr { display: flex; gap: 6px; }
+  .et-addr code { flex: 1; min-width: 0; display: flex; align-items: center; height: 46px; padding: 0 12px; border: 1px solid #7d7c77; border-radius: 6px; background: #f7f6f1; color: #111; font-family: var(--mono); font-size: 15px; box-shadow: inset 0 2px 3px rgba(0,0,0,.14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .et-addr button { flex: none; height: 46px; padding: 0 16px; border: 1px solid #000; border-radius: 6px; background: linear-gradient(180deg, #2a2a2a, #0d0d0d); color: #f2f1ec; font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 rgba(0,0,0,.25); }
+  .et-addr button:hover { background: linear-gradient(180deg, #f43aa5, #d90f80); color: #111; border-color: #8a0a52; }
+  .et-more { justify-self: start; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #111; text-decoration: none; }
+  .et-more:hover { color: #c40f76; }
+  @media (max-width: 759px) {
+    .ew .fw-hero h1 { margin-bottom: 18px; }
+    .et-powers { grid-template-columns: 1fr; gap: 10px; }
+    .et-powers .et-panel:last-child .et-more, .et-powers .et-spec { display: none; }
+    .et-powers .et-panel { gap: 10px; padding: 10px; }
+    .et-powers .et-panel-head { padding-bottom: 8px; }
+    .et-powers .et-go, .et-powers .et-addr code, .et-powers .et-addr button { height: 42px; }
+    .ew .fw-hero h1 { font-size: clamp(48px, 14vw, 64px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .et-led { animation: none; } }
 
-  .et-how { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(56px, 8vw, 100px); }
-  .et-how ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-  @media (min-width: 900px) { .et-how ol { grid-template-columns: repeat(3, 1fr); gap: 32px; } }
-  .et-how li { padding: 22px 0 28px; border-top: 2px solid #0a0a0a; }
-  .et-how li > span { font-size: 15px; font-weight: 600; color: #ec178f; }
-  .et-how h2 { margin: 10px 0 12px; font-size: clamp(44px, 5.6vw, 92px); line-height: .92; letter-spacing: -0.055em; font-weight: 700; }
-  .et-how p { margin: 0; max-width: 24em; font-size: 17px; line-height: 1.45; color: #3a3a3c; }
+  /* ─── the agent scene's copy ─── */
+  .ag-copy .et-h2.is-agents { max-width: 9em; font-size: clamp(40px, 6vw, 100px); }
+  @media (max-width: 899px) {
+    .ag-copy .et-kicker { margin-bottom: 8px; }
+    .ag-copy .et-h2.is-agents { margin-bottom: 10px; font-size: clamp(32px, 9vw, 44px); }
+    .ag-copy .et-lead { font-size: 15px; }
+  }
 
-  .et-features { ${PAD} padding-top: clamp(40px, 6vw, 80px); padding-bottom: clamp(80px, 11vw, 140px); }
+  /* ─── connect + the tools ─── */
+  .et-connect { ${PAD} padding-top: clamp(80px, 10vw, 140px); padding-bottom: clamp(80px, 11vw, 150px); background: #0a0a0a; color: #fff; }
+  .et-connect-head { margin-bottom: clamp(36px, 5vw, 64px); }
+  .et-steps { list-style: none; margin: 0 0 clamp(48px, 6vw, 80px); padding: 0; display: grid; gap: 12px; }
+  @media (min-width: 900px) { .et-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .et-tools-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 16px; }
+  .et-tools-head h3 { margin: 0; font-size: clamp(28px, 3.2vw, 48px); letter-spacing: -0.045em; line-height: 1; }
+  .et-tools-head span { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+  .et-tools-grid { display: grid; gap: 12px; }
+  @media (min-width: 700px) { .et-tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1100px) { .et-tools-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .et-tools-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .et-tools-grid code { display: inline-block; padding: 3px 7px; border-radius: 4px; background: #1a1a1a; color: #e4e3df; font-family: var(--mono); font-size: 12.5px; }
+
+  /* ─── features ─── */
+  .et-features { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(80px, 11vw, 140px); }
   .et-grid { display: grid; gap: 12px; }
   @media (min-width: 700px) { .et-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (min-width: 1100px) { .et-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-  .et-grid article { padding: clamp(22px, 2.4vw, 30px); border-radius: 24px; background: #f4f4f5; transition: background .25s ease, color .25s ease; }
-  .et-grid article:hover { background: #0a0a0a; color: #fff; }
-  .et-grid h3 { margin: 0 0 10px; font-size: 22px; letter-spacing: -0.03em; }
-  .et-grid p { margin: 0; font-size: 15px; line-height: 1.45; opacity: .75; }
+  .et-grid .et-panel { box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12), 0 16px 34px -24px rgba(0,0,0,.5); }
 
   .et-why { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(72px, 10vw, 130px); background: radial-gradient(120% 100% at 80% 0%, #f43aa5 0%, #ec178f 55%, #d90f80 100%); }
   .et-why-grid { display: grid; gap: 28px; }
@@ -276,16 +342,6 @@ const ET_CSS = `
   .et-why-grid h3 { margin: 0 0 10px; font-size: clamp(24px, 2.4vw, 34px); line-height: 1.02; letter-spacing: -0.04em; }
   .et-why-grid p { margin: 0; font-size: 17px; line-height: 1.45; }
   .et-honest { margin: clamp(40px, 5vw, 64px) 0 0; max-width: 46em; padding: 20px 24px; border-radius: 20px; background: rgba(10,10,10,.9); color: #fff; font-size: 17px; line-height: 1.45; }
-
-  .et-ai { ${PAD} padding-top: clamp(80px, 11vw, 150px); padding-bottom: clamp(80px, 11vw, 150px); display: grid; gap: 48px; align-items: center; background: #0a0a0a; color: #fff; }
-  @media (min-width: 1000px) { .et-ai { grid-template-columns: 1.1fr 1fr; } }
-  .et-ai p { margin: 0 0 16px; max-width: 34em; font-size: 18px; line-height: 1.45; color: rgba(255,255,255,.75); }
-  .et-ai .et-small { font-size: 15px; color: rgba(255,255,255,.6); }
-  .et-ai code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.12); color: #fff; overflow-wrap: anywhere; }
-  .et-chat { display: grid; gap: 12px; }
-  .et-chat p { margin: 0; padding: 16px 18px; border-radius: 22px; font-size: 17px; line-height: 1.45; max-width: 90%; }
-  .et-you { justify-self: end; background: #ec178f; color: #0a0a0a; border-bottom-right-radius: 6px; }
-  .et-bot { background: rgba(255,255,255,.1); color: #fff; border-bottom-left-radius: 6px; }
 
   .et-price { ${PAD} padding-top: clamp(80px, 11vw, 140px); padding-bottom: clamp(48px, 6vw, 80px); }
   .et-plans { display: grid; gap: 12px; }
@@ -296,6 +352,7 @@ const ET_CSS = `
   .et-amount { margin: 0; font-size: clamp(64px, 8vw, 120px); line-height: .9; letter-spacing: -0.06em; font-weight: 700; color: #ec178f; }
   .et-plans ul { margin: 0 0 8px; padding-left: 20px; display: grid; gap: 8px; font-size: 17px; }
   .et-plans .et-btn { justify-self: start; }
+  .et-plans .is-free .et-btn.is-pink:hover { background: #fff; color: #0a0a0a; }
   .et-sub { margin: 0; font-size: 15px; line-height: 1.45; color: #55555a; }
   .et-plans table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   .et-plans td { padding: 14px 0; border-bottom: 1px solid rgba(0,0,0,.1); font-size: 18px; }

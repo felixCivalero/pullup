@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { SV } from "./i18n/sv.js";
+import { SV_EVENT_TOOL } from "./i18n/svEventTool.js";
 
 /* The agency site in Swedish and English. English is the source: every string
    is written in English in the components and data, and t() looks it up in the
@@ -16,7 +17,7 @@ export const LANGS = [
   { code: "sv", short: "SV", name: "Svenska" },
   { code: "en", short: "EN", name: "English" },
 ];
-const DICTS = { sv: SV };
+const DICTS = { sv: { ...SV, ...SV_EVENT_TOOL } };
 const KEY = "pullup.lang";
 const DEFAULT = "sv";
 const valid = (c) => LANGS.some((l) => l.code === c);

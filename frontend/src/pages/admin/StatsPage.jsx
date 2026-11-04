@@ -262,7 +262,8 @@ const STATS_CSS = `
   .st-checks p { margin: 4px 0 0; font-size: 13px; }
   .st-check-res { font-weight: 600; }
   .st-check-res.is-scored { color: #ec178f; }
-  .st-check-res.is-unreadable, .st-check-res.is-invalid { color: #8a8a8e; }
+  .st-check-res.is-unreadable, .st-check-res.is-invalid, .st-check-res.is-unreachable { color: #8a8a8e; }
+  .st-check-res.is-blocked { color: #0a0a0a; }
   .st-journey-btn { font: inherit; font-size: 13px; font-weight: 600; justify-self: start; margin-top: 6px; padding: 5px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 999px; background: #fff; cursor: pointer; }
   .st-leads .vs-journey { margin: 8px -16px -14px; }
   .st-leads p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: #3a3a3e; white-space: pre-wrap; }

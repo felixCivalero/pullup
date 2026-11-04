@@ -2,7 +2,7 @@
 // Anyone may call it, so per-IP limits and one result per domain and hour.
 import { supabase } from "../supabase.js";
 import { over } from "../lib/abuse.js";
-import { fetchSite, gradeSite, isBotWall, normalizeSite } from "../lib/siteCheck.js";
+import { fetchSite, gradeSite, normalizeSite, whyUnread } from "../lib/siteCheck.js";
 
 const HOUR = 3600_000;
 const cache = new Map(); // site → { at, result }
@@ -30,10 +30,14 @@ export function registerSiteCheckRoutes(app) {
         return res.json(hit.result);
       }
 
-      const page = await fetchSite(site);
-      if (page.status >= 400 || !page.html || isBotWall(page.html)) {
-        log({ domain: new URL(site).hostname.replace(/^www\./, ""), outcome: "unreadable" });
-        return res.status(422).json({ error: "unreadable" });
+      // Not graded: either a barrier we hit (blocked, with who put it up when
+      // the answer says) or no real answer at all (unreachable).
+      const domain = new URL(site).hostname.replace(/^www\./, "");
+      const page = await fetchSite(site).catch(() => null);
+      const why = whyUnread(page);
+      if (why) {
+        log({ domain, outcome: why.outcome });
+        return res.status(422).json({ error: why.outcome, domain, by: why.by || null });
       }
       const result = gradeSite(page);
 

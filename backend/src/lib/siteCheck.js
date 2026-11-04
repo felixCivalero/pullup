@@ -114,7 +114,7 @@ export async function fetchSite(site) {
     quiet(`${origin}/robots.txt`), quiet(`${origin}/llms.txt`), quiet(`${origin}/sitemap.xml`),
   ]);
   const ok = (r) => (r && r.status === 200 ? r.text : "");
-  return { url: home.url, status: home.status, html: home.text, robots: ok(robots), llms: ok(llms), sitemap: ok(sitemap) };
+  return { url: home.url, status: home.status, headers: home.headers || {}, html: home.text, robots: ok(robots), llms: ok(llms), sitemap: ok(sitemap) };
 }
 
 // Is this bot shut out of the whole site by robots.txt?
@@ -157,6 +157,36 @@ export function isBotWall(html) {
   const title = (html.match(/<title[^>]*>([^<]*)/i) || [])[1] || "";
   return /cf-chl|challenge-platform/i.test(html)
     || /just a moment|attention required|captcha|access denied|are you human|verify you are|enable cookies/i.test(`${title} ${text}`);
+}
+
+// Who put the barrier up, when the response says so. Only names we can read
+// off the answer itself; otherwise none.
+export function wallOwner(headers = {}, html = "") {
+  const h = (k) => String(headers[k] || "").toLowerCase();
+  const server = h("server");
+  if (headers["cf-ray"] || headers["cf-mitigated"] || server.includes("cloudflare")) return "Cloudflare";
+  if (headers["x-vercel-mitigated"] || server === "vercel") return "Vercel";
+  if (headers["x-datadome"] || /datadome/i.test(html)) return "DataDome";
+  if (headers["x-sucuri-id"] || server.includes("sucuri")) return "Sucuri";
+  if (headers["x-iinfo"] || /incapsula|imperva/i.test(html)) return "Imperva";
+  if (server.includes("akamai")) return "Akamai";
+  if (server.includes("ddos-guard")) return "DDoS-Guard";
+  if (headers["x-amzn-waf-action"]) return "AWS";
+  return null;
+}
+
+// Why a site couldn't be graded, in the two cases we can stand behind:
+// "blocked" = it answered, with a barrier instead of itself (a challenge,
+// access denied, 401/403/429); "unreachable" = no real answer at all (no such
+// name, down, too slow, an error page). Null when it can be graded.
+export function whyUnread(page) {
+  if (!page) return { outcome: "unreachable" };
+  const { status, headers = {}, html = "" } = page;
+  const walled = isBotWall(html) || [401, 403, 429].includes(status)
+    || !!headers["cf-mitigated"] || !!headers["x-vercel-mitigated"];
+  if (walled) return { outcome: "blocked", by: wallOwner(headers, html) };
+  if (status >= 400 || !html) return { outcome: "unreachable" };
+  return null;
 }
 
 export function gradeSite({ url, html, robots, llms, sitemap }) {

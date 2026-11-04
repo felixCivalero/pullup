@@ -1,5 +1,5 @@
 // The site check: who it may reach, how it reads robots.txt, how it grades.
-import { gradeSite, isBotWall, isPrivateAddress, normalizeSite, readsOnThisMachine, robotsBlocks } from "../src/lib/siteCheck.js";
+import { gradeSite, isBotWall, isPrivateAddress, normalizeSite, readsOnThisMachine, robotsBlocks, wallOwner, whyUnread } from "../src/lib/siteCheck.js";
 
 let failures = 0;
 function assert(cond, msg) {
@@ -62,5 +62,19 @@ assert(readsOnThisMachine(new URL("https://pullup.se/")) && readsOnThisMachine(n
 for (const u of ["http://pullup.se/", "https://evil-pullup.se/", "https://pullup.se.evil.com/", "https://mcp.pullup.se/", "https://gatuverket.com/"]) {
   assert(!readsOnThisMachine(new URL(u)), `own site: ${u} goes the ordinary way`);
 }
+
+// Not graded: a barrier (blocked, and by whom) or no answer (unreachable)
+const real = `<title>Brand</title><p>${words}</p>`;
+assert(whyUnread({ status: 200, headers: {}, html: real }) === null, "why: a real page is graded");
+const cf = whyUnread({ status: 403, headers: { "cf-mitigated": "challenge", server: "cloudflare", "cf-ray": "x" }, html: "<title>Just a moment...</title>" });
+assert(cf.outcome === "blocked" && cf.by === "Cloudflare", "why: a Cloudflare challenge is blocked, by Cloudflare");
+assert(whyUnread({ status: 403, headers: {}, html: "<p>Forbidden</p>" }).outcome === "blocked", "why: a bare 403 is blocked");
+assert(whyUnread({ status: 403, headers: {}, html: "<p>Forbidden</p>" }).by === null, "why: no owner named when the answer doesn't say");
+assert(whyUnread({ status: 429, headers: { "x-vercel-mitigated": "challenge", server: "Vercel" }, html: "" }).by === "Vercel", "why: Vercel's challenge is named");
+assert(whyUnread({ status: 200, headers: { server: "nginx" }, html: "<title>Verify</title><p>Please complete the captcha to continue.</p>" }).outcome === "blocked", "why: a captcha page served as 200 is blocked");
+assert(whyUnread(null).outcome === "unreachable", "why: no answer (no such name, timeout) is unreachable");
+assert(whyUnread({ status: 404, headers: {}, html: "<p>Not found</p>" }).outcome === "unreachable", "why: a 404 is unreachable, not blocked");
+assert(whyUnread({ status: 502, headers: {}, html: "<p>Bad gateway</p>" }).outcome === "unreachable", "why: a server error is unreachable, not blocked");
+assert(wallOwner({ server: "AkamaiGHost" }) === "Akamai" && wallOwner({ server: "nginx" }) === null, "owner: named only from the answer");
 
 if (failures) process.exit(1);

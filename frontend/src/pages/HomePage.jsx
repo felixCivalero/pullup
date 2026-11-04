@@ -65,6 +65,27 @@ function Result({ result }) {
   );
 }
 
+// The site answered with a barrier instead of itself. Said as what we know:
+// we were stopped, and so are many AI assistants and agents.
+function Blocked({ domain, by }) {
+  const t = useT();
+  return (
+    <div className="ho-result">
+      <div className="ho-score ho-shut">
+        <strong>{t("Shut")}</strong>
+        <span>{t("to machines")}</span>
+        <p><b>{domain}</b><br />{t("We were stopped at the door.")}</p>
+        <button type="button" onClick={() => meeting("check_blocked")}>{t("Let's open it")}</button>
+      </div>
+      <div className="ho-shut-body">
+        <h3>{t("Your site shuts out machines")}</h3>
+        <p>{t("We tried to read the site and met a barrier, not you. Many AI assistants and agents meet the same barrier when someone asks them for tips, prices or a booking. What they can't read, they can't recommend.")}</p>
+        {by && <p className="ho-shut-by">{t("The barrier comes from")} <b>{by}</b>.</p>}
+      </div>
+    </div>
+  );
+}
+
 // The hero's two free tools, drawn as superpowers you pick up on the spot:
 // the site check runs right in its card, the event tool is one tap away.
 function PowerIcon({ kind }) {
@@ -124,6 +145,7 @@ function CheckPopup({ open, state, asked, result, errors, onClose }) {
             </div>
           )}
           {state === "done" && result && <Result result={result} />}
+          {state === "blocked" && <Blocked domain={result?.domain || asked} by={result?.by} />}
           {errors[state] && (
             <div className="ho-pop-wait">
               <p>{t(errors[state])}</p>
@@ -161,12 +183,17 @@ export function HomePage() {
       // Statistik: what was typed and how it went, on this visit's journey.
       const typed = String(value).trim().slice(0, 200);
       trackEvent("input", { form: "site_check", value: typed, result: res.ok ? data.score : data.error || "failed" });
+      if (data.error === "blocked") {
+        setResult(data);
+        setState("blocked");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "failed");
       setResult(data);
       setState("done");
       trackEvent("cta_click", { location: "check_done" });
     } catch (err) {
-      setState(err.message === "invalid_site" ? "invalid" : err.message === "rate_limited" ? "limited" : "unreadable");
+      setState({ invalid_site: "invalid", rate_limited: "limited", unreachable: "unreachable" }[err.message] || "unreadable");
     }
   }, []);
 
@@ -187,6 +214,7 @@ export function HomePage() {
   const ERRORS = {
     invalid: "That doesn't look like a website. Try yourbrand.se",
     limited: "That's a lot of checks. Try again in a while.",
+    unreachable: "That site didn't answer. Check the address and try again.",
     unreadable: "We couldn't read that site. It may block visitors like us. Book a meeting and we'll look by hand.",
   };
 
@@ -431,6 +459,11 @@ const HOME_CSS = `
   .ho-score button { height: 52px; padding: 0 28px; border: 0; border-radius: 999px; background: #0a0a0a; color: #fff; font-size: 16px; font-weight: 600; transition: background .2s ease, color .2s ease; }
   .ho-score button:hover { background: #ec178f; }
   @media (max-width: 759px) { .ho-score { grid-template-columns: auto 1fr; } .ho-score p, .ho-score button { grid-column: 1 / -1; margin-top: 14px; } }
+  .ho-shut strong { font-size: clamp(56px, 8vw, 112px); }
+  .ho-shut-body { max-width: 640px; }
+  .ho-shut-body h3 { margin: 0 0 10px; font-size: clamp(24px, 2.6vw, 32px); line-height: 1.1; letter-spacing: -0.035em; font-weight: 700; }
+  .ho-shut-body p { margin: 0 0 12px; font-size: 17px; line-height: 1.45; color: #2a2a2e; }
+  .ho-shut-by { font-family: var(--mono); font-size: 13px !important; color: #6e6e73 !important; }
   .ho-groups { display: grid; gap: 28px 24px; }
   @media (min-width: 900px) { .ho-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .ho-groups h3 { margin: 0 0 10px; font-size: 26px; letter-spacing: -0.035em; font-weight: 700; }

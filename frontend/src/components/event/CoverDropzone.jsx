@@ -30,7 +30,7 @@ export default function CoverDropzone({ onFiles }) {
         position: "absolute", inset: 0, zIndex: 6,
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer",
-        background: over ? "rgba(255,255,255,0.08)" : "transparent",
+        background: over ? "rgba(var(--pg-ink-rgb, 255,255,255), 0.08)" : "transparent",
         transition: "background 0.15s ease",
       }}
     >
@@ -38,20 +38,20 @@ export default function CoverDropzone({ onFiles }) {
         style={{
           display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
           padding: "24px 28px", borderRadius: 16, maxWidth: "82%",
-          border: `1.5px dashed ${over ? "#ffffff" : "rgba(255,255,255,0.3)"}`,
-          background: "rgba(255,255,255,0.05)", backdropFilter: "blur(2px)",
+          border: `1.5px dashed ${over ? "var(--pg-ink, #fff)" : "rgba(var(--pg-ink-rgb, 255,255,255), 0.3)"}`,
+          background: "rgba(var(--pg-ink-rgb, 255,255,255), 0.05)", backdropFilter: "blur(2px)",
           transition: "border-color 0.15s ease",
         }}
       >
-        <div style={{ display: "flex", gap: 14, color: over ? "#ffffff" : "rgba(255,255,255,0.7)" }}>
+        <div style={{ display: "flex", gap: 14, color: over ? "var(--pg-ink, #fff)" : "rgba(var(--pg-ink-rgb, 255,255,255), 0.7)" }}>
           <ImageIcon size={22} />
           <Images size={22} />
           <Film size={22} />
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)", textAlign: "center" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(var(--pg-ink-rgb, 255,255,255), 0.92)", textAlign: "center" }}>
           {over ? "Drop it here" : "Click or drag to upload"}
         </div>
-        <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", textAlign: "center" }}>
+        <div style={{ fontSize: 11.5, color: "rgba(var(--pg-ink-rgb, 255,255,255), 0.55)", textAlign: "center" }}>
           Image · carousel of images · video
         </div>
       </div>

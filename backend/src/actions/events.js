@@ -57,6 +57,7 @@ function designOf(event) {
     signupButton: event.signupSettings?.cta || "",
     signupHidden: !!event.signupSettings?.hidden,
     signupForm: event.form,
+    look: event.look || null,
   };
 }
 
@@ -197,7 +198,7 @@ export const createEventAction = defineAction({
 export const updateEventAction = defineAction({
   name: "update_event",
   title: "Edit an event",
-  description: "Change an event: title, time, place, text, capacity, its sign-up form (phone, Instagram, guests brought along, own questions like allergies), and its page design (content blocks, a hidden address or date with a hint, the sign-up button). Only the fields you give change. Times are read in the event's time zone. Images: add_event_image / remove_event_image.",
+  description: "Change an event: title, time, place, text, capacity, its sign-up form (phone, Instagram, guests brought along, own questions like allergies), and its page design (background colour and font, content blocks, a hidden address or date with a hint, the sign-up button). Only the fields you give change. Times are read in the event's time zone. Images: add_event_image / remove_event_image.",
   access: "user",
   effect: "write",
   idempotent: true,
@@ -219,6 +220,10 @@ export const updateEventAction = defineAction({
     signupButton: z.string().max(40).optional().describe("The sign-up button's text, e.g. 'Save my spot'. Empty = the default."),
     signupHidden: z.boolean().optional().describe("Hide the sign-up form (a page that only informs)."),
     signupForm,
+    look: z.object({
+      bg: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().describe("Background colour as #rrggbb; text follows it (dark on light, white on dark)."),
+      font: z.enum(["standard", "grotesk", "serif", "mono", "rounded"]).optional(),
+    }).optional().describe("The page's look: background colour and font. Replaces the current look."),
   }),
   run: async (input, { caller }) => {
     const current = await eventFor(caller, input.eventId);
@@ -236,6 +241,7 @@ export const updateEventAction = defineAction({
       capacity: input.capacity === null ? null : input.capacity,
       sections: input.sections,
       hideLocation: input.hideLocation,
+      look: input.look,
       revealHint: input.revealHint,
       hideDate: input.hideDate,
       dateRevealHint: input.dateRevealHint,

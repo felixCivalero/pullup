@@ -27,7 +27,7 @@ import { brandSenderRow, senderFor } from "../lib/senders.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
-  "media_settings, title_settings, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
+  "media_settings, title_settings, look, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
 const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in, visitor_id, plus_ones, party_size, custom_answers";
@@ -146,6 +146,7 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     sections: Array.isArray(ev.sections) ? ev.sections : [],
     mediaSettings: ev.media_settings || {},
     titleSettings: ev.title_settings || {},
+    look: ev.look || null,
     hideLocation: !!ev.hide_location,
     hideDate: !!ev.hide_date,
     revealHint: ev.reveal_hint || "",
@@ -156,6 +157,17 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     locationLat: ev.location_lat == null ? null : Number(ev.location_lat),
     locationLng: ev.location_lng == null ? null : Number(ev.location_lng),
   };
+}
+
+// The page's look (migrations/159): a background colour as #rrggbb and one
+// of the fonts the page knows (frontend components/event/look.js).
+export const LOOK_FONTS = ["standard", "grotesk", "serif", "mono", "rounded"];
+export function cleanLook(look) {
+  if (!look || typeof look !== "object") return null;
+  const out = {};
+  if (typeof look.bg === "string" && /^#[0-9a-f]{6}$/i.test(look.bg)) out.bg = look.bg.toLowerCase();
+  if (LOOK_FONTS.includes(look.font)) out.font = look.font;
+  return Object.keys(out).length ? out : null;
 }
 
 // Only these can be set; everything else on the row stays as it is.
@@ -194,6 +206,7 @@ export function eventPatch(body) {
   }
   if (body.mediaSettings && typeof body.mediaSettings === "object" && JSON.stringify(body.mediaSettings).length < 4000) patch.media_settings = body.mediaSettings;
   if (body.titleSettings && typeof body.titleSettings === "object" && JSON.stringify(body.titleSettings).length < 2000) patch.title_settings = body.titleSettings;
+  if (body.look !== undefined) patch.look = cleanLook(body.look);
   // The sign-up's fields and questions (lib/eventForm.js).
   Object.assign(patch, formPatch(body.form));
   if (body.signupSettings && typeof body.signupSettings === "object") {
@@ -309,6 +322,7 @@ export async function createEvent(caller, body) {
     collect_phone: false,
     collect_instagram: false,
     sections: sectionsFor(patch.description || ""),
+    look: { bg: "#ffffff" },
     ...patch,
   };
   const { data, error } = await supabase.from("events").insert(row).select(EVENT_COLUMNS).single();

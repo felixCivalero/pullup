@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { loadLookFont, lookVars } from "./look.js";
 import { MediaCarousel } from "./MediaCarousel";
 
 // The size the desktop page is laid out at; larger screens scale it up.
@@ -58,6 +59,7 @@ export function DesktopEventLayout({
   hideSignup = false,
   signupLabel = null,
   signupCta = null,
+  look = null,
   // Product pages: sanitized delivery summary + buyer's rsvpId (?purchase=).
   productDelivery = null,
   purchaseRsvpId = null,
@@ -184,6 +186,7 @@ export function DesktopEventLayout({
 
   // Host overrides (mig 096) for the eyebrow + button; fall back to defaults.
   const eyebrowLabel = signupLabel || priceLabel;
+  useEffect(() => { loadLookFont(look); }, [look?.font]); // eslint-disable-line react-hooks/exhaustive-deps
   const ctaLabel = signupCta || buttonLabel;
 
   // The screen's size, for the proportional scale above 1280 × 720.
@@ -219,7 +222,9 @@ export function DesktopEventLayout({
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        background: "#05040a",
+        background: "var(--pg-bg, #05040a)",
+          color: "var(--pg-ink, #fff)",
+          ...lookVars(look),
         position: "relative",
       }}
     >
@@ -230,7 +235,7 @@ export function DesktopEventLayout({
       <style>{`
         .desktop-event-right-scroll::-webkit-scrollbar { width: 8px; }
         .desktop-event-right-scroll::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.08);
+          background: rgba(var(--pg-ink-rgb, 255,255,255), 0.08);
           border-radius: 4px;
         }
         .desktop-event-right-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -270,7 +275,7 @@ export function DesktopEventLayout({
               position: "relative",
               background:
                 "radial-gradient(circle at 30% 30%, rgba(192,192,192,0.08) 0%, transparent 60%), #0a0913",
-              border: "1px solid rgba(255,255,255,0.06)",
+              border: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.06)",
               userSelect: "none",
             }}
           >
@@ -376,7 +381,7 @@ export function DesktopEventLayout({
                 style={{
                   marginTop: "24px",
                   paddingTop: "20px",
-                  borderTop: "1px solid rgba(255,255,255,0.08)",
+                  borderTop: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
                   paddingBottom: "16px",
                 }}
               >
@@ -391,7 +396,7 @@ export function DesktopEventLayout({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                    <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--pg-ink, #fff)" }}>
                       {eyebrowLabel}
                     </div>
                     {formattedDate && (
@@ -399,7 +404,7 @@ export function DesktopEventLayout({
                         style={{
                           fontSize: "11px",
                           fontWeight: 600,
-                          color: "#fff",
+                          color: "var(--pg-ink, #fff)",
                           marginTop: "1px",
                           opacity: hideDate ? 0.4 : 0.7,
                         }}
@@ -414,7 +419,7 @@ export function DesktopEventLayout({
                   style={{
                     marginBottom: "16px",
                     paddingBottom: "12px",
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    borderBottom: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
                   }}
                 >
                   {title && (
@@ -422,7 +427,7 @@ export function DesktopEventLayout({
                       style={{
                         fontSize: "14px",
                         fontWeight: 800,
-                        color: "#fff",
+                        color: "var(--pg-ink, #fff)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -436,7 +441,7 @@ export function DesktopEventLayout({
                       style={{
                         fontSize: "12px",
                         fontWeight: 500,
-                        color: "#fff",
+                        color: "var(--pg-ink, #fff)",
                         opacity: 0.5,
                         marginTop: "1px",
                       }}
@@ -474,10 +479,10 @@ export function DesktopEventLayout({
               <div
                 style={{
                   height: `${CTA_BAR_HEIGHT}px`,
-                  background: "rgba(5, 4, 10, 0.92)",
+                  background: "rgba(var(--pg-bg-rgb, 5,4,10), 0.92)",
                   backdropFilter: "blur(20px)",
                   WebkitBackdropFilter: "blur(20px)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
                   borderRadius: "12px",
                   padding: "0 16px",
                   display: "flex",
@@ -488,7 +493,7 @@ export function DesktopEventLayout({
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--pg-ink, #fff)" }}>
                     {eyebrowLabel}
                   </div>
                   {formattedDate && (
@@ -496,7 +501,7 @@ export function DesktopEventLayout({
                       style={{
                         fontSize: "11px",
                         fontWeight: 600,
-                        color: "rgba(255,255,255,0.4)",
+                        color: "rgba(var(--pg-ink-rgb, 255,255,255), 0.4)",
                         marginTop: "1px",
                       }}
                     >
@@ -509,8 +514,8 @@ export function DesktopEventLayout({
                   onClick={handleCta}
                   style={{
                     padding: "10px 22px",
-                    background: "#fff",
-                    color: "#000",
+                    background: "var(--pg-ink, #fff)",
+                    color: "var(--pg-bg, #000)",
                     fontFamily: "inherit",
                     border: "none",
                     borderRadius: "4px",

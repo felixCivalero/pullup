@@ -5,6 +5,7 @@ import { EventPreview } from "../components/event/EventPreview.jsx";
 import { DesktopEventLayout } from "../components/event/DesktopEventLayout.jsx";
 import { SignupForm } from "../components/event/SignupForm.jsx";
 import { DESKTOP_MIN_WIDTH, pageProps } from "../components/event/pageProps.js";
+import { lookVars } from "../components/event/look.js";
 import { usePageContext } from "../lib/pageContext.js";
 import { recordEventView } from "../lib/eventView.js";
 import { useLang } from "../components/agency/i18n.js";
@@ -77,13 +78,15 @@ export function EventPage() {
   );
   const props = pageProps(ev, { rsvpContent });
 
+  // The page's own background behind it all (events.look; none = dark).
+  const pageBg = ev.look?.bg || "#05040a";
   return (
     <>
       <style>{`
-        body, html { overflow: hidden; height: 100dvh; width: 100%; margin: 0; background: #05040a; }
+        body, html { overflow: hidden; height: 100dvh; width: 100%; margin: 0; background: ${pageBg}; }
         * { box-sizing: border-box; }
       `}</style>
-      <div style={{ width: "100%", height: "100dvh", overflow: "hidden", background: "#05040a", color: "#fff" }}>
+      <div style={{ width: "100%", height: "100dvh", overflow: "hidden", background: pageBg, ...lookVars(ev.look) }}>
         {isDesktop ? <DesktopEventLayout {...props} /> : <EventPreview {...props} />}
       </div>
     </>

@@ -3,8 +3,9 @@ import { FormBuilder } from "./FormBuilder.jsx";
 import { PlaceField } from "./PlaceField.jsx";
 import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
 
-/* 01 Praktiskt — everything practical before the design: the basics (name,
-   time, place) and then sign-up & access: how many can come, what the sign-up asks (FormBuilder:
+/* 01 Praktiskt — everything asked when the event was made, and nothing that
+   is the page's look: the basics (name, time, place, whether they show yet)
+   and then sign-up & access: how many can come, what the sign-up asks (FormBuilder:
    guests brought along, phone, Instagram, own questions), and the sign-up
    box on the page — shown or hidden, its heading and button text. */
 export function SignupPanel({ draft, update }) {
@@ -17,6 +18,7 @@ export function SignupPanel({ draft, update }) {
       <Field label="Namn">
         <input maxLength={160} value={draft.title || ""} placeholder="Eventets namn" onChange={(e) => update({ title: e.target.value })} />
       </Field>
+      <Toggle on={draft.titleSettings?.visible !== false} onChange={(v) => update({ titleSettings: { ...(draft.titleSettings || {}), visible: v } })} label="Visa namnet på sidan" />
       <div className="ee-two">
         <Field label="Startar">
           <input type="datetime-local" value={toZonedInput(draft.startsAt, tz)} onChange={(e) => update({ startsAt: e.target.value ? fromZonedInput(e.target.value, tz) : null })} />
@@ -25,6 +27,10 @@ export function SignupPanel({ draft, update }) {
           <input type="datetime-local" value={toZonedInput(draft.endsAt, tz)} onChange={(e) => update({ endsAt: e.target.value ? fromZonedInput(e.target.value, tz) : null })} />
         </Field>
       </div>
+      <Toggle on={!!draft.hideDate} onChange={(v) => update({ hideDate: v })} label="Avslöja datumet senare" hint={draft.hideDate ? "Datumet ovan används bara för sortering och påminnelser. Sidan visar din ledtråd." : null} />
+      {draft.hideDate && (
+        <input className="ee-input" maxLength={80} value={draft.dateRevealHint || ""} onChange={(e) => update({ dateRevealHint: e.target.value })} placeholder="t.ex. Datum kommer snart" />
+      )}
       <div className="ee-field"><span>Plats</span>
         <PlaceField value={draft} onChange={(p) => update(p)} inputClassName="ee-input" placeholder="Sök adress eller ställe" />
       </div>

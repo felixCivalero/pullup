@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { loadLookFont, lookVars } from "./look.js";
 import { ChevronDown } from "lucide-react";
 import CoverDropzone from "./CoverDropzone.jsx";
 import { formatEventTime } from "./lib/dateUtils.js";
@@ -69,6 +70,7 @@ export function EventPreview({
   hideSignup = false,
   signupLabel = null,
   signupCta = null,
+  look = null,
   // Product pages: sanitized delivery summary + buyer's rsvpId (?purchase=).
   productDelivery = null,
   purchaseRsvpId = null,
@@ -189,6 +191,7 @@ export function EventPreview({
       ? formatPrice(ticketPrice, ticketCurrency)
       : "Free entry";
   const eyebrowLabel = signupLabel || defaultEyebrow;
+  useEffect(() => { loadLookFont(look); }, [look?.font]); // eslint-disable-line react-hooks/exhaustive-deps
   const ctaLabel = signupCta || buttonLabel;
   const hasContent = description || (sections && sections.length > 0);
 
@@ -212,7 +215,9 @@ export function EventPreview({
           maxWidth: "100%",
           height: "100%",
           overflow: "hidden",
-          background: "#05040a",
+          background: "var(--pg-bg, #05040a)",
+          color: "var(--pg-ink, #fff)",
+          ...lookVars(look),
           display: "flex",
           flexDirection: "column",
         }}
@@ -324,7 +329,7 @@ export function EventPreview({
               return (
                 <div style={{
                   position: "absolute", inset: 0, zIndex: 0,
-                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), #05040a",
+                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), var(--pg-bg, #05040a)",
                 }} />
               );
             })()}
@@ -350,7 +355,7 @@ export function EventPreview({
 
             <div style={{
               position: "absolute", bottom: 0, left: 0, right: 0, height: "40%",
-              background: "linear-gradient(to bottom, transparent 0%, rgba(5,4,10,0.6) 60%, #05040a 100%)",
+              background: "linear-gradient(to bottom, transparent 0%, rgba(var(--pg-bg-rgb, 5,4,10), 0.6) 60%, var(--pg-bg, #05040a) 100%)",
               pointerEvents: "none", zIndex: 1,
             }} />
 
@@ -370,7 +375,7 @@ export function EventPreview({
                 display: "flex", flexDirection: "column", alignItems: "center",
               }}>
                 {[0, 1, 2].map((i) => (
-                  <ChevronDown key={i} size={22} color="#fff" style={{
+                  <ChevronDown key={i} size={22} color="currentColor" style={{ color: "var(--pg-ink, #fff)",
                     opacity: 0,
                     animation: `scroll-chevron 1.8s ease-in-out ${i * 0.2}s infinite`,
                     marginTop: i > 0 ? "-8px" : 0,
@@ -385,7 +390,7 @@ export function EventPreview({
             onMouseEnter={onHoverPart ? () => onHoverPart({ kind: "section" }) : undefined}
             onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
             style={{
-            background: "#05040a",
+            background: "var(--pg-bg, #05040a)",
             padding: `28px 20px ${rsvpContent ? "8px" : `${CTA_BAR_HEIGHT}px`}`,
             minHeight: hasContent ? "40%" : undefined,
           }}>
@@ -419,7 +424,7 @@ export function EventPreview({
               onMouseLeave={onHoverPart ? () => onHoverPart(null) : undefined}
               style={{
                 position: "relative",
-                background: "#05040a",
+                background: "var(--pg-bg, #05040a)",
                 padding: `0 20px max(20px, env(safe-area-inset-bottom, 20px))`,
               }}
             >
@@ -446,14 +451,14 @@ export function EventPreview({
                 height: `${CTA_BAR_HEIGHT}px`,
                 boxSizing: "border-box",
                 padding: "12px 0",
-                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                borderTop: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--pg-ink, #fff)" }}>
                     {eyebrowLabel}
                   </div>
                   {formattedDate && (
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#fff", opacity: 0.7, marginTop: "1px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--pg-ink, #fff)", opacity: 0.7, marginTop: "1px" }}>
                       {formattedDate}
                     </div>
                   )}
@@ -461,9 +466,9 @@ export function EventPreview({
               </div>
 
               {/* Title/location + form */}
-              <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
-                {location && !hideLocation && <div style={{ fontSize: "12px", fontWeight: 500, color: "#fff", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
+              <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)" }}>
+                {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--pg-ink, #fff)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+                {location && !hideLocation && <div style={{ fontSize: "12px", fontWeight: 500, color: "var(--pg-ink, #fff)", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
               </div>
               {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
             </div>
@@ -480,10 +485,10 @@ export function EventPreview({
               right: 0,
               zIndex: 10,
               height: `${CTA_BAR_HEIGHT}px`,
-              background: "rgba(5, 4, 10, 0.96)",
+              background: "rgba(var(--pg-bg-rgb, 5,4,10), 0.96)",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
-              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              borderTop: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
               padding: "0 20px",
               display: "flex",
               alignItems: "center",
@@ -495,11 +500,11 @@ export function EventPreview({
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: "15px", fontWeight: 700, color: "#fff" }}>
+              <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--pg-ink, #fff)" }}>
                 {eyebrowLabel}
               </div>
               {formattedDate && (
-                <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.4)", marginTop: "1px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "rgba(var(--pg-ink-rgb, 255,255,255), 0.4)", marginTop: "1px" }}>
                   {formattedDate}
                 </div>
               )}
@@ -510,7 +515,7 @@ export function EventPreview({
               onClick={(rsvpContent || externalUrl) ? handleCta : undefined}
               style={{
                 padding: "12px 24px",
-                background: "#fff", color: "#000", border: "none", borderRadius: "4px",
+                background: "var(--pg-ink, #fff)", color: "var(--pg-bg, #000)", border: "none", borderRadius: "4px",
                 fontFamily: "inherit",
                 fontSize: "14px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
                 cursor: (!rsvpContent && !externalUrl) ? "not-allowed" : "pointer",

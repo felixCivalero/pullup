@@ -25,7 +25,7 @@ import { userById } from "../agents/oauthProvider.js";
 
 const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, hide_location, hide_date, " +
-  "media_settings, title_settings, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
+  "media_settings, title_settings, look, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
 
 // Per-IP throttle on sign-ups: 20 an hour is plenty for a human.
 const hits = new Map();
@@ -76,6 +76,7 @@ function publicShape(ev, attending, media = [], organizer = null) {
     media,
     mediaSettings: ev.media_settings || {},
     titleSettings: ev.title_settings || {},
+    look: ev.look || null,
     sections: Array.isArray(ev.sections) ? ev.sections : [],
     hideLocation: hidden,
     hideDate: !!ev.hide_date,

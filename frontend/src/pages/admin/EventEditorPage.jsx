@@ -21,12 +21,13 @@ import { EDITOR_CSS, colors } from "../../components/event/editor/editorStyles.j
    (phone or desktop), point at a part of the preview to edit it. Saves itself
    a moment after each change; Publish makes /e/:slug live. */
 
-// The flow, in order: everything practical first (time, place, the sign-up —
-// set when the event was made, tuned here), then the look, then the words
-// and embeds. A new event lands on the design.
+// The flow, in order: everything practical first (what the wizard asked:
+// name, time, place, the sign-up), then the content (pictures and video),
+// then Innehåll: the page's look (background, font) and its words and embeds.
+// A new event lands on Content: upload, then pick colour and font.
 const TABS = [
   { id: "signup", label: "Praktiskt", icon: ClipboardList, step: "01", next: "cover" },
-  { id: "cover", label: "Design", icon: ImageIcon, step: "02", next: "content" },
+  { id: "cover", label: "Content", icon: ImageIcon, step: "02", next: "content" },
   { id: "content", label: "Innehåll", icon: Type, step: "03" },
 ];
 const SAVE_DELAY = 900;
@@ -45,7 +46,7 @@ const SIZES = {
   ],
 };
 // Fields the editor writes (media has its own routes).
-const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity", "form"];
+const SAVED = ["title", "startsAt", "endsAt", "location", "locationLat", "locationLng", "placeId", "sections", "mediaSettings", "titleSettings", "hideLocation", "hideDate", "revealHint", "dateRevealHint", "signupSettings", "capacity", "form", "look"];
 
 export function EventCreatePage() {
   return (
@@ -199,7 +200,7 @@ function Editor() {
   const rsvpContent = () => <SignupForm preview slug={draft.slug} cta={draft.signupSettings?.cta || null} form={draft.form} />;
   const props = pageProps({ ...draft, text: "" }, { rsvpContent });
 
-  // 02 Design is a stage: only the page, as big as it gets, on the screen
+  // 02 Content is a stage: only the page, as big as it gets, on the screen
   // sizes you pick, with the media dropped right on it. 01 Praktiskt and
   // 03 Innehåll are in the editor with the rail.
   const stage = flow && tab === "cover";
@@ -257,7 +258,7 @@ function Editor() {
           ))}
         </nav>
         <div className="ed2-body" ref={railRef}>
-          {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} focusIndex={focusIndex} />}
+          {tab === "content" && <SectionsPanel draft={draft} update={update} hovered={hovered} setHovered={setHovered} focusIndex={focusIndex} onPractical={() => goTab("signup")} />}
           {tab === "signup" && <SignupPanel draft={draft} update={update} />}
           {/* Editing (not the flow): the media sits here in the rail; kept
               mounted on every tab (the preview's drop zone uploads through it). */}

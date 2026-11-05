@@ -47,4 +47,20 @@ export const EDITOR_CSS = `
   .ee-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
   .ee-section-title { margin: 6px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${colors.textSubtle}; }
   .ee-muted { margin: 0; font-size: 12.5px; color: ${colors.textSubtle}; line-height: 1.5; }
+  .ee-fixed { font: inherit; width: 100%; margin-top: 6px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: ${colors.text}; }
+  .ee-fixed span { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ee-fixed small { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: ${colors.textFaded}; }
+  .ee-fixed:hover small { color: ${colors.text}; }
+  .ee-look { display: grid; gap: 10px; padding: 12px 14px; border-radius: 12px; background: ${colors.surfaceMuted}; border: 1px solid ${colors.border}; }
+  .ee-look-head { margin: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: ${colors.textFaded}; }
+  .ee-look-row { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 10px; }
+  .ee-look-row > span { font-size: 12.5px; font-weight: 600; color: ${colors.textSubtle}; }
+  .ee-swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+  .ee-swatches button, .ee-swatch-own { width: 24px; height: 24px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.18); padding: 0; cursor: pointer; position: relative; box-sizing: border-box; }
+  .ee-swatches .is-on { outline: 2px solid ${colors.text}; outline-offset: 2px; }
+  .ee-swatch-own { background: conic-gradient(#ec178f, #f5a623, #a3e635, #22d3ee, #6366f1, #ec178f); overflow: hidden; }
+  .ee-swatch-own input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .ee-fonts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ee-fonts button { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1px solid ${colors.borderStrong}; background: #fff; color: ${colors.text}; cursor: pointer; }
+  .ee-fonts button.is-on { background: ${colors.text}; border-color: ${colors.text}; color: #fff; }
 `;

@@ -82,6 +82,8 @@ const EN = {
   "inbjudningar": "invitations", "Ja": "Yes", "Nej": "No",
   // ─── mail module ───
   "Utskick görs från varumärkena": "Mail is sent from the brands", "Mejla som": "Mail as",
+  "Content": "Content", "Ändra i Praktiskt →": "Change in Practical →", "Bakgrund": "Background", "Typsnitt": "Font", "Visa namnet på sidan": "Show the name on the page",
+  "Titeln visas inte": "The title is hidden", "Platsen avslöjas senare": "The place is revealed later", "Ingen plats än": "No place yet", "Datumet avslöjas senare": "The date is revealed later", "Ingen tid än": "No time yet", "Rund": "Rounded",
   "Mottagare": "Recipients", "Design": "Design", "Inbjudan till event": "Event invitation", "Uppföljning efter event": "Event follow-up",
   "Välj en mall ovan för att börja.": "Pick a template above to start.", "Välj en mall under Design för att börja.": "Pick a template under Design to start.",
   "— välj mall —": "— pick a template —", "— välj event —": "— pick an event —", "Alla i CRM:et – eller välj event": "Everyone in the CRM – or pick events",

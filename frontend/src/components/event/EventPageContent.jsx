@@ -163,13 +163,13 @@ export function EventPageContent({
   if (!sections || sections.length === 0) {
     return (
       <>
-        {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "#fff", margin: "0 0 12px 0" }}>{title}</h1>}
-        {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.6, marginBottom: "4px" }}>{locationNode({ color: "#fff" })}</div>}
-        {showCoordinates && !hideLocation && locationLat != null && locationLng != null && <div style={{ marginBottom: "4px" }}><CoordCopy lat={locationLat} lng={locationLng} color="#fff" /></div>}
-        {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
-        {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", marginBottom: "20px" }}>{formattedDate}</div>}
-        {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "#a3e635", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
-        {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "#fff", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
+        {title && <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: "var(--pg-ink, #fff)", margin: "0 0 12px 0" }}>{title}</h1>}
+        {location && !hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--pg-ink, #fff)", opacity: 0.6, marginBottom: "4px" }}>{locationNode({ color: "var(--pg-ink, #fff)" })}</div>}
+        {showCoordinates && !hideLocation && locationLat != null && locationLng != null && <div style={{ marginBottom: "4px" }}><CoordCopy lat={locationLat} lng={locationLng} color="var(--pg-ink, #fff)" /></div>}
+        {hideLocation && <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--pg-ink, #fff)", opacity: 0.35, marginBottom: "4px", fontStyle: "italic" }}>{locationTba}</div>}
+        {formattedDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--pg-date, #a3e635)", marginBottom: "20px" }}>{formattedDate}</div>}
+        {hideDate && <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--pg-date, #a3e635)", opacity: 0.5, marginBottom: "20px", fontStyle: "italic" }}>{dateTba}</div>}
+        {description && <div style={{ marginBottom: "24px" }}><p style={{ fontSize: "15px", lineHeight: "1.6", color: "var(--pg-ink, #fff)", opacity: 0.85, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{description}</p></div>}
         {!editable && (productDelivery || purchaseRsvpId) && (
           <ProductDelivery productDelivery={productDelivery} purchaseRsvpId={purchaseRsvpId} />
         )}
@@ -198,32 +198,32 @@ export function EventPageContent({
           cursor: editable ? "pointer" : undefined,
           marginBottom: i === sections.length - 1 ? 0 : section.type === "location" ? "4px" : "16px",
           borderRadius: "4px",
-          outline: (isHovered || editLit) ? `1px solid ${editLit ? "#ffffff" : "rgba(255, 255, 255, 0.35)"}` : "1px solid transparent",
+          outline: (isHovered || editLit) ? `1px solid ${editLit ? "var(--pg-ink, #fff)" : "rgba(var(--pg-ink-rgb, 255,255,255), 0.35)"}` : "1px solid transparent",
           outlineOffset: "4px",
           transition: "outline-color 0.15s ease",
         }}>
           {editLit && (
-            <span style={{ position: "absolute", top: -10, right: -2, zIndex: 5, fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#0a0a0a", background: "#ffffff", padding: "2px 7px", borderRadius: "999px", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}>
+            <span style={{ position: "absolute", top: -10, right: -2, zIndex: 5, fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--pg-bg, #0a0a0a)", background: "var(--pg-ink, #fff)", padding: "2px 7px", borderRadius: "999px", pointerEvents: "none", boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}>
               Edit
             </span>
           )}
           {section.type === "title" ? (
-            title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: sColor || "#fff", fontFamily: sFamily, margin: 0 }}>{title}</h1> : null
+            title ? <h1 style={{ fontSize: "clamp(22px, 6vw, 30px)", fontWeight: 800, lineHeight: "1.2", color: sColor || "var(--pg-ink, #fff)", fontFamily: sFamily, margin: 0 }}>{title}</h1> : null
 
           ) : section.type === "location" ? (
             hideLocation
-              ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
+              ? <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "var(--pg-ink, #fff)", fontFamily: sFamily, opacity: 0.35, fontStyle: "italic" }}>{locationTba}</div>
               : (location || (showCoordinates && locationLat != null && locationLng != null)) ? (
                   <>
-                    {location && <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "#fff", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "#fff" })}</div>}
-                    {showCoordinates && locationLat != null && locationLng != null && <CoordCopy lat={locationLat} lng={locationLng} color={sColor || "#fff"} />}
+                    {location && <div style={{ fontSize: "14px", fontWeight: 500, color: sColor || "var(--pg-ink, #fff)", fontFamily: sFamily, opacity: 0.6 }}>{locationNode({ color: sColor || "var(--pg-ink, #fff)" })}</div>}
+                    {showCoordinates && locationLat != null && locationLng != null && <CoordCopy lat={locationLat} lng={locationLng} color={sColor || "var(--pg-ink, #fff)"} />}
                   </>
                 ) : null
 
           ) : section.type === "datetime" ? (
             hideDate
-              ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#a3e635", fontFamily: sFamily, opacity: 0.5, fontStyle: "italic" }}>{dateTba}</div>
-              : formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#a3e635", fontFamily: sFamily }}>{formattedDate}</div> : null
+              ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "var(--pg-date, #a3e635)", fontFamily: sFamily, opacity: 0.5, fontStyle: "italic" }}>{dateTba}</div>
+              : formattedDate ? <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "var(--pg-date, #a3e635)", fontFamily: sFamily }}>{formattedDate}</div> : null
 
           ) : section.type === "spotify" && section.url ? (
             (() => {
@@ -259,39 +259,39 @@ export function EventPageContent({
 
           ) : section.type === "socials" ? (
             <div style={{ display: "flex", gap: "14px" }}>
-              {section.instagram && <a href={section.instagram} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaInstagram size={18} /></a>}
-              {section.spotify && <a href={section.spotify} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSpotify size={18} /></a>}
-              {section.tiktok && <a href={section.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaTiktok size={18} /></a>}
-              {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "#fff", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
+              {section.instagram && <a href={section.instagram} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pg-ink, #fff)", opacity: 0.6, display: "inline-flex" }}><FaInstagram size={18} /></a>}
+              {section.spotify && <a href={section.spotify} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pg-ink, #fff)", opacity: 0.6, display: "inline-flex" }}><FaSpotify size={18} /></a>}
+              {section.tiktok && <a href={section.tiktok} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pg-ink, #fff)", opacity: 0.6, display: "inline-flex" }}><FaTiktok size={18} /></a>}
+              {section.soundcloud && <a href={section.soundcloud} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pg-ink, #fff)", opacity: 0.6, display: "inline-flex" }}><FaSoundcloud size={18} /></a>}
             </div>
 
           ) : section.type === "hostedby" && section.name ? (
             <div style={{
               display: "flex", alignItems: "center", gap: "14px",
               padding: "14px 16px", borderRadius: "8px",
-              background: "rgba(255, 255, 255, 0.04)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "rgba(var(--pg-ink-rgb, 255,255,255), 0.04)",
+              border: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)",
               fontFamily: sFamily,
             }}>
               {section.logo && (
                 <img src={section.logo} alt="" style={{
                   width: "40px", height: "40px", borderRadius: "6px",
-                  objectFit: "contain", padding: "4px", background: "rgba(255,255,255,0.04)",
+                  objectFit: "contain", padding: "4px", background: "rgba(var(--pg-ink-rgb, 255,255,255), 0.04)",
                   flexShrink: 0,
                 }} />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: sColor || "rgba(255,255,255,0.35)", opacity: sColor ? 0.6 : 1, marginBottom: "2px" }}>Hosted by</div>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "#fff" }}>{section.name}</div>
+                <div style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: sColor || "rgba(var(--pg-ink-rgb, 255,255,255), 0.35)", opacity: sColor ? 0.6 : 1, marginBottom: "2px" }}>Hosted by</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: sColor || "var(--pg-ink, #fff)" }}>{section.name}</div>
                 {(section.email || section.website) && (
                   <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
                     {section.email && (
-                      <a href={`mailto:${section.email}`} style={{ fontSize: "12px", color: sColor || "rgba(255,255,255,0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
+                      <a href={`mailto:${section.email}`} style={{ fontSize: "12px", color: sColor || "rgba(var(--pg-ink-rgb, 255,255,255), 0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
                         {section.email}
                       </a>
                     )}
                     {section.website && (
-                      <a href={section.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: sColor || "rgba(255,255,255,0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
+                      <a href={section.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: sColor || "rgba(var(--pg-ink-rgb, 255,255,255), 0.45)", opacity: sColor ? 0.75 : 1, textDecoration: "none" }}>
                         {section.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
                       </a>
                     )}
@@ -302,8 +302,8 @@ export function EventPageContent({
 
           ) : (
             <>
-              {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: sColor || "#fff", fontFamily: sFamily, margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}
-              {section.text && <p style={{ fontSize: "15px", lineHeight: "1.6", color: sColor || "#fff", fontFamily: sFamily, opacity: 0.8, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{section.text}</p>}
+              {section.title && <h3 style={{ fontSize: "16px", fontWeight: 700, color: sColor || "var(--pg-ink, #fff)", fontFamily: sFamily, margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{section.title}</h3>}
+              {section.text && <p style={{ fontSize: "15px", lineHeight: "1.6", color: sColor || "var(--pg-ink, #fff)", fontFamily: sFamily, opacity: 0.8, margin: 0, whiteSpace: "pre-line", wordWrap: "break-word", overflowWrap: "break-word" }}>{section.text}</p>}
             </>
           )}
         </div>

@@ -33,6 +33,7 @@ export function pageProps(event, { rsvpContent = null } = {}) {
     hideSignup: !!signup.hidden,
     signupLabel: signup.label || null,
     signupCta: signup.cta || null,
+    look: event.look || null,
   };
 }
 

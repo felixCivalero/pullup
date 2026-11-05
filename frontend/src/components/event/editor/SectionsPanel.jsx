@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Clock } from "lucide-react";
 import { compressImage, validateImageFile } from "../lib/imageUtils.js";
-import { formatReadableDateTime, formatRelativeTime } from "../lib/dateUtils.js";
-import { fromZonedInput, toZonedInput } from "../../../lib/zonedTime.js";
-import { Toggle } from "./editorUi.jsx";
+import { formatReadableDateTime } from "../lib/dateUtils.js";
 import { useEventBrand } from "../../../lib/brand.js";
-import { PlaceField } from "./PlaceField.jsx";
+import { LOOK_COLORS, LOOK_FONTS, fontOf, loadLookFont } from "../look.js";
 
-/* The page body: reorderable content blocks (the old app's sections
-   builder, branch pullup-app CreateEventPage step 2). Title, place and time
-   are fixed blocks that edit the event's own fields; the rest — text,
+/* 03 Innehåll: the page's look on top (background, font), then the page
+   body as reorderable blocks (the old app's sections builder, branch
+   pullup-app CreateEventPage step 2). Title, place and time are fixed blocks,
+   edited in 01 Praktiskt and only placed here; the rest — text,
    Spotify, Apple Music, SoundCloud, YouTube, social links, hosted by — can be
    added, moved (arrows or drag) and removed. Hovering a block outlines it in
    the preview. */
@@ -44,7 +42,15 @@ function youtubeId(url) {
   return null;
 }
 
-export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex = null }) {
+// What a fixed block shows on the page, in one line.
+function fixedSummary(type, draft, tz) {
+  if (type === "title") return draft.titleSettings?.visible === false ? "Titeln visas inte" : draft.title || "Utan titel";
+  if (type === "location") return draft.hideLocation ? draft.revealHint || "Platsen avslöjas senare" : draft.location || "Ingen plats än";
+  if (draft.hideDate) return draft.dateRevealHint || "Datumet avslöjas senare";
+  return draft.startsAt ? formatReadableDateTime(new Date(draft.startsAt), tz) : "Ingen tid än";
+}
+
+export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex = null, onPractical = null }) {
   // A block to start writing in (the flow's first text block): its heading
   // gets the cursor and the block comes into view.
   const panelRef = useRef(null);
@@ -76,6 +82,7 @@ export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex =
 
   return (
     <div className="ee-panel" ref={panelRef}>
+      <LookBox look={draft.look} onChange={(look) => update({ look })} />
       {sections.map((section, i) => (
         <div
           key={i}
@@ -117,38 +124,13 @@ export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex =
             )}
           </div>
 
-          {section.type === "title" ? (
-            <>
-              <input className="ee-bare is-title" value={draft.title || ""} onChange={(e) => update({ title: e.target.value })} placeholder="Eventets namn" />
-              <div style={{ marginTop: 8 }}>
-                <Toggle on={draft.titleSettings?.visible !== false} onChange={(v) => update({ titleSettings: { ...(draft.titleSettings || {}), visible: v } })} label="Visa titeln på sidan" />
-              </div>
-            </>
-          ) : section.type === "location" ? (
-            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <PlaceField value={draft} onChange={(p) => update(p)} inputClassName="ee-input" placeholder="Var är eventet? Sök adress eller ställe" />
-              <Toggle on={!!draft.hideLocation} onChange={(v) => update({ hideLocation: v })} label="Avslöja platsen senare" />
-              {draft.hideLocation && (
-                <input className="ee-input" maxLength={80} value={draft.revealHint || ""} onChange={(e) => update({ revealHint: e.target.value })} placeholder="t.ex. Platsen släpps på fredag" />
-              )}
-            </div>
-          ) : section.type === "datetime" ? (
-            <div style={{ display: "grid", gap: 2, marginTop: 4 }}>
-              {[["startsAt", "Start"], ["endsAt", "Slut (valfritt)"]].map(([k, l]) => (
-                <label key={k} className="ee-when">
-                  <input type="datetime-local" value={toZonedInput(draft[k], tz)} onChange={(e) => update({ [k]: e.target.value ? fromZonedInput(e.target.value, tz) : null })} />
-                  <Clock size={16} />
-                  {draft[k] ? <span>{formatReadableDateTime(new Date(draft[k]), tz)}</span> : <span className="is-empty">{l}</span>}
-                  {draft[k] && <small style={{ marginLeft: "auto", fontSize: 11, opacity: 0.6 }}>{formatRelativeTime(new Date(draft[k]))}</small>}
-                </label>
-              ))}
-              <div style={{ marginTop: 6 }}>
-                <Toggle on={!!draft.hideDate} onChange={(v) => update({ hideDate: v })} label="Avslöja datumet senare" hint={draft.hideDate ? "Datumet ovan används bara för sortering och påminnelser. Sidan visar din ledtråd." : null} />
-              </div>
-              {draft.hideDate && (
-                <input className="ee-input" style={{ marginTop: 8 }} maxLength={80} value={draft.dateRevealHint || ""} onChange={(e) => update({ dateRevealHint: e.target.value })} placeholder="t.ex. Datum kommer snart" />
-              )}
-            </div>
+          {FIXED.has(section.type) ? (
+            // Title, place and time are set in 01 Praktiskt: here they're
+            // only placed on the page.
+            <button type="button" className="ee-fixed" onClick={() => onPractical?.()}>
+              <span>{fixedSummary(section.type, draft, tz)}</span>
+              <small>Ändra i Praktiskt →</small>
+            </button>
           ) : section.type === "spotify" ? (
             <Embed value={section.url} onChange={(url) => setAt(i, { url })} placeholder="Klistra in en Spotify-länk (låt, album, artist eller spellista)">
               {section.url?.includes("spotify.com") && (
@@ -219,6 +201,37 @@ export function SectionsPanel({ draft, update, hovered, setHovered, focusIndex =
               <b>{a.icon}</b>
               <span>{a.label}</span>
             </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The page's look, small, on top: background colour and font (look.js).
+function LookBox({ look, onChange }) {
+  const cur = look || { bg: "#05040a" };
+  const set = (patch) => onChange({ ...cur, ...patch });
+  const font = fontOf(cur).id;
+  return (
+    <div className="ee-look">
+      <p className="ee-look-head">Design</p>
+      <div className="ee-look-row">
+        <span>Bakgrund</span>
+        <div className="ee-swatches">
+          {LOOK_COLORS.map((c) => (
+            <button key={c.bg} type="button" title={c.label} aria-label={c.label} className={cur.bg === c.bg ? "is-on" : ""} style={{ background: c.bg }} onClick={() => set({ bg: c.bg })} />
+          ))}
+          <label className={`ee-swatch-own${LOOK_COLORS.some((c) => c.bg === cur.bg) ? "" : " is-on"}`} title="Egen färg" style={{ background: LOOK_COLORS.some((c) => c.bg === cur.bg) ? undefined : cur.bg }}>
+            <input type="color" value={cur.bg || "#05040a"} onChange={(e) => set({ bg: e.target.value })} />
+          </label>
+        </div>
+      </div>
+      <div className="ee-look-row">
+        <span>Typsnitt</span>
+        <div className="ee-fonts">
+          {LOOK_FONTS.map((f) => (
+            <button key={f.id} type="button" className={font === f.id ? "is-on" : ""} style={{ fontFamily: f.stack }} onMouseEnter={() => loadLookFont({ font: f.id })} onClick={() => { loadLookFont({ font: f.id }); set({ font: f.id }); }}>{f.label}</button>
           ))}
         </div>
       </div>

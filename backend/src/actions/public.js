@@ -24,7 +24,7 @@ export const aboutPullup = defineAction({
     site: getFrontendUrl(),
     what: "A free event platform for organisers: publish an event page, take sign-ups (with confirmation mail and calendar invite), keep a guest list and a CRM of everyone who came, and mail them. It is also the site of Felix Civalero, who runs content and community for brands.",
     free: ["event pages", "sign-ups and confirmations", "calendar invites", "guest list and CRM", "statistics (visits, sources, conversion, returning guests)", "several brands per account, brands under a main brand, teams", "one reminder before an event"],
-    brands: "One account runs several brands; brands can sit under a main brand (one level). The main brand is their admin: all their events, their whole CRM (who said yes to which brand) and their statistics; a team invited to it works in all of them. Events are made in, and mail is sent from, the brands themselves.",
+    brands: "One account runs several brands; brands can sit under a main brand (one level). The main brand is their admin: all their events, their whole CRM (who said yes to which brand) and their statistics; a team invited to it works in all of them. It can make events of its own, and its mail reaches everyone who said yes to it or to any brand under it; a brand under it mails only its own.",
     paid: {
       what: "Mail you send to many people at once (invitations, newsletters, follow-ups) is paid in packs; each recipient uses one credit. Credits never expire. Prices exclude VAT.",
       packs: PACKS.map((p) => ({ pack: p.id, mails: p.mails, priceSek: p.priceSek })),

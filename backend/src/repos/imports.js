@@ -5,10 +5,9 @@
 // the import page) is part of every import and is kept with it.
 import { supabase } from "../supabase.js";
 import { ActionError } from "../lib/actionError.js";
-import { brandScope, currentBrand, isTeam } from "../lib/brands.js";
+import { currentBrand, isTeam } from "../lib/brands.js";
 import { isValidEmail, normalizeEmail } from "../lib/emailAddress.js";
 import { normalizeInstagram, normalizePhone } from "../lib/eventForm.js";
-import { brandsUnder } from "./hostEvents.js";
 
 export const DPA_VERSION = "2026-11-03";
 export const MAX_IMPORT_ROWS = 20000;
@@ -52,10 +51,6 @@ export async function importContacts(caller, input = {}) {
     throw new ActionError("not_found", "No brand of yours with that id or name.", { detail: "brand" });
   }
   if (!isTeam(brand)) throw new ActionError("forbidden", "Contacts are brought in by the brand's team.", { detail: "team" });
-  const { brands } = await brandScope(scoped);
-  if (brandsUnder(brands, brand).length) {
-    throw new ActionError("invalid", `${brand.name} is the main brand over other brands: bring contacts into one of them (consent is per brand).`, { detail: "umbrella" });
-  }
   const source = clip(input.source, 200);
   if (!source) throw new ActionError("invalid", "Say where the list comes from (and how they said yes).", { detail: "source" });
   const { rows, invalid, duplicates } = cleanRows(input.rows, input.allConsent === true);

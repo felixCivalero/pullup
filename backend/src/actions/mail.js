@@ -138,7 +138,7 @@ export const buyMailCredits = defineAction({
 export const importContactsAction = defineAction({
   name: "import_contacts",
   title: "Bring in a brand's contacts",
-  description: `Bring a brand's own contacts into its CRM (an old newsletter list, a customer register): name, email, phone, Instagram, and whether each said yes to mail from this brand (consent is per brand; a yes is never taken back by an import). Say where the list comes from and how they said yes (source). The organiser must have read and accepted PullUp's data processing agreement (shown at pullup.se/admin/people/import, version ${DPA_VERSION}): pass dpaAccepted only when they have. Into a brand, not a main brand over other brands.`,
+  description: `Bring a brand's own contacts into its CRM (an old newsletter list, a customer register): name, email, phone, Instagram, and whether each said yes to mail from this brand (consent is per brand; a yes is never taken back by an import). Say where the list comes from and how they said yes (source). The organiser must have read and accepted PullUp's data processing agreement (shown at pullup.se/admin/people/import, version ${DPA_VERSION}): pass dpaAccepted only when they have. Into a brand or a main brand (a yes to the main brand).`,
   access: "user",
   effect: "write",
   input: z.object({

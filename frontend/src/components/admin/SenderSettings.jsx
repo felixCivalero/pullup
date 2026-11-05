@@ -5,7 +5,7 @@ import { useCurrentBrand } from "../../lib/brand.js";
 /* The brand's mail sender (backend lib/senders.js): its own address on its
    own domain — verified by adding the DNS records shown — or, until then,
    no-reply@pullup.se under the brand's name. And where replies land. Set by
-   the brand's owner; a main brand over other brands sends nothing itself. */
+   the brand's owner (a main brand too: it sends its own mail). */
 export function SenderSettings() {
   const brand = useCurrentBrand();
   const [s, setS] = useState(null);
@@ -23,7 +23,7 @@ export function SenderSettings() {
     }).catch(() => {});
   }, []);
   useEffect(() => { load(); }, [load]);
-  if (!brand || brand.role !== "head" || brand.under?.length || !s) return null;
+  if (!brand || brand.role !== "head" || !s) return null;
 
   const call = async (path, method, body) => {
     setBusy(true);

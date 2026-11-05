@@ -162,7 +162,7 @@ export const createEventAction = defineAction({
   name: "create_event",
   title: "Create an event",
   description:
-    "Create an event page in a brand (under a main brand: give one of the brands under it). It starts as a DRAFT that only the organiser sees; call publish_event when they want it live. Give times as the clock shows them in the event's time zone. Returns the event with its share link and the page where the person can design it.",
+    "Create an event page in a brand (a main brand can hold its own events, e.g. a company day, or give one of the brands under it). It starts as a DRAFT that only the organiser sees; call publish_event when they want it live. Give times as the clock shows them in the event's time zone. Returns the event with its share link and the page where the person can design it.",
   access: "user",
   effect: "write",
   input: z.object({
@@ -335,7 +335,7 @@ export const removeEventImage = defineAction({
 export const moveEventAction = defineAction({
   name: "move_event",
   title: "Move an event to another brand",
-  description: "Move one of the account's events to another of its brands (e.g. an event made on Nigab before Aperol existed, into Aperol). Its guests and their yes to invitations go with it. Within one account, by its team; a main brand over other brands holds no events.",
+  description: "Move one of the account's events to another of its brands (e.g. an event made on Nigab before Aperol existed, into Aperol). Its guests and their yes to invitations go with it. Within one account, by its team; a main brand can hold events of its own too.",
   access: "user",
   effect: "write",
   idempotent: true,

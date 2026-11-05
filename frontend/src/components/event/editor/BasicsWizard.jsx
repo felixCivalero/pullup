@@ -10,7 +10,8 @@ import { FormBuilder } from "./FormBuilder.jsx";
    designing" creates the event (a draft) and opens the editor, where the page
    itself is designed. A main brand with brands under it is first asked whose
    event it is (`brands`: the ones under it, `root`: the main brand's name,
-   drawn on top as the admin it is, not a choice). */
+   drawn on top; with `rootId` the main brand is a choice too: its own
+   events, e.g. a company day). */
 const WHOSE = { key: "whose", icon: Network, eyebrow: "Varumärke", q: "Vems event är det?" };
 const STEPS = [
   { key: "name", icon: Type, eyebrow: "Grunderna", q: "Vad heter eventet?" },
@@ -19,12 +20,12 @@ const STEPS = [
   { key: "who", icon: Users, eyebrow: "Anmälan", q: "Vem kommer, och vad vill ni veta?" },
 ];
 
-export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], root = "", brandId = "" }) {
-  const choose = brands.length > 1;
+export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brands = [], root = "", rootId = "", brandId = "" }) {
+  const choose = brands.length > 1 || (!!rootId && brands.length > 0);
   const steps = choose ? [WHOSE, ...STEPS] : STEPS;
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ title: "", start: "", end: "", location: "", locationLat: null, locationLng: null, placeId: null, capacity: "", form: { phone: "off", instagram: "off", plusOnes: 0, questions: [] } });
-  const [whose, setWhose] = useState(brandId || (brands.length === 1 ? brands[0].id : ""));
+  const [whose, setWhose] = useState(brandId || (brands.length === 1 && !rootId ? brands[0].id : ""));
   const firstRef = useRef(null);
   const cur = steps[step];
   useEffect(() => { if (cur.key === "name") firstRef.current?.focus(); }, [cur.key]);
@@ -32,7 +33,7 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
   const last = step === steps.length - 1;
   const canNext = cur.key === "whose" ? !!whose : cur.key === "name" ? !!f.title.trim() : cur.key === "when" ? !!f.start : true;
   const skippable = cur.key === "where" || cur.key === "who";
-  const whoseName = brands.find((b) => b.id === whose)?.name;
+  const whoseName = whose && whose === rootId ? root : brands.find((b) => b.id === whose)?.name;
 
   const next = () => {
     if (!canNext || busy) return;
@@ -69,7 +70,18 @@ export function BasicsWizard({ onDone, onCancel, busy = false, error = "", brand
           // The umbrella, as in the onboarding: the main brand on top, the
           // brands under it hanging below. A tap picks and moves on.
           <div className="bw-tree">
-            {root && (
+            {root && rootId && (
+              <button
+                type="button"
+                className={`bw-node is-main${whose === rootId ? " is-on" : ""}`}
+                onClick={() => { setWhose(rootId); setStep(step + 1); }}
+              >
+                <span className="bw-node-name">{root}</span>
+                <span className="bw-node-sub">Huvudkonto · eget event</span>
+                {whose === rootId && <Check size={16} className="bw-node-check" />}
+              </button>
+            )}
+            {root && !rootId && (
               <div className="bw-node is-main is-root">
                 <span className="bw-node-name">{root}</span>
                 <span className="bw-node-sub">Huvudkonto · admin</span>

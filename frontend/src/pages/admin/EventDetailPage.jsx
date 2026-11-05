@@ -155,9 +155,8 @@ function DeleteEvent({ ev }) {
 }
 
 // Which brand the event belongs to, and moving it to another of the
-// account's brands (backend moveEvent). An event left on a main brand over
-// other brands (made before they existed) is pointed out: its guests can't be
-// mailed until it sits in one of them.
+// account's brands (backend moveEvent), the main brand included: it holds
+// events of its own too.
 function MoveBrand({ ev, onMoved }) {
   const brand = useCurrentBrand();
   const all = brand?.all || [];
@@ -165,10 +164,8 @@ function MoveBrand({ ev, onMoved }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const own = all.find((b) => b.id === ev.brandId);
-  const isMain = (b) => all.some((x) => x.parentId === b.id);
-  const targets = all.filter((b) => b.id !== ev.brandId && b.role !== "event" && !isMain(b) && (!own || b.role === own.role));
+  const targets = all.filter((b) => b.id !== ev.brandId && b.role !== "event" && (!own || b.role === own.role));
   if (!own || own.role === "event" || !targets.length) return null;
-  const stuck = isMain(own);
   const move = async () => {
     if (!to) return;
     setBusy(true);
@@ -186,12 +183,8 @@ function MoveBrand({ ev, onMoved }) {
     }
   };
   return (
-    <div className={`ed-move${stuck ? " is-stuck" : ""}`}>
-      <p>
-        {stuck
-          ? <>Det här eventet ligger på huvudkontot <b>{own.name}</b>. Flytta det till ett av varumärkena så kan gästerna mejlas.</>
-          : <>Hör till <b>{own.name}</b>.</>}
-      </p>
+    <div className="ed-move">
+      <p>Hör till <b>{own.name}</b>.</p>
       <select className="ea-input" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Flytta till varumärke">
         <option value="">Flytta till…</option>
         {targets.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -544,7 +537,6 @@ const DETAIL_CSS = `
   .ed-move select { width: auto; min-width: 160px; padding: 7px 10px; font-size: 13.5px; }
   .ed-move .ea-btn { padding: 7px 14px; }
   .ed-move .ea-error { flex-basis: 100%; margin: 0; }
-  .ed-move.is-stuck { background: #fdeef6; border: 1px solid rgba(236,23,143,0.35); }
   .ed-statsec > h2 { margin: 0 0 12px; }
   .ed-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
   .ed-stats > div { border: 1px solid rgba(0,0,0,0.1); border-radius: 14px; padding: 12px 14px; display: grid; gap: 2px; }

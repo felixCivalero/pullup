@@ -86,7 +86,7 @@ export function Onboarding({ email, invites, onDone }) {
           <p className="ob-count">2 / 2</p>
           <h1>{`Har ${top} varumärken under sig?`}</h1>
           <p className="ob-sub">
-            {`Lägg till dem här så blir ${top} huvudkontot: admin över allt, med alla event och hela CRM:et samlat. Eventen och utskicken görs i varumärkena, och den du bjuder in till ${top} jobbar i alla.`}
+            {`Lägg till dem här så blir ${top} huvudkontot: admin över allt, med alla event och hela CRM:et samlat. ${top} kan ha egna event och mejla alla som sagt ja till något av varumärkena, och den du bjuder in till ${top} jobbar i alla.`}
           </p>
 
           <div className="oc" aria-label={`Organisationen ${top}`}>

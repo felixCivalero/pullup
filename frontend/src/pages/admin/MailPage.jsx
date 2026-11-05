@@ -9,7 +9,7 @@ import ConfirmSendDialog from "../../components/crm/ConfirmSendDialog";
 import CrmSegment from "../../components/crm/CrmSegment";
 import { colors } from "../../components/crm/mailColors.js";
 import { AdminShell } from "./AdminShell.jsx";
-import { setCurrentBrandId, useCurrentBrand } from "../../lib/brand.js";
+import { useCurrentBrand } from "../../lib/brand.js";
 import { CreditsLine, CreditsPaywall } from "../../components/admin/EmailCredits.jsx";
 import { useEmailCredits } from "../../components/admin/useEmailCredits.js";
 
@@ -78,49 +78,16 @@ function validateBlocksClient(blocks) {
 export function MailPage() {
   return (
     <AdminShell title="Mejl" fill>
-      <MailGate />
+      <MailComposer />
     </AdminShell>
   );
 }
 
-// The main brand of an umbrella sends nothing itself: a guest's yes was to
-// one brand, so mail goes out from that brand. It points the way there.
-function MailGate() {
-  const brand = useCurrentBrand();
-  if (!brand?.under?.length) return <MailComposer />;
-  return (
-    <div className="mg">
-      <style>{MAIL_GATE_CSS}</style>
-      <p className="mg-kicker">{brand.name} · Huvudkonto</p>
-      <h1>Utskick görs från varumärkena</h1>
-      <p className="mg-sub">
-        En gäst har sagt ja till ett varumärke, inte till hela {brand.name}. Därför mejlar varje varumärke sina egna.
-        Som huvudkonto ser du hela CRM:et och vem som sagt ja till vad.
-      </p>
-      <div className="mg-list">
-        {brand.under.map((b) => (
-          <button key={b.id} type="button" onClick={() => setCurrentBrandId(b.id)}>
-            <span>Mejla som <b>{b.name}</b></span>
-            <span aria-hidden="true">→</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const MAIL_GATE_CSS = `
-  .mg { width: min(560px, 100%); margin: 64px auto; padding: 0 20px; box-sizing: border-box; font-family: inherit; }
-  .mg-kicker { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #8a8a8e; }
-  .mg h1 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.03em; }
-  .mg-sub { margin: 0 0 22px; color: #6e6e73; line-height: 1.55; font-size: 15px; }
-  .mg-list { display: grid; gap: 8px; }
-  .mg-list button { font: inherit; display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(0,0,0,0.12); background: linear-gradient(180deg, #f6f5f2, #e9e8e4); color: #0a0a0a; cursor: pointer; font-size: 15px; }
-  .mg-list button:hover { border-color: #0a0a0a; }
-`;
-
 function MailComposer() {
   const { showToast } = useToast();
+  // A main brand mails everyone who said yes to it or to any brand under it.
+  const umbrella = useCurrentBrand();
+  const under = umbrella?.under?.length ? umbrella.under : [];
   const [searchParams] = useSearchParams();
   const initialEventId = searchParams.get("event") || "";
   const [activeTab, setActiveTab] = useState(initialEventId ? "email" : "segment");
@@ -353,6 +320,11 @@ function MailComposer() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+            {activeTab === "segment" && under.length > 0 && (
+              <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.5, color: colors.textSubtle }}>
+                {`Som ${umbrella.name} når du alla som sagt ja till ${umbrella.name} eller till ${under.map((b) => b.name).join(", ")}. Mejlet går ut i namnet ${umbrella.name}.`}
+              </p>
+            )}
             {activeTab === "segment" && <CrmSegment segment={segment} setSegment={setSegment} total={total} />}
             {activeTab === "email" && (
               <EmailPanel

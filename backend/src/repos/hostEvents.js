@@ -74,7 +74,10 @@ export async function loadWorld(caller) {
   const { brands, brand } = await brandScope(caller);
   if (!brand) return { events: [], rsvps: [], people: [], pullups: [] };
   // A main brand (an umbrella) holds the CRM of every brand under it: one
-  // list, each person saying which brands they said yes to.
+  // list, each person saying which brands they said yes to. A yes to any
+  // brand under it counts as a yes to the main brand too (Felix 2026-11-05:
+  // Nigab mails everyone who said yes to Aperol, Jägermeister…), while a
+  // brand under it reaches only its own.
   const under = brandsUnder(brands, brand);
   const events = await selectAllPaged(() => {
     const q = ofKindEvent(supabase.from("events").select(EVENT_COLUMNS));
@@ -258,15 +261,6 @@ export function brandsUnder(brands, brand) {
   return brands.filter((b) => b.parent_id === brand.id && b.hostId === brand.hostId && isTeam(b));
 }
 
-// A main brand with brands under it is the admin of them: it sees all their
-// events and their whole CRM, but events are made in, and mail goes out from,
-// the brands themselves (a guest's yes was to that brand).
-async function umbrellaOf(caller) {
-  if (caller.isOwner) return null;
-  const { brands, brand } = await brandScope(caller);
-  return brandsUnder(brands, brand).length ? brand : null;
-}
-
 export async function listEvents(caller) {
   const { brands, brand } = caller.isOwner ? {} : await brandScope(caller);
   if (!caller.isOwner && !brand) return [];
@@ -301,10 +295,6 @@ export async function createEvent(caller, body) {
     throw new ActionError("not_found", "No brand of yours with that id.", { detail: "brand" });
   }
   if (!isTeam(brand)) throw new ActionError("forbidden", `You co-host single events in ${brand.name}; new events there are made by its team.`, { detail: "cohost" });
-  const scoped = body?.brandId ? inBrandStrict(caller, brand.id) : caller;
-  if (await umbrellaOf(scoped)) {
-    throw new ActionError("invalid", `${brand.name} is the main brand over other brands: make the event in one of them (brand: their name or id).`, { detail: "umbrella" });
-  }
   if (!caller.isOwner && brand.hostId === caller.hostId) await ensureHostProfile(caller.hostId);
   const row = {
     host_id: brand.hostId,
@@ -342,7 +332,7 @@ export async function updateEvent(caller, id, body) {
 // Move an event to another of the account's brands (an event made on a main
 // brand before it had brands under it, or simply in the wrong brand). Its
 // guests and their yes go with it: they signed up to that event. Only within
-// one account, only by its team, never onto a main brand over other brands.
+// one account, only by its team (a main brand can hold events of its own).
 export async function moveEvent(caller, id, brandRef) {
   const ev = await eventFor(caller, id);
   if (caller.isOwner && ev.host_id !== caller.hostId) throw new ActionError("forbidden", "Only the organiser can move this event.");
@@ -353,7 +343,6 @@ export async function moveEvent(caller, id, brandRef) {
   const from = brands.find((b) => b.id === ev.brand_id);
   if (!isTeam(to) || (from && !isTeam(from))) throw new ActionError("forbidden", "Events are moved by the brands' team.", { detail: "team" });
   if (to.hostId !== ev.host_id) throw new ActionError("invalid", "An event moves between brands of the same account only.", { detail: "account" });
-  if (brandsUnder(brands, to).length) throw new ActionError("invalid", `${to.name} is the main brand over other brands and holds no events of its own: move it to one of them.`, { detail: "umbrella" });
   if (to.id === ev.brand_id) return eventShape(ev, caller);
   const { data, error } = await supabase.from("events").update({ brand_id: to.id }).eq("id", ev.id).select(EVENT_COLUMNS).single();
   if (error) throw error;
@@ -469,16 +458,8 @@ async function sendScope(caller, audience) {
   return ev.brand_id ? { ...caller, requestedBrand: ev.brand_id, _brandScope: null } : caller;
 }
 
-async function noUmbrellaMail(caller) {
-  const main = await umbrellaOf(caller);
-  if (main) {
-    throw new ActionError("forbidden", `${main.name} is the main brand: mail goes out from each brand under it, to the people who said yes to that brand. An event that sits on ${main.name} itself: move it to one of its brands first (move_event).`, { detail: "umbrella" });
-  }
-}
-
 export async function previewSend(callerIn, audience) {
   const caller = await sendScope(callerIn, audience);
-  await noUmbrellaMail(caller);
   const [world, suppressed, { brand }] = await Promise.all([loadWorld(caller), loadSuppressed(), brandScope(caller)]);
   checkAudienceEvents(world, audience);
   const recipients = pickAudience({ audience, ...world }).filter((r) => !suppressed.has(r.email));
@@ -549,7 +530,6 @@ async function deliver({ recipients, subject, compose, logBody, from: fromOverri
 // or the mail module's blocks (`blocks` + previewText + fromName).
 export async function sendMail(callerIn, input) {
   const caller = await sendScope(callerIn, input?.audience);
-  await noUmbrellaMail(caller);
   const { brand: sendBrand } = await brandScope(caller);
   if (!caller.isOwner && sendBrand && !isTeam(sendBrand)) {
     throw new ActionError("forbidden", `Mail to ${sendBrand.name}'s guests goes out from its team. Ask them to send it.`, { detail: "cohost" });

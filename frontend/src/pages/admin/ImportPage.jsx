@@ -66,7 +66,8 @@ function Importer() {
   const brand = useCurrentBrand();
   const lang = useLang();
   const dpa = DPA[lang] || DPA.sv;
-  const under = brand?.under || [];
+  // A main brand imports into itself (a yes to it) or into a brand under it.
+  const under = brand?.under?.length ? [{ id: brand.id, name: brand.name }, ...brand.under] : [];
   const [target, setTarget] = useState(under[0]?.id || "");
   const [accepted, setAccepted] = useState(false);
   const [file, setFile] = useState(null); // { name, rows: string[][] }

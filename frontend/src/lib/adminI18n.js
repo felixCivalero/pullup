@@ -21,7 +21,7 @@ const EN = {
   "Varumärke": "Brand", "Varumärken": "Brands", "Varumärkena": "The brands", "Nytt varumärke": "New brand", "Byt namn på": "Rename",
   "Spara": "Save", "Sparar…": "Saving…", "Avbryt": "Cancel", "Under": "Under", "Inget, ett eget huvudvarumärke": "None, a main brand of its own",
   "Medarrangör": "Co-host", "Det gick inte att spara.": "Couldn't save.", "Det gick inte att spara. Försök igen.": "Couldn't save. Try again.",
-  "Huvudkonto": "Main account", "Huvudkonto · admin": "Main account · admin", "Huvudvarumärke": "Main brand",
+  "Huvudkonto": "Main account", "Huvudkonto · admin": "Main account · admin", "Huvudkonto · eget event": "Main account · its own event", "Huvudvarumärke": "Main brand",
   // ─── onboarding ───
   "Välkommen till PullUp": "Welcome to PullUp", "Vad heter er organisation?": "What's your organisation called?",
   "Företaget, föreningen, byrån eller du själv. Gästerna ser namnet som arrangör och avsändare.": "The company, the club, the agency or you. Guests see the name as the organiser and the sender.",
@@ -236,7 +236,8 @@ const PATTERNS = [
   [/^· (\d+) varumärken under (.+)$/, "· $1 brands under $2"],
   [/^Har (.+) varumärken under sig\?$/, "Does $1 have brands under it?"],
   [/^Inloggad som (.+)\.$/, "Signed in as $1."],
-  [/^Lägg till dem här så blir (.+) huvudkontot: admin över allt, med alla event och hela CRM:et samlat\. Eventen och utskicken görs i varumärkena, och den du bjuder in till (.+) jobbar i alla\.$/, "Add them here and $1 becomes the main account: admin over everything, with all events and the whole CRM in one place. Events and mail are made in the brands, and whoever you invite to $2 works in all of them."],
+  [/^Lägg till dem här så blir (.+) huvudkontot: admin över allt, med alla event och hela CRM:et samlat\. (.+) kan ha egna event och mejla alla som sagt ja till något av varumärkena, och den du bjuder in till (.+) jobbar i alla\.$/, "Add them here and $1 becomes the main account: admin over everything, with all events and the whole CRM in one place. $2 can hold events of its own and mail everyone who said yes to any of the brands, and whoever you invite to $3 works in all of them."],
+  [/^Som (.+) når du alla som sagt ja till (.+) eller till (.+)\. Mejlet går ut i namnet (.+)\.$/, "As $1 you reach everyone who said yes to $2 or to $3. The mail goes out as $4."],
   [/^Bara (.+), klar$/, "Just $1, done"],
   [/^Byt namn på (.+)$/, "Rename $1"],
   [/^Det här eventet ligger på huvudkontot (.+)\.$/, "This event sits on the main account $1."],

@@ -82,7 +82,7 @@ const EN = {
   "inbjudningar": "invitations", "Ja": "Yes", "Nej": "No",
   // ─── mail module ───
   "Utskick görs från varumärkena": "Mail is sent from the brands", "Mejla som": "Mail as",
-  "Content": "Content", "Ändra i Praktiskt →": "Change in Practical →", "Bakgrund": "Background", "Typsnitt": "Font", "Visa namnet på sidan": "Show the name on the page",
+  "Sidan försvinner för gott.": "The page is gone for good.", "Radera": "Delete", "Raderar…": "Deleting…", "Content": "Content", "Ändra i Praktiskt →": "Change in Practical →", "Bakgrund": "Background", "Typsnitt": "Font", "Visa namnet på sidan": "Show the name on the page",
   "Titeln visas inte": "The title is hidden", "Platsen avslöjas senare": "The place is revealed later", "Ingen plats än": "No place yet", "Datumet avslöjas senare": "The date is revealed later", "Ingen tid än": "No time yet", "Rund": "Rounded",
   "Mottagare": "Recipients", "Design": "Design", "Inbjudan till event": "Event invitation", "Uppföljning efter event": "Event follow-up",
   "Välj en mall ovan för att börja.": "Pick a template above to start.", "Välj en mall under Design för att börja.": "Pick a template under Design to start.",
@@ -231,6 +231,8 @@ const EN_NUM = {
 
 // Sentences with a name or an answer in them.
 const PATTERNS = [
+  [/^Radera (.+)\?$/, "Delete $1?"],
+  [/^(\d+) anmälningar, bilderna och statistiken försvinner\. Gästerna finns kvar i CRM:et\.$/, "$1 sign-ups, the pictures and the statistics go. The guests stay in the CRM."],
   [/^Jag vill få inbjudningar till kommande event från (.+)\.$/, "I want invitations to future events from $1."],
   [/^Mejla som (.+)$/, "Mail as $1"],
   [/^Skickas som (.+)\.$/, "Sent as $1."],

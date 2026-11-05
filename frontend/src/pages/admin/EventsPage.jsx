@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { formatEventWhen } from "../../lib/zonedTime.js";
 import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
@@ -50,6 +50,23 @@ function EventsList() {
   // An assistant in this browser created or changed an event: show it.
   useAgentChanges(load);
   usePageContext({ page: "admin-events" });
+  // Delete right from the list: the bin beside a row asks once, in the row.
+  const [asking, setAsking] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = (e) => e.mine && brand?.role !== "event";
+  const remove = async (e) => {
+    setDeleting(true);
+    try {
+      const res = await authenticatedFetch(`/admin/events/${e.id}/delete`, { method: "POST", body: JSON.stringify({ confirmTitle: e.title || "" }) });
+      if (!res.ok) throw new Error();
+      setData((d) => d.filter((x) => x.id !== e.id));
+      setAsking(null);
+    } catch {
+      window.alert("Kunde inte radera eventet.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const [now] = useState(() => Date.now());
   const isPast = (e) => new Date(e.endsAt || e.startsAt).getTime() < now;
@@ -101,8 +118,18 @@ function EventsList() {
             </div>
             <ul className="evl">
               {list.map((e) => (
-                <li key={e.id}>
-                  <button type="button" onClick={() => navigate(`/admin/events/${e.id}`)}>
+                <li key={e.id} className={asking === e.id ? "is-asking" : ""}>
+                  {asking === e.id ? (
+                    <div className="evl-ask">
+                      <span>
+                        <b>Radera {e.title || "eventet"}?</b>
+                        <span className="ea-muted">{e.attending > 0 ? `${e.attending} anmälningar, bilderna och statistiken försvinner. Gästerna finns kvar i CRM:et.` : "Sidan försvinner för gott."}</span>
+                      </span>
+                      <button type="button" className="ea-btn" onClick={() => setAsking(null)} disabled={deleting}>Avbryt</button>
+                      <button type="button" className="ea-btn is-danger" onClick={() => remove(e)} disabled={deleting}>{deleting ? "Raderar…" : "Radera"}</button>
+                    </div>
+                  ) : (
+                  <button type="button" className="evl-row" onClick={() => navigate(`/admin/events/${e.id}`)}>
                     {e.imageUrl ? <img src={e.imageUrl} alt="" loading="lazy" /> : <span className="evl-noimg" />}
                     <span className="evl-main">
                       <b>{e.title || "Utan titel"}</b>
@@ -119,6 +146,10 @@ function EventsList() {
                       {e.status === "DRAFT" ? "Utkast" : isPast(e) ? "Har varit" : "Publicerad"}
                     </span>
                   </button>
+                  )}
+                  {canDelete(e) && asking !== e.id && (
+                    <button type="button" className="evl-bin" onClick={() => setAsking(e.id)} aria-label={`Radera ${e.title || "eventet"}`} title="Radera"><Trash2 size={16} /></button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -155,8 +186,19 @@ const EVENTS_CSS = `
   .evl-first b { font-size: 17px; }
   .evl-first p { margin: 0 0 6px; max-width: 46ch; line-height: 1.5; }
   .evl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  .evl button { font: inherit; width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; color: #0a0a0a; }
-  .evl button:hover { border-color: rgba(0,0,0,0.25); }
+  .evl li { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 6px; }
+  .evl-bin { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: none; color: #8a8a8e; cursor: pointer; opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease; }
+  .evl li:hover .evl-bin, .evl-bin:focus-visible { opacity: 1; }
+  .evl-bin:hover { background: #fdecea; color: #c0392b; }
+  @media (hover: none) { .evl-bin { opacity: 1; } }
+  .evl-ask { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid rgba(192,57,43,0.35); border-radius: 16px; background: #fdf3f1; min-height: 64px; }
+  .evl-ask > span { display: grid; gap: 2px; min-width: 0; }
+  .evl-ask b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .evl-ask .ea-muted { margin: 0; font-size: 13px; }
+  .evl-ask .ea-btn.is-danger { background: #b3261e; border-color: #8c1d17; color: #fff; }
+  .evl li.is-asking { grid-template-columns: minmax(0, 1fr); }
+  .evl .evl-row { font: inherit; width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 16px; background: #fff; text-align: left; cursor: pointer; color: #0a0a0a; }
+  .evl .evl-row:hover { border-color: rgba(0,0,0,0.25); }
   .evl img, .evl-noimg { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: #f0f0f0; display: block; }
   .evl-main { display: grid; gap: 2px; min-width: 0; }
   .evl-main b { font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -166,7 +208,9 @@ const EVENTS_CSS = `
   .evl-nums { display: grid; gap: 1px; justify-items: end; font-size: 12.5px; color: #6e6e73; white-space: nowrap; }
   .evl-nums b { color: #0a0a0a; font-size: 14px; }
   @media (max-width: 620px) {
-    .evl button { grid-template-columns: 52px minmax(0, 1fr) auto; }
+    .evl .evl-row { grid-template-columns: 52px minmax(0, 1fr) auto; }
+    .evl-ask { grid-template-columns: 1fr 1fr; }
+    .evl-ask > span { grid-column: 1 / -1; }
     .evl img, .evl-noimg { width: 52px; height: 52px; }
     .evl-nums { display: none; }
   }

@@ -100,6 +100,9 @@ function Editor() {
   // the rail with every part, beside the preview, opening on the content.
   const [params] = useSearchParams();
   const flow = params.get("flow") === "new";
+  // The stage (02 Content, big) is the flow's first stop only: once you step
+  // off it, the editor is the rail with its three tabs, Content included.
+  const [staged, setStaged] = useState(flow);
   const [focusIndex, setFocusIndex] = useState(null);
   const started = useRef(false);
   const { showToast } = useToast();
@@ -203,8 +206,9 @@ function Editor() {
   // 02 Content is a stage: only the page, as big as it gets, on the screen
   // sizes you pick, with the media dropped right on it. 01 Praktiskt and
   // 03 Innehåll are in the editor with the rail.
-  const stage = flow && tab === "cover";
+  const stage = staged && tab === "cover";
   const goTab = (t) => {
+    if (t !== "cover") setStaged(false);
     setTab(t);
     railRef.current?.scrollTo({ top: 0 });
     // The flow's first step into the content: a text block to write in.
@@ -262,7 +266,7 @@ function Editor() {
           {tab === "signup" && <SignupPanel draft={draft} update={update} />}
           {/* Editing (not the flow): the media sits here in the rail; kept
               mounted on every tab (the preview's drop zone uploads through it). */}
-          {!flow && (
+          {!staged && (
             <div style={{ display: tab === "cover" ? "block" : "none" }}>
               <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} inline device={device} setDevice={setDevice} />
             </div>
@@ -273,7 +277,7 @@ function Editor() {
 
       {/* The media: on the stage a panel beside the page; elsewhere kept
           mounted (the page's own drop zone uploads through it). */}
-      {flow && (
+      {staged && (
         <div style={{ display: stage ? "contents" : "none" }}>
           <CoverPanel draft={draft} setMedia={setMedia} update={update} toast={toast} filesRef={filesRef} stage device={device} setDevice={setDevice} />
         </div>

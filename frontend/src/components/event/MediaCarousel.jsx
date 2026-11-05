@@ -841,7 +841,7 @@ function SlideRenderer({ item, phase, slideStyle, transitionType, direction, tra
           />
         )
       ) : (
-        <div style={{ width: "100%", height: "100%", background: "#1a1a2e" }} />
+        <div style={{ width: "100%", height: "100%", background: "var(--pg-hero, #1a1a2e)" }} />
       )}
     </div>
   );

@@ -48,8 +48,11 @@ export function lookVars(look) {
   // green date is for near-black and near-white pages.
   const [r, g, b] = rgb(bg);
   const vivid = Math.max(r, g, b) - Math.min(r, g, b) > 70;
+  // The empty picture frame: the background nudged towards the text colour.
+  const hero = "#" + rgb(bg).map((v) => Math.round(v + ((light ? 10 : 255) - v) * (light ? 0.06 : 0.05)).toString(16).padStart(2, "0")).join("");
   return {
     "--pg-bg": bg,
+    "--pg-hero": hero,
     "--pg-bg-rgb": rgb(bg).join(","),
     "--pg-ink": light ? "#0a0a0a" : "#ffffff",
     "--pg-ink-rgb": light ? "10,10,10" : "255,255,255",

@@ -329,7 +329,7 @@ export function EventPreview({
               return (
                 <div style={{
                   position: "absolute", inset: 0, zIndex: 0,
-                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), var(--pg-bg, #05040a)",
+                  background: "radial-gradient(circle at 20% 50%, rgba(192,192,192,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(232,232,232,0.06) 0%, transparent 50%), var(--pg-hero, #05040a)",
                 }} />
               );
             })()}

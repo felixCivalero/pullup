@@ -274,7 +274,7 @@ export function DesktopEventLayout({
               overflow: "hidden",
               position: "relative",
               background:
-                "radial-gradient(circle at 30% 30%, rgba(192,192,192,0.08) 0%, transparent 60%), #0a0913",
+                "radial-gradient(circle at 30% 30%, rgba(var(--pg-ink-rgb, 192,192,192), 0.06) 0%, transparent 60%), var(--pg-hero, #0a0913)",
               border: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.06)",
               userSelect: "none",
             }}

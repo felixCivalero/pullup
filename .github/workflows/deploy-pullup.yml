@@ -82,7 +82,10 @@ jobs:
 
             echo "🏗 Building frontend → dist-staging..."
             rm -rf dist-staging
-            npm run build -- --outDir dist-staging
+            # Node's default heap on this box stops at ~980 MB, and the build
+            # (bundle + pre-rendered pages) outgrew it on 2026-11-05: two
+            # deploys died "JavaScript heap out of memory". Room to grow.
+            NODE_OPTIONS=--max-old-space-size=1536 npm run build -- --outDir dist-staging
 
             echo "🔍 Smoke test on dist-staging..."
             # No dev URLs leaked into the bundle. (We only check for the

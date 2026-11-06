@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "../../lib/api.js";
+import { Link } from "react-router-dom";
 import { AdminShell } from "./AdminShell.jsx";
+import { pitchFor } from "./pitch/index.js";
 import { Journey, VISITS_CSS, pathLabel, secs, when } from "./Visits.jsx";
 
 /* /admin/sales — where sales stand today and what to do next. Everything is
@@ -9,6 +11,12 @@ import { Journey, VISITS_CSS, pathLabel, secs, when } from "./Visits.jsx";
    rereads it. The page answers:
    how many did I send today, am I on pace for the plan, who's next, and what
    is waiting on me. */
+// The client's pitch, when they have one (pitch/index.js).
+function PitchLink({ id }) {
+  const pitch = pitchFor(id);
+  return pitch ? <Link to={`/admin/pitch/${pitch.slug}`} className="sl-pitch">Pitch</Link> : null;
+}
+
 const STAGE_SV = {
   "Not contacted": "Ej kontaktad",
   Emailed: "Mejlad",
@@ -280,7 +288,7 @@ export function SalesPage() {
                     <ul className="sl-list sl-meetings">
                       {data.meetings.map((p) => (
                         <li key={p.id}>
-                          <b>{p.company}</b>
+                          <b>{p.company}<PitchLink id={p.id} /></b>
                           <span>{p.nextStepDate ? dayLabel(p.nextStepDate) : "datum saknas i arket"}{p.person ? ` · ${p.person}` : ""}</span>
                         </li>
                       ))}
@@ -292,14 +300,14 @@ export function SalesPage() {
                 {data.toAnswer.length > 0 && <h3>Svara</h3>}
                 <ul className="sl-list">
                   {data.toAnswer.map((p) => (
-                    <li key={p.id}><b>{p.company}</b><span>{p.person || p.email}{p.source === "Website" ? " · via hemsidan" : ""}</span></li>
+                    <li key={p.id}><b>{p.company}<PitchLink id={p.id} /></b><span>{p.person || p.email}{p.source === "Website" ? " · via hemsidan" : ""}</span></li>
                   ))}
                 </ul>
                 {data.due.length > 0 && <h3>Nästa steg</h3>}
                 <ul className="sl-list">
                   {data.due.map((p) => (
                     <li key={p.id} className={p.overdue ? "is-late" : undefined}>
-                      <b>{p.company}</b>
+                      <b>{p.company}<PitchLink id={p.id} /></b>
                       <span>{p.nextStep || STAGE_SV[p.stage]} · {p.overdue ? `sen sedan ${dayLabel(p.nextStepDate)}` : "idag"}</span>
                     </li>
                   ))}
@@ -424,6 +432,7 @@ const SALES_CSS = `
   .sl-list li span { color: #6e6e73; font-size: 13px; }
   .sl-list li.is-late span { color: #D9480F; font-weight: 600; }
   .sl-meetings { margin-bottom: 28px; }
+  .sl-pitch { margin-left: 10px; padding: 2px 7px; border-radius: 4px; background: #ec178f; color: #fff; font: 700 10.5px ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; vertical-align: 2px; }
   .sl-clicks .sl-row-top b { font-size: 14px; }
   .sl-person { font-weight: 500; color: #3a3a3e; }
   .sl-tag em.is-hot { color: #1f7a3a; }

@@ -8,7 +8,9 @@ import { PlannerCanvas } from "../../components/planner/PlannerCanvas.jsx";
 import { layoutKey } from "../../lib/plannerStore.js";
 import { ProjectBoard } from "../../components/project/ProjectBoard.jsx";
 import { StrategyDeck } from "../../components/project/StrategyDeck.jsx";
+import { Link } from "react-router-dom";
 import { AdminShell } from "./AdminShell.jsx";
+import { pitchFor } from "./pitch/index.js";
 
 /* /admin/projects — one project per client (a Won row in the sales sheet),
    picked at the top (?kund=P-666), with three views (?vy=):
@@ -302,6 +304,9 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
         ))}
       </div>
       <div className="tl-meta">
+        {!editing && pitchFor(current.prospectId) && (
+          <Link to={`/admin/pitch/${pitchFor(current.prospectId).slug}`}>Pitch</Link>
+        )}
         {!editing && current.docUrl && (
           <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
         )}

@@ -40,6 +40,7 @@ const NAV = [
   ["/admin/sales", "Byrå", "owner"],
   ["/admin/platform", "Eventverktyget", "owner"],
   ["/admin/projects", "Projekt", "owner"],
+  ["/admin/pitch", "Pitch", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],
@@ -50,7 +51,7 @@ const NAV = [
 ];
 // Side project, not the main work: kept apart on the right, in orange.
 const SIDE = ["/admin/stockholm", "Stockholm"];
-const OWNER_PATHS = ["/admin/site", "/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/archi", "/admin/stockholm"];
+const OWNER_PATHS = ["/admin/site", "/admin/platform", "/admin/free-tool", "/admin/sales", "/admin/projects", "/admin/pitch", "/admin/archi", "/admin/stockholm"];
 // The owner's login is the internal engine only (Felix 2026-11-04): no event
 // tool of his own. He runs events from his own organiser account and sees
 // what happens on the platform under Översikt and Eventverktyget.

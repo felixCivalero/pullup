@@ -40,6 +40,7 @@ import { registerAdminPlatformRoutes } from "./routes/adminPlatform.js";
 import { registerAdminFreeToolRoutes } from "./routes/adminFreeTool.js";
 import { registerAdminOverviewRoutes } from "./routes/adminOverview.js";
 import { registerAdminArchiRoutes } from "./routes/adminArchi.js";
+import { registerAdminPitchRoutes } from "./routes/adminPitch.js";
 import { registerEmailCreditRoutes, emailCreditsWebhookParser } from "./routes/adminEmailCredits.js";
 import { registerResendEventRoutes, resendEventsParser } from "./routes/resendEvents.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -159,6 +160,7 @@ registerAdminPlatformRoutes(app);
 registerAdminFreeToolRoutes(app);
 registerAdminOverviewRoutes(app);
 registerAdminArchiRoutes(app);
+registerAdminPitchRoutes(app);
 registerEmailCreditRoutes(app);
 registerResendEventRoutes(app);
 

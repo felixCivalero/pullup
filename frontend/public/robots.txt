@@ -1,6 +1,8 @@
 # Allow all crawlers full access.
 User-agent: *
 Allow: /
+# Pitches shared with a private link.
+Disallow: /s/
 
 # Be explicit about social media crawlers — Facebook's debugger flags missing
 # or HTML-shaped robots.txt responses as "could be a robots.txt block" and may

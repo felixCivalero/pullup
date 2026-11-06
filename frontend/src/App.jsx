@@ -12,7 +12,8 @@ import { ByBrand } from "./components/admin/ByBrand.jsx";
    mail) and /admin/agents (their own AI on PullUp; /connect approves one).
    Felix only: /admin (statistics), /admin/stockholm (culture scraper),
    /admin/projects (each client's project: timeline, board, strategy deck),
-   /admin/sales (sales pipeline, read from the Google Sheet), /admin/archi.
+   /admin/sales (sales pipeline, read from the Google Sheet), /admin/pitch
+   (pitches to present, full screen), /admin/archi.
    Everything else goes to the front page. The old PullUp platform lives on
    the `pullup-app` branch. */
 const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");
@@ -44,7 +45,9 @@ const EventEditorPage = lazyPage(() => import("./pages/admin/EventEditorPage"), 
 const ArchiPage = lazyPage(() => import("./pages/admin/ArchiPage"), "ArchiPage");
 const AgentsPage = lazyPage(() => import("./pages/admin/AgentsPage"), "AgentsPage");
 const TeamPage = lazyPage(() => import("./pages/admin/TeamPage"), "TeamPage");
+const PitchPage = lazyPage(() => import("./pages/admin/PitchPage"), "PitchPage");
 const ConnectPage = lazyPage(() => import("./pages/ConnectPage"), "ConnectPage");
+const SharedPitchPage = lazyPage(() => import("./pages/SharedPitchPage"), "SharedPitchPage");
 
 // A link to another page lands at its top, not at the height you left the
 // last one. Back and forward keep the browser's place; links to a #section
@@ -80,6 +83,8 @@ function App() {
           <Route path="/cookies" element={<CookiesPage />} />
           {/* The event platform: a guest's event page; events + CRM in admin. */}
           <Route path="/e/:slug" element={<EventPage />} />
+          {/* A pitch shared with a link: anyone with the token, until it closes. */}
+          <Route path="/s/:token" element={<SharedPitchPage />} />
           <Route path="/login" element={<LoginPage />} />
           {/* An assistant asks to act for you (OAuth consent, backend routes/oauth.js). */}
           <Route path="/connect" element={<ConnectPage />} />
@@ -101,6 +106,8 @@ function App() {
           <Route path="/admin/free-tool" element={<FreeToolPage />} />
           <Route path="/admin/mail" element={<ByBrand><MailPage /></ByBrand>} />
           <Route path="/admin/team" element={<ByBrand><TeamPage /></ByBrand>} />
+          <Route path="/admin/pitch" element={<PitchPage />} />
+          <Route path="/admin/pitch/:slug" element={<PitchPage />} />
           <Route path="/admin/archi" element={<ArchiPage />} />
           <Route path="/admin/agents" element={<AgentsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

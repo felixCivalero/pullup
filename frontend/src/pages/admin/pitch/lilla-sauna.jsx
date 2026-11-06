@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- a pitch data module, not a component */
 import { useEffect, useState } from "react";
 import { A, CountUp } from "./PitchKit.jsx";
+import { GOTLAND, OLAND, OUTLINE, insideOutline, pathOf, proj } from "./sweden.js";
 
 /* Lilla Sauna × PullUp (Felix, 2026-11-06). First meeting (6 Nov, 09:00)
    was the brand point: the sauna itself is already right, its surroundings
@@ -122,14 +123,6 @@ function Sketch() {
 
 /* ─── 2. The journey ─── */
 
-/* Sweden, roughly: coastline and borders as lon/lat, projected flat with the
-   width squeezed by cos(62°) so it keeps its shape. Enough for a map that
-   fills up with dots; not for navigation. */
-const proj = ([lon, lat]) => [40 + (lon - 10.9) * 26.2, 20 + (69.1 - lat) * 55.7];
-const OUTLINE = [[13.36,55.34],[13.8,55.43],[14.35,55.55],[14.3,55.93],[14.86,56.17],[15.59,56.16],[16.36,56.66],[16.45,57.2],[16.64,57.76],[16.75,58.2],[16.9,58.5],[17.6,58.75],[17.95,58.9],[18.5,59.1],[18.9,59.4],[18.7,59.76],[18.45,60.34],[17.6,60.6],[17.15,60.67],[17.3,61.2],[17.1,61.73],[17.3,62.39],[17.94,62.63],[18.72,63.29],[19.5,63.55],[20.26,63.83],[20.9,64.3],[21.0,64.75],[21.6,65.2],[22.15,65.58],[23.2,65.75],[24.13,65.83],[23.7,66.5],[23.37,67.2],[23.0,67.9],[22.48,68.44],[21.0,68.85],[20.55,69.06],[19.9,68.6],[18.1,68.45],[17.4,68.1],[16.5,67.6],[16.1,67.1],[15.0,66.15],[14.5,65.6],[14.0,65.1],[13.6,64.5],[12.9,64.1],[12.1,63.3],[12.3,62.6],[12.3,62.1],[12.8,61.5],[12.8,61.0],[12.5,60.4],[12.3,59.88],[11.8,59.3],[11.5,59.0],[11.17,58.93],[11.25,58.5],[11.43,58.27],[11.8,57.95],[11.9,57.7],[12.1,57.4],[12.25,57.1],[12.6,56.85],[12.85,56.67],[12.85,56.43],[12.45,56.3],[12.7,56.04],[12.98,55.6],[13.15,55.37]];
-const GOTLAND = [[18.1,56.92],[18.35,57.05],[18.75,57.3],[18.9,57.5],[19.35,57.95],[19.1,58.0],[18.7,57.85],[18.4,57.6],[18.15,57.35]];
-const OLAND = [[16.4,56.2],[16.55,56.35],[16.75,56.75],[17.05,57.35],[16.95,57.35],[16.6,56.8],[16.4,56.4]];
-const pathOf = (pts) => `M${pts.map((p) => proj(p).map((v) => v.toFixed(1)).join(",")).join("L")}Z`;
 // Today: Södermalm, Täby, Vaxholm, Åkersberga.
 const NOW = [[18.07,59.31],[18.0,59.48],[18.36,59.40],[18.33,59.49]];
 const KUNGS = proj([18.03, 59.335]);
@@ -482,15 +475,6 @@ const ICON_RATIO = 258 / 240;
 
 // Every place on the journey, then many more inside the country: a seeded
 // scatter over Sweden's outline, so the map fills the same way every time.
-function insideOutline(x, y, poly) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, yi] = poly[i];
-    const [xj, yj] = poly[j];
-    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
 const EVERYWHERE = (() => {
   const poly = OUTLINE.map(proj);
   const pts = [...NOW.map(proj), KUNGS, ...NEXT.map(([, lon, lat]) => proj([lon, lat]))];

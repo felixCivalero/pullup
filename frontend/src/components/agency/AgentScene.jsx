@@ -64,7 +64,7 @@ export function AgentScene({ children }) {
   const busy = shown < SCRIPT.length && SCRIPT[shown]?.who !== "you" && shown > 0;
 
   return (
-    <section className="ag" ref={wrap} data-pc-tone="dark" data-pc-section="agents" data-pc-order="2">
+    <section className="ag" ref={wrap} data-pc-tone="dark" data-pc-section="agents" data-pc-order="3">
       <div className="ag-pin">
         <div className="ag-copy">
           {children}

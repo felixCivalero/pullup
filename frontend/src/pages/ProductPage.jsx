@@ -6,12 +6,14 @@ import { AgencyShell } from "../components/agency/AgencyShell.jsx";
 import { FUNNEL_CSS } from "../components/agency/FunnelWorld.jsx";
 import { EventWorld, EVENT_WORLD_CSS, NEGATIVE_GRADIENT, NEGATIVE_LINEAR } from "../components/agency/EventWorld.jsx";
 import { AgentScene, AGENT_CSS } from "../components/agency/AgentScene.jsx";
+import { LookShow, LOOK_SHOW_CSS } from "../components/agency/LookShow.jsx";
 import { useT } from "../components/agency/i18n.js";
 import { FAQ, FAQ_EN, PACKS, PRODUCT_TITLE } from "./productMeta.js";
 
 /* /eventverktyg (also /pullup) — the free event tool's own page, in the front
    page's language: a pinned scroll scene (EventWorld) that plays what the
-   tool does, from one link to a full room to your own CRM; then the agent
+   tool does, from one link to a full room to your own CRM; then your look
+   (LookShow: one page changing colour and font by itself); then the agent
    scene, the 2027 part: your AI runs the event through PullUp's MCP, with
    the real tool names; then how to connect, what's in it, why it's free, the
    price of the one thing that costs, and the FAQ. Every claim true of what's
@@ -93,7 +95,7 @@ export function ProductPage() {
   const title = t("Fill the room. For free.");
 
   return (
-    <AgencyShell css={FUNNEL_CSS + EVENT_WORLD_CSS + AGENT_CSS + ET_CSS} brand>
+    <AgencyShell css={FUNNEL_CSS + EVENT_WORLD_CSS + LOOK_SHOW_CSS + AGENT_CSS + ET_CSS} brand>
       <div className="et">
         <EventWorld>
           <small className="et-kicker is-ink">{t("The event tool · Free")}</small>
@@ -118,6 +120,8 @@ export function ProductPage() {
           </div>
         </EventWorld>
 
+        <LookShow />
+
         <div id="agents" />
         <AgentScene>
           <small className="et-kicker">{t("2027 · Agents are users")}</small>
@@ -125,7 +129,7 @@ export function ProductPage() {
           <p className="et-lead">{t("PullUp is built for AI assistants from the start. Connect Claude, ChatGPT or another assistant once, and it can do what you can: create the event, publish it, see who's coming and email them.")}</p>
         </AgentScene>
 
-        <section className="et-connect" data-pc-tone="dark" data-pc-section="connect" data-pc-order="3">
+        <section className="et-connect" data-pc-tone="dark" data-pc-section="connect" data-pc-order="4">
           <div className="et-connect-head">
             <small className="et-kicker">{t("Connect in a minute")}</small>
             <h2 className="et-h3">{t("Your AI, your events.")}</h2>
@@ -146,7 +150,7 @@ export function ProductPage() {
           </div>
         </section>
 
-        <section className="et-price" id="pris" data-pc-section="price" data-pc-order="4">
+        <section className="et-price" id="pris" data-pc-section="price" data-pc-order="5">
           <div className="et-plans">
             <article className="is-free">
               <small className="et-kicker">{t("Why is it free?")}</small>
@@ -176,7 +180,7 @@ export function ProductPage() {
           </div>
         </section>
 
-        <section className="et-faq" data-pc-section="faq" data-pc-order="5" lang={t.lang === "en" ? "en" : "sv"}>
+        <section className="et-faq" data-pc-section="faq" data-pc-order="6" lang={t.lang === "en" ? "en" : "sv"}>
           <h2 className="et-h3">{t("Questions")}</h2>
           {(t.lang === "en" ? FAQ_EN : FAQ).map(([q, a]) => (
             <details key={q}>
@@ -186,7 +190,7 @@ export function ProductPage() {
           ))}
         </section>
 
-        <section className="et-end" data-pc-tone="dark" data-pc-section="signup" data-pc-order="6">
+        <section className="et-end" data-pc-tone="dark" data-pc-section="signup" data-pc-order="7">
           <small className="et-kicker">{t("Free, for the culture")}</small>
           <h2>{t("Your next event starts here.")}</h2>
           <div className="et-ctas">

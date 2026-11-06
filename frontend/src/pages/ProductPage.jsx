@@ -8,6 +8,7 @@ import { EventWorld, EVENT_WORLD_CSS, NEGATIVE_GRADIENT, NEGATIVE_LINEAR } from 
 import { AgentScene, AGENT_CSS } from "../components/agency/AgentScene.jsx";
 import { LookShow, LOOK_SHOW_CSS } from "../components/agency/LookShow.jsx";
 import { useT } from "../components/agency/i18n.js";
+import { LOGOS } from "../components/agency/logos.js";
 import { FAQ, FAQ_EN, PACKS, PRODUCT_TITLE } from "./productMeta.js";
 
 /* /eventverktyg (also /pullup) — the free event tool's own page, in the front
@@ -38,6 +39,30 @@ const CONNECT = [
   ["Approve once", "Sign in with your email and say yes. Your AI gets your rights, nothing more."],
   ["Say what you want", "\"Put my release party on PullUp.\" It creates, publishes, invites and keeps count."],
 ];
+
+// The brands we've worked with, rolling along the bottom of the hero. The
+// page is a negative, so black marks here show white on screen.
+function BrandBand() {
+  const t = useT();
+  return (
+    <div className="et-brands">
+      <p>{t("Brands we've worked with")}</p>
+      <div className="et-brands-view">
+        <div className="et-brands-track">
+          {[0, 1].map((copy) => (
+            <ul key={copy} aria-hidden={copy === 1 ? "true" : undefined}>
+              {LOGOS.map((logo) => (
+                <li key={logo.alt}>
+                  <img src={logo.src} alt={copy === 0 ? logo.alt : ""} width={logo.width} height={logo.height} style={{ "--boost": logo.boost || 1 }} decoding="async" />
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PanelHead({ title, tag, no }) {
   const t = useT();
@@ -118,6 +143,7 @@ export function ProductPage() {
               <a className="et-more" href="#agents">{t("See how")} <span aria-hidden="true">↓</span></a>
             </div>
           </div>
+          <BrandBand />
         </EventWorld>
 
         <LookShow />
@@ -224,6 +250,16 @@ const ET_CSS = `
   .et-rise { display: inline-block; overflow: hidden; padding: 0 .1em .22em 0; margin: 0 .12em -.22em 0; vertical-align: top; }
   .et-rise > span { display: inline-block; animation: et-rise 1s cubic-bezier(.16,1,.3,1) both; }
   @keyframes et-rise { from { transform: translateY(110%) rotate(4deg); } to { transform: none; } }
+  .et-brands { margin: clamp(28px, 5vh, 56px) calc(-1 * clamp(20px, 3.4vw, 48px)) calc(-1 * clamp(20px, 4vw, 48px)); padding-top: clamp(16px, 2.4vh, 24px); border-top: 1px solid rgba(0,0,0,.14); animation: et-fade .9s 1.1s cubic-bezier(.16,1,.3,1) both; }
+  .et-brands p { margin: 0 0 12px; padding: 0 clamp(20px, 3.4vw, 48px); font: 700 11px ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .12em; text-transform: uppercase; color: rgba(0,0,0,.55); }
+  .et-brands-view { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .et-brands-track { display: flex; width: max-content; animation: et-brands 38s linear infinite; }
+  .et-brands-view:hover .et-brands-track { animation-play-state: paused; }
+  .et-brands ul { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; flex: none; }
+  .et-brands li { flex: none; display: flex; align-items: center; height: 46px; padding: 0 clamp(22px, 3vw, 44px); }
+  .et-brands img { display: block; width: auto; height: calc(22px * var(--boost, 1)); max-width: 140px; max-height: 56px; object-fit: contain; filter: brightness(0); opacity: .82; }
+  @keyframes et-brands { to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .et-brands-track { animation: none; } }
   .et-powers { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; max-width: 860px; animation: et-fade .9s .8s cubic-bezier(.16,1,.3,1) both; }
   @keyframes et-fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .et-rise > span, .et-powers { animation: none; } }

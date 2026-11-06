@@ -24,7 +24,6 @@ export function ProjectPitch({ entry, projectName }) {
           <p className="pp-kicker">Pitch · {projectName}</p>
           <h1>Ingen pitch än</h1>
           <p className="pp-lead">Pitchen är grunden i projektet: resan som strategin, buckets och tidslinjen bygger på. Be Claude bygga en till {projectName}, så kopplas den hit.</p>
-          <Link to="/admin/pitch" className="pp-btn">Alla pitcher</Link>
         </div>
       </div>
     );

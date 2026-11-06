@@ -14,7 +14,7 @@ import { Journey, VISITS_CSS, pathLabel, secs, when } from "./Visits.jsx";
 // The client's pitch, when they have one (pitch/index.js).
 function PitchLink({ id }) {
   const pitch = pitchFor(id);
-  return pitch ? <Link to={`/admin/pitch/${pitch.slug}`} className="sl-pitch">Pitch</Link> : null;
+  return pitch ? <Link to={`/admin/projects?kund=${id}&vy=pitch`} className="sl-pitch">Pitch</Link> : null;
 }
 
 const STAGE_SV = {

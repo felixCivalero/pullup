@@ -4,7 +4,7 @@ import { createElement, useCallback, useEffect, useLayoutEffect, useRef, useStat
    stage that scales to the screen, so a slide is laid out in plain pixels and
    looks the same on a laptop, a TV or a shared Meet window. Keys: → / space /
    click = next, ← = back, F = full screen, N = speaker notes (off by default,
-   so a shared screen never shows them), Esc = back to the list (not on a shared link, which has no list). A slide is
+   so a shared screen never shows them), Esc = back to the project (not on a shared link). A slide is
    remounted each time it comes on, so its animations play again; <A> is the
    building block for them (rise, fade, scale, wipe, zoom) with a delay in
    seconds. Pitches live in pitch/<slug>.jsx and are listed in pitch/index.js. */
@@ -110,7 +110,7 @@ export function PitchPlayer({ pitch, onExit }) {
         </div>
       </div>
       <div className="pk-bar" onClick={(e) => e.stopPropagation()}>
-        {onExit ? <button type="button" onClick={onExit} title="Tillbaka (Esc)">← Pitcher</button> : <span>PullUp</span>}
+        {onExit ? <button type="button" onClick={onExit} title="Tillbaka (Esc)">← Projekt</button> : <span>PullUp</span>}
         <div className="pk-dots">
           {slides.map((s, n) => (
             <button key={s.id} type="button" className={n === i ? "is-on" : undefined} onClick={() => go(n)} title={`${n + 1}. ${s.title || s.id}`} aria-label={`Bild ${n + 1}`} />

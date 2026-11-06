@@ -40,7 +40,6 @@ const NAV = [
   ["/admin/sales", "Byrå", "owner"],
   ["/admin/platform", "Eventverktyget", "owner"],
   ["/admin/projects", "Projekt", "owner"],
-  ["/admin/pitch", "Pitch", "owner"],
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],

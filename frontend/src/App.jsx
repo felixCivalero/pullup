@@ -12,8 +12,8 @@ import { ByBrand } from "./components/admin/ByBrand.jsx";
    mail) and /admin/agents (their own AI on PullUp; /connect approves one).
    Felix only: /admin (statistics), /admin/stockholm (culture scraper),
    /admin/projects (each client's project: timeline, board, strategy deck),
-   /admin/sales (sales pipeline, read from the Google Sheet), /admin/pitch
-   (pitches to present, full screen), /admin/archi.
+   /admin/sales (sales pipeline, read from the Google Sheet), /admin/pitch/:slug
+   (a project's pitch, played full screen), /admin/archi.
    Everything else goes to the front page. The old PullUp platform lives on
    the `pullup-app` branch. */
 const HomePage = lazyPage(() => import("./pages/HomePage"), "HomePage");

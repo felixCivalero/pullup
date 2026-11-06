@@ -383,24 +383,44 @@ export function FunnelWorld({ children }) {
       };
       drawHeroWords(false);
 
-      // The brands, on a tight ring of their own just outside the world
-      // (inside the moon's), slower; the ones behind it are faint and drawn
-      // under its dots, so the ring reads as going round.
+      // The brands sit on the moon's own ring (the Saturn ring), drifting
+      // slowly; each time the moon passes one it swells and glows for a
+      // moment. The ones behind the world are faint and under its dots.
+      const moonAng = still ? 2.2 : time * 0.55;
       const drawMarks = (front) => {
         if (away >= 1 || !marks.length) return;
-        const H = phone ? 12 : 24;
+        const H = phone ? 13 : 26;
         for (const m of marks) {
           const fadeIn = still ? 1 : clamp((time * 0.85 - 2.3 - m.i * 0.12) / 0.9);
           if (fadeIn <= 0) continue;
-          const ang = (still ? 0.4 : time * 0.2) + (m.i / LOGOS.length) * Math.PI * 2;
-          const [x, y, z, s] = heroProject(onRing(ang).map((v) => v * 0.72), false);
+          const ang = (still ? 0.4 : time * 0.05) + (m.i / LOGOS.length) * Math.PI * 2;
+          const [x, y, z, s] = heroProject(onRing(ang), false);
           if ((z > 0) !== front) continue;
-          let hgt = H * s * m.boost;
+          // How close the moon is (angle along the ring), 1 = right on it.
+          let d = (((moonAng - ang) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+          d = Math.abs(d);
+          const hit = still ? 0 : Math.max(0, 1 - d / 0.32) ** 2;
+          const pop = 1 + hit * 0.45;
+          let hgt = H * s * m.boost * pop;
           let wid = hgt * m.aspect;
-          const cap = H * s * 4.2;
+          const cap = H * s * 4.2 * pop;
           if (wid > cap) { wid = cap; hgt = wid / m.aspect; }
-          ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.95 : 0.2);
-          ctx.drawImage(m.off, x - wid / 2, y - hgt / 2, wid, hgt);
+          const lift = hit * (phone ? 4 : 8);
+          ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.9 + hit * 0.1 : 0.3 + hit * 0.4);
+          if (hit > 0.02) {
+            ctx.shadowColor = "rgba(255,255,255,0.95)";
+            ctx.shadowBlur = 22 * hit;
+          }
+          ctx.drawImage(m.off, x - wid / 2, y - hgt / 2 - lift, wid, hgt);
+          ctx.shadowBlur = 0;
+          // A ring of light going out from it as the moon crosses.
+          if (hit > 0.05 && front) {
+            ctx.strokeStyle = `rgba(255,255,255,${0.6 * hit})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(x, y - lift, wid * (0.6 + (1 - hit) * 0.5), hgt * (0.9 + (1 - hit) * 0.8), 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
         ctx.globalAlpha = 1;
       };
@@ -474,7 +494,7 @@ export function FunnelWorld({ children }) {
       // The hero's moon, riding the ring.
       const moonIn = (still ? 1 : clamp((time * 0.85 - 1.9) / 0.8)) * (1 - away);
       if (moonIn > 0) {
-        const [mx, my, mz, ms] = heroProject(onRing(still ? 2.2 : time * 0.55), false);
+        const [mx, my, mz, ms] = heroProject(onRing(moonAng), false);
         ctx.fillStyle = `rgba(255,255,255,${moonIn * (mz < 0 ? 0.45 : 1)})`;
         ctx.beginPath();
         ctx.arc(mx, my, (phone ? 5 : 7) * ms, 0, Math.PI * 2);

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "./i18n.js";
+import { LOGOS } from "./logos.js";
 
 /* The front page's opening, one pinned scene played by scrolling (scrubbed
    both ways):
    0. the hero: on landing, pieces fly in and build a turning world on pink,
-      with what we make written on it and a ring with a white moon;
+      with what we make written on it and a ring with a white moon; the
+      brands we've worked with orbit it in white, behind and in front;
    1. noise: scrolling blows that world apart into drifting dots on black,
       the feeds full of AI;
    2. the funnel: the dots are drawn into a funnel and fall through strategy,
@@ -138,6 +140,25 @@ export function FunnelWorld({ children }) {
     let heroTop = 0;
     let tone = -1;
     let spinHero = 0.6;
+    // The brands' marks as white silhouettes, made once each logo loads.
+    const marks = [];
+    LOGOS.forEach((logo, i) => {
+      const img = new Image();
+      img.onload = () => {
+        const aspect = (img.naturalWidth || logo.width) / (img.naturalHeight || logo.height);
+        const hh = 96;
+        const off = document.createElement("canvas");
+        off.width = Math.round(hh * aspect);
+        off.height = hh;
+        const o = off.getContext("2d");
+        o.drawImage(img, 0, 0, off.width, off.height);
+        o.globalCompositeOperation = "source-in";
+        o.fillStyle = "#fff";
+        o.fillRect(0, 0, off.width, off.height);
+        marks.push({ i, off, aspect, boost: logo.boost || 1 });
+      };
+      img.src = logo.src;
+    });
     let tiltHero = 0.3;
     const aim = { x: 0, y: 0 };
 
@@ -362,6 +383,29 @@ export function FunnelWorld({ children }) {
       };
       drawHeroWords(false);
 
+      // The brands, on a tight ring of their own just outside the world
+      // (inside the moon's), slower; the ones behind it are faint and drawn
+      // under its dots, so the ring reads as going round.
+      const drawMarks = (front) => {
+        if (away >= 1 || !marks.length) return;
+        const H = phone ? 12 : 24;
+        for (const m of marks) {
+          const fadeIn = still ? 1 : clamp((time * 0.85 - 2.3 - m.i * 0.12) / 0.9);
+          if (fadeIn <= 0) continue;
+          const ang = (still ? 0.4 : time * 0.2) + (m.i / LOGOS.length) * Math.PI * 2;
+          const [x, y, z, s] = heroProject(onRing(ang).map((v) => v * 0.72), false);
+          if ((z > 0) !== front) continue;
+          let hgt = H * s * m.boost;
+          let wid = hgt * m.aspect;
+          const cap = H * s * 4.2;
+          if (wid > cap) { wid = cap; hgt = wid / m.aspect; }
+          ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.95 : 0.2);
+          ctx.drawImage(m.off, x - wid / 2, y - hgt / 2, wid, hgt);
+        }
+        ctx.globalAlpha = 1;
+      };
+      drawMarks(false);
+
       // Dots are grouped by colour (alpha in 1/24 steps) and filled once per
       // group: a few dozen fills a frame instead of 1,400.
       const groups = new Map();
@@ -436,6 +480,8 @@ export function FunnelWorld({ children }) {
         ctx.arc(mx, my, (phone ? 5 : 7) * ms, 0, Math.PI * 2);
         ctx.fill();
       }
+
+      drawMarks(true);
 
       const wordsIn = clamp((grow - 0.55) / 0.3);
       if (wordsIn > 0) {

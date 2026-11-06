@@ -9,7 +9,7 @@ import { PitchPlayer } from "./pitch/PitchKit.jsx";
    it to Sälj and Projekt); /admin/pitch/:slug plays one
    full screen over the admin (pitch/PitchKit.jsx). Owner only. Each pitch is
    code (pitch/<slug>.jsx), so a slide can carry any animation we program.
-   Dela makes a share link (pullup.se/s/<token>, mig 160): open to anyone
+   Dela makes a share link (pullup.se/share/p/<token> → /s/<token>, migs 160-161): open to anyone
    who has it, without signing in, until it expires or is closed here. */
 export function PitchPage() {
   const { slug } = useParams();
@@ -21,7 +21,9 @@ export function PitchPage() {
 }
 
 const SHARE_DAYS = [[1, "1 dag"], [7, "7 dagar"], [30, "30 dagar"]];
-const shareUrl = (token) => `${window.location.origin}/s/${token}`;
+// The link to send: /share/p/ gives link previews the pitch's own card and
+// sends people on to /s/<token> (routes/adminPitch.js).
+const shareUrl = (token) => `${window.location.origin}/share/p/${token}`;
 const shortDate = (iso) => new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 
 function List() {
@@ -73,7 +75,7 @@ function Share({ pitch, links, onChange }) {
   };
   const create = async () => {
     setBusy(true);
-    const r = await authenticatedFetch("/admin/pitch-links", { method: "POST", body: JSON.stringify({ slug: pitch.slug, prospectId: pitch.prospectId, days }) }).catch(() => null);
+    const r = await authenticatedFetch("/admin/pitch-links", { method: "POST", body: JSON.stringify({ slug: pitch.slug, prospectId: pitch.prospectId, days, share: pitch.share }) }).catch(() => null);
     setBusy(false);
     if (!r?.ok) return;
     const link = await r.json();
@@ -95,7 +97,7 @@ function Share({ pitch, links, onChange }) {
       </div>
       {open.map((l) => (
         <div key={l.token} className="pl-share-link">
-          <code title={shareUrl(l.token)}>/s/{l.token.slice(0, 6)}…</code>
+          <code title={shareUrl(l.token)}>/share/p/{l.token.slice(0, 6)}…</code>
           <small>till {shortDate(l.expiresAt)} · {l.views} {l.views === 1 ? "visning" : "visningar"}</small>
           <button type="button" onClick={() => copy(l.token)}>{copied === l.token ? "Kopierad" : "Kopiera"}</button>
           <button type="button" className="pl-close" onClick={() => close(l.token)}>Stäng</button>

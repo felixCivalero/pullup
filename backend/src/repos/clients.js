@@ -23,15 +23,16 @@ export async function listClients() {
 // existing one.
 export async function ensureClients(prospects) {
   if (!prospects.length) return [];
-  const rows = prospects.map((p) => ({ prospect_id: p.id, company: p.company, person: p.person || null, email: p.email.includes("@") ? p.email : null }));
+  const rows = prospects.map((p) => ({ prospect_id: p.id, company: p.company, person: p.person || null, email: String(p.email || "").includes("@") ? p.email : null }));
   const { data, error } = await supabase.from("clients").upsert(rows, { onConflict: "prospect_id", ignoreDuplicates: true }).select("*");
   if (error) throw error;
   return (data || []).map(mapClient);
 }
 
-export async function updateClient(id, { docUrl }) {
+export async function updateClient(id, { docUrl, company }) {
   const patch = { updated_at: new Date().toISOString() };
   if (docUrl !== undefined) patch.doc_url = docUrl || null;
+  if (company) patch.company = company;
   const { data, error } = await supabase.from("clients").update(patch).eq("id", id).select("*").single();
   if (error) throw error;
   return mapClient(data);

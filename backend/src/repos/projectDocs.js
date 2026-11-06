@@ -1,8 +1,9 @@
-// Project docs repo: a client's board and strategy deck, one JSON doc each,
+// Project docs repo: a client's board, strategy deck (old, slides) and brief
+// (the strategy document: grundbultar + content buckets), one JSON doc each,
 // written with a version guard (see migration 146).
 import { supabase } from "../supabase.js";
 
-const KINDS = new Set(["board", "strategy"]);
+const KINDS = new Set(["board", "strategy", "brief"]);
 export const isDocKind = (kind) => KINDS.has(kind);
 
 const mapDoc = (r) => ({ doc: r?.doc || {}, version: r?.version ?? 0, updatedAt: r?.updated_at || null });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Loader2, Upload, Plus, Check, CloudOff, CalendarPlus, FileText, ChevronDown, X } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { useSession } from "../../lib/owner.js";
@@ -7,20 +7,24 @@ import { colors } from "../../theme/colors.js";
 import { PlannerCanvas } from "../../components/planner/PlannerCanvas.jsx";
 import { layoutKey } from "../../lib/plannerStore.js";
 import { ProjectBoard } from "../../components/project/ProjectBoard.jsx";
-import { StrategyDeck } from "../../components/project/StrategyDeck.jsx";
-import { Link } from "react-router-dom";
+import { ProjectBrief } from "../../components/project/ProjectBrief.jsx";
 import { AdminShell } from "./AdminShell.jsx";
 import { pitchFor } from "./pitch/index.js";
+import { ProjectPitch } from "./pitch/ProjectPitch.jsx";
 
-/* /admin/projects — one project per client (a Won row in the sales sheet),
-   picked at the top (?kund=P-666), with three views (?vy=):
-     tidslinje  the content timeline: cards pinned to dates, event marks
+/* /admin/projects — one project per brand (a row in the sales sheet: Won
+   rows get one by themselves, any other row via "Nytt projekt"), picked at
+   the top (?kund=P-666), in the order the work flows (?vy=):
+     pitch      the brand's pitch, the ground everything stands on (linked,
+                the same one as under Pitch)
+     strategi   the strategy document: grundbultar + content buckets
      board      free-form, for developing formats in meetings
-     strategi   the strategy deck: vision, goals, audience…
-   Formats tie the first two together: a format frame on the board is a
-   format on the timeline. The frame links to its cards (?format= focuses
-   them) and a card's format label links back to its frame.
-   Meeting notes live in the client's Google Doc, linked from the bar. */
+     tidslinje  the content timeline: cards pinned to dates, event marks
+   A content bucket is a format: the same name on the board's format frames
+   and on the timeline's cards. The strategy shows each bucket's count and
+   opens it on the timeline or board (?format= focuses it); renaming a bucket
+   or frame renames the format on its cards. Meeting notes live in the
+   client's Google Doc, linked from the bar. */
 
 // The canvas works in local dates; the API stores 'YYYY-MM-DD'. Noon keeps a
 // date on the same day in every timezone.
@@ -28,7 +32,7 @@ const toCanvas = (e) => ({ ...e, startsAt: `${e.startsAt}T12:00:00` });
 const toApi = (patch) => (patch.startsAt ? { ...patch, startsAt: patch.startsAt.slice(0, 10) } : patch);
 const dayLabel = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 
-const VIEWS = [["tidslinje", "Tidslinje"], ["board", "Board"], ["strategi", "Strategi"]];
+const VIEWS = [["pitch", "Pitch"], ["strategi", "Strategi"], ["board", "Board"], ["tidslinje", "Tidslinje"]];
 
 export function ProjectPage() {
   return (
@@ -55,28 +59,46 @@ function Projects() {
 
   const clients = [...data.clients].sort((a, b) => (a.stage === "Won" ? 0 : 1) - (b.stage === "Won" ? 0 : 1));
   const current = clients.find((c) => c.prospectId === params.get("kund")) || clients[0] || null;
-  const view = VIEWS.some(([v]) => v === params.get("vy")) ? params.get("vy") : "tidslinje";
+  const view = VIEWS.some(([v]) => v === params.get("vy")) ? params.get("vy") : "strategi";
   const go = (next) => setParams(Object.fromEntries(Object.entries({ kund: current?.prospectId, vy: view, ...next }).filter(([, v]) => v)), { replace: true });
   const pick = (key) => setParams({ kund: key, vy: view }, { replace: true });
   const updateClient = (client) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === client.id ? { ...c, ...client } : c)) }));
+  const addClient = (client) => {
+    setData((d) => ({ ...d, clients: [...d.clients.filter((c) => c.id !== client.id), client] }));
+    setParams({ kund: client.prospectId, vy: "strategi" }, { replace: true });
+  };
 
   if (!current) {
-    return <Empty>Inga kunder än. En kund dyker upp här när raden i arket får Stage <b>Won</b>.</Empty>;
+    return (
+      <Empty>
+        Inga projekt än. Starta ett för en rad i säljarket:
+        <span style={{ display: "block", marginTop: 14, textAlign: "left" }}><NewProject onCreated={addClient} /></span>
+      </Empty>
+    );
   }
 
   return (
     <>
       <Project key={current.id} client={current} view={view} focusFormat={params.get("format")} go={go} />
-      <ProjectBar key={`bar-${current.id}`} clients={clients} current={current} view={view} onView={(vy) => go({ vy, format: null })} onPick={pick} onUpdate={updateClient} />
+      <ProjectBar key={`bar-${current.id}`} clients={clients} current={current} view={view} onView={(vy) => go({ vy, format: null })} onPick={pick} onUpdate={updateClient} onCreated={addClient} />
     </>
   );
 }
 
-// One client's project: the format list and counts that tie the timeline and
-// the board together, and whichever view is open.
+// One client's project: the format list and counts that tie the strategy's
+// buckets, the board and the timeline together, and whichever view is open.
 function Project({ client, view, focusFormat, go }) {
   const [boardFormats, setBoardFormats] = useState([]);
+  const [bucketNames, setBucketNames] = useState([]);
   const [cards, setCards] = useState([]);
+
+  // The strategy's content buckets: formats too.
+  useEffect(() => {
+    authenticatedFetch(`/admin/projects/${client.id}/brief`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setBucketNames((d.doc?.blocks || []).filter((b) => b.type === "bucket").map((b) => String(b.title || "").trim()).filter(Boolean)))
+      .catch(() => {});
+  }, [client.id]);
 
   // Formats named on the board, for the timeline's format picker.
   useEffect(() => {
@@ -93,7 +115,8 @@ function Project({ client, view, focusFormat, go }) {
       .then((d) => d && setCards(d.cards || []))
       .catch(() => {});
   }, [client.id]);
-  useEffect(() => { if (view === "board" || focusFormat) loadCards(); }, [view, focusFormat, loadCards]);
+  useEffect(() => { if (view === "board" || view === "strategi" || focusFormat) loadCards(); }, [view, focusFormat, loadCards]);
+  const formats = [...new Set([...bucketNames, ...boardFormats])];
 
   const formatCounts = {};
   for (const c of cards) {
@@ -122,11 +145,24 @@ function Project({ client, view, focusFormat, go }) {
       />
     );
   }
-  if (view === "strategi") return <StrategyDeck clientId={client.id} projectName={client.company} />;
+  if (view === "pitch") return <ProjectPitch entry={pitchFor(client.prospectId)} projectName={client.company} />;
+  if (view === "strategi") {
+    return (
+      <ProjectBrief
+        clientId={client.id}
+        projectName={client.company}
+        pitch={pitchFor(client.prospectId)}
+        formatCounts={formatCounts}
+        onOpenFormat={(vy, format) => go({ vy, format })}
+        onRenameBucket={renameFormat}
+        onBucketsChange={(names) => setBucketNames(names.map((n) => String(n).trim()).filter(Boolean))}
+      />
+    );
+  }
   return (
     <ClientCanvas
       clientId={client.id}
-      boardFormats={boardFormats}
+      boardFormats={formats}
       focusFormat={focusFormat}
       focusCount={formatCounts[focusFormat] || 0}
       onClearFocus={() => go({ format: null })}
@@ -239,16 +275,18 @@ function ClientCanvas({ clientId, boardFormats, focusFormat, focusCount, onClear
 function Empty({ children }) {
   return (
     <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24, background: colors.background }}>
-      <p style={{ maxWidth: 420, textAlign: "center", fontSize: 15, lineHeight: 1.5, color: colors.textSubtle, margin: 0 }}>{children}</p>
+      <div style={{ maxWidth: 420, textAlign: "center", fontSize: 15, lineHeight: 1.5, color: colors.textSubtle, margin: 0 }}>{children}</div>
     </div>
   );
 }
 
 // Top of the project: whose it is (a dropdown of clients), the views, their
 // meetings doc, and the next step from the sheet. Keyed by client.
-function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
+function ProjectBar({ clients, current, view, onView, onPick, onUpdate, onCreated }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(current.company || "");
   const [url, setUrl] = useState(current.docUrl || "");
   const [saving, setSaving] = useState(false);
   const pickerRef = useRef(null);
@@ -276,6 +314,20 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
     setSaving(false);
   };
 
+  // The project's name (the sheet keeps its own company name).
+  const saveName = async (e) => {
+    e.preventDefault();
+    const next = name.trim();
+    if (!next || next === current.company) { setRenaming(false); return; }
+    setSaving(true);
+    const r = await authenticatedFetch(`/admin/clients/${current.id}`, { method: "PATCH", body: JSON.stringify({ company: next }) }).catch(() => null);
+    if (r?.ok) {
+      onUpdate((await r.json()).client);
+      setRenaming(false);
+    }
+    setSaving(false);
+  };
+
   return (
     <div className="tl-bar">
       <style>{BAR_CSS}</style>
@@ -295,6 +347,7 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
                 </button>
               </li>
             ))}
+            <li className="tl-new"><NewProject onCreated={(c) => { setMenu(false); onCreated(c); }} /></li>
           </ul>
         )}
       </div>
@@ -304,13 +357,20 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
         ))}
       </div>
       <div className="tl-meta">
-        {!editing && pitchFor(current.prospectId) && (
-          <Link to={`/admin/pitch/${pitchFor(current.prospectId).slug}`}>Pitch</Link>
+        {renaming && (
+          <form onSubmit={saveName}>
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Projektets namn" />
+            <button type="submit" disabled={saving}>{saving ? "Sparar…" : "Spara"}</button>
+            <button type="button" className="tl-link" onClick={() => setRenaming(false)}>Avbryt</button>
+          </form>
+        )}
+        {!editing && !renaming && (
+          <button type="button" className="tl-link" onClick={() => { setName(current.company || ""); setRenaming(true); }}>Döp om</button>
         )}
         {!editing && current.docUrl && (
           <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
         )}
-        {!editing && (
+        {!editing && !renaming && (
           <button type="button" className="tl-link" onClick={() => setEditing(true)}>{current.docUrl ? "Byt dokument" : "Lägg till mötesdokument"}</button>
         )}
         {editing && (
@@ -324,6 +384,48 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate }) {
           <span title={current.nextStep}>Nästa: {dayLabel(current.nextStepDate)}</span>
         )}
       </div>
+    </div>
+  );
+}
+
+// Start a project for a row in the sales sheet: search by name or P-ID.
+function NewProject({ onCreated }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState([]);
+  const [busy, setBusy] = useState(null);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return undefined;
+    const t = setTimeout(() => {
+      authenticatedFetch(`/admin/clients/candidates?q=${encodeURIComponent(term)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setHits(d.candidates))
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  const create = async (prospectId) => {
+    setBusy(prospectId);
+    const r = await authenticatedFetch("/admin/clients", { method: "POST", body: JSON.stringify({ prospectId }) }).catch(() => null);
+    setBusy(null);
+    if (r?.ok) onCreated((await r.json()).client);
+  };
+  return (
+    <div className="tl-newproj">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="+ Nytt projekt: sök i arket" aria-label="Nytt projekt" />
+      {q.trim().length >= 2 && (
+        <ul>
+          {hits.map((h) => (
+            <li key={h.prospectId}>
+              <button type="button" onClick={() => create(h.prospectId)} disabled={!!busy}>
+                <b>{h.company}</b>
+                <span>{busy === h.prospectId ? "Skapar…" : `${h.prospectId}${h.stage ? ` · ${h.stage}` : ""}`}</span>
+              </button>
+            </li>
+          ))}
+          {!hits.length && <li className="tl-none">Ingen träff utan projekt</li>}
+        </ul>
+      )}
     </div>
   );
 }
@@ -349,6 +451,11 @@ const BAR_CSS = `
   .tl-meta form { display: flex; align-items: center; gap: 8px; }
   .tl-meta input { font: inherit; font-size: 13px; width: min(320px, 52vw); padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.18); }
   .tl-meta form button[type=submit] { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 0; background: #0a0a0a; color: #fff; cursor: pointer; }
+  .tl-new { margin-top: 4px; padding-top: 6px; border-top: 1px solid #ececec; }
+  .tl-newproj input { width: 100%; box-sizing: border-box; font: inherit; font-size: 13.5px; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(0,0,0,0.14); outline: none; }
+  .tl-newproj input:focus { border-color: #0a0a0a; }
+  .tl-newproj ul { list-style: none; margin: 6px 0 0; padding: 0; }
+  .tl-newproj .tl-none { font-size: 12.5px; color: #8e8e93; padding: 6px 10px; }
   .tl-link { font: inherit; font-size: 13px; color: #6e6e73; background: none; border: 0; padding: 0; cursor: pointer; }
   .tl-link:hover { color: #0a0a0a; }
   @media (max-width: 640px) { .tl-bar { top: 66px; left: 10px; right: 10px; } }

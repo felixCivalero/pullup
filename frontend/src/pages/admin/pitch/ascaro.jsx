@@ -8,8 +8,9 @@ import { Backdrop, Credit, INK, MUTED, PAPER, PINK, body, h2, kicker, makeChapte
    and Doha (ascaropadel.com), their own apparel line ("a good look on your
    victory walk home"), food, drinks, a running track and weights on the
    roof; STIGA their racket and ball partner since May 2025; Oscar founded MAN
-   magazine and FRONTMEN before (sheet notes). The story is ours: the journey
-   from the roof of NK to the world's roofs, told as a magazine. Place photos:
+   magazine and FRONTMEN before (sheet notes). The story is ours: lifestyle on the
+   roof, everything they offer, from NK to the world's roofs, told as a
+   magazine (title "Livsstil på taket", Felix 2026-11-06). Place photos:
    Wikimedia Commons, credited on the slide. Felix's STIGA numbers: his case
    on pullup.se. Adam Flambo's: his PullUp case (2026-10-15). */
 
@@ -40,7 +41,7 @@ function Cover() {
           <A as="span" kind="scale" d={0.8} style={{ color: PINK }}>×</A>
           <A as="span" kind="rise" d={1.1} style={{ letterSpacing: 4 }}>ASCARO</A>
         </h1>
-        <A as="p" kind="fade" d={1.9} style={{ fontSize: 40, color: "#d8d8d4" }}>Från taket på NK till världens tak.</A>
+        <A as="p" kind="fade" d={1.9} style={{ fontSize: 40, color: "#d8d8d4" }}>Livsstil på taket. Padel, mat, dryck, träning och kläder.</A>
       </div>
       <Credit>{PHOTO.stockholm.credit}</Credit>
     </div>
@@ -247,7 +248,7 @@ function End() {
 export const pitch = {
   slug: "ascaro",
   client: "ASCARO",
-  title: "Från taket på NK till världens tak",
+  title: "Livsstil på taket",
   slides: [
     { id: "cover", title: "PullUp × ASCARO", Slide: Cover, bg: INK, notes: "Tack för behovsanalysen. Det här är vårt förslag, som en resa." },
     { id: "taket", title: "Taket", Slide: Roof, bg: PAPER, notes: "Deras egna ord från sajten. Visa att vi förstått vad ASCARO är: inte bara banor, en plats." },

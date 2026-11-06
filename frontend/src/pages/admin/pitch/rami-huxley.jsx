@@ -3,8 +3,9 @@ import { useMemo } from "react";
 import { A } from "./PitchKit.jsx";
 import { Backdrop, Credit, INK, MUTED, PAPER, PINK, body, h2, kicker, makeChapter, pad, useNow } from "./common.jsx";
 
-/* Adam Dawood × PullUp — the journey we're on together (P-666, client since
-   Oct 2026, weekly "Dawoodski to da moon"). From the meetings doc: the content
+/* Rami Huxley × PullUp — the Habibi punk project, the journey we're on
+   together (P-666 in the sheet, still under Adam Dawood there; client since
+   Oct 2026, weekly "Dawoodski to da moon"; renamed by Felix 2026-11-06). From the meetings doc: the content
    machinery is the baseline (30-min sprint every week, production, posting,
    analyse and tweak), the release of "Breakfast with Girls" (song + video) on
    22 Jan 2027 with deadlines 12 Dec (feature) and 18 Dec (song), the release
@@ -13,7 +14,7 @@ import { Backdrop, Credit, INK, MUTED, PAPER, PINK, body, h2, kicker, makeChapte
    Deliberately left out (this file is public once built): the label deal and
    the names on the feature list. Place photos: Wikimedia Commons, credited. */
 
-const IMG = (f) => `/pitch/dawood/${f}`;
+const IMG = (f) => `/pitch/rami-huxley/${f}`;
 const PHOTO = {
   skyline: { file: "skyline.jpg", credit: "Diliff, CC BY-SA 3.0" },
   rooftop: { file: "rooftop.jpg", credit: "Paulo Barcellos Jr., CC BY-SA 2.0" },
@@ -31,9 +32,9 @@ function Cover() {
         <h1 style={{ fontSize: 150, fontWeight: 700, letterSpacing: -6, lineHeight: 1, display: "flex", gap: 40, alignItems: "baseline" }}>
           <A as="span" kind="left" d={0.3}>PullUp</A>
           <A as="span" kind="scale" d={0.8} style={{ color: PINK }}>×</A>
-          <A as="span" kind="rise" d={1.1}>Adam Dawood</A>
+          <A as="span" kind="rise" d={1.1}>Rami Huxley</A>
         </h1>
-        <A as="p" kind="fade" d={1.9} style={{ fontSize: 40, color: "#d8d8d4" }}>Dawoodski to da moon.</A>
+        <A as="p" kind="fade" d={1.9} style={{ fontSize: 40, color: "#d8d8d4" }}>Habibi punk. To da moon.</A>
       </div>
       <Credit>{PHOTO.skyline.credit}</Credit>
     </div>
@@ -115,7 +116,7 @@ function Machine() {
       <div style={{ width: 640, display: "flex", flexDirection: "column", gap: 28 }}>
         <A as="p" kind="fade" style={kicker}>Grunden</A>
         <A as="h2" d={0.15} style={{ ...h2, fontSize: 88 }}>Innehålls­maskinen.</A>
-        <A as="p" d={0.4} style={{ ...body, color: "#b5b5b0" }}>Den går hela tiden, bredvid Adam, medan han lever artistlivet och gör musiken. Varje release åker med på den.</A>
+        <A as="p" d={0.4} style={{ ...body, color: "#b5b5b0" }}>Den går hela tiden, bredvid Rami, medan han lever artistlivet och gör musiken. Varje release åker med på den.</A>
       </div>
       <A kind="scale" d={0.5} style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         {pos.map(([c, r]) => {
@@ -233,18 +234,18 @@ function Moon() {
       <div style={{ position: "absolute", left: "50%", top: 150, width: 520, height: 520, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #fffaf0 0%, #e9e2d0 45%, #b9b2a3 100%)", boxShadow: "0 0 120px 30px rgba(255,248,230,.25)", animation: "dwRise 3.2s cubic-bezier(.2,.8,.2,1) .3s both" }} />
       <div style={{ position: "absolute", left: 0, right: 0, bottom: 150, display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
         <A as="h1" d={2.6} style={{ fontSize: 130, fontWeight: 700, letterSpacing: -6, lineHeight: 1 }}>To da moon.</A>
-        <A as="p" kind="fade" d={3.3} style={{ fontSize: 30, color: "#a9adb8" }}>PullUp × Adam Dawood · 22 januari 2027</A>
+        <A as="p" kind="fade" d={3.3} style={{ fontSize: 30, color: "#a9adb8" }}>PullUp × Rami Huxley · Habibi punk · 22 januari 2027</A>
       </div>
     </div>
   );
 }
 
 export const pitch = {
-  slug: "dawood",
-  client: "Adam Dawood",
-  title: "Dawoodski to da moon",
+  slug: "rami-huxley",
+  client: "Rami Huxley",
+  title: "Habibi punk",
   slides: [
-    { id: "cover", title: "PullUp × Adam Dawood", Slide: Cover, bg: INK, notes: "Resan vi är på tillsammans. Det här är strategin vi förhåller oss till varje vecka." },
+    { id: "cover", title: "PullUp × Rami Huxley", Slide: Cover, bg: INK, notes: "Resan vi är på tillsammans. Det här är strategin vi förhåller oss till varje vecka." },
     { id: "nedrakning", title: "Release", Slide: Countdown, bg: INK, notes: "Nedräkningen går live till 22 januari." },
     { id: "vagen", title: "Vägen dit", Slide: Road, bg: PAPER, notes: "12 dec featuren, 18 dec låten, 22 jan release. Allt räknas bakåt från releasen." },
     { id: "maskinen", title: "Innehållsmaskinen", Slide: Machine, bg: INK, notes: "Grunden i projektet: sprint, produktion, publicering, analys, varje vecka." },

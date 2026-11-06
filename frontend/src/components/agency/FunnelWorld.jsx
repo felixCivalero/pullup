@@ -399,13 +399,16 @@ export function FunnelWorld({ children }) {
           // How close the moon is (angle along the ring), 1 = right on it.
           let d = (((moonAng - ang) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
           d = Math.abs(d);
-          const hit = still ? 0 : Math.max(0, 1 - d / 0.32) ** 2;
-          const pop = 1 + hit * 0.45;
+          // A short, springy hop: up fast, a little overshoot, settle.
+          const k = still ? 0 : Math.max(0, 1 - d / 0.2);
+          const hit = k * k;
+          const spring = k > 0 ? Math.sin(k * Math.PI) * (1 + 0.6 * Math.sin(k * Math.PI * 3)) : 0;
+          const pop = 1 + hit * 0.35 + spring * 0.25;
           let hgt = H * s * m.boost * pop;
           let wid = hgt * m.aspect;
           const cap = H * s * 4.2 * pop;
           if (wid > cap) { wid = cap; hgt = wid / m.aspect; }
-          const lift = hit * (phone ? 4 : 8);
+          const lift = spring * (phone ? 9 : 18);
           ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.9 + hit * 0.1 : 0.3 + hit * 0.4);
           if (hit > 0.02) {
             ctx.shadowColor = "rgba(255,255,255,0.95)";

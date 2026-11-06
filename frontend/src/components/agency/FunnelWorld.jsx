@@ -384,8 +384,7 @@ export function FunnelWorld({ children }) {
       drawHeroWords(false);
 
       // The brands sit on the moon's own ring (the Saturn ring), drifting
-      // slowly; each time the moon passes one it swells and glows for a
-      // moment. The ones behind the world are faint and under its dots.
+      // slowly; each time the moon passes one it bumps up once. The ones behind the world are faint and under its dots.
       const moonAng = still ? 2.2 : time * 0.55;
       const drawMarks = (front) => {
         if (away >= 1 || !marks.length) return;
@@ -399,31 +398,16 @@ export function FunnelWorld({ children }) {
           // How close the moon is (angle along the ring), 1 = right on it.
           let d = (((moonAng - ang) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
           d = Math.abs(d);
-          // A short, springy hop: up fast, a little overshoot, settle.
+          // One quick bump as the moon passes: up and back down, once.
           const k = still ? 0 : Math.max(0, 1 - d / 0.2);
-          const hit = k * k;
-          const spring = k > 0 ? Math.sin(k * Math.PI) * (1 + 0.6 * Math.sin(k * Math.PI * 3)) : 0;
-          const pop = 1 + hit * 0.35 + spring * 0.25;
-          let hgt = H * s * m.boost * pop;
+          const bump = Math.sin(k * Math.PI / 2) ** 2;
+          let hgt = H * s * m.boost * (1 + bump * 0.18);
           let wid = hgt * m.aspect;
-          const cap = H * s * 4.2 * pop;
+          const cap = H * s * 4.2 * (1 + bump * 0.18);
           if (wid > cap) { wid = cap; hgt = wid / m.aspect; }
-          const lift = spring * (phone ? 9 : 18);
-          ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.9 + hit * 0.1 : 0.3 + hit * 0.4);
-          if (hit > 0.02) {
-            ctx.shadowColor = "rgba(255,255,255,0.95)";
-            ctx.shadowBlur = 22 * hit;
-          }
+          const lift = bump * (phone ? 7 : 14);
+          ctx.globalAlpha = fadeIn * (1 - away) * (front ? 0.9 + bump * 0.1 : 0.3 + bump * 0.3);
           ctx.drawImage(m.off, x - wid / 2, y - hgt / 2 - lift, wid, hgt);
-          ctx.shadowBlur = 0;
-          // A ring of light going out from it as the moon crosses.
-          if (hit > 0.05 && front) {
-            ctx.strokeStyle = `rgba(255,255,255,${0.6 * hit})`;
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.ellipse(x, y - lift, wid * (0.6 + (1 - hit) * 0.5), hgt * (0.9 + (1 - hit) * 0.8), 0, 0, Math.PI * 2);
-            ctx.stroke();
-          }
         }
         ctx.globalAlpha = 1;
       };

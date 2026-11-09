@@ -12,13 +12,13 @@ export const PRODUCT_DESCRIPTION =
   "Skapa en eventsida på en minut, ta emot anmälningar med bekräftelsemejl och kalenderinbjudan, håll koll på gästlistan och mejla dina gäster. Gratis – du betalar bara för stora utskick. Din AI kan göra allt åt dig.";
 
 export const PACKS = [
-  { mails: "5 000", price: "99 kr" },
-  { mails: "25 000", price: "449 kr" },
-  { mails: "100 000", price: "1 490 kr" },
+  { mails: "5 000", price: "69 kr" },
+  { mails: "25 000", price: "299 kr" },
+  { mails: "100 000", price: "990 kr" },
 ];
 
 export const FAQ = [
-  ["Vad kostar PullUp?", "Inget. Eventsidor, anmälan, bekräftelsemejl med kalenderinbjudan, gästlista och CRM är gratis. Det enda som kostar är när du mejlar många på en gång, som inbjudningar och nyhetsbrev: 5 000 mejl för 99 kr, 25 000 för 449 kr eller 100 000 för 1 490 kr (exkl. moms). Krediterna går aldrig ut."],
+  ["Vad kostar PullUp?", "Inget. Eventsidor, anmälan, bekräftelsemejl med kalenderinbjudan, gästlista och CRM är gratis. Det enda som kostar är när du mejlar många på en gång, som inbjudningar och nyhetsbrev: 5 000 mejl för 69 kr, 25 000 för 299 kr eller 100 000 för 990 kr (exkl. moms). Krediterna går aldrig ut."],
   ["Behöver mina gäster ett konto?", "Nej. De anmäler sig med namn och e-post och får ett bekräftelsemejl med eventet och en kalenderfil."],
   ["Kan min AI skapa eventet åt mig?", "Ja. Lägg till PullUp som connector i Claude, ChatGPT eller en annan AI-assistent (https://mcp.pullup.se), godkänn den en gång, och säg till exempel: ”Lägg upp min releasefest på PullUp den 7 november kl 19.” Den kan skapa och publicera event, se gästlistan och mejla gästerna – samma saker som du kan, inget mer. I webbläsare med WebMCP får AI:n samma verktyg direkt på sidan."],
   ["Vad händer när eventet blir fullt?", "Sätt ett max antal platser, så hamnar nästa anmälda på väntelistan automatiskt. Du kan flytta gäster mellan väntelista och anmäld."],
@@ -30,7 +30,7 @@ export const FAQ = [
 
 // The same answers in English, for the page in English (the JSON-LD stays Swedish).
 export const FAQ_EN = [
-  ["What does PullUp cost?", "Nothing. Event pages, sign-up, confirmation emails with a calendar invite, the guest list and the CRM are free. The only thing that costs is emailing many at once, like invitations and newsletters: 5,000 emails for 99 kr, 25,000 for 449 kr or 100,000 for 1,490 kr (excl. VAT). The credits never expire."],
+  ["What does PullUp cost?", "Nothing. Event pages, sign-up, confirmation emails with a calendar invite, the guest list and the CRM are free. The only thing that costs is emailing many at once, like invitations and newsletters: 5,000 emails for 69 kr, 25,000 for 299 kr or 100,000 for 990 kr (excl. VAT). The credits never expire."],
   ["Do my guests need an account?", "No. They sign up with name and email and get a confirmation email with the event and a calendar file."],
   ["Can my AI create the event for me?", "Yes. Add PullUp as a connector in Claude, ChatGPT or another AI assistant (https://mcp.pullup.se), approve it once, and say for example: \"Put my release party on PullUp on 7 November at 19:00.\" It can create and publish events, see the guest list and email the guests – the same things you can, nothing more. In browsers with WebMCP, the AI gets the same tools right on the page."],
   ["What happens when the event is full?", "Set a maximum number of spots, and the next person to sign up lands on the waitlist automatically. You can move guests between the waitlist and signed up."],

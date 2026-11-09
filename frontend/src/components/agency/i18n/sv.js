@@ -1485,7 +1485,7 @@ export const SV = {
   "Your guests are yours.": "Dina gäster är dina.",
   "Your next event starts here.": "Ditt nästa event börjar här.",
   "Your own CRM": "Din egen CRM",
-  "emailing many at once, like invitations and newsletters, because every email costs to send. 5,000 emails for 99 kr. Confirmations to your guests are always free.": "mejl till många på en gång, som inbjudningar och nyhetsbrev – för att varje mejl kostar att skicka. 5 000 mejl för 99 kr. Bekräftelser till dina gäster är alltid gratis.",
+  "emailing many at once, like invitations and newsletters, because every email costs to send. 5,000 emails for 69 kr. Confirmations to your guests are always free.": "mejl till många på en gång, som inbjudningar och nyhetsbrev – för att varje mejl kostar att skicka. 5 000 mejl för 69 kr. Bekräftelser till dina gäster är alltid gratis.",
   "{#} of {#} coming": "{#} av {#} kommer",
   "{#} {#} emails": "{#} {#} mejl",
   "you@yourbrand.se": "du@ertvarumärke.se",

@@ -10,9 +10,11 @@ import crypto from "crypto";
 import { supabase } from "../supabase.js";
 
 export const PACKS = [
-  { id: "s", mails: 5000, priceSek: 99 },
-  { id: "m", mails: 25000, priceSek: 449 },
-  { id: "l", mails: 100000, priceSek: 1490 },
+  // 2026-11-10: lowered to sit just over the invoice price (12 kr / 1 000,
+  // lib/accountSettings.js), the gap covering Stripe's fee; bigger = cheaper.
+  { id: "s", mails: 5000, priceSek: 69 },
+  { id: "m", mails: 25000, priceSek: 299 },
+  { id: "l", mails: 100000, priceSek: 990 },
 ];
 export const packById = (id) => PACKS.find((p) => p.id === id) || null;
 

@@ -9,12 +9,12 @@ function assert(cond, msg) {
   else { console.log("✅", msg); }
 }
 
-assert(PACKS.map((p) => `${p.mails}:${p.priceSek}`).join() === "5000:99,25000:449,100000:1490", "three packs: 5 000 / 99, 25 000 / 449, 100 000 / 1 490");
+assert(PACKS.map((p) => `${p.mails}:${p.priceSek}`).join() === "5000:69,25000:299,100000:990", "three packs: 5 000 / 69, 25 000 / 299, 100 000 / 990");
 assert(packById("m").mails === 25000 && packById("x") === null, "a pack is found by id, an unknown id is nothing");
 
 const host = "f3394b03-0000-0000-0000-000000000000";
 const p = checkoutParams({ pack: packById("s"), hostId: host, email: "a@b.se", frontendUrl: "https://pullup.se", returnPath: "/admin/mail?event=e1" });
-assert(p.get("mode") === "payment" && p.get("line_items[0][price_data][unit_amount]") === "9900" && p.get("line_items[0][price_data][currency]") === "sek", "Checkout charges 99 kr once, in SEK");
+assert(p.get("mode") === "payment" && p.get("line_items[0][price_data][unit_amount]") === "6900" && p.get("line_items[0][price_data][currency]") === "sek", "Checkout charges 69 kr once, in SEK");
 assert(p.get("line_items[0][price_data][product_data][name]") === "5 000 mejlutskick", "the line item says what is bought");
 assert(p.get("metadata[host_id]") === host && p.get("metadata[pack]") === "s", "the session carries host and pack");
 assert(p.get("success_url") === "https://pullup.se/admin/mail?event=e1&credits=paid&session_id={CHECKOUT_SESSION_ID}", "back to the same page after paying, with the session id");

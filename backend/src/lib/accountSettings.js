@@ -14,10 +14,14 @@
 // reading the table every time; the owner's change clears it.
 import { supabase } from "../supabase.js";
 import { ActionError } from "./actionError.js";
-import { PACKS, creditBalance } from "./emailCredits.js";
+import { creditBalance } from "./emailCredits.js";
 
-// The invoice price when none is set: the small pack's (99 kr / 5 000).
-export const LIST_PRICE_PER_1000 = Math.round((PACKS[0].priceSek / PACKS[0].mails) * 1000 * 100) / 100;
+// The invoice price when none is set, SEK ex moms per 1 000 sends. Set
+// 2026-11-10: about three times what a send costs us (Resend ~4 kr/1 000),
+// under Brevo (~12–14 kr) and far under contact-priced tools (Mailchimp,
+// Klaviyo). No monthly fee, no minimum, no binding: priced like the free
+// tool around it, so nobody stays for lack of a way out.
+export const LIST_PRICE_PER_1000 = 12;
 export const VAT = 0.25;
 export const FEATURES = ["early_access", "custom_domain", "priority_support"];
 

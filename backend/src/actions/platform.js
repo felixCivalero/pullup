@@ -69,7 +69,7 @@ export const platformAccount = defineAction({
 export const platformUpdateAccount = defineAction({
   name: "platform_update_account",
   title: "Change an account's deal and limits",
-  description: "Set an organiser account's settings; only the fields given change. The deal: billing \"invoice\" (sends on a credit limit, PullUp invoices afterwards, no Stripe) or \"stripe\"; creditLimit (sends allowed below zero); pricePer1000Sek (invoice price ex VAT, null = list price 19.80). Perks: trusted (10x the hourly cap on free confirmation mails, for big launches), hideBranding (no \"Gjord med PullUp\" on its pages), features. The agreement: company, orgNumber, contactName, billingEmail, invoiceRef, dpaSignedAt and contractUntil (YYYY-MM-DD), note. Limits: mailBlocked, publishBlocked, maxEvents (null = none). Confirm money and limits with Felix before changing them.",
+  description: "Set an organiser account's settings; only the fields given change. The deal: billing \"invoice\" (sends on a credit limit, PullUp invoices afterwards, no Stripe) or \"stripe\"; creditLimit (sends allowed below zero); pricePer1000Sek (invoice price ex VAT, null = list price 12). Perks: trusted (10x the hourly cap on free confirmation mails, for big launches), hideBranding (no \"Gjord med PullUp\" on its pages), features. The agreement: company, orgNumber, contactName, billingEmail, invoiceRef, dpaSignedAt and contractUntil (YYYY-MM-DD), note. Limits: mailBlocked, publishBlocked, maxEvents (null = none). Confirm money and limits with Felix before changing them.",
   access: "owner",
   effect: "write",
   idempotent: true,

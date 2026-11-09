@@ -31,7 +31,7 @@ const inv = shapeSettings({ billing: "invoice", credit_limit: 20000, price_per_1
 assert.equal(inv.pricePer1000Sek, 15.5);
 assert.equal(priceFor(inv), 15.5);
 assert.equal(priceFor(DEFAULTS), LIST_PRICE_PER_1000);
-assert.equal(LIST_PRICE_PER_1000, 19.8);
+assert.equal(LIST_PRICE_PER_1000, 12);
 assert.equal(floorFor(inv), -20000);
 assert.equal(floorFor(shapeSettings({ billing: "stripe", credit_limit: 500 })), 0, "a credit limit only counts for invoice customers");
 

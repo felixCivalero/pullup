@@ -28,7 +28,7 @@ import { assertMayCreate, assertMayMail, assertMayPublish } from "../lib/account
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
-  "media_settings, title_settings, look, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, " + FORM_COLUMNS;
+  "media_settings, title_settings, look, hide_location, hide_date, reveal_hint, date_reveal_hint, signup_settings, show_coordinates, location_lat, location_lng, location_place_id, " + FORM_COLUMNS;
 const PEOPLE_COLUMNS =
   "id, name, email, phone, phone_e164, instagram, created_at, acquisition_channel, import_source, marketing_consent, marketing_unsubscribed_at, do_not_contact, anonymized_at, marketing_unsubscribe_token";
 const RSVP_COLUMNS = "id, event_id, person_id, status, pulled_up, created_at, marketing_opt_in, visitor_id, plus_ones, party_size, custom_answers";
@@ -157,6 +157,7 @@ export function eventShape(ev, caller, counts = {}, brands = new Map()) {
     showCoordinates: !!ev.show_coordinates,
     locationLat: ev.location_lat == null ? null : Number(ev.location_lat),
     locationLng: ev.location_lng == null ? null : Number(ev.location_lng),
+    placeId: ev.location_place_id || null,
   };
 }
 

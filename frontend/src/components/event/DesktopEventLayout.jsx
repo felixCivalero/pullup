@@ -25,6 +25,7 @@ export function DesktopEventLayout({
   location,
   locationLat = null,
   locationLng = null,
+  placeId = null,
   showCoordinates = false,
   startsAt,
   timezone,
@@ -360,6 +361,7 @@ export function DesktopEventLayout({
               location={location}
               locationLat={locationLat}
               locationLng={locationLng}
+              placeId={placeId}
               showCoordinates={showCoordinates}
               startsAt={startsAt}
               timezone={timezone}
@@ -447,7 +449,7 @@ export function DesktopEventLayout({
                       }}
                     >
                       <a
-                        href={getGoogleMapsUrl(location, locationLat, locationLng)}
+                        href={getGoogleMapsUrl(location, locationLat, locationLng, placeId)}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}

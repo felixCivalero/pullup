@@ -137,23 +137,24 @@ export function generateCalendarUrls({
 }
 
 /**
- * Generate a Google Maps URL for a location
- * @param {string} location - The location text (e.g., "123 Main St, New York, NY")
- * @param {number|null} lat - Optional latitude coordinate
- * @param {number|null} lng - Optional longitude coordinate
- * @returns {string} Google Maps URL
+ * The Google Maps link for an event's place, mirroring the address shown on
+ * the page. Google's Maps URLs API: `query` = the address text, plus
+ * `query_place_id` when the place was picked from the search, so Maps opens
+ * that exact place with its name and address (same on desktop and in the
+ * app). Coordinates alone (`?q=lat,lng`) only drop a bare pin on desktop, so
+ * they're the last resort, for a place with no address text.
+ * @param {string} location - The address shown on the page
+ * @param {number|null} lat
+ * @param {number|null} lng
+ * @param {string|null} placeId - Google place id from the place search
+ * @returns {string|null}
  */
-export function getGoogleMapsUrl(location, lat = null, lng = null) {
-  // Loose null-check on purpose: an undefined lat/lng (event with no picked
-  // place) must fall through to the text branch, not emit `?q=undefined`.
-  if (lat != null && lng != null) {
-    // Use coordinates if available (most precise — drops the exact pin)
-    return `https://www.google.com/maps?q=${lat},${lng}`;
-  } else if (location) {
-    // Use location text as fallback
-    const encodedLocation = encodeURIComponent(location);
-    return `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
-  }
+export function getGoogleMapsUrl(location, lat = null, lng = null, placeId = null) {
+  const base = "https://www.google.com/maps/search/?api=1&query=";
+  const text = typeof location === "string" ? location.trim() : "";
+  // Loose null-checks on purpose: undefined must not become "undefined".
+  if (text) return base + encodeURIComponent(text) + (placeId ? `&query_place_id=${encodeURIComponent(placeId)}` : "");
+  if (lat != null && lng != null) return base + encodeURIComponent(`${lat},${lng}`);
   return null;
 }
 

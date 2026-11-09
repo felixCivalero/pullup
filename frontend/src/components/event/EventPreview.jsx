@@ -22,6 +22,7 @@ export function EventPreview({
   location,
   locationLat = null,
   locationLng = null,
+  placeId = null,
   showCoordinates = false,
   startsAt,
   endsAt,
@@ -400,6 +401,7 @@ export function EventPreview({
               location={location}
               locationLat={locationLat}
               locationLng={locationLng}
+              placeId={placeId}
               showCoordinates={showCoordinates}
               startsAt={startsAt}
               timezone={timezone}
@@ -468,7 +470,7 @@ export function EventPreview({
               {/* Title/location + form */}
               <div style={{ marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid rgba(var(--pg-ink-rgb, 255,255,255), 0.08)" }}>
                 {title && <div style={{ fontSize: "14px", fontWeight: 800, color: "var(--pg-ink, #fff)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
-                {location && !hideLocation && <div style={{ fontSize: "12px", fontWeight: 500, color: "var(--pg-ink, #fff)", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
+                {location && !hideLocation && <div style={{ fontSize: "12px", fontWeight: 500, color: "var(--pg-ink, #fff)", opacity: 0.5, marginTop: "1px" }}><a href={getGoogleMapsUrl(location, locationLat, locationLng, placeId)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "2px", textDecorationThickness: "1px" }}>{formatLocationShort(location)}</a></div>}
               </div>
               {typeof rsvpContent === "function" ? rsvpContent({ onClose: () => {} }) : rsvpContent}
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { authenticatedFetch } from "../../../lib/api.js";
 import { API_BASE } from "../../../lib/env.js";
+import { getGoogleMapsUrl } from "../lib/urlUtils";
 
 /* The event's place: type and pick from Google's suggestions (backend
    routes/places.js), and the map appears under it — PullUp's grey with a pink
@@ -112,7 +113,7 @@ export function PlaceField({ value, onChange, autoFocus = false, placeholder = "
             <i className="pf-led" />
             <span>Plats vald</span>
             <code>{Number(value.locationLat).toFixed(5)}, {Number(value.locationLng).toFixed(5)}</code>
-            <a href={`https://www.google.com/maps/search/?api=1&query=${value.locationLat},${value.locationLng}`} target="_blank" rel="noopener noreferrer">Öppna i Maps ↗</a>
+            <a href={getGoogleMapsUrl(value.location, value.locationLat, value.locationLng, value.placeId)} target="_blank" rel="noopener noreferrer">Öppna i Maps ↗</a>
           </figcaption>
         </figure>
       ) : text.trim().length > 3 && !open ? (

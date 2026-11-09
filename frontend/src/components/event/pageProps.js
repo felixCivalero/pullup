@@ -11,6 +11,7 @@ export function pageProps(event, { rsvpContent = null } = {}) {
     location: event.hideLocation ? null : event.location,
     locationLat: event.locationLat ?? null,
     locationLng: event.locationLng ?? null,
+    placeId: event.placeId ?? null,
     showCoordinates: !!event.showCoordinates,
     startsAt: event.startsAt,
     endsAt: event.endsAt,

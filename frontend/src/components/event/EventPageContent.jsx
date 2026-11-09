@@ -115,6 +115,7 @@ export function EventPageContent({
   location,
   locationLat = null,
   locationLng = null,
+  placeId = null,
   showCoordinates = false,
   startsAt,
   timezone,
@@ -144,7 +145,7 @@ export function EventPageContent({
   // a click-to-edit target, so we keep it plain text there — an anchor would
   // hijack the click and navigate away from the editor.
   const locationNode = (style) => {
-    const mapsUrl = !editable ? getGoogleMapsUrl(location, locationLat, locationLng) : null;
+    const mapsUrl = !editable ? getGoogleMapsUrl(location, locationLat, locationLng, placeId) : null;
     if (!mapsUrl) return <span style={style}>{formatLocationShort(location)}</span>;
     return (
       <a

@@ -3,13 +3,14 @@
 import { z } from "zod";
 import { defineAction } from "./registry.js";
 import { ActionError } from "../lib/actionError.js";
-import { PACKS, creditBalance, checkoutUrl, packById, recentPurchases } from "../lib/emailCredits.js";
+import { PACKS, checkoutUrl, packById, recentPurchases } from "../lib/emailCredits.js";
 import { getFrontendUrl } from "../lib/urls.js";
 import { listPeople, listSends, previewSend, sendMail } from "../repos/hostEvents.js";
 import { brandInput, inBrand } from "./events.js";
 import { brandScope, payerFor } from "../lib/brands.js";
 import { DPA_VERSION, importContacts } from "../repos/imports.js";
 import { getSender, setSender, verifySender } from "../lib/senders.js";
+import { creditsView } from "../lib/accountSettings.js";
 
 const audience = z.discriminatedUnion("type", [
   z.object({
@@ -67,8 +68,8 @@ export const previewMail = defineAction({
   effect: "read",
   input: z.object({ brand: brandInput, audience }),
   run: async ({ brand, audience: a }, { caller }) => {
-    const [preview, balance] = await Promise.all([previewSend(inBrand(caller, brand), a), creditBalance(await payerFor(inBrand(caller, brand)))]);
-    return { ...preview, creditsNeeded: preview.count, creditBalance: balance, enoughCredits: balance >= preview.count };
+    const [preview, credits] = await Promise.all([previewSend(inBrand(caller, brand), a), creditsView(await payerFor(inBrand(caller, brand)))]);
+    return { ...preview, creditsNeeded: preview.count, creditBalance: credits.available, billing: credits.billing, enoughCredits: credits.available >= preview.count };
   },
 });
 
@@ -109,14 +110,15 @@ export const listSentMail = defineAction({
 export const getMailCredits = defineAction({
   name: "get_mail_credits",
   title: "Mail credits",
-  description: "The person's mail credit balance (one credit = one recipient of a send), the packs on sale (SEK, excl. VAT) and earlier purchases.",
+  description: "The person's mail credit balance (one credit = one recipient of a send), the packs on sale (SEK, excl. VAT) and earlier purchases. billing \"invoice\": PullUp invoices this account afterwards — no packs to buy; available = what it can send now.",
   access: "user",
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
     const payer = await payerFor(caller);
-    const [balance, purchases] = await Promise.all([creditBalance(payer), recentPurchases(payer)]);
-    return { balance, packs: PACKS.map((p) => ({ pack: p.id, mails: p.mails, priceSek: p.priceSek })), purchases };
+    const [credits, purchases] = await Promise.all([creditsView(payer), recentPurchases(payer)]);
+    const invoice = credits.billing === "invoice";
+    return { balance: credits.available, billing: credits.billing, ...(invoice ? { unbilled: credits.unbilled, creditLimit: credits.creditLimit } : {}), packs: invoice ? [] : PACKS.map((p) => ({ pack: p.id, mails: p.mails, priceSek: p.priceSek })), purchases };
   },
 });
 

@@ -7,7 +7,9 @@ import { authenticatedFetch } from "../../lib/api.js";
    (?credits=paid&session_id=…), the purchase credited and the URL cleared.
    The UI is EmailCredits.jsx. */
 export function useEmailCredits() {
-  const [state, setState] = useState({ balance: null, packs: [] });
+  // billing "invoice": the account sends on a credit limit and PullUp
+  // invoices after (/admin/platform) — no packs, balance = what it can send.
+  const [state, setState] = useState({ balance: null, packs: [], billing: "stripe" });
   const [paid, setPaid] = useState(null); // { added, balance } after a purchase
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -15,7 +17,7 @@ export function useEmailCredits() {
     let alive = true;
     authenticatedFetch("/admin/credits")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && alive && setState({ balance: d.balance, packs: d.packs || [] }))
+      .then((d) => d && alive && setState({ balance: d.balance, packs: d.packs || [], billing: d.billing || "stripe" }))
       .catch(() => {});
     return () => { alive = false; };
   }, []);

@@ -16,7 +16,7 @@ import { selectAllPaged } from "../lib/selectAllPaged.js";
 import { ActionError } from "../lib/actionError.js";
 import { cleanSections, eventText, imageUrl, makeSlug, sectionsFor, summarizePeople, pickAudience } from "../lib/eventPlatform.js";
 import { broadcastEmail } from "../lib/eventEmails.js";
-import { creditBalance, refundCredits, reserveCredits } from "../lib/emailCredits.js";
+import { refundCredits, reserveCredits } from "../lib/emailCredits.js";
 import { renderFollowUpEmailTemplate, renderTemplateSubject, renderTemplateText } from "../services/followUpTemplateService.js";
 import { ensureHostProfile } from "../middleware/requireUser.js";
 import { brandNames, brandScope, brandShape, currentBrand, isTeam, listBrands, payerFor } from "../lib/brands.js";
@@ -24,7 +24,7 @@ import { apiBase, eventUrl } from "../lib/urls.js";
 import { brandStats, eventStats } from "../lib/eventStats.js";
 import { FORM_COLUMNS, answersByLabel, formOf, formPatch } from "../lib/eventForm.js";
 import { brandSenderRow, senderFor } from "../lib/senders.js";
-import { assertMayCreate, assertMayMail, assertMayPublish } from "../lib/accountLimits.js";
+import { assertMayCreate, assertMayMail, assertMayPublish, creditsView, floorFor, settingsFor } from "../lib/accountSettings.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
@@ -609,11 +609,15 @@ export async function sendMail(callerIn, input) {
     .filter((r) => !suppressed.has(r.email))
     .map((r) => ({ ...r, token: tokens.get(r.personId) || null, replyTo }));
   if (!recipients.length) throw new ActionError("invalid", "Nobody in that audience can be mailed.", { detail: "no_recipients" });
-  const left = await reserveCredits(payer, recipients.length, tag);
-  if (left == null) {
-    const balance = await creditBalance(payer);
-    throw new ActionError("payment_required", `This send needs ${recipients.length} mail credits and the balance is ${balance}. Buy a pack first.`, { needed: recipients.length, balance });
+  const reserved = await reserveCredits(payer, recipients.length, tag);
+  if (reserved == null) {
+    const { available, billing } = await creditsView(payer);
+    throw new ActionError("payment_required", billing === "invoice"
+      ? `This send needs ${recipients.length} mail credits and ${available} are left on the account's credit limit. Contact PullUp to raise it.`
+      : `This send needs ${recipients.length} mail credits and the balance is ${available}. Buy a pack first.`, { needed: recipients.length, balance: available, billing });
   }
+  // What's left to send on (an invoice customer: down to its credit limit).
+  const left = reserved - floorFor(await settingsFor(payer));
   deliver({ recipients, subject: cleanSubject, compose, logBody, from, tag, hostId: payer, brandId, sentBy: caller.userId })
     .then(({ failed }) => refundCredits(payer, failed, tag))
     .catch((err) => console.error("[events] send failed:", err?.message));

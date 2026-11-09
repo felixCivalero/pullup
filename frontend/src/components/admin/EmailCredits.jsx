@@ -8,9 +8,19 @@ import { createPortal } from "react-dom";
 const n = (x) => Number(x || 0).toLocaleString("sv-SE");
 
 // "Saldo: 4 200 utskick · Köp fler" under a send button.
-export function CreditsLine({ balance, needed, onBuy }) {
+export function CreditsLine({ balance, needed, onBuy, billing = "stripe" }) {
   if (balance == null) return null;
   const short = needed != null && needed > balance;
+  // An invoice customer: nothing to buy, PullUp invoices afterwards.
+  if (billing === "invoice") {
+    return (
+      <p className="ec-line">
+        <style>{CSS}</style>
+        <span>{`Faktureras via PullUp · ${n(balance)} utskick kvar på kreditgränsen`}</span>
+        {short && <span className="ec-short">{` · ${n(needed - balance)} för många, hör av dig till PullUp`}</span>}
+      </p>
+    );
+  }
   return (
     <p className="ec-line">
       <style>{CSS}</style>
@@ -22,10 +32,28 @@ export function CreditsLine({ balance, needed, onBuy }) {
   );
 }
 
-export function CreditsPaywall({ open, needed, balance, packs, onBuy, onClose }) {
+export function CreditsPaywall({ open, needed, balance, packs, onBuy, onClose, billing = "stripe" }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
   if (!open) return null;
+  if (billing === "invoice") {
+    return createPortal(
+      <div className="ec-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+        <style>{CSS}</style>
+        <div className="ec-modal" role="dialog" aria-modal="true" aria-labelledby="ec-title">
+          <h2 id="ec-title">Kreditgränsen räcker inte</h2>
+          <p className="ec-muted">
+            Det här utskicket går till <b>{n(needed)}</b> personer och ni har <b>{n(balance)}</b> utskick kvar på er kreditgräns. Utskicken faktureras via PullUp, så det finns inget att köpa här. Hör av er så höjer vi gränsen.
+          </p>
+          <div className="ec-actions">
+            <a className="ec-btn" href="mailto:felix@pullup.se?subject=H%C3%B6jd%20kreditgr%C3%A4ns">Mejla PullUp</a>
+            <button type="button" className="ec-btn" onClick={onClose}>Stäng</button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
   const missing = Math.max(0, (needed || 0) - (balance || 0));
   const fits = packs.find((p) => p.mails >= missing) || packs[packs.length - 1];
   const pick = async (id) => {
@@ -85,6 +113,7 @@ const CSS = `
   .ec-per { font-size: 12px; color: #6e6e73; }
   .ec-small { margin: 0; font-size: 12px; color: #6e6e73; }
   .ec-error { margin: 0; font-size: 13px; color: #b4235a; }
-  .ec-actions { display: flex; justify-content: flex-end; }
+  .ec-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  a.ec-btn { color: inherit; text-decoration: none; }
   .ec-btn { padding: 9px 16px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.18); background: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 `;

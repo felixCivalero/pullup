@@ -18,7 +18,7 @@ import { ActionError, statusFor } from "../lib/actionError.js";
 import { EVENT_HOST_ID } from "../lib/eventPlatform.js";
 import { brandNames } from "../lib/brands.js";
 import { humanCheck, mayConfirm, over } from "../lib/abuse.js";
-import { limitsFor } from "../lib/accountLimits.js";
+import { settingsFor } from "../lib/accountSettings.js";
 import { isBotUserAgent } from "../analytics/eventRegistry.js";
 import { FORM_COLUMNS, formOf, readSignup } from "../lib/eventForm.js";
 import { brandSenderRow } from "../lib/senders.js";
@@ -150,8 +150,9 @@ async function organizerReplyTo(ev) {
 export async function getPublicEvent(slug) {
   const ev = await findEvent(slug);
   if (!ev) throw new ActionError("not_found", "No published event at that address.");
-  const [attending, media, organizer] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id), organizerName(ev)]);
-  return { event: publicShape(ev, attending, media, organizer), calendar: calendarLinks(ev) };
+  const [attending, media, organizer, settings] = await Promise.all([attendingCount(ev.id), loadEventMedia(ev.id), organizerName(ev), settingsFor(ev.host_id)]);
+  // branding: false = the account's own pages, no "Gjord med PullUp" line.
+  return { event: { ...publicShape(ev, attending, media, organizer), branding: !settings.hideBranding }, calendar: calendarLinks(ev) };
 }
 
 // Sign up: the person (found by email, or new) + the sign-up + the
@@ -206,9 +207,11 @@ export async function rsvpToEvent(slug, body = {}) {
   const calendar = calendarLinks(ev);
   // Free mail is capped (lib/abuse.js): past the line the sign-up stands but
   // no mail goes out, so nobody can use PullUp to reach a list of strangers.
-  if (!mayConfirm({ email, hostId: ev.host_id })) return { ok: true, status, calendar };
-  // The owner paused this account's mail (/admin/platform): saved, not mailed.
-  if ((await limitsFor(ev.host_id)).mailBlocked) return { ok: true, status, calendar };
+  // The owner's settings for the account (/admin/platform): a paused account
+  // is saved, not mailed; a trusted one has a higher hourly cap.
+  const settings = await settingsFor(ev.host_id);
+  if (settings.mailBlocked) return { ok: true, status, calendar };
+  if (!mayConfirm({ email, hostId: ev.host_id, trusted: settings.trusted })) return { ok: true, status, calendar };
   const [organizer, replyTo] = await Promise.all([organizerName(ev), organizerReplyTo(ev)]);
   const mail = confirmationEmail({
     event: ev,

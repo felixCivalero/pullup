@@ -485,9 +485,9 @@ function Compose({ ev }) {
         <button type="button" className="ea-btn" disabled={busy || !ready} onClick={() => send(true)}>Skicka test till mig</button>
         <button type="button" className="ea-btn is-dark" disabled={busy || !ready || !count} onClick={() => (credits.balance != null && count > credits.balance ? setPaywall(true) : setConfirm(true))}><Send size={15} /> Skicka till {count ?? "…"}</button>
       </div>
-      <CreditsLine balance={credits.balance} needed={count} onBuy={() => setPaywall(true)} />
+      <CreditsLine billing={credits.billing} balance={credits.balance} needed={count} onBuy={() => setPaywall(true)} />
       {note && <p className={note.ok ? "ea-ok" : "ea-error"}>{note.text}</p>}
-      <CreditsPaywall open={paywall} needed={count} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
+      <CreditsPaywall billing={credits.billing} open={paywall} needed={count} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
       {confirm && (
         <div className="ea-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setConfirm(false)}>
           <div className="ea-modal">

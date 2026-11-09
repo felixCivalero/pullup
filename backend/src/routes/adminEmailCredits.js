@@ -5,6 +5,7 @@ import express from "express";
 import { requireUser } from "../middleware/requireUser.js";
 import { payerFor, payersFor } from "../lib/brands.js";
 import { getFrontendUrl } from "../lib/urls.js";
+import { creditsView } from "../lib/accountSettings.js";
 import {
   PACKS, packById, checkoutUrl, getCheckout, creditBalance, recordPurchase, recentPurchases, verifyStripeSignature,
 } from "../lib/emailCredits.js";
@@ -20,8 +21,11 @@ export function registerEmailCreditRoutes(app) {
   app.get("/admin/credits", requireUser, async (req, res) => {
     try {
       const hostId = await payerFor(req.caller);
-      const [balance, purchases] = await Promise.all([creditBalance(hostId), recentPurchases(hostId)]);
-      return res.json({ balance, packs: PACKS, purchases });
+      // An invoice customer (/admin/platform) sends on its credit limit and
+      // is invoiced after: no packs; balance = what it can send now.
+      const [credits, purchases] = await Promise.all([creditsView(hostId), recentPurchases(hostId)]);
+      const invoice = credits.billing === "invoice";
+      return res.json({ balance: credits.available, billing: credits.billing, unbilled: credits.unbilled, packs: invoice ? [] : PACKS, purchases });
     } catch (err) {
       console.error("[credits] balance:", err?.message);
       return res.status(500).json({ error: "failed" });

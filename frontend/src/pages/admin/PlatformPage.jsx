@@ -19,6 +19,7 @@ export function PlatformPage() {
 
 // The slim event platform went live on 2026-10-19 (same date as the backend).
 const RELAUNCH = "2026-10-19";
+const kr = (n) => `${Math.round(Number(n || 0)).toLocaleString("sv-SE")} kr`;
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "–");
 
 function Platform() {
@@ -70,6 +71,14 @@ function Platform() {
               <div><span>Kommande</span><b>{fmt(t.upcoming)}</b><small>publicerade, inte passerade</small></div>
               <div><span>Anmälningar</span><b>{fmt(t.signups)}</b><small>på arrangörernas event</small></div>
             </div>
+            {data.billing && (
+              <div className="st-tiles">
+                <div><span>Att fakturera</span><b>{kr(data.billing.unbilledSek)}</b><small>{fmt(data.billing.unbilledSends)} utskick · {fmt(data.billing.invoiceCustomers)} fakturakunder</small></div>
+                <div><span>Öppna fakturor</span><b>{kr(data.billing.openSek)}</b><small>{fmt(data.billing.openInvoices)} st, inkl. moms</small></div>
+                <div><span>Betalt via faktura</span><b>{kr(data.billing.paidSek)}</b><small>inkl. moms, totalt</small></div>
+                <div><span>Att agera på</span><b>{fmt(data.billing.signals)}</b><small>varningar på kontona</small></div>
+              </div>
+            )}
             <section className="st-card">
               <div className="st-card-head">
                 <h3>Konton</h3>
@@ -83,6 +92,10 @@ function Platform() {
                       <td>
                         <b>{a.email}</b>
                         {a.fromOldApp && <small className="pf-old">gamla appen</small>}
+                        {(a.settings?.billing === "invoice" || a.settings?.trusted || a.settings?.hideBranding) && (
+                          <small className="pf-perks">{[a.settings.billing === "invoice" && "faktura", a.settings.trusted && "betrodd", a.settings.hideBranding && "egen märkning"].filter(Boolean).join(" · ")}</small>
+                        )}
+                        {a.signals?.some((x) => x.level !== "info") && <small className={`pf-signal is-${a.signals[0].level}`}>{a.signals[0].text}{a.signals.filter((x) => x.level !== "info").length > 1 ? ` +${a.signals.filter((x) => x.level !== "info").length - 1}` : ""}</small>}
                         {(a.banned || a.limits?.mailBlocked || a.limits?.publishBlocked || a.limits?.maxEvents != null) && (
                           <small className="pf-limited">{[a.banned && "spärrad", a.limits?.mailBlocked && "mejl pausat", a.limits?.publishBlocked && "publicering pausad", a.limits?.maxEvents != null && `max ${a.limits.maxEvents} event`].filter(Boolean).join(" · ")}</small>
                         )}
@@ -91,7 +104,7 @@ function Platform() {
                       <td className="num">{fmt(a.events)}</td>
                       <td className="num">{fmt(a.published)}</td>
                       <td className="num">{fmt(a.signups)}</td>
-                      <td className="num">{a.credits == null ? "–" : fmt(a.credits)}</td>
+                      <td className="num">{a.available == null ? "–" : fmt(a.available)}{a.unbilled > 0 && <small className="pf-old">{fmt(a.unbilled)} att fakturera</small>}</td>
                       <td>{day(a.createdAt)}</td>
                       <td>{day(a.lastSignIn)}</td>
                       <td><button type="button" className="ea-btn" onClick={(e) => { e.stopPropagation(); give(a); }}>Ge utskick</button></td>
@@ -114,6 +127,9 @@ const PF_CSS = `
   .pf-toggle input { accent-color: #ec178f; }
   .pf-old { display: block; font-size: 11px; color: #8a877f; }
   .pf-limited { display: block; font-size: 11px; color: #b4123f; font-weight: 600; }
+  .pf-perks { display: block; font-size: 11px; color: #0a7a3a; font-weight: 600; }
+  .pf-signal { display: block; font-size: 11px; font-weight: 600; color: #8a5a00; }
+  .pf-signal.is-bad { color: #b4123f; }
   .pf-row { cursor: pointer; }
   .pf-row:hover td, .pf-row.is-open td { background: rgba(236, 23, 143, 0.05); }
 `;

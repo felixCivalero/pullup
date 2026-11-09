@@ -358,7 +358,7 @@ function MailComposer() {
           </div>
 
           <div className="ml-foot">
-            <div style={{ marginRight: "auto", alignSelf: "center" }}><CreditsLine balance={credits.balance} needed={total} onBuy={() => setPaywall(true)} /></div>
+            <div style={{ marginRight: "auto", alignSelf: "center" }}><CreditsLine billing={credits.billing} balance={credits.balance} needed={total} onBuy={() => setPaywall(true)} /></div>
             <button type="button" className="ml-btn" onClick={handleTest} disabled={testing}>{testing ? "Skickar…" : "Skicka test till mig"}</button>
             <button type="button" className="ml-btn is-send" onClick={handleSendClick} disabled={!total}>Skicka till {total ?? "…"} →</button>
           </div>
@@ -397,7 +397,7 @@ function MailComposer() {
         onConfirmSend={handleConfirmSend}
         senderName={active.fromName}
       />
-      <CreditsPaywall open={paywall} needed={total} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
+      <CreditsPaywall billing={credits.billing} open={paywall} needed={total} balance={credits.balance} packs={credits.packs} onBuy={credits.buy} onClose={() => setPaywall(false)} />
     </>
   );
 }

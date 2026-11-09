@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction } from "./registry.js";
 import { ActionError } from "../lib/actionError.js";
 import { supabase } from "../supabase.js";
-import { creditBalance } from "../lib/emailCredits.js";
+import { creditsView } from "../lib/accountSettings.js";
 import { EVENT_IMAGE_BUCKET } from "../lib/eventPlatform.js";
 import { fetchRemoteImage } from "../lib/remoteImage.js";
 import { isValidTimeZone, toUtcIso } from "../lib/zonedTime.js";
@@ -111,7 +111,7 @@ export const whoami = defineAction({
   effect: "read",
   input: z.object({}),
   run: async (_input, { caller }) => {
-    const [events, credits, { brands }, invites] = await Promise.all([listEvents(caller), creditBalance(await payerFor(caller)), brandScope(caller), myInvites(caller)]);
+    const [events, credits, { brands }, invites] = await Promise.all([listEvents(caller), creditsView(await payerFor(caller)).then((c) => c.available), brandScope(caller), myInvites(caller)]);
     const mine = events.filter((e) => e.mine);
     return {
       email: caller.email,

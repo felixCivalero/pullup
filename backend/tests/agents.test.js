@@ -30,6 +30,7 @@ const organiser = { userId: "u", isOwner: false, hostId: "u" };
 const names = (caller) => actionsFor(caller).map((a) => a.name);
 assert(names(null).sort().join() === "about_pullup,get_event,request_meeting,rsvp_to_event", "signed out: the four public actions");
 assert(names(organiser).length === 42 && !names(organiser).some((n) => ["site_stats", "sales_pipeline", "list_meeting_requests"].includes(n)), "an organiser: 42, none of the owner's");
+assert(!names(organiser).some((n) => n.startsWith("platform_")), "an organiser never gets the owner's platform tools");
 assert(names(owner).length === ACTIONS.size, "the owner: everything");
 for (const a of ACTIONS.values()) {
   const schema = describe(a).inputSchema;

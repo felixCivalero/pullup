@@ -32,9 +32,11 @@ const HOUR = 3600_000;
 export const CONFIRMATIONS_PER_ADDRESS = 6;
 export const CONFIRMATIONS_PER_ACCOUNT = 600;
 
-export function mayConfirm({ email, hostId }, now = Date.now()) {
+// A trusted account (the owner's setting, lib/accountSettings.js) gets ten
+// times the account line, for a big launch.
+export function mayConfirm({ email, hostId, trusted = false }, now = Date.now()) {
   if (over(`confirm:addr:${email}`, CONFIRMATIONS_PER_ADDRESS, HOUR, now)) return false;
-  if (over(`confirm:host:${hostId}`, CONFIRMATIONS_PER_ACCOUNT, HOUR, now)) {
+  if (over(`confirm:host:${hostId}`, CONFIRMATIONS_PER_ACCOUNT * (trusted ? 10 : 1), HOUR, now)) {
     if (!over(`confirm:host-alert:${hostId}`, 1, HOUR, now)) {
       captureError(new Error("confirmation mail cap reached"), { hostId });
       console.warn(`[abuse] confirmation cap reached for host ${hostId}`);

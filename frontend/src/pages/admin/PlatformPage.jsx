@@ -3,6 +3,7 @@ import { authenticatedFetch } from "../../lib/api.js";
 import { AdminShell } from "./AdminShell.jsx";
 import { EVENT_ADMIN_CSS } from "./eventAdminCss.js";
 import { STATS_CSS, fmt } from "../../components/admin/statsFormat.js";
+import { ACCOUNT_DRAWER_CSS, AccountDrawer } from "../../components/admin/AccountDrawer.jsx";
 
 /* /admin/platform — the owner's view of the event tool (backend
    routes/adminPlatform.js): how many organisers have signed up, how many
@@ -24,6 +25,7 @@ function Platform() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [onlyNew, setOnlyNew] = useState(true);
+  const [open, setOpen] = useState(null);
   const load = useCallback(() => {
     authenticatedFetch("/admin/platform").then((r) => (r.ok ? r.json() : Promise.reject())).then(setData).catch(() => setError(true));
   }, []);
@@ -47,7 +49,7 @@ function Platform() {
   const rows = (data?.accounts || []).filter((a) => !onlyNew || active(a)).sort((a, b) => touched(b).localeCompare(touched(a)));
   return (
     <>
-      <style>{EVENT_ADMIN_CSS + STATS_CSS + PF_CSS}</style>
+      <style>{EVENT_ADMIN_CSS + STATS_CSS + ACCOUNT_DRAWER_CSS + PF_CSS}</style>
       <div className="ea">
         <div className="ea-head"><div><h1>Eventverktyget</h1><p className="ea-muted">Hur det går för gratisverktyget: sidan, konton, event och utskick.</p></div></div>
         {error && <p className="ea-error">Kunde inte hämta plattformen.</p>}
@@ -77,8 +79,14 @@ function Platform() {
                 <thead><tr><th>Konto</th><th>Varumärken</th><th className="num">Event</th><th className="num">Publ.</th><th className="num">Anmälda</th><th className="num">Utskick</th><th>Skapat</th><th>Senast inne</th><th /></tr></thead>
                 <tbody>
                   {rows.map((a) => (
-                    <tr key={a.id}>
-                      <td><b>{a.email}</b>{a.fromOldApp && <small className="pf-old">gamla appen</small>}</td>
+                    <tr key={a.id} className={`pf-row${open === a.id ? " is-open" : ""}`} onClick={() => setOpen(a.id)}>
+                      <td>
+                        <b>{a.email}</b>
+                        {a.fromOldApp && <small className="pf-old">gamla appen</small>}
+                        {(a.banned || a.limits?.mailBlocked || a.limits?.publishBlocked || a.limits?.maxEvents != null) && (
+                          <small className="pf-limited">{[a.banned && "spärrad", a.limits?.mailBlocked && "mejl pausat", a.limits?.publishBlocked && "publicering pausad", a.limits?.maxEvents != null && `max ${a.limits.maxEvents} event`].filter(Boolean).join(" · ")}</small>
+                        )}
+                      </td>
                       <td>{a.brands.map((b) => (b.under ? `└ ${b.name}` : b.name)).join(", ")}</td>
                       <td className="num">{fmt(a.events)}</td>
                       <td className="num">{fmt(a.published)}</td>
@@ -86,13 +94,14 @@ function Platform() {
                       <td className="num">{a.credits == null ? "–" : fmt(a.credits)}</td>
                       <td>{day(a.createdAt)}</td>
                       <td>{day(a.lastSignIn)}</td>
-                      <td><button type="button" className="ea-btn" onClick={() => give(a)}>Ge utskick</button></td>
+                      <td><button type="button" className="ea-btn" onClick={(e) => { e.stopPropagation(); give(a); }}>Ge utskick</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table></div>
               {!rows.length && <p className="ea-muted st-empty">Inga konton här än.</p>}
             </section>
+            {open && <AccountDrawer id={open} onClose={() => setOpen(null)} onChanged={load} />}
           </>
         )}
       </div>
@@ -104,4 +113,7 @@ const PF_CSS = `
   .pf-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #3a3935; cursor: pointer; }
   .pf-toggle input { accent-color: #ec178f; }
   .pf-old { display: block; font-size: 11px; color: #8a877f; }
+  .pf-limited { display: block; font-size: 11px; color: #b4123f; font-weight: 600; }
+  .pf-row { cursor: pointer; }
+  .pf-row:hover td, .pf-row.is-open td { background: rgba(236, 23, 143, 0.05); }
 `;

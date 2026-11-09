@@ -24,6 +24,7 @@ import { apiBase, eventUrl } from "../lib/urls.js";
 import { brandStats, eventStats } from "../lib/eventStats.js";
 import { FORM_COLUMNS, answersByLabel, formOf, formPatch } from "../lib/eventForm.js";
 import { brandSenderRow, senderFor } from "../lib/senders.js";
+import { assertMayCreate, assertMayMail, assertMayPublish } from "../lib/accountLimits.js";
 
 export const EVENT_COLUMNS =
   "id, host_id, brand_id, slug, title, description, sections, location, starts_at, ends_at, timezone, image_url, cover_image_url, total_capacity, status, kind, created_at, " +
@@ -309,6 +310,9 @@ export async function createEvent(caller, body) {
   }
   if (!isTeam(brand)) throw new ActionError("forbidden", `You co-host single events in ${brand.name}; new events there are made by its team.`, { detail: "cohost" });
   if (!caller.isOwner && brand.hostId === caller.hostId) await ensureHostProfile(caller.hostId);
+  // Limits the owner set on the account (lib/accountLimits.js).
+  await assertMayCreate(caller, brand.hostId);
+  if (patch.status === "PUBLISHED") await assertMayPublish(caller, brand.hostId);
   const row = {
     host_id: brand.hostId,
     brand_id: brand.id,
@@ -338,6 +342,7 @@ export async function updateEvent(caller, id, body) {
   const starts = patch.starts_at ?? ev.starts_at;
   const ends = "ends_at" in patch ? patch.ends_at : ev.ends_at;
   if (ends && starts && ends <= starts) throw new ActionError("invalid", "The end time must be after the start time.", { detail: "endsAt" });
+  if (patch.status === "PUBLISHED" && ev.status !== "PUBLISHED") await assertMayPublish(caller, ev.host_id);
   const { data, error } = await supabase.from("events").update(patch).eq("id", ev.id).select(EVENT_COLUMNS).single();
   if (error) throw error;
   return eventShape(data, caller);
@@ -550,6 +555,7 @@ export async function sendMail(callerIn, input) {
   }
   const brandId = sendBrand?.id || null;
   const payer = await payerFor(caller);
+  await assertMayMail(caller, payer);
   const { audience, subject, body, blocks, previewText, fromName, eventId, test } = input || {};
   const cleanSubject = typeof subject === "string" ? subject.trim().slice(0, 200) : "";
   const cleanBody = typeof body === "string" ? body.trim().slice(0, 20000) : "";

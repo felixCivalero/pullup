@@ -18,6 +18,7 @@ import { ActionError, statusFor } from "../lib/actionError.js";
 import { EVENT_HOST_ID } from "../lib/eventPlatform.js";
 import { brandNames } from "../lib/brands.js";
 import { humanCheck, mayConfirm, over } from "../lib/abuse.js";
+import { limitsFor } from "../lib/accountLimits.js";
 import { isBotUserAgent } from "../analytics/eventRegistry.js";
 import { FORM_COLUMNS, formOf, readSignup } from "../lib/eventForm.js";
 import { brandSenderRow } from "../lib/senders.js";
@@ -205,6 +206,8 @@ export async function rsvpToEvent(slug, body = {}) {
   // Free mail is capped (lib/abuse.js): past the line the sign-up stands but
   // no mail goes out, so nobody can use PullUp to reach a list of strangers.
   if (!mayConfirm({ email, hostId: ev.host_id })) return { ok: true, status, calendar };
+  // The owner paused this account's mail (/admin/platform): saved, not mailed.
+  if ((await limitsFor(ev.host_id)).mailBlocked) return { ok: true, status, calendar };
   const [organizer, replyTo] = await Promise.all([organizerName(ev), organizerReplyTo(ev)]);
   const mail = confirmationEmail({
     event: ev,

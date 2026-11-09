@@ -57,7 +57,9 @@ async function lastInvoice(hostId) {
 // What an invoice made now would hold.
 export async function unbilledFor(hostId, now = new Date()) {
   const [settings, balance, last] = await Promise.all([settingsFor(hostId), creditBalance(hostId), lastInvoice(hostId)]);
-  const sends = settings.billing === "invoice" ? Math.max(0, -balance) : 0;
+  // Whatever was sent past zero — also by an account switched back to card
+  // since, so that debt is never left unseen.
+  const sends = Math.max(0, -balance);
   const price = priceFor(settings);
   const from = last?.period_to || null;
   let lines = [];
@@ -93,7 +95,6 @@ async function nextNumber(now = new Date()) {
 
 export async function createInvoice(hostId, { note = null } = {}) {
   const u = await unbilledFor(hostId);
-  if (u.billing !== "invoice") throw new ActionError("invalid", "This account pays by card (Stripe), not by invoice.", { detail: "not_invoice" });
   if (u.sends <= 0) throw new ActionError("invalid", "Nothing to invoice: nothing sent past the balance since the last invoice.", { detail: "nothing" });
   const row = {
     host_id: hostId, number: await nextNumber(), period_from: u.periodFrom, period_to: u.periodTo, sends: u.sends,

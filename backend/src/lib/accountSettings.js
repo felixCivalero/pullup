@@ -133,8 +133,8 @@ export async function creditsView(hostId) {
     available: balance - floorFor(s),
     billing: s.billing,
     creditLimit: invoice ? s.creditLimit : 0,
-    // Sent past zero and not yet invoiced.
-    unbilled: invoice ? Math.max(0, -balance) : 0,
+    // Sent past zero and not yet invoiced (also after a switch back to card).
+    unbilled: Math.max(0, -balance),
     pricePer1000Sek: priceFor(s),
   };
 }

@@ -268,7 +268,7 @@ export function AccountDrawer({ id, onClose, onChanged }) {
             <p className="ea-muted pp-note">{a.dpa.acceptedInApp ? `DPA godkänt i appen ${day(a.dpa.acceptedInApp)} (version ${a.dpa.version}) vid kontaktimport.` : "Ingen kontaktimport än, så inget DPA godkänt i appen."}</p>
             {saveBar("Spara kundavtal")}
 
-            {(a.settings.billing === "invoice" || a.invoices.length > 0) && (
+            {(a.settings.billing === "invoice" || a.invoices.length > 0 || a.billing.unbilled > 0) && (
               <>
                 <h3>Fakturering</h3>
                 <div className="pp-facts ac-facts">

@@ -45,6 +45,8 @@ export function signalsFor({ settings, balance = 0, lastSignIn = null, events = 
     else if (used >= limit) out.push({ key: "credit_limit_reached", level: "bad", text: "Kreditgränsen är nådd: utskick stoppas" });
     else if (used >= limit * 0.8) out.push({ key: "credit_limit_near", level: "warn", text: `${Math.round((used / limit) * 100)} % av kreditgränsen använd` });
     if (used > 0) out.push({ key: "unbilled", level: "info", text: `${used.toLocaleString("sv-SE")} utskick att fakturera` });
+  } else if (balance < 0) {
+    out.push({ key: "unbilled_card", level: "warn", text: `Kortkund med ${(-balance).toLocaleString("sv-SE")} ofakturerade utskick: fakturera dem` });
   }
   for (const inv of invoices) {
     if (inv.status === "sent" && inv.sentAt && now - Date.parse(inv.sentAt) > 30 * DAY) out.push({ key: "invoice_overdue", level: "bad", text: `${inv.number} obetald sedan ${String(inv.sentAt).slice(0, 10)}` });
@@ -201,7 +203,7 @@ export async function platformStats(now = Date.now()) {
   for (const a of accounts) {
     const evs = theirs.filter((e) => e.host_id === a.id).map((e) => ({ ...e, signups: signups.get(e.id) || 0 }));
     a.signals = signalsFor({ settings: a.settings, balance: a.credits || 0, lastSignIn: a.lastSignIn, events: evs, invoices: invoices.filter((i) => i.hostId === a.id), now });
-    a.unbilled = a.settings.billing === "invoice" ? Math.max(0, -(a.credits || 0)) : 0;
+    a.unbilled = Math.max(0, -(a.credits || 0));
     a.unbilledSek = Math.round((a.unbilled / 1000) * priceFor(a.settings) * 100) / 100;
     // What the account can send now (an invoice customer: down to its limit).
     a.available = a.credits == null ? null : a.credits - floorFor(a.settings);

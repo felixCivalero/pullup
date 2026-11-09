@@ -55,6 +55,7 @@ assert.deepEqual(keys(signalsFor({ settings: shapeSettings(null), now, invoices:
   { number: "PU-3", status: "paid", sentAt: "2026-08-01T00:00:00Z", createdAt: "2026-08-01T00:00:00Z" },
 ] })), ["invoice_overdue", "invoice_unsent"]);
 assert.deepEqual(signalsFor({ settings: shapeSettings(null), now }), [], "a normal account: nothing");
+assert.deepEqual(keys(signalsFor({ settings: shapeSettings(null), balance: -300, now })), ["unbilled_card"], "switched back to card with sends unbilled: say so");
 
 console.log("account-invoices: ok");
 process.exit(0);

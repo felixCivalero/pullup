@@ -16,6 +16,8 @@ export function PlatformPage() {
   );
 }
 
+// The slim event platform went live on 2026-10-19 (same date as the backend).
+const RELAUNCH = "2026-10-19";
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "–");
 
 function Platform() {
@@ -37,7 +39,12 @@ function Platform() {
   };
 
   const t = data?.totals;
-  const rows = (data?.accounts || []).filter((a) => !onlyNew || !a.fromOldApp);
+  // "Active since the relaunch": new accounts, plus old-app accounts that have
+  // signed in since (a returning organiser like Julia at Nigab). Latest
+  // activity first, so a returning account isn't buried under its old date.
+  const active = (a) => !a.fromOldApp || (a.lastSignIn && a.lastSignIn >= RELAUNCH);
+  const touched = (a) => [a.createdAt, a.lastSignIn].filter(Boolean).sort().pop() || "";
+  const rows = (data?.accounts || []).filter((a) => !onlyNew || active(a)).sort((a, b) => touched(b).localeCompare(touched(a)));
   return (
     <>
       <style>{EVENT_ADMIN_CSS + STATS_CSS + PF_CSS}</style>
@@ -64,14 +71,14 @@ function Platform() {
             <section className="st-card">
               <div className="st-card-head">
                 <h3>Konton</h3>
-                <label className="pf-toggle"><input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} /> Bara nya sedan 19 okt</label>
+                <label className="pf-toggle"><input type="checkbox" checked={onlyNew} onChange={(e) => setOnlyNew(e.target.checked)} /> Bara aktiva sedan 19 okt</label>
               </div>
               <div className="ea-wrap"><table className="ea-table st-table">
                 <thead><tr><th>Konto</th><th>Varumärken</th><th className="num">Event</th><th className="num">Publ.</th><th className="num">Anmälda</th><th className="num">Utskick</th><th>Skapat</th><th>Senast inne</th><th /></tr></thead>
                 <tbody>
                   {rows.map((a) => (
                     <tr key={a.id}>
-                      <td><b>{a.email}</b></td>
+                      <td><b>{a.email}</b>{a.fromOldApp && <small className="pf-old">gamla appen</small>}</td>
                       <td>{a.brands.map((b) => (b.under ? `└ ${b.name}` : b.name)).join(", ")}</td>
                       <td className="num">{fmt(a.events)}</td>
                       <td className="num">{fmt(a.published)}</td>
@@ -96,4 +103,5 @@ function Platform() {
 const PF_CSS = `
   .pf-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #3a3935; cursor: pointer; }
   .pf-toggle input { accent-color: #ec178f; }
+  .pf-old { display: block; font-size: 11px; color: #8a877f; }
 `;

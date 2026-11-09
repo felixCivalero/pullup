@@ -207,7 +207,7 @@ const EN = {
   "Plattform": "Platform", "Plattform — Admin": "Platform — Admin", "Eventverktyget: konton, event och utskick.": "The event tool: accounts, events and mail.",
   "Nya konton": "New accounts", "Konton totalt": "Accounts in total", "med den gamla appens": "including the old app's",
   "publicerade, inte passerade": "published, not yet past", "på arrangörernas event": "on organisers' events", "Konton": "Accounts", "Konto": "Account",
-  "Bara nya sedan 19 okt": "Only new since 19 Oct", "Publ.": "Publ.", "Utskick": "Mail", "Skapat": "Created", "Senast inne": "Last signed in",
+  "Bara aktiva sedan 19 okt": "Only active since 19 Oct", "gamla appen": "old app", "Publ.": "Publ.", "Utskick": "Mail", "Skapat": "Created", "Senast inne": "Last signed in",
   "Ge utskick": "Give mail credits", "Inga konton här än.": "No accounts here yet.", "Kunde inte hämta plattformen.": "Couldn't load the platform.",
   // ─── sender ───
   "Mejlavsändare": "Mail sender", "Egen avsändaradress": "Own sender address", "Svar går till": "Replies go to", "Den som skickar": "The person sending",

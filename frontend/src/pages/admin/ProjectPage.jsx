@@ -57,6 +57,9 @@ function Projects() {
   if (error) return <Empty>Kunde inte hämta kunderna.</Empty>;
   if (!data) return null;
 
+  // The owner gets everything; a client's own people (client_members) only
+  // their project, without the sales-sheet and meetings-doc parts.
+  const owner = data.owner !== false;
   const clients = [...data.clients].sort((a, b) => (a.stage === "Won" ? 0 : 1) - (b.stage === "Won" ? 0 : 1));
   const current = clients.find((c) => c.prospectId === params.get("kund")) || clients[0] || null;
   const view = VIEWS.some(([v]) => v === params.get("vy")) ? params.get("vy") : "strategi";
@@ -71,23 +74,23 @@ function Projects() {
   if (!current) {
     return (
       <Empty>
-        Inga projekt än. Starta ett för en rad i säljarket:
-        <span style={{ display: "block", marginTop: 14, textAlign: "left" }}><NewProject onCreated={addClient} /></span>
+        {owner ? "Inga projekt än. Starta ett för en rad i säljarket:" : "Inga projekt än."}
+        {owner && <span style={{ display: "block", marginTop: 14, textAlign: "left" }}><NewProject onCreated={addClient} /></span>}
       </Empty>
     );
   }
 
   return (
     <>
-      <Project key={current.id} client={current} view={view} focusFormat={params.get("format")} go={go} />
-      <ProjectBar key={`bar-${current.id}`} clients={clients} current={current} view={view} onView={(vy) => go({ vy, format: null })} onPick={pick} onUpdate={updateClient} onCreated={addClient} />
+      <Project key={current.id} client={current} owner={owner} view={view} focusFormat={params.get("format")} go={go} />
+      <ProjectBar key={`bar-${current.id}`} owner={owner} clients={clients} current={current} view={view} onView={(vy) => go({ vy, format: null })} onPick={pick} onUpdate={updateClient} onCreated={addClient} />
     </>
   );
 }
 
 // One client's project: the format list and counts that tie the strategy's
 // buckets, the board and the timeline together, and whichever view is open.
-function Project({ client, view, focusFormat, go }) {
+function Project({ client, owner, view, focusFormat, go }) {
   const [boardFormats, setBoardFormats] = useState([]);
   const [bucketNames, setBucketNames] = useState([]);
   const [cards, setCards] = useState([]);
@@ -145,7 +148,7 @@ function Project({ client, view, focusFormat, go }) {
       />
     );
   }
-  if (view === "pitch") return <ProjectPitch entry={pitchFor(client.prospectId)} projectName={client.company} />;
+  if (view === "pitch") return <ProjectPitch entry={pitchFor(client.prospectId)} projectName={client.company} canShare={owner} />;
   if (view === "strategi") {
     return (
       <ProjectBrief
@@ -282,7 +285,7 @@ function Empty({ children }) {
 
 // Top of the project: whose it is (a dropdown of clients), the views, their
 // meetings doc, and the next step from the sheet. Keyed by client.
-function ProjectBar({ clients, current, view, onView, onPick, onUpdate, onCreated }) {
+function ProjectBar({ owner, clients, current, view, onView, onPick, onUpdate, onCreated }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -342,12 +345,12 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate, onCreate
               <li key={c.id}>
                 <button type="button" className={c.id === current.id ? "is-on" : undefined} onClick={() => { setMenu(false); onPick(c.prospectId); }}>
                   <b>{c.company}</b>
-                  {c.stage !== "Won" && <span>{c.stage || "saknas i arket"}</span>}
+                  {owner && c.stage !== "Won" && <span>{c.stage || "saknas i arket"}</span>}
                   {c.id === current.id && <Check size={14} />}
                 </button>
               </li>
             ))}
-            <li className="tl-new"><NewProject onCreated={(c) => { setMenu(false); onCreated(c); }} /></li>
+            {owner && <li className="tl-new"><NewProject onCreated={(c) => { setMenu(false); onCreated(c); }} /></li>}
           </ul>
         )}
       </div>
@@ -364,13 +367,13 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate, onCreate
             <button type="button" className="tl-link" onClick={() => setRenaming(false)}>Avbryt</button>
           </form>
         )}
-        {!editing && !renaming && (
+        {owner && !editing && !renaming && (
           <button type="button" className="tl-link" onClick={() => { setName(current.company || ""); setRenaming(true); }}>Döp om</button>
         )}
-        {!editing && current.docUrl && (
+        {owner && !editing && current.docUrl && (
           <a href={current.docUrl} target="_blank" rel="noreferrer"><FileText size={14} /> Möten</a>
         )}
-        {!editing && !renaming && (
+        {owner && !editing && !renaming && (
           <button type="button" className="tl-link" onClick={() => setEditing(true)}>{current.docUrl ? "Byt dokument" : "Lägg till mötesdokument"}</button>
         )}
         {editing && (
@@ -380,7 +383,7 @@ function ProjectBar({ clients, current, view, onView, onPick, onUpdate, onCreate
             <button type="button" className="tl-link" onClick={() => setEditing(false)}>Avbryt</button>
           </form>
         )}
-        {current.nextStepDate && (
+        {owner && current.nextStepDate && (
           <span title={current.nextStep}>Nästa: {dayLabel(current.nextStepDate)}</span>
         )}
       </div>

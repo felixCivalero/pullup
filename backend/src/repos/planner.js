@@ -259,3 +259,12 @@ export async function deletePlannerEvent(id, hostId) {
   }
   return { ok: true };
 }
+
+// Which client a planner row belongs to (null = none, or not found), so a
+// project member can only change rows in their own project.
+const PLANNER_TABLES = { cards: "planner_cards", timelines: "planner_timelines", events: "planner_events" };
+export async function plannerRowClient(kind, id, hostId) {
+  const { data, error } = await supabase.from(PLANNER_TABLES[kind]).select("client_id").eq("id", id).eq("host_id", hostId).maybeSingle();
+  if (error) throw error;
+  return data?.client_id || null;
+}

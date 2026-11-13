@@ -1,8 +1,9 @@
 // /admin/projects — a client's project: the board (free-form, for developing
 // formats in meetings) and the strategy deck. The timeline is /admin/planner.
-// Owner only. Saves carry the version they were based on; a stale one gets
+// The owner, and a client's own people in their project (requireProject.js).
+// Saves carry the version they were based on; a stale one gets
 // 409 with the latest so the page can merge and retry.
-import { requireOwner } from "../middleware/requireOwner.js";
+import { canSeeClient, requireProjectAccess } from "../middleware/requireProject.js";
 import { getProjectDoc, isDocKind, saveProjectDoc } from "../repos/projectDocs.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,14 +36,14 @@ async function expandUrl(raw) {
 export function registerAdminProjectRoutes(app) {
   const params = (req, res) => {
     const { clientId, kind } = req.params;
-    if (!UUID.test(clientId) || !isDocKind(kind)) {
+    if (!UUID.test(clientId) || !isDocKind(kind) || !canSeeClient(req, clientId)) {
       res.status(404).json({ error: "not_found" });
       return null;
     }
     return { clientId, kind };
   };
 
-  app.get("/admin/projects/:clientId/:kind", requireOwner, async (req, res) => {
+  app.get("/admin/projects/:clientId/:kind", requireProjectAccess, async (req, res) => {
     const p = params(req, res);
     if (!p) return undefined;
     try {
@@ -53,7 +54,7 @@ export function registerAdminProjectRoutes(app) {
     }
   });
 
-  app.put("/admin/projects/:clientId/:kind", requireOwner, async (req, res) => {
+  app.put("/admin/projects/:clientId/:kind", requireProjectAccess, async (req, res) => {
     const p = params(req, res);
     if (!p) return undefined;
     const { doc, version } = req.body || {};
@@ -70,7 +71,7 @@ export function registerAdminProjectRoutes(app) {
   });
 
   // GET /admin/resolve-url?url= — expand a social short link.
-  app.get("/admin/resolve-url", requireOwner, async (req, res) => {
+  app.get("/admin/resolve-url", requireProjectAccess, async (req, res) => {
     try {
       const url = await expandUrl(String(req.query.url || ""));
       if (!url) return res.status(400).json({ error: "unsupported_url" });

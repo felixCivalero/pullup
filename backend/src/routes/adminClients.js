@@ -4,6 +4,7 @@
 // there is a pitch. The project's name can differ from the sheet's company
 // (e.g. an artist name); the sheet row stays the record of the deal.
 import { requireOwner } from "../middleware/requireOwner.js";
+import { requireProjectAccess } from "../middleware/requireProject.js";
 import { readSalesSheet, salesSheetConfigured } from "../lib/salesSheet.js";
 import { parseProspects } from "../lib/salesSummary.js";
 import { ensureClients, listClients, updateClient } from "../repos/clients.js";
@@ -11,13 +12,25 @@ import { syncClients } from "./adminSales.js";
 
 export function registerAdminClientRoutes(app) {
   // GET /admin/clients — every client with its sheet stage and next step.
-  app.get("/admin/clients", requireOwner, async (req, res) => {
+  // A project member (client_members) gets only their projects, and nothing
+  // from the sheet or Felix's meetings doc.
+  app.get("/admin/clients", requireProjectAccess, async (req, res) => {
+    if (!req.projects.all) {
+      try {
+        const mine = (await listClients()).filter((c) => req.projects.clientIds.has(c.id));
+        return res.json({ owner: false, clients: mine.map((c) => ({ id: c.id, prospectId: c.prospectId, company: c.company })) });
+      } catch (err) {
+        console.error("[admin/clients] member:", err?.message);
+        return res.status(500).json({ error: "failed" });
+      }
+    }
     if (!salesSheetConfigured()) return res.status(503).json({ error: "not_configured" });
     try {
       const sheet = await readSalesSheet({ fresh: req.query.fresh === "1" });
       const clients = await syncClients(sheet.prospectRows);
       const byId = new Map(parseProspects(sheet.prospectRows).map((p) => [p.id, p]));
       return res.json({
+        owner: true,
         clients: clients.map((c) => {
           const p = byId.get(c.prospectId);
           return { ...c, stage: p?.stage || "", nextStep: p?.nextStep || "", nextStepDate: p?.nextStepDate || "" };

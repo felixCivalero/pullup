@@ -7,7 +7,7 @@ import { Share, SHARE_CSS } from "./Share.jsx";
    same one as under Pitch, never a copy), as the ground the project stands
    on. Every slide is listed and opens the pitch right there; Presentera and
    Dela work as on the Pitch page. */
-export function ProjectPitch({ entry, projectName }) {
+export function ProjectPitch({ entry, projectName, canShare = true }) {
   const [pitch, setPitch] = useState(null);
   useEffect(() => {
     if (!entry) return undefined;
@@ -23,7 +23,7 @@ export function ProjectPitch({ entry, projectName }) {
         <div className="pp-page">
           <p className="pp-kicker">Pitch · {projectName}</p>
           <h1>Ingen pitch än</h1>
-          <p className="pp-lead">Pitchen är grunden i projektet: resan som strategin, buckets och tidslinjen bygger på. Be Claude bygga en till {projectName}, så kopplas den hit.</p>
+          <p className="pp-lead">Pitchen är grunden i projektet: resan som strategin, buckets och tidslinjen bygger på. {canShare ? <>Be Claude bygga en till {projectName}, så kopplas den hit.</> : null}</p>
         </div>
       </div>
     );
@@ -43,7 +43,7 @@ export function ProjectPitch({ entry, projectName }) {
           <div className="pp-side">
             <p className="pp-lead">{entry.share?.description}</p>
             <Link to={`/admin/pitch/${entry.slug}`} className="pp-btn"><Play size={14} /> Presentera</Link>
-            <Share pitch={entry} />
+            {canShare && <Share pitch={entry} />}
           </div>
         </div>
         {pitch && (

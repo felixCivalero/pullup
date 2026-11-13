@@ -13,6 +13,7 @@ import { ADMIN_SKIN } from "./adminSkin.js";
 import { LangSwitch } from "../../components/agency/LangSwitch.jsx";
 import { setLang, useLang } from "../../components/agency/i18n.js";
 import { browserLang, translatePage } from "../../lib/adminI18n.js";
+import { PITCHES } from "./pitch/index.js";
 
 /* Every /admin page renders inside this: the sign-in gate + the top bar.
    Any signed-in person is an organiser and gets their events, CRM, mail and
@@ -39,7 +40,7 @@ const NAV = [
   ["/admin", "Översikt", "owner"],
   ["/admin/sales", "Byrå", "owner"],
   ["/admin/platform", "Eventverktyget", "owner"],
-  ["/admin/projects", "Projekt", "owner"],
+  ["/admin/projects", "Projekt", "project"], // the owner's, and a client's own people (client_members)
   ["/admin/events", "Event"],
   ["/admin/people", "CRM"],
   ["/admin/mail", "Mejl", "team"],
@@ -57,6 +58,15 @@ const OWNER_PATHS = ["/admin/site", "/admin/platform", "/admin/free-tool", "/adm
 const ORGANISER_PATHS = ["/admin/events", "/admin/people", "/admin/mail", "/admin/stats", "/admin/team", "/admin/agents"];
 const organiserPage = (path) => ORGANISER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 const ownerPage = (path) => path === "/admin" || path === "/admin/" || OWNER_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+// Someone let into a client's project (/admin/me.projects) may open Projekt
+// and play that project's pitch, nothing else of the owner's.
+const projectPage = (path, projects) => {
+  if (!projects?.length) return false;
+  if (path === "/admin/projects") return true;
+  const slug = path.match(/^\/admin\/pitch\/([^/]+)$/)?.[1];
+  const entry = slug && PITCHES.find((p) => p.slug === slug);
+  return !!entry && projects.some((p) => p.prospectId === entry.prospectId);
+};
 
 // The server check runs once per signed-in user, not on every page switch:
 // what it said about the account is kept here.
@@ -133,10 +143,12 @@ export function AdminShell({ title, fill = false, children }) {
   if (session === undefined) return waiting;
   if (!session || server === "refused") return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
   if (server === "checking" && !isVerified) return waiting;
-  if (!owner && ownerPage(pathname)) return <Navigate to="/admin/events" replace />;
+  const inProject = !owner && projectPage(pathname, me?.projects);
+  if (!owner && ownerPage(pathname) && !inProject) return <Navigate to="/admin/events" replace />;
   if (owner && organiserPage(pathname)) return <Navigate to="/admin" replace />;
   const brands = me?.brands || [];
-  const starting = !!me && !owner && brands.length === 0;
+  // No brand yet → the start, except inside a project they were let into.
+  const starting = !!me && !owner && brands.length === 0 && !inProject;
   const picked = brands.find((b) => b.id === brandId) || brands.find((b) => b.id === me?.brand) || brands[0] || null;
   rememberBrands(brands);
   // The brand on screen, with the umbrella around it: the brands under it
@@ -147,7 +159,14 @@ export function AdminShell({ title, fill = false, children }) {
     parent: brands.find((b) => b.id === picked.parentId) || null,
     all: brands,
   };
-  const shown = ([, , only]) => (owner ? only === "owner" : only === "owner" ? false : only === "team" ? current?.role !== "event" : true);
+  const hasProjects = !!me?.projects?.length;
+  const shown = ([to, , only]) => {
+    if (only === "project") return owner || hasProjects;
+    if (owner) return only === "owner";
+    if (only === "owner") return false;
+    if (brands.length === 0) return to === "/admin/events"; // the event tool starts there (Onboarding)
+    return only === "team" ? current?.role !== "event" : true;
+  };
 
   return (
     <ToastProvider>
@@ -155,7 +174,7 @@ export function AdminShell({ title, fill = false, children }) {
         <style>{ADMIN_CSS + ADMIN_SKIN}</style>
         <header className="ad-bar">
           <nav>
-            {!starting && NAV.filter(shown).map(([to, label, , wide]) => (
+            {(!starting || hasProjects) && NAV.filter(shown).map(([to, label, , wide]) => (
               <NavLink key={to} to={to} end={to === "/admin"} className={({ isActive }) => [(isActive || (GROUPS[to] && groupOf(pathname) === to)) && "is-on", wide].filter(Boolean).join(" ") || undefined}>
                 {label}
               </NavLink>

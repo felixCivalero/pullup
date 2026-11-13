@@ -6,6 +6,7 @@ import { summarizeVisits, visitTimeline } from "../lib/visitJourneys.js";
 import { uniqueVisitors } from "../lib/uniqueVisitors.js";
 import { brandScope, brandShape } from "../lib/brands.js";
 import { myInvites } from "../lib/teams.js";
+import { memberClientIds } from "../middleware/requireProject.js";
 
 // The stats cookie (opt-in, frontend lib/consent.js) went live this day; before
 // it no visitor was kept, so unique visitors are counted from here on.
@@ -133,7 +134,18 @@ export function registerAdminRoutes(app) {
   // admin decides from this whether a person needs the start (onboarding).
   app.get("/admin/me", requireUser, async (req, res) => {
     try {
-      const [{ brands, brand }, invites] = await Promise.all([brandScope(req.caller), myInvites(req.caller)]);
+      const [{ brands, brand }, invites, projectIds] = await Promise.all([
+        brandScope(req.caller),
+        myInvites(req.caller),
+        req.caller.isOwner ? [] : memberClientIds(req.caller.email),
+      ]);
+      // Client projects this person was let into (Projekt, client_members).
+      let projects = [];
+      if (projectIds.length) {
+        const { data, error: pErr } = await supabase.from("clients").select("id, prospect_id, company").in("id", projectIds);
+        if (pErr) throw pErr;
+        projects = (data || []).map((c) => ({ id: c.id, prospectId: c.prospect_id, company: c.company }));
+      }
       const { count, error } = await supabase
         .from("events")
         .select("id", { count: "exact", head: true })
@@ -147,6 +159,7 @@ export function registerAdminRoutes(app) {
         brand: brand?.id || null,
         events: count || 0,
         invites,
+        projects,
       });
     } catch (err) {
       console.error("[admin/me]", err?.message);

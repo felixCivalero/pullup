@@ -52,6 +52,48 @@ function takeAuthLinkError() {
 
 export const authLinkError = takeAuthLinkError();
 
+// Browsers that used the old PullUp app still carry its sign-in: the old app
+// signed in every guest who RSVP'd, and its sessions never expire on their
+// own. Under the same storage key this site picked that session up, so /login
+// skipped the form and landed the person in /admin as whoever that browser
+// last was (a guest account, another email) — only a private window let them
+// sign in as themselves. Sessions signed in before the browser-bound sign-in
+// went live (2026-10-26) are the old app's: drop them here, before the client
+// reads storage, together with the old app's own pullup_* keys. Runs once per
+// load; costs nothing once a browser is clean.
+const NEW_LOGIN_SINCE = Date.parse("2026-10-26T07:00:00Z") / 1000;
+
+function signedInAt(accessToken) {
+  try {
+    const part = accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), "=")));
+    const times = (claims.amr || []).map((a) => Number(a.timestamp)).filter(Boolean);
+    return times.length ? Math.min(...times) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearOldAppSignIn(storage = globalThis.localStorage, url = supabaseUrl) {
+  if (!storage) return false;
+  try {
+    for (const k of Object.keys(storage)) if (k.startsWith("pullup_")) storage.removeItem(k);
+    const key = `sb-${new URL(url).hostname.split(".")[0]}-auth-token`;
+    const raw = storage.getItem(key);
+    if (!raw) return false;
+    const stored = JSON.parse(raw);
+    const at = signedInAt(stored?.access_token || stored?.currentSession?.access_token || "");
+    if (at !== null && at >= NEW_LOGIN_SINCE) return false;
+    storage.removeItem(key);
+    storage.removeItem(`${key}-code-verifier`);
+    return true;
+  } catch {
+    return false; // storage blocked or unreadable — nothing to clean
+  }
+}
+
+clearOldAppSignIn();
+
 // Create Supabase client with auth enabled. Sign-in itself goes through our
 // own browser-bound flow (lib/deviceLogin.js); PKCE is set so that any link
 // Supabase itself ever mails can only be redeemed by the browser that asked.

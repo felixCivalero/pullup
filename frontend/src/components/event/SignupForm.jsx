@@ -21,7 +21,7 @@ const ERRORS = {
   invalid_instagram: "Instagram-namnet ser inte rätt ut.",
 };
 
-export function SignupForm({ slug, full = false, open = true, calendar = null, cta = null, organizer = null, preview = false, form: ask = null, lang = "sv" }) {
+export function SignupForm({ slug, full = false, open = true, paused = false, calendar = null, cta = null, organizer = null, preview = false, form: ask = null, lang = "sv" }) {
   // What this event asks besides name and email (backend lib/eventForm.js).
   const f = { phone: "off", instagram: "off", plusOnes: 0, questions: [], ...(ask || {}) };
   const questions = (f.questions || []).filter((q) => q.label && (q.type !== "choice" || (q.options || []).filter(Boolean).length >= 2));
@@ -61,6 +61,7 @@ export function SignupForm({ slug, full = false, open = true, calendar = null, c
     }
   };
 
+  if (paused) return <p className="sf-closed">Anmälan är pausad. Inga fler platser just nu.</p>;
   if (!open) return <p className="sf-closed">Anmälan är stängd.</p>;
 
   if (state === "done") {

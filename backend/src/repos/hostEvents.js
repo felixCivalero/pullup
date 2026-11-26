@@ -213,7 +213,7 @@ export function eventPatch(body) {
   Object.assign(patch, formPatch(body.form));
   if (body.signupSettings && typeof body.signupSettings === "object") {
     const s = body.signupSettings;
-    patch.signup_settings = { hidden: !!s.hidden, label: typeof s.label === "string" ? s.label.slice(0, 80) : "", cta: typeof s.cta === "string" ? s.cta.slice(0, 40) : "" };
+    patch.signup_settings = { hidden: !!s.hidden, closed: !!s.closed, label: typeof s.label === "string" ? s.label.slice(0, 80) : "", cta: typeof s.cta === "string" ? s.cta.slice(0, 40) : "" };
   }
   for (const [k, col] of [["hideLocation", "hide_location"], ["hideDate", "hide_date"], ["showCoordinates", "show_coordinates"]]) {
     if (typeof body[k] === "boolean") patch[col] = body[k];

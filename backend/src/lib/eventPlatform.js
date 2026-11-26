@@ -93,8 +93,10 @@ export function formatWhen(ev, locale = "sv-SE") {
   return `${day}, ${time(ev.starts_at)}${ev.ends_at ? `–${time(ev.ends_at)}` : ""}`;
 }
 
+// signup_settings.closed = the organiser paused sign-up (no more guests);
+// the page stays up and says so, the host can still add people by hand.
 export const isOpenForSignup = (ev, now = Date.now()) =>
-  ev.status === "PUBLISHED" && new Date(ev.ends_at || ev.starts_at).getTime() > now;
+  ev.status === "PUBLISHED" && !ev.signup_settings?.closed && new Date(ev.ends_at || ev.starts_at).getTime() > now;
 
 // One CRM row per person: who they are, how they found us, every event they
 // signed up to, how many they actually came to. Pulled up = rsvps.pulled_up

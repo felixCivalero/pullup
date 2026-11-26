@@ -1,6 +1,6 @@
 import { createElement, useCallback, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, BarChart3, Copy, ExternalLink, LayoutGrid, Mail, Send, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, BarChart3, Copy, ExternalLink, LayoutGrid, Mail, Pause, Play, Send, UserPlus, Users } from "lucide-react";
 import { authenticatedFetch } from "../../lib/api.js";
 import { followBrand, useCurrentBrand, useEventBrand } from "../../lib/brand.js";
 import { BrandKicker, TeamOnly } from "../../components/admin/ByBrand.jsx";
@@ -99,7 +99,7 @@ export function EventDetailPage() {
             </nav>
             {tab === "overview" && (
               <>
-                {ev.mine ? <DesignCard ev={ev} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
+                {ev.mine ? <DesignCard ev={ev} onChange={load} /> : <p className="ea-muted">Det här eventet skapades av {ev.host || "en annan arrangör"} i den gamla appen. Du ser gästlistan men redigerar det inte här.</p>}
                 {ev.mine && <MoveBrand ev={ev} onMoved={load} />}
                 <Latest guests={data.guests} onAll={() => setTab("guests")} />
                 {ev.mine && <TeamOnly><DeleteEvent ev={ev} /></TeamOnly>}
@@ -320,17 +320,39 @@ function ShareLink({ url, live }) {
 }
 
 // The page itself is designed in the editor (/admin/events/:id/edit).
-function DesignCard({ ev }) {
+function DesignCard({ ev, onChange }) {
   const live = ev.status === "PUBLISHED";
+  const paused = !!ev.signupSettings?.closed;
+  const [busy, setBusy] = useState(false);
+  // Pause sign-up = no more guests (the page stays up and says so). The
+  // same switch as "Pausa anmälan" in the editor; the server refuses sign-ups.
+  const togglePause = async () => {
+    setBusy(true);
+    try {
+      await authenticatedFetch(`/admin/events/${ev.id}`, { method: "PATCH", body: JSON.stringify({ signupSettings: { ...(ev.signupSettings || {}), closed: !paused } }) });
+      onChange?.();
+    } finally { setBusy(false); }
+  };
   return (
     <section className="ed-design">
       <Link to={`/admin/events/${ev.id}/edit`} className="ed-design-img">
         {ev.imageUrl ? <img src={ev.imageUrl} alt="" /> : <span>Inget omslag än</span>}
       </Link>
       <div className="ed-design-body">
-        <span className={`ea-chip ${live ? "is-live" : "is-draft"}`}>{live ? "Publicerad" : "Utkast"}</span>
+        <span className="ed-chips">
+          <span className={`ea-chip ${live ? "is-live" : "is-draft"}`}>{live ? "Publicerad" : "Utkast"}</span>
+          {paused && <span className="ea-chip is-paused">Anmälan pausad</span>}
+        </span>
         <p className="ea-muted">Omslag, bild, karusell eller video, innehållet och anmälan designar du i editorn, med sidan live bredvid.</p>
-        <Link to={`/admin/events/${ev.id}/edit`} className="ea-btn is-dark">Designa sidan</Link>
+        <span className="ed-chips">
+          <Link to={`/admin/events/${ev.id}/edit`} className="ea-btn is-dark">Designa sidan</Link>
+          {live && (
+            <button type="button" className="ea-btn" disabled={busy} onClick={togglePause}>
+              {paused ? <Play size={15} /> : <Pause size={15} />} {paused ? "Öppna anmälan igen" : "Pausa anmälan"}
+            </button>
+          )}
+        </span>
+        {paused && <p className="ea-muted">Inga fler kan anmäla sig. Sidan ligger kvar och säger att anmälan är pausad.</p>}
       </div>
     </section>
   );
@@ -549,6 +571,7 @@ const DETAIL_CSS = `
   .ed-design-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .ed-design-body { display: grid; gap: 10px; justify-items: start; }
   .ed-design-body .ea-muted { margin: 0; }
+  .ed-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .ed-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .ed-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .ed-sec-head h2 { margin-bottom: 10px; }

@@ -145,6 +145,7 @@ function EventsList() {
                     <span className={`ea-chip ${e.status === "DRAFT" ? "is-draft" : isPast(e) ? "is-past" : "is-live"}`}>
                       {e.status === "DRAFT" ? "Utkast" : isPast(e) ? "Har varit" : "Publicerad"}
                     </span>
+                    {e.status !== "DRAFT" && !isPast(e) && e.signupSettings?.closed && <span className="ea-chip is-paused">Pausad</span>}
                   </button>
                   )}
                   {canDelete(e) && asking !== e.id && (

@@ -70,7 +70,7 @@ export function EventPage() {
   // Under the form, quietly: every event page shows where free ones come from.
   const rsvpContent = () => (
     <>
-      <SignupForm slug={ev.slug} open={ev.open} full={ev.full} calendar={data.calendar} cta={ev.signupSettings?.cta || null} organizer={ev.organizer || null} form={ev.form} lang={lang} />
+      <SignupForm slug={ev.slug} open={ev.open} paused={!!ev.signupSettings?.closed} full={ev.full} calendar={data.calendar} cta={ev.signupSettings?.cta || null} organizer={ev.organizer || null} form={ev.form} lang={lang} />
       {ev.branding !== false && <a href="/eventverktyg" style={{ display: "block", margin: "18px 0 0", fontSize: 12, textAlign: "center", color: "inherit", opacity: 0.5, textDecoration: "none" }}>
         Gjord med PullUp · gör din egen eventsida gratis
       </a>}

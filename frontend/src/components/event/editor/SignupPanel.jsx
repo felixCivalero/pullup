@@ -40,6 +40,7 @@ export function SignupPanel({ draft, update }) {
       )}
       <p className="ee-step-head">Anmälan</p>
       <FormBuilder form={draft.form} onChange={(form) => update({ form })} capacity={draft.capacity} onCapacity={(capacity) => update({ capacity })} />
+      <Toggle on={!!s.closed} onChange={(v) => setS({ closed: v })} label="Pausa anmälan" hint={s.closed ? "Inga fler kan anmäla sig. Sidan ligger kvar och säger att anmälan är pausad. Du kan fortfarande lägga till gäster själv." : "Stäng för fler gäster när du har tillräckligt många."} />
       <Toggle on={!s.hidden} onChange={(v) => setS({ hidden: !v })} label="Visa anmälan på sidan" hint={s.hidden ? "Ingen kan anmäla sig via sidan just nu." : null} />
       {!s.hidden && (
         <>

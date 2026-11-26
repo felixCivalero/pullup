@@ -22,7 +22,7 @@ export function pageProps(event, { rsvpContent = null } = {}) {
     ticketType: "free",
     isEventPast: !!event.startsAt && ended,
     isSoldOut: false,
-    rsvpsPaused: false,
+    rsvpsPaused: !!signup.closed,
     sections: event.sections || [],
     design: null,
     hideLocation: !!event.hideLocation,
@@ -33,7 +33,7 @@ export function pageProps(event, { rsvpContent = null } = {}) {
     kind: "event",
     hideSignup: !!signup.hidden,
     signupLabel: signup.label || null,
-    signupCta: signup.cta || null,
+    signupCta: signup.closed ? null : signup.cta || null,
     look: event.look || null,
   };
 }

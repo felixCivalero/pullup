@@ -200,7 +200,7 @@ function Editor() {
   }
 
   const live = draft.status === "PUBLISHED";
-  const rsvpContent = () => <SignupForm preview slug={draft.slug} cta={draft.signupSettings?.cta || null} form={draft.form} />;
+  const rsvpContent = () => <SignupForm preview slug={draft.slug} paused={!!draft.signupSettings?.closed} cta={draft.signupSettings?.cta || null} form={draft.form} />;
   const props = pageProps({ ...draft, text: "" }, { rsvpContent });
 
   // 02 Content is a stage: only the page, as big as it gets, on the screen

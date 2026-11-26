@@ -38,6 +38,7 @@ assert(/^slapp-for-jul-[a-z2-9]{4}$/.test(makeSlug("Släpp för jul!")), "slug: 
 assert(sectionsFor("Hej").at(-1).text === "Hej" && sectionsFor("").length === 3, "sections the old editor reads");
 assert(formatWhen(ev) === "lördag 7 november 2026, 19:00", "when, in the event's own time zone");
 assert(isOpenForSignup(ev, Date.parse("2026-11-01")) && !isOpenForSignup(ev, Date.parse("2026-11-08")) && !isOpenForSignup({ ...ev, status: "DRAFT" }, 0), "sign-up open only while published and not over");
+assert(!isOpenForSignup({ ...ev, signup_settings: { closed: true } }, Date.parse("2026-11-01")) && isOpenForSignup({ ...ev, signup_settings: { closed: false } }, Date.parse("2026-11-01")), "a paused sign-up takes no more guests");
 
 // Sections from the editor
 const cs = cleanSections([

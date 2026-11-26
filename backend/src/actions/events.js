@@ -56,6 +56,7 @@ function designOf(event) {
     dateRevealHint: event.dateRevealHint || "",
     signupButton: event.signupSettings?.cta || "",
     signupHidden: !!event.signupSettings?.hidden,
+    signupPaused: !!event.signupSettings?.closed,
     signupForm: event.form,
     look: event.look || null,
   };
@@ -219,6 +220,7 @@ export const updateEventAction = defineAction({
     dateRevealHint: z.string().max(80).optional().describe("What guests see instead of a hidden date."),
     signupButton: z.string().max(40).optional().describe("The sign-up button's text, e.g. 'Save my spot'. Empty = the default."),
     signupHidden: z.boolean().optional().describe("Hide the sign-up form (a page that only informs)."),
+    signupPaused: z.boolean().optional().describe("Pause sign-up: no more guests can sign up (e.g. the organiser has enough people); the page stays up and says sign-up is paused. false opens it again."),
     signupForm,
     look: z.object({
       bg: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional().describe("Background colour as #rrggbb; text follows it (dark on light, white on dark)."),
@@ -227,8 +229,8 @@ export const updateEventAction = defineAction({
   }),
   run: async (input, { caller }) => {
     const current = await eventFor(caller, input.eventId);
-    const signup = input.signupButton !== undefined || input.signupHidden !== undefined
-      ? { cta: input.signupButton ?? current.signup_settings?.cta ?? "", hidden: input.signupHidden ?? !!current.signup_settings?.hidden, label: current.signup_settings?.label || "" }
+    const signup = input.signupButton !== undefined || input.signupHidden !== undefined || input.signupPaused !== undefined
+      ? { cta: input.signupButton ?? current.signup_settings?.cta ?? "", hidden: input.signupHidden ?? !!current.signup_settings?.hidden, closed: input.signupPaused ?? !!current.signup_settings?.closed, label: current.signup_settings?.label || "" }
       : undefined;
     const tz = input.timeZone || current.timezone || "Europe/Stockholm";
     const event = await updateEvent(caller, input.eventId, {

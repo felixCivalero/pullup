@@ -20,6 +20,7 @@ export const EVENT_ADMIN_CSS = `
   .ea-chip { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #f0f0f0; color: #3a3a3e; white-space: nowrap; }
   .ea-chip.is-live { background: rgba(31,122,58,0.12); color: #1f7a3a; }
   .ea-chip.is-draft { background: rgba(217,72,15,0.1); color: #D9480F; }
+  .ea-chip.is-paused { background: rgba(236,23,143,0.1); color: #b3126c; }
   .ea-chip.is-past { background: #f0f0f0; color: #8a8a8e; }
   .ea-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #d4d4d8; }
   .ea-dot.is-on { background: #1f7a3a; }
